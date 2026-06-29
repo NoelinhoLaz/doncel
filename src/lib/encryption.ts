@@ -3,16 +3,15 @@ import crypto from 'crypto';
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
 const ALGORITHM = 'aes-256-gcm';
 
-if (!ENCRYPTION_KEY) {
-  throw new Error("Missing ENCRYPTION_KEY in environment variables");
-}
-
 export function encrypt(text: string) {
   if (!text) return { encryptedData: text, iv: null, authTag: null };
+  if (!ENCRYPTION_KEY) {
+    throw new Error("Missing ENCRYPTION_KEY in environment variables");
+  }
   
   const iv = crypto.randomBytes(16);
   // La clave debe ser de 32 bytes para aes-256-gcm. Si viene en hex, la convertimos a buffer.
-  const key = Buffer.from(ENCRYPTION_KEY!, 'hex');
+  const key = Buffer.from(ENCRYPTION_KEY, 'hex');
   
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
   
@@ -30,10 +29,13 @@ export function encrypt(text: string) {
 
 export function decrypt(encryptedText: string, ivHex: string, authTagHex: string): string {
   if (!encryptedText || !ivHex || !authTagHex) return encryptedText;
+  if (!ENCRYPTION_KEY) {
+    throw new Error("Missing ENCRYPTION_KEY in environment variables");
+  }
   
   const iv = Buffer.from(ivHex, 'hex');
   const authTag = Buffer.from(authTagHex, 'hex');
-  const key = Buffer.from(ENCRYPTION_KEY!, 'hex');
+  const key = Buffer.from(ENCRYPTION_KEY, 'hex');
   
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(authTag);
