@@ -300,8 +300,10 @@ export async function runBiChat(
     const safeNames = geo.found.map(s => s.nombre.replace(/'/g, "''"));
     const checkSQL = `SELECT nombre FROM contabilidad_entidades WHERE ${safeNames.map(n => `nombre ILIKE '%${n}%'`).join(" OR ")}`;
     const { data: matchData } = await db.rpc("exec_bi_query", { query_sql: checkSQL }).maybeSingle();
-    const matchRows: any[] = Array.isArray(matchData?.rows) ? matchData.rows : [];
-    const existingNombres = new Set(matchRows.map((r: any) => r.nombre.toLowerCase()));
+    const matchRows = (matchData && typeof matchData === "object" && "rows" in matchData && Array.isArray((matchData as { rows: unknown }).rows))
+      ? ((matchData as { rows: { nombre: string }[] }).rows)
+      : [];
+    const existingNombres = new Set(matchRows.map((r) => r.nombre.toLowerCase()));
 
     const nuevos = geo.found.filter(s => {
       const n = s.nombre.toLowerCase();
@@ -504,8 +506,8 @@ Para filtrar por agente usa su id directamente (más fiable que buscar por nombr
     // Supabase may return it as-is or nested depending on the client version
     if (Array.isArray(data)) {
       queryData = data;
-    } else if (Array.isArray(data?.rows)) {
-      queryData = data.rows;
+    } else if (data && typeof data === "object" && "rows" in data && Array.isArray((data as { rows: unknown }).rows)) {
+      queryData = (data as { rows: any[] }).rows;
     } else if (data && typeof data === "object") {
       // Sometimes Supabase wraps the jsonb response differently
       const keys = Object.keys(data);
@@ -537,8 +539,11 @@ Para filtrar por agente usa su id directamente (más fiable que buscar por nombr
       console.log("[bi-chat] extraSql result:", JSON.stringify(eData)?.slice(0, 300), "error:", eErr?.message);
       if (eErr) return undefined;
       let extraRows: any[] = [];
-      if (Array.isArray(eData)) extraRows = eData;
-      else if (Array.isArray(eData?.rows)) extraRows = eData.rows;
+      if (Array.isArray(eData)) {
+        extraRows = eData;
+      } else if (eData && typeof eData === "object" && "rows" in eData && Array.isArray((eData as { rows: unknown }).rows)) {
+        extraRows = (eData as { rows: any[] }).rows;
+      }
       const chartData = extraRows.map((row: any) => {
         const keys = Object.keys(row);
         return { name: String(row[keys[0]] ?? ""), value: Number(row[keys[1]] ?? 0) };

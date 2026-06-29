@@ -248,8 +248,11 @@ ${cotizacionContext}`;
   try {
     const { data, error } = await db.rpc("exec_bi_query", { query_sql: safeSQL }).maybeSingle();
     if (error) throw error;
-    if (Array.isArray(data)) queryData = data;
-    else if (Array.isArray(data?.rows)) queryData = data.rows;
+    if (Array.isArray(data)) {
+      queryData = data;
+    } else if (data && typeof data === "object" && "rows" in data && Array.isArray((data as { rows: unknown }).rows)) {
+      queryData = (data as { rows: any[] }).rows;
+    }
     else if (data && typeof data === "object") {
       const keys = Object.keys(data);
       const first = data[keys[0]];
