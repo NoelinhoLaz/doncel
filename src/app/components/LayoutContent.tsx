@@ -40,7 +40,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
     <NextUIProvider>
       <AgentBar />
       <MenuPrincipal onOpenCopiloto={() => setCopilotoOpen(true)} />
-      <main style={{
+      <main className="appMain" style={{
         marginLeft: "40px",
         paddingTop: "60px",
         minHeight: "100vh",

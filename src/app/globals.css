@@ -167,3 +167,11 @@ input[type="checkbox"]:not([style*="opacity: 0"]):checked::after {
 [data-tip]:hover::after {
   opacity: 1;
 }
+
+/* Tablet & mobile: compensate for bottom nav bar */
+@media (max-width: 1024px) {
+  .appMain {
+    margin-left: 0 !important;
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}

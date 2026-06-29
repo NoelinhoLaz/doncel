@@ -144,4 +144,54 @@
   }
 }
 
+/* Tablet & mobile: bottom navigation bar */
+@media (max-width: 1024px) {
+  .menu {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 56px;
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+    padding-top: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    gap: 0;
+    border-top: 1px solid #e2e8f0;
+    box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.06);
+  }
+
+  .settingsWrapper {
+    margin-top: 0;
+    padding-bottom: 0;
+    display: flex;
+    flex-direction: row;
+    gap: 0;
+  }
+
+  .menuItemWrapper {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .menuItem {
+    width: 44px;
+    height: 44px;
+  }
+
+  .submenuFlyout {
+    left: 50%;
+    bottom: 60px;
+    top: auto;
+    transform: translateX(-50%);
+  }
+
+  .submenuFlyout::before,
+  .submenuFlyout::after {
+    display: none;
+  }
+}
+
 
