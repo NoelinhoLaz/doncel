@@ -59,10 +59,20 @@ export async function getCampanas() {
 
   const { data, error } = await query;
   if (error) throw error;
+
+  if (!isAdmin(rol) && data) {
+    return data.map((campana: any) => ({
+      ...campana,
+      crm_oportunidades: (campana.crm_oportunidades ?? []).filter((o: any) => o.agente_id === usuarioId),
+      crm_campanas_agentes: (campana.crm_campanas_agentes ?? []).filter((a: any) => a.agente_id === usuarioId),
+    }));
+  }
+
   return data ?? [];
 }
 
 export async function getCampana(id: string) {
+  const { usuarioId, rol } = await getCurrentAgente();
   const agencyDb = await getAgencyDbClient();
   const { data, error } = await agencyDb
     .from("crm_campanas")
@@ -77,6 +87,18 @@ export async function getCampana(id: string) {
     .eq("id", id)
     .single();
   if (error) throw error;
+
+  if (!isAdmin(rol) && data) {
+    const isParticipant = (data.crm_campanas_agentes ?? []).some((a: any) => a.agente_id === usuarioId);
+    if (!isParticipant) {
+      throw new Error("No autorizado para ver esta campaña");
+    }
+    return {
+      ...data,
+      crm_campanas_agentes: (data.crm_campanas_agentes ?? []).filter((a: any) => a.agente_id === usuarioId),
+    };
+  }
+
   return data;
 }
 

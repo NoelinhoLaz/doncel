@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCampanas, createCampana } from '@/actions/crm';
+import { getCampanas, createCampana, getCurrentAgentePublic } from '@/actions/crm';
 
 export async function GET() {
   try {
-    const data = await getCampanas();
-    return NextResponse.json({ success: true, data });
+    const [data, agente] = await Promise.all([getCampanas(), getCurrentAgentePublic()]);
+    return NextResponse.json({ success: true, data, rol: agente.rol, agenteId: agente.usuarioId });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

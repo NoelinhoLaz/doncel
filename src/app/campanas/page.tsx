@@ -689,7 +689,7 @@ function ObjetivoBar({ conseguido, objetivo, height = 12 }: { conseguido: number
         <div style={{
           position: "absolute", left: 0, top: 0, height: "100%",
           width: `${pct}%`,
-          background: "linear-gradient(90deg, #6366f1, #a78bfa)",
+          background: "linear-gradient(90deg, #db2777, #f472b6)",
           borderRadius: 99,
           transition: "width 0.4s ease",
         }} />
@@ -731,6 +731,7 @@ export default function CampanasPage() {
   const [campanas, setCampanas] = useState<Campana[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
   const [editingNombreId, setEditingNombreId] = useState<string | null>(null);
   const [editingNombreVal, setEditingNombreVal] = useState("");
   const [savingNombre, setSavingNombre] = useState(false);
@@ -752,8 +753,9 @@ export default function CampanasPage() {
   async function loadCampanas() {
     setLoading(true);
     try {
-      const { data } = await apiFetch("/api/crm/campanas");
-      setCampanas((data ?? []).map(normalizeCampana));
+      const res = await apiFetch("/api/crm/campanas");
+      setCampanas((res.data ?? []).map(normalizeCampana));
+      setIsOwner(["Owner", "SuperAdmin", "Admin"].includes(res.rol ?? ""));
     } catch (e) {
       console.error(e);
     } finally {
@@ -838,10 +840,12 @@ export default function CampanasPage() {
                 onChange={e => setSearch(e.target.value)}
               />
             </div>
-            <button className={styles.addBtn} onClick={() => setShowModal(true)}>
-              <Plus size={14} />
-              Nueva campaña
-            </button>
+            {isOwner && (
+              <button className={styles.addBtn} onClick={() => setShowModal(true)}>
+                <Plus size={14} />
+                Nueva campaña
+              </button>
+            )}
           </div>
         </div>
 
@@ -883,7 +887,7 @@ export default function CampanasPage() {
                 <React.Fragment key={c.id}>
                   <tr className={styles.tr} style={{ cursor: "pointer" }} onClick={() => editingNombreId !== c.id && router.push(`/campanas/${c.id}`)}>
                     <td className={styles.td} onClick={e => { if (editingNombreId === c.id) e.stopPropagation(); }}>
-                      {editingNombreId === c.id ? (
+                      {isOwner && editingNombreId === c.id ? (
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
                           <input
                             autoFocus
@@ -905,11 +909,13 @@ export default function CampanasPage() {
                       ) : (
                         <div style={{ display: "flex", alignItems: "center", gap: 6, position: "relative" }} className={styles.nombreWrapper}>
                           <span className={styles.nombre}>{c.nombre}</span>
-                          <button
-                            title="Editar nombre"
-                            onClick={e => { e.stopPropagation(); setEditingNombreId(c.id); setEditingNombreVal(c.nombre); }}
-                            className={styles.editNombreBtn}
-                          ><Pencil size={11} /></button>
+                          {isOwner && (
+                            <button
+                              title="Editar nombre"
+                              onClick={e => { e.stopPropagation(); setEditingNombreId(c.id); setEditingNombreVal(c.nombre); }}
+                              className={styles.editNombreBtn}
+                            ><Pencil size={11} /></button>
+                          )}
                         </div>
                       )}
                     </td>
@@ -947,20 +953,24 @@ export default function CampanasPage() {
                     </td>
                     <td className={styles.td} onClick={e => e.stopPropagation()}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        {c.agentes.length > 0 && (
+                        {isOwner && c.agentes.length > 0 && (
                           <button className={styles.expandBtn} onClick={toggleExpand} title={isOpen ? "Contraer" : "Ver agentes"}>
                             <ChevronDown size={13} style={{ transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.18s" }} />
                           </button>
                         )}
-                        <button className={styles.dupBtn} title="Ajustar agentes" onClick={() => setAjustando(c)}>
-                          <Settings size={13} />
-                        </button>
-                        <button className={styles.dupBtn} title="Duplicar campaña" onClick={() => setDuplicando(c)}>
-                          <Copy size={13} />
-                        </button>
-                        <button className={`${styles.dupBtn} ${styles.dupBtnDanger}`} title="Eliminar campaña" onClick={() => setEliminando(c)}>
-                          <Trash2 size={13} />
-                        </button>
+                        {isOwner && (
+                          <>
+                            <button className={styles.dupBtn} title="Ajustar agentes" onClick={() => setAjustando(c)}>
+                              <Settings size={13} />
+                            </button>
+                            <button className={styles.dupBtn} title="Duplicar campaña" onClick={() => setDuplicando(c)}>
+                              <Copy size={13} />
+                            </button>
+                            <button className={`${styles.dupBtn} ${styles.dupBtnDanger}`} title="Eliminar campaña" onClick={() => setEliminando(c)}>
+                              <Trash2 size={13} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

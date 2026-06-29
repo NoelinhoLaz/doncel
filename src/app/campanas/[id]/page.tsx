@@ -2197,7 +2197,7 @@ function TablaOportunidades({ oportunidades, estados, monocromo, isOwner, campan
           >
             <MapPin size={15} />
           </button>
-          <div ref={addBtnRef} style={{ position: "relative" }}>
+          {isOwner && <div ref={addBtnRef} style={{ position: "relative" }}>
             <button className={styles.addBtn} onClick={() => setShowAddMenu(v => !v)} title="Nueva oportunidad">
               <Plus size={15} />
             </button>
@@ -2230,7 +2230,7 @@ function TablaOportunidades({ oportunidades, estados, monocromo, isOwner, campan
                 </button>
               </div>
             )}
-          </div>
+          </div>}
         </div>
       </div>
 
@@ -3165,6 +3165,7 @@ export default function CampanaDetallePage() {
   const [showPlacesNearby, setShowPlacesNearby] = useState(false);
   const [monocromo, setMonocromo] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
+  const [currentAgenteId, setCurrentAgenteId] = useState<string | null>(null);
   const [entidadPanel, setEntidadPanel] = useState<EntidadDetalle | null>(null);
 
   const [pendingClosure, setPendingClosure] = useState<{
@@ -3188,9 +3189,12 @@ export default function CampanaDetallePage() {
         apiFetch(`/api/crm/campanas/${id}`),
         apiFetch(`/api/crm/oportunidades?campana_id=${id}`),
       ]);
+      const owner = ["Owner", "SuperAdmin", "Admin"].includes(campRes.rol ?? "");
       setCampana(campRes.data);
-      setOportunidades(ops ?? []);
-      setIsOwner(["Owner", "SuperAdmin", "Admin"].includes(campRes.rol ?? ""));
+      setIsOwner(owner);
+      setCurrentAgenteId(campRes.agenteId ?? null);
+      const allOps: Oportunidad[] = ops ?? [];
+      setOportunidades(owner ? allOps : allOps.filter(o => o.agente_id === campRes.agenteId));
     } catch (e) {
       console.error(e);
     } finally {
