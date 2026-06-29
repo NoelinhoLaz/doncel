@@ -1,0 +1,374 @@
+.tabContainer {
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
+  border-radius: 1rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  border: 1px solid #f1f5f9;
+}
+
+.listHeaderTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 1.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--primary-color, #475569), transparent 80%);
+  background-color: color-mix(in srgb, var(--primary-color, #475569), transparent 60%);
+}
+
+.listTitleWrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.titleIcon {
+  color: #ffffff;
+  opacity: 0.85;
+}
+
+.listTitle {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #ffffff;
+  margin: 0;
+}
+
+.actionsWrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.searchWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 0.75rem;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.searchInput {
+  padding: 0.45rem 0.75rem 0.45rem 2.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  width: 220px;
+  background-color: rgba(255, 255, 255, 0.6);
+  outline: none;
+  transition: all 0.2s ease;
+  color: #1e293b;
+}
+
+.searchInput::placeholder {
+  color: rgba(30, 41, 59, 0.65);
+}
+
+.searchInput:focus {
+  border-color: var(--primary-color, #475569);
+  background-color: rgba(255, 255, 255, 0.8);
+}
+
+.actionIconButton {
+  background-color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: var(--primary-color, #475569);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.actionIconButton:hover {
+  background-color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 255, 255, 0.6);
+  color: var(--primary-color, #475569);
+}
+
+.addActionButton {
+  background-color: var(--primary-color, #475569);
+  color: #ffffff;
+  border: none;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.addActionButton:hover {
+  filter: brightness(0.9);
+  transform: translateY(-1px);
+}
+
+.tableWrapper {
+  padding: 0 0.5rem;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.table th {
+  padding: 0.25rem 0.35rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.table td {
+  padding: 0.25rem 0.35rem;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.8rem;
+  color: #334155;
+  vertical-align: top;
+}
+
+.stackedCell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.mainText {
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.subText {
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+.headerSort {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.headerSort:hover .sortIcon {
+  color: #1e293b;
+}
+
+.sortIcon {
+  color: #cbd5e1;
+  transition: color 0.2s ease;
+}
+
+.paginationWrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #f1f5f9;
+  background-color: #fafbfc;
+}
+
+.rowsPerPageControl {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.rowsPerPageControl label {
+  font-weight: 500;
+}
+
+.rowsSelect {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.4rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  color: #334155;
+  background-color: #ffffff;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.rowsSelect:hover {
+  border-color: #cbd5e1;
+}
+
+.rowsSelect:focus {
+  border-color: var(--primary-color, #475569);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color, #475569), transparent 90%);
+}
+
+.paginationControls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.pageInfo {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.paginationButton {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.4rem;
+  background-color: #ffffff;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.paginationButton:hover:not(:disabled) {
+  border-color: var(--primary-color, #475569);
+  color: var(--primary-color, #475569);
+  background-color: color-mix(in srgb, var(--primary-color, #475569), white 95%);
+}
+
+.paginationButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.viajerosKpiGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 1024px) {
+  .viajerosKpiGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.viajerosKpiCard {
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  border-radius: 0.75rem;
+  padding: 0.85rem 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 120px;
+  transition: all 0.2s ease;
+}
+
+.viajerosKpiCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+}
+
+.blankKpiHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.25rem;
+}
+
+.blankKpiTitle {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.blankKpiNumber {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1;
+  margin-bottom: 0.2rem;
+}
+
+.blankKpiSubtext {
+  font-size: 0.7rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.blankKpiBadge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #15803d;
+  background-color: #f0fdf4;
+  padding: 0.15rem 0.45rem;
+  border-radius: 9999px;
+}
+
+.kpiCardTitle {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.progressItemsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+  justify-content: center;
+}
+
+.progressItemRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.progressItemLabelRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: #475569;
+}
+
+.progressItemVal {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.progressBarContainer {
+  width: 100%;
+  height: 6px;
+  background-color: #f1f5f9;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.progressBarFill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.4s ease-out;
+}

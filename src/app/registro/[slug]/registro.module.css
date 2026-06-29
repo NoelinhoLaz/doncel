@@ -1,0 +1,756 @@
+/* ── Layout principal ─────────────────────────────────────────────────────── */
+
+.container {
+  min-height: 100dvh;
+  background: #ffffff;
+  color: #111827;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 6rem;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ── Logo ─────────────────────────────────────────────────────────────────── */
+
+.logoWrap {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 1.5rem 1rem;
+}
+
+.logoImg {
+  width: 140px;
+  height: auto;
+  max-height: 80px;
+  object-fit: contain;
+}
+
+/* ── Wrapper de contenido ─────────────────────────────────────────────────── */
+
+.contentWrap {
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  box-sizing: border-box;
+}
+
+/* ── Header del viaje ─────────────────────────────────────────────────────── */
+
+.header {
+  background: #ffffff;
+  padding: 1rem 1.5rem 2rem;
+  text-align: center;
+}
+
+.headerInner {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.headerEtiqueta {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--brand);
+  margin-bottom: 0.5rem;
+}
+
+.headerTitulo {
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: #111827;
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+}
+
+.headerMeta {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+/* ── Barra de progreso ────────────────────────────────────────────────────── */
+
+.progreso {
+  background: #ffffff;
+  padding: 1rem 1.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.progresoInner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 100%;
+}
+
+.progresoItem {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.progresoCirculo {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #9ca3af;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.progresoActivo {
+  border-color: var(--brand);
+  background: #ffffff;
+  color: var(--brand);
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--brand);
+}
+
+.progresoCompletado {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #ffffff;
+}
+
+.progresoLabel {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin: 0 0.75rem;
+  white-space: nowrap;
+  transition: color 0.3s;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+@media (max-width: 640px) {
+  .progresoLabel {
+    display: none;
+  }
+}
+
+.progresoLabelActivo {
+  color: #111827;
+  font-weight: 500;
+}
+
+.progresoLinea {
+  width: 3rem;
+  height: 1px;
+  background: #e5e7eb;
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+
+@media (max-width: 640px) {
+  .progresoLinea {
+    width: 1.5rem;
+  }
+}
+
+.progresoLineaCompletada {
+  background: var(--brand);
+}
+
+/* ── Contenido del paso ──────────────────────────────────────────────────── */
+
+.pasoTitulo {
+  font-size: 1.25rem;
+  font-weight: 400;
+  color: #111827;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.75rem;
+}
+
+.pasoDesc {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+/* ── Formulario ───────────────────────────────────────────────────────────── */
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 480px) {
+  .grid2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.campoWrap {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1.25rem;
+}
+
+.campoLabel {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.campoObl {
+  color: #ef4444;
+}
+
+.campoInput {
+  padding: 0.75rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  background: #ffffff;
+  font-size: 1rem;
+  color: #111827;
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.campoInput:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 1px var(--brand);
+}
+
+.campoInputError {
+  border-color: #ef4444;
+}
+
+.campoInputError:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 1px #ef4444;
+}
+
+.errorMsg {
+  font-size: 0.75rem;
+  color: #ef4444;
+  margin-top: 0.35rem;
+}
+
+.separador {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 1.5rem 0;
+}
+
+/* ── Viajeros tabs ────────────────────────────────────────────────────────── */
+
+.viajerosTabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.viajeroTab {
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.25rem;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.viajeroTab:hover {
+  border-color: #d1d5db;
+  color: #374151;
+}
+
+.viajeroTabActivo {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.viajeroFormWrap {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.viajeroHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.viajeroNombre {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: #111827;
+}
+
+.btnEliminar {
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.25rem;
+  border: 1px solid #fecaca;
+  background: #ffffff;
+  color: #ef4444;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnEliminar:hover {
+  background: #fef2f2;
+}
+
+.btnAnadirViajero {
+  width: 100%;
+  padding: 1rem;
+  border-radius: 0.375rem;
+  border: 1px dashed #d1d5db;
+  background: #fafafa;
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 0.5rem;
+}
+
+.btnAnadirViajero:hover {
+  border-color: #9ca3af;
+  color: #374151;
+  background: #ffffff;
+}
+
+/* ── Pagador ─────────────────────────────────────────────────────────────── */
+
+.copiarBloque {
+  background: #fafafa;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.copiarLabel {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.75rem;
+}
+
+.copiarBotones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.btnCopiar {
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #374151;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  max-width: 100%;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btnCopiar:hover {
+  border-color: #9ca3af;
+  background: #f9fafb;
+}
+
+/* ── Extras ──────────────────────────────────────────────────────────────── */
+
+.precioBase {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.precioBaseFila {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1rem;
+  color: #374151;
+}
+
+.extrasTitulo {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.extrasLista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.extraCard {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.25rem;
+  border-radius: 0.375rem;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  width: 100%;
+}
+
+.extraCard:hover {
+  border-color: #d1d5db;
+}
+
+.extraCardSel {
+  border-color: var(--brand);
+  background: #fafafa;
+}
+
+.extraCheck {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 0.15rem;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: #ffffff; /* keep text white so it's invisible on white bg if no check */
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.extraCardSel .extraCheck {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #ffffff; /* checkmark becomes visible because bg is dark */
+}
+
+.extraInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.extraNombre {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #111827;
+}
+
+.extraDesc {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.extraConteo {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-top: 0.15rem;
+}
+
+.extraPvp {
+  font-size: 1.125rem;
+  font-weight: 400;
+  color: #111827;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.extraPvpSub {
+  display: block;
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.extrasResumen {
+  background: #fafafa;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  padding: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.extrasResumenTitulo {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.extrasResumenFila {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.875rem;
+  color: #374151;
+  padding: 0.35rem 0;
+}
+
+/* ── Resumen ──────────────────────────────────────────────────────────────── */
+
+.resumenBloque {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.resumenSubtitulo {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #f3f4f6;
+  padding-bottom: 0.5rem;
+}
+
+.resumenFila {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  font-size: 0.95rem;
+  color: #111827;
+}
+
+.resumenMeta {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.resumenDireccion {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-top: 0.5rem;
+  line-height: 1.5;
+}
+
+.resumenTotal {
+  padding-top: 1rem;
+  margin-top: 0.5rem;
+  border-top: 1px solid #e5e7eb;
+  font-size: 1.25rem;
+}
+
+/* ── Métodos de pago ──────────────────────────────────────────────────────── */
+
+.metodosLista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.metodoCard {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.25rem;
+  border-radius: 0.375rem;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  width: 100%;
+}
+
+.metodoCard:hover {
+  border-color: #d1d5db;
+}
+
+.metodoCardSel {
+  border-color: var(--brand);
+  background: #fafafa;
+}
+
+.metodoCheck {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  border: 1px solid #d1d5db;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: border-color 0.2s;
+}
+
+.metodoCheck::after {
+  content: "";
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  background: var(--brand);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.metodoCardSel .metodoCheck {
+  border-color: var(--brand);
+}
+
+.metodoCardSel .metodoCheck::after {
+  opacity: 1;
+}
+
+.metodoInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.metodoNombre {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #111827;
+}
+
+.metodoDesc {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+/* ── Navegación inferior ──────────────────────────────────────────────────── */
+
+.navegacion {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid #e5e7eb;
+  padding: 1rem 1.5rem;
+  z-index: 10;
+}
+
+.navegacionInner {
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.btnPrimario, .btnRegistrar {
+  padding: 0.875rem 2rem;
+  border-radius: 0.25rem;
+  border: none;
+  background: #111827;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btnPrimario:hover, .btnRegistrar:hover {
+  background: #374151;
+}
+
+.btnSecundario {
+  padding: 0.875rem 1.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #374151;
+  font-size: 1rem;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnSecundario:hover {
+  background: #f9fafb;
+}
+
+/* ── Pantalla de éxito ────────────────────────────────────────────────────── */
+
+.successCard {
+  max-width: 480px;
+  margin: auto;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.successIcon {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+  font-size: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+}
+
+.successTitle {
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: #111827;
+  margin-bottom: 1rem;
+}
+
+.successText {
+  font-size: 1rem;
+  color: #374151;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+
+.successSub {
+  font-size: 0.875rem;
+  color: #6b7280;
+}

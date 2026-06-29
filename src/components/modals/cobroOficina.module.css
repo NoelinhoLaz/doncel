@@ -1,0 +1,456 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modal {
+  background: #ffffff;
+  border-radius: 1.25rem;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: cobroSlideUp 0.2s ease-out;
+}
+
+/* Header */
+.header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.headerIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 0.6rem;
+  background: linear-gradient(
+    135deg,
+    var(--primary-color, #475569),
+    color-mix(in srgb, var(--primary-color, #475569), #6366f1 40%)
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.headerTitle {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #1e293b;
+}
+
+.headerSubtitle {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 0.25rem;
+}
+
+/* Wizard Slider */
+.slider {
+  display: flex;
+  width: 200%;
+  flex: 1;
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sliderStep1 {
+  transform: translateX(0);
+}
+
+.sliderStep2 {
+  transform: translateX(-50%);
+}
+
+.step {
+  width: 50%;
+  padding: 1.5rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Payment Method */
+.methodLabel {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 0.75rem;
+}
+
+.methodCards {
+  display: flex;
+  gap: 1rem;
+}
+
+.methodCard {
+  flex: 1;
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+  border: 2px solid #e2e8f0;
+  background-color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.methodCard.active {
+  border-color: var(--primary-color, #475569);
+  background-color: color-mix(in srgb, var(--primary-color, #475569) 8%, white);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.methodCardLabel {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.methodCard.active .methodCardLabel {
+  color: #1e293b;
+}
+
+/* Bank Account */
+.accountSection {
+  animation: cobroFadeIn 0.25s ease-out;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.accountSelect {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #cbd5e1;
+  font-size: 0.85rem;
+  color: #1e293b;
+  background-color: #ffffff;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.loadingText {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: #64748b;
+  padding: 0.5rem 0;
+}
+
+.noAccountsMsg {
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background-color: #fff5f5;
+  border: 1px solid #fecaca;
+  font-size: 0.8rem;
+  color: #b91c1c;
+  font-weight: 500;
+}
+
+/* Step 2 – Selection */
+.selectionWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.selectionTrigger {
+  min-height: 38px;
+  width: 100%;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
+}
+
+.selectionPlaceholder {
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.25rem;
+}
+
+.chipViajero {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #dbeafe;
+}
+
+.chipCliente {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #d1fae5;
+}
+
+.chipRemove {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+/* Dropdown */
+.dropdownOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1001;
+  background-color: transparent;
+}
+
+.dropdown {
+  position: relative;
+  width: 100%;
+  margin-top: 0.25rem;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  z-index: 1002;
+  display: flex;
+  flex-direction: column;
+  max-height: 180px;
+  overflow: hidden;
+  animation: cobroSlideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top;
+}
+
+.dropdownSearchRow {
+  padding: 0.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background-color: #f8fafc;
+}
+
+.dropdownSearchInput {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 0.8rem;
+  color: #1e293b;
+  width: 100%;
+}
+
+.dropdownClearBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+}
+
+.dropdownList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.25rem;
+}
+
+.dropdownSectionHeader {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #64748b;
+  padding: 0.35rem 0.5rem 0.15rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.dropdownDivider {
+  height: 1px;
+  background-color: #f1f5f9;
+  margin: 0.35rem 0;
+}
+
+.dropdownEmpty {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.dropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.dropdownItem:hover {
+  background-color: #f8fafc;
+}
+
+.dropdownItem.selected {
+  background-color: #f1f5f9;
+}
+
+.dropdownItemName {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.dropdownItemSub {
+  font-size: 0.68rem;
+  color: #64748b;
+}
+
+/* Amount inputs */
+.amountSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  animation: cobroFadeIn 0.25s ease-out;
+}
+
+.tpvGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.textInput {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #cbd5e1;
+  font-size: 0.85rem;
+  color: #1e293b;
+  background-color: #ffffff;
+  outline: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
+}
+
+.textInput:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Footer */
+.footer {
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  background: #f8fafc;
+}
+
+.btnSecondary {
+  padding: 0.55rem 1.1rem;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnSecondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.btnPrimary {
+  padding: 0.55rem 1.25rem;
+  border-radius: 0.5rem;
+  background: var(--primary-color, #475569);
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btnPrimary:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+}
+
+/* Animations */
+@keyframes cobroSlideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes cobroSlideDown {
+  from { transform: translateY(-10px); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+
+@keyframes cobroFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes cobroSpin {
+  to { transform: rotate(360deg); }
+}

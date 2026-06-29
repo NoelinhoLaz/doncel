@@ -1,0 +1,62 @@
+.inp {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.4rem;
+  font-size: 0.8rem;
+  height: 34px;
+  background: #fff;
+  color: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sel {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.4rem;
+  font-size: 0.8rem;
+  height: 34px;
+  background: #fff;
+  color: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.textarea {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.5rem;
+  font-size: 0.8rem;
+  background: #fff;
+  color: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 80px;
+}
+
+.inpReadonly {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.4rem;
+  font-size: 0.8rem;
+  height: 34px;
+  background: #f1f5f9;
+  color: #64748b;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: not-allowed;
+}
+
+.genBtn {
+  border: none;
+  background: transparent;
+  color: #6366f1;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1;
+}

@@ -1,0 +1,96 @@
+.chatBubbleArea {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  background-color: #f8fafc;
+}
+
+.chatBubbleArea::-webkit-scrollbar {
+  width: 6px;
+}
+.chatBubbleArea::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chatBubbleArea::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--primary-color, #475569) 25%, #e2e8f0);
+  border-radius: 4px;
+}
+
+.chatDaySeparator {
+  align-self: center;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.35rem 0.85rem;
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  margin: 0.5rem 0;
+  letter-spacing: 0.05em;
+}
+
+.chatBubbleWrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.bubbleIncoming {
+  align-self: flex-start;
+  background-color: #ffffff;
+  color: #334155;
+  border-radius: 4px 16px 16px 16px;
+  padding: 0.85rem 1.15rem;
+  max-width: 70%;
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.55;
+  box-shadow: 0 4px 6px rgba(15, 23, 42, 0.02), 0 1px 2px rgba(15, 23, 42, 0.02);
+  border: 1px solid #f1f5f9;
+  position: relative;
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bubbleOutgoing {
+  align-self: flex-end;
+  background-color: var(--primary-color, #475569);
+  color: #ffffff;
+  border-radius: 16px 16px 4px 16px;
+  padding: 0.85rem 1.15rem;
+  max-width: 70%;
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.55;
+  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.03), 0 2px 4px rgba(0, 0, 0, 0.03);
+  position: relative;
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bubbleMeta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  font-size: 0.68rem;
+  margin-top: 0.35rem;
+  font-weight: 600;
+}
+
+.incomingMeta {
+  color: #94a3b8;
+}
+
+.outgoingMeta {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.statusTicks {
+  font-size: 0.75rem;
+  color: #22c55e; /* Green status checkmark ticks */
+  margin-left: 2px;
+}

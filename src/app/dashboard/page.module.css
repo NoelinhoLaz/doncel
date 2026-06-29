@@ -1,0 +1,24 @@
+.container {
+  padding: 1rem;
+}
+
+.title {
+  font-size: 2.25rem;
+  font-weight: 400;
+  color: #1e293b;
+  margin-bottom: 2rem;
+  letter-spacing: -0.02em;
+}
+
+.blank {
+  width: 100%;
+  max-width: 900px;
+  min-height: 380px;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}

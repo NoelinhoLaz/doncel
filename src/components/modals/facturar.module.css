@@ -1,0 +1,357 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modal {
+  background: #ffffff;
+  border-radius: 1.25rem;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: 760px;
+  max-height: 72vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: facturarSlideUp 0.2s ease-out;
+}
+
+.header {
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.headerIconWrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 0.6rem;
+  background: linear-gradient(
+    135deg,
+    var(--primary-color, #475569),
+    color-mix(in srgb, var(--primary-color, #475569), #6366f1 40%)
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.closeBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/* Wizard track */
+.wizardTrack {
+  display: flex;
+  width: 200%;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.wizardTrackNoTransition {
+  transition: none;
+}
+
+.step {
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.step2 {
+  background: #fcfdfe;
+}
+
+/* Step 1 */
+.searchBarWrap {
+  padding: 0.5rem 1.25rem;
+  border-bottom: 1px solid #f8fafc;
+  flex-shrink: 0;
+}
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
+  padding: 0.45rem 0.75rem;
+}
+
+.searchInput {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 0.85rem;
+  color: #1e293b;
+  width: 100%;
+}
+
+.tableBody {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Footer */
+.footer {
+  padding: 0.65rem 1.25rem;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: #fafbfc;
+  flex-shrink: 0;
+}
+
+.footerBtns {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.btnCancel {
+  padding: 0.55rem 1.1rem;
+  border-radius: 0.6rem;
+  background: #f1f5f9;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+}
+
+.btnBack {
+  padding: 0.55rem 1.1rem;
+  border-radius: 0.6rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+}
+
+.btnBack:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.btnContinue {
+  padding: 0.55rem 1.25rem;
+  border-radius: 0.6rem;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--primary-color, #475569);
+}
+
+.btnContinue:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+.btnEmit {
+  padding: 0.55rem 1.25rem;
+  border-radius: 0.6rem;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: linear-gradient(
+    135deg,
+    var(--primary-color, #475569),
+    color-mix(in srgb, var(--primary-color, #475569), #6366f1 40%)
+  );
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+}
+
+.btnEmit:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Step 2 body */
+.step2Body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem;
+  min-height: 0;
+}
+
+.confirmTitle {
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 0.65rem;
+}
+
+/* Toggle cards */
+.toggleCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.8rem;
+  padding: 0.8rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.01);
+}
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.toggleSwitch {
+  width: 36px;
+  height: 18px;
+  border-radius: 9px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.toggleKnob {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  position: absolute;
+  top: 2px;
+  transition: left 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.toggleExpand {
+  margin-top: 0.45rem;
+  border-top: 1px dashed #edf2f7;
+  padding-top: 0.45rem;
+}
+
+.toggleLinkBtn {
+  color: var(--primary-color, #475569);
+  cursor: pointer;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.excepcionesGrid {
+  margin-top: 0.45rem;
+  background: #f8fafc;
+  border-radius: 0.5rem;
+  padding: 0.45rem;
+  border: 1px solid #edf2f7;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  max-height: 90px;
+  overflow-y: auto;
+}
+
+/* Concept card */
+.conceptCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.8rem;
+  padding: 0.8rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.01);
+  margin-bottom: 1rem;
+}
+
+.conceptTextarea {
+  width: 100%;
+  min-height: 45px;
+  font-size: 0.7rem;
+  color: #1e293b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.4rem;
+  padding: 0.35rem;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  line-height: 1.3;
+}
+
+.previewBox {
+  background: rgba(71, 85, 105, 0.04);
+  border: 1px solid rgba(71, 85, 105, 0.15);
+  border-radius: 0.5rem;
+  padding: 0.45rem;
+}
+
+/* NIF block */
+.nifBlock {
+  margin-bottom: 0.85rem;
+  border-radius: 0.8rem;
+  overflow: hidden;
+}
+
+.nifBlockHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.85rem;
+}
+
+.nifDetailRows {
+  padding: 0.5rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.spin {
+  animation: facturarSpin 1s linear infinite;
+}
+
+@keyframes facturarSlideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes facturarSpin {
+  to { transform: rotate(360deg); }
+}

@@ -39,3 +39,19 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+certificates
+
+# Scratch scripts and local database files
+scratch_*.js
+scratch_*.ts
+scratch/
+scratch_test_destinos.js
+test_match.js
+test_script.js
+*.sql
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!manifest.json

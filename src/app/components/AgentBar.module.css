@@ -1,0 +1,96 @@
+.agentBar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background-color: var(--header-bg, #475569);
+  z-index: 1000;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.3s ease;
+}
+
+.content {
+  height: 100%;
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.right {
+  display: flex;
+  align-items: center;
+}
+
+.userInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.userBadge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 0.4rem 0.8rem;
+  border-radius: 9999px;
+  color: #ffffff;
+}
+
+.logoutButton {
+  background: none;
+  border: none;
+  color: #ffffff;
+  opacity: 0.6;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  padding: 0.5rem;
+  border-radius: 50%;
+}
+
+.logoutButton:hover {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.email {
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-family: inherit;
+}
+
+.userIcon {
+  opacity: 0.8;
+}
+
+.noUser {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-style: italic;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  height: 100%;
+}
+
+.logo {
+  height: 38px;
+  max-width: 180px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.agencyName {
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 1.1rem;
+  letter-spacing: -0.015em;
+}

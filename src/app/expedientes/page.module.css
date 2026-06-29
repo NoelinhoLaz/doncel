@@ -1,0 +1,910 @@
+.container {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.header {
+  margin-bottom: 0.5rem;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.title {
+  font-size: 2.25rem;
+  font-weight: 400;
+  color: #1e293b;
+  letter-spacing: -0.02em;
+}
+
+/* ── Widget Doncel ── */
+.doncelWidget {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+  height: 52px;
+  background: linear-gradient(135deg, #ffffff 0%, #f0f4ff 100%);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  border-radius: 999px;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.12), 0 1px 4px rgba(0,0,0,0.06);
+  overflow: hidden;
+  max-width: 52px;
+  transition: max-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.3s ease,
+              border-color 0.3s ease;
+  cursor: pointer;
+}
+
+.doncelWidget.doncelExpanded {
+  max-width: 360px;
+  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.18), 0 2px 8px rgba(0,0,0,0.08);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.doncelText {
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 0 1.2rem;
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: opacity 0.3s ease 0.1s, transform 0.3s ease 0.1s;
+  pointer-events: none;
+}
+
+.doncelExpanded .doncelText {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.doncelTitle {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #3730a3;
+  letter-spacing: 0.03em;
+  line-height: 1.3;
+}
+
+.doncelSub {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: #6366f1;
+  line-height: 1.3;
+}
+
+.doncelBtn {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.doncelWidget:hover .doncelBtn {
+  transform: rotate(-8deg) scale(1.1);
+}
+
+.doncelIcon {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+
+/* Grid Superior */
+.topGrid {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 1rem;
+  height: 320px;
+}
+
+.statsColumn {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 1rem;
+}
+
+.statsRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.card {
+  background: white;
+  padding: 1.25rem;
+  border-radius: 1rem;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+}
+
+.cardLabel {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mapCard {
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+}
+
+.mapLoading {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+/* Sparkline Card */
+.sparkline {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  margin-top: 0.5rem;
+}
+
+.sparkline svg {
+  width: 100%;
+  height: 40px;
+}
+
+/* Occupation Card */
+.occupationContent {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.circularChart {
+  width: 50px;
+  height: 50px;
+}
+
+.circleBg {
+  fill: none;
+  stroke: #f1f5f9;
+  stroke-width: 2.8;
+}
+
+.circle {
+  fill: none;
+  stroke: #0ea5e9;
+  stroke-width: 2.8;
+  stroke-linecap: round;
+}
+
+.percentage {
+  fill: #1e293b;
+  font-size: 0.5rem;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.occupationText {
+  display: flex;
+  flex-direction: column;
+}
+
+.mainValue {
+  font-size: 1.5rem;
+  font-weight: 300;
+  color: #1e293b;
+}
+
+.subValue {
+  font-size: 0.6rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+/* Amount Cards */
+.amountContent {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.amount {
+  font-size: 1.5rem;
+  font-weight: 300;
+  color: #1e293b;
+}
+
+.amountGreen {
+  font-size: 1.5rem;
+  font-weight: 300;
+  color: #10b981;
+}
+
+.pending {
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.cardIcon {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  color: #cbd5e1;
+}
+
+/* Bar Chart KPI */
+.barChart {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: 0.5rem;
+  height: 75px;
+}
+
+.barColumn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.barWrapper {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+}
+
+.bar {
+  width: 100%;
+  background-color: #e2e8f0;
+  border-radius: 2px 2px 0 0;
+  transition: all 0.2s ease;
+}
+
+.monthInitial {
+  font-size: 0.5rem;
+  font-weight: 500;
+  color: #94a3b8;
+  margin-top: 2px;
+  text-transform: uppercase;
+}
+
+.bar:hover {
+  background-color: var(--primary-color, #475569);
+}
+
+.currencySymbol {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  color: #cbd5e1;
+  font-size: 1rem;
+}
+
+/* Tabla */
+.tableContainer {
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+  padding: 0; /* Ajustado para que el header interno llegue a los bordes */
+  overflow: hidden;
+}
+
+.listHeaderTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.55rem 1.25rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--primary-color, #475569), transparent 80%);
+  background-color: color-mix(in srgb, var(--primary-color, #475569), transparent 60%);
+}
+
+.listTitleWrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #ffffff;
+}
+
+.titleIcon {
+  color: #ffffff;
+  opacity: 0.85;
+}
+
+.listTitle {
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: #ffffff;
+  margin: 0;
+}
+
+.actionsWrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.searchWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 0.75rem;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.searchInput {
+  padding: 0.45rem 0.75rem 0.45rem 2.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  width: 240px;
+  background-color: rgba(255, 255, 255, 0.6);
+  outline: none;
+  transition: all 0.2s ease;
+  color: #1e293b;
+}
+
+.searchInput::placeholder {
+  color: rgba(30, 41, 59, 0.65);
+}
+
+.actionIconButton {
+  background-color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: var(--primary-color, #475569);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.actionIconButton:hover {
+  background-color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 255, 255, 0.6);
+  color: var(--primary-color, #475569);
+}
+
+.activeAction {
+  background-color: var(--primary-color, #475569);
+  color: #ffffff;
+  border-color: var(--primary-color, #475569);
+}
+
+/* Filtros y Orden */
+.filterRow, .sortRow {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  background-color: #fcfcfd;
+  border-bottom: 1px solid #f1f5f9;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.filterGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 140px;
+}
+
+.filterGroup label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.filterInput {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.4rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  color: #1e293b;
+  outline: none;
+  background-color: #ffffff;
+}
+
+.headerSort {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.headerSort:hover .sortIcon {
+  color: #1e293b;
+}
+
+.sortIcon {
+  color: #cbd5e1;
+  transition: color 0.2s ease;
+}
+
+.filterInput:focus {
+  border-color: var(--primary-color, #475569);
+}
+
+.sortLabel {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.sortOption {
+  background: white;
+  border: 1px solid #e2e8f0;
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.4rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sortOption:hover {
+  border-color: var(--primary-color, #475569);
+  color: var(--primary-color, #475569);
+}
+
+.addActionButton {
+  background-color: var(--primary-color, #475569);
+  color: #ffffff;
+  border: none;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.addActionButton:hover {
+  filter: brightness(0.9);
+  transform: translateY(-1px);
+}
+
+.searchInput:focus {
+  border-color: var(--primary-color, #475569);
+  background-color: rgba(255, 255, 255, 0.8);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.table th {
+  padding: 0.5rem 1rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.table td {
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.clickableRow {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.clickableRow:hover {
+  background-color: #f8fafc;
+}
+
+.idCell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.initials {
+  width: 28px;
+  height: 28px;
+  background: #f1f5f9;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+.expId {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #1e293b;
+}
+
+.expId:hover {
+  color: var(--primary-color);
+  cursor: pointer;
+}
+
+.expDate {
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.clientCell {
+  display: flex;
+  flex-direction: column;
+}
+
+.clientName {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: #1e293b;
+}
+
+.clientDesc {
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #f1f5f9;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+.destinoCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  transition: background-color 0.15s;
+  padding: 2px;
+}
+
+.destinoCell:hover {
+  background-color: #e2e8f0;
+}
+
+.destinoChevron {
+  color: #94a3b8;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.typeTag {
+  background: #f1f5f9;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.statusTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  background: #cbd5e1;
+  border-radius: 50%;
+}
+
+.dateCell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.7rem;
+  color: #1e293b;
+  font-weight: 400; /* Regular solicitado */
+}
+
+.dateReturn {
+  color: #1e293b; /* Mismo color */
+  font-size: 0.7rem;
+  font-weight: 400; /* Mismo peso */
+}
+
+.cardHeaderWithAction {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.backButton {
+  background: #f1f5f9;
+  border: none;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #64748b;
+  transition: all 0.2s ease;
+}
+
+.backButton:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+.mainTitleInput {
+  width: 100%;
+  font-family: inherit;
+}
+
+.clickableBar {
+  cursor: pointer;
+}
+
+.daysGrid {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  width: 100%;
+  height: 100%;
+}
+
+.dayColumn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.dayBarWrapper {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+}
+
+.dayNumber {
+  font-size: 0.4rem;
+  font-weight: 500;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.plazasCell, .progressCell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 140px;
+}
+
+.plazasCell span, .progressInfo span {
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.plazasValue, .progressValue {
+  font-size: 0.75rem;
+  color: #1e293b;
+  text-align: right;
+  margin-top: -1.2rem;
+}
+
+.progressBar, .progressBarMini {
+  height: 6px;
+  background: #f1f5f9;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress, .progressMini {
+  height: 100%;
+  background: #0ea5e9;
+  border-radius: 3px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: fit-content;
+  transition: width 0.3s ease;
+}
+
+.progressLabel {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #ffffff;
+  padding: 0 6px;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.progressMini {
+  background: #8b5cf6;
+}
+
+.pvpCell {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: #1e293b;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.4rem;
+  display: inline-block;
+  transition: background-color 0.15s;
+}
+
+.pvpCell:hover {
+  background-color: #f1f5f9;
+}
+
+.pvpEmpty {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.progressInfo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Tooltip Premium CSS */
+.barColumn, .dayColumn {
+  position: relative;
+}
+
+.barColumn::before, .dayColumn::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 85px; /* Altura del gráfico (75px) + margen */
+  left: 50%;
+  transform: translateX(-50%) translateY(4px) scale(0.9);
+  background-color: #1e293b;
+  color: #ffffff;
+  padding: 5px 9px;
+  border-radius: 6px;
+  font-size: 0.65rem;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  z-index: 99;
+}
+
+.barColumn::after, .dayColumn::after {
+  content: '';
+  position: absolute;
+  bottom: 77px;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  border-width: 4px;
+  border-style: solid;
+  border-color: #1e293b transparent transparent transparent;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 99;
+}
+
+.barColumn:hover::before, .dayColumn:hover::before {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
+.barColumn:hover::after, .dayColumn:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── Estrellitas decorativas del botón Doncel ── */
+.sparkle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  font-size: var(--size);
+  color: #fbbf24; /* Color dorado brillante */
+  text-shadow: 0 0 4px rgba(251, 191, 36, 0.6);
+  pointer-events: none;
+  z-index: 100;
+  animation: sparkleExplosion 0.7s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+@keyframes sparkleExplosion {
+  0% {
+    transform: translate(-50%, -50%) scale(0) rotate(0deg);
+    opacity: 0;
+  }
+  15% {
+    transform: translate(-50%, -50%) scale(1.3) rotate(45deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0) rotate(180deg);
+    opacity: 0;
+  }
+}
+
+
+/* "Sin Contacto" warning cell in the expedientes table */
+.sinContactoWarning {
+  cursor: pointer;
+  color: #ef4444;
+  font-weight: 500;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: color 0.2s;
+}
+
+.sinContactoWarning:hover {
+  color: #dc2626;
+}

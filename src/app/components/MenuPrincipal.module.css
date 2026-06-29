@@ -1,0 +1,147 @@
+.menu {
+  position: fixed;
+  top: 60px;
+  left: 0;
+  width: 40px;
+  height: calc(100vh - 60px);
+  background-color: #ffffff;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 1rem;
+  gap: 1rem;
+}
+
+.menuItem {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  background-color: transparent;
+  border-radius: 0.5rem;
+  transition: background-color 0.2s ease;
+  padding: 0;
+  color: #94a3b8; /* Color reducido para iconos inactivos */
+}
+
+.menuItem:hover, .active {
+  color: #1e293b; /* Color más oscuro para el estado activo o hover */
+}
+
+.menuItem:hover {
+  background-color: #f1f5f9;
+}
+
+.active {
+  color: #1e293b;
+}
+
+.settingsWrapper {
+  margin-top: auto;
+  padding-bottom: 1rem;
+}
+
+.menuItemWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.submenuFlyout {
+  position: absolute;
+  left: 44px;
+  top: -4px;
+  width: max-content;
+  min-width: 180px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.1), 0 4px 6px -4px rgba(15, 23, 42, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  z-index: 1000;
+  animation: fadeIn 0.15s ease;
+}
+
+.submenuFlyout::before {
+  content: "";
+  position: absolute;
+  right: 100%;
+  top: 12px;
+  border-width: 6px;
+  border-style: solid;
+  border-color: transparent #e2e8f0 transparent transparent;
+}
+
+.submenuFlyout::after {
+  content: "";
+  position: absolute;
+  right: 100%;
+  top: 12px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent #ffffff transparent transparent;
+  margin-right: 1px;
+}
+
+.submenuTitle {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.5rem 0.5rem 0.75rem 0.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 0.75rem;
+}
+
+.submenuItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #334155;
+  background: none;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.submenuItem:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+.submenuIcon {
+  color: #64748b;
+  transition: color 0.2s ease;
+}
+
+.submenuItem:hover .submenuIcon {
+  color: #0f172a;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+
