@@ -11,7 +11,12 @@ export function encrypt(text: string) {
   
   const iv = crypto.randomBytes(16);
   // La clave debe ser de 32 bytes para aes-256-gcm. Si viene en hex, la convertimos a buffer.
-  const key = Buffer.from(ENCRYPTION_KEY, 'hex');
+  const sanitizedKey = ENCRYPTION_KEY.trim().replace(/^["']|["']$/g, "");
+  const key = Buffer.from(sanitizedKey, 'hex');
+  
+  if (key.length !== 32) {
+    throw new Error(`Invalid ENCRYPTION_KEY length: got ${key.length} bytes (expected 32 bytes). Check if the key in Vercel is a valid 64-character hex string without extra spaces.`);
+  }
   
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
   
@@ -35,7 +40,12 @@ export function decrypt(encryptedText: string, ivHex: string, authTagHex: string
   
   const iv = Buffer.from(ivHex, 'hex');
   const authTag = Buffer.from(authTagHex, 'hex');
-  const key = Buffer.from(ENCRYPTION_KEY, 'hex');
+  const sanitizedKey = ENCRYPTION_KEY.trim().replace(/^["']|["']$/g, "");
+  const key = Buffer.from(sanitizedKey, 'hex');
+  
+  if (key.length !== 32) {
+    throw new Error(`Invalid ENCRYPTION_KEY length: got ${key.length} bytes (expected 32 bytes). Check if the key in Vercel is a valid 64-character hex string without extra spaces.`);
+  }
   
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(authTag);
