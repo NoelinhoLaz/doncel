@@ -2,6 +2,9 @@
   "name": "momo",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "next dev --experimental-https",
     "dev:network": "next dev --experimental-https -H 0.0.0.0",

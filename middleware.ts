@@ -1,4 +1,13 @@
-import { NextResponse, type NextRequest } from "next/server";
+// Shim Node.js globals for Edge Runtime to prevent __dirname reference errors in bundled modules
+if (typeof (globalThis as any).__dirname === "undefined") {
+  (globalThis as any).__dirname = "";
+}
+if (typeof (globalThis as any).__filename === "undefined") {
+  (globalThis as any).__filename = "";
+}
+
+// We DO NOT import anything statically here to guarantee that our globalThis shims
+// are evaluated and defined before any next.js internal or external dependencies are loaded.
 
 const PORTAL_SESSION_COOKIE = "portal_session";
 
@@ -25,8 +34,10 @@ function isRateLimited(ip: string): boolean {
   return entry.count > MAX_ATTEMPTS;
 }
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: any) {
   try {
+    // Dynamic import of next/server inside the execution block
+    const { NextResponse } = await import("next/server");
     const pathname = request.nextUrl.pathname;
 
     // Rate limiting en el login del portal
@@ -55,7 +66,7 @@ export async function proxy(request: NextRequest) {
       }
     }
 
-    // Propagar el dominio efectivo como header para Server Components
+    // Propagar el dominio efectivo como header de REQUEST para que headers() lo lea en Server Components
     const host = request.headers.get("host") || "";
     const domain =
       host && !host.startsWith("localhost") && !host.startsWith("127.0.0.1")
@@ -66,7 +77,7 @@ export async function proxy(request: NextRequest) {
     if (domain) {
       requestHeaders.set("x-agency-domain", domain);
     }
-    // Sanitizar cabeceras: eliminar caracteres no-ASCII
+    // Sanitizar cabeceras para eliminar caracteres no-ASCII (acentos, etc.) que hacen fallar a Vercel
     requestHeaders.forEach((value, key) => {
       if (/[^\x00-\x7F]/.test(value)) {
         requestHeaders.delete(key);
@@ -75,8 +86,13 @@ export async function proxy(request: NextRequest) {
 
     return NextResponse.next({ request: { headers: requestHeaders } });
   } catch (error) {
-    console.error("Proxy error:", error);
-    return NextResponse.next();
+    console.error("Middleware invocation crashed:", error);
+    try {
+      const { NextResponse } = await import("next/server");
+      return NextResponse.next();
+    } catch {
+      return new Response(null, { status: 200 });
+    }
   }
 }
 
