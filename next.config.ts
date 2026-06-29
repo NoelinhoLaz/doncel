@@ -7,6 +7,17 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "8mb",
     },
   },
+  serverExternalPackages: [
+    "nodemailer",
+    "imapflow",
+    "mailparser",
+    "node-tnef",
+    "tesseract.js",
+    "twilio",
+    "googleapis",
+    "google-auth-library",
+    "pg",
+  ],
 };
 
 export default nextConfig;
