@@ -1,3 +1,6 @@
+// Explicitly run middleware in the Node.js runtime instead of the Edge Runtime
+export const runtime = "nodejs";
+
 import { NextResponse, type NextRequest } from "next/server";
 
 const PORTAL_SESSION_COOKIE = "portal_session";
@@ -25,7 +28,7 @@ function isRateLimited(ip: string): boolean {
   return entry.count > MAX_ATTEMPTS;
 }
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   try {
     const pathname = request.nextUrl.pathname;
 
@@ -75,7 +78,7 @@ export async function proxy(request: NextRequest) {
 
     return NextResponse.next({ request: { headers: requestHeaders } });
   } catch (error) {
-    console.error("Proxy invocation crashed:", error);
+    console.error("Middleware invocation crashed:", error);
     return NextResponse.next();
   }
 }
