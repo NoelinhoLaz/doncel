@@ -1,13 +1,4 @@
-// Shim Node.js globals for Edge Runtime to prevent __dirname reference errors in bundled modules
-if (typeof (globalThis as any).__dirname === "undefined") {
-  (globalThis as any).__dirname = "";
-}
-if (typeof (globalThis as any).__filename === "undefined") {
-  (globalThis as any).__filename = "";
-}
-
-// We DO NOT import anything statically here to guarantee that our globalThis shims
-// are evaluated and defined before any next.js internal or external dependencies are loaded.
+import { NextResponse, type NextRequest } from "next/server";
 
 const PORTAL_SESSION_COOKIE = "portal_session";
 
@@ -34,10 +25,8 @@ function isRateLimited(ip: string): boolean {
   return entry.count > MAX_ATTEMPTS;
 }
 
-export async function middleware(request: any) {
+export async function middleware(request: NextRequest) {
   try {
-    // Dynamic import of next/server inside the execution block
-    const { NextResponse } = await import("next/server");
     const pathname = request.nextUrl.pathname;
 
     // Rate limiting en el login del portal
@@ -87,12 +76,7 @@ export async function middleware(request: any) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   } catch (error) {
     console.error("Middleware invocation crashed:", error);
-    try {
-      const { NextResponse } = await import("next/server");
-      return NextResponse.next();
-    } catch {
-      return new Response(null, { status: 200 });
-    }
+    return NextResponse.next();
   }
 }
 
