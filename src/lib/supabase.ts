@@ -1,8 +1,12 @@
 import { createBrowserClient } from '@supabase/ssr'
 
-// Cliente único apuntando a la BD Admin
-// Cada agencia tiene sus propias credenciales guardadas en la tabla `agencias`
-const adminUrl = process.env.NEXT_PUBLIC_ADMIN_SUPABASE_URL!
-const adminAnonKey = process.env.NEXT_PUBLIC_ADMIN_SUPABASE_ANON_KEY!
+const getSupabaseClient = () => {
+  const adminUrl = process.env.NEXT_PUBLIC_ADMIN_SUPABASE_URL;
+  const adminAnonKey = process.env.NEXT_PUBLIC_ADMIN_SUPABASE_ANON_KEY;
+  if (!adminUrl || !adminAnonKey) {
+    return createBrowserClient('http://localhost:3000', 'dummy-anon-key');
+  }
+  return createBrowserClient(adminUrl, adminAnonKey);
+};
 
-export const supabase = createBrowserClient(adminUrl, adminAnonKey)
+export const supabase = getSupabaseClient();
