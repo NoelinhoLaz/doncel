@@ -25,7 +25,7 @@ function isRateLimited(ip: string): boolean {
   return entry.count > MAX_ATTEMPTS;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   try {
     const pathname = request.nextUrl.pathname;
 
@@ -75,7 +75,7 @@ export async function middleware(request: NextRequest) {
 
     return NextResponse.next({ request: { headers: requestHeaders } });
   } catch (error) {
-    console.error("Middleware error:", error);
+    console.error("Proxy error:", error);
     return NextResponse.next();
   }
 }
