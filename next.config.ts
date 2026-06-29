@@ -17,6 +17,14 @@ const nextConfig: NextConfig = {
     "googleapis",
     "google-auth-library",
     "pg",
+    "@supabase/ssr",
+    "@supabase/supabase-js",
+    "ua-parser-js",
+    "react-pdf",
+    "pdfjs-dist",
+    "@anthropic-ai/sdk",
+    "google-auth-library-nodejs",
+    "dompurify",
   ],
 };
 
