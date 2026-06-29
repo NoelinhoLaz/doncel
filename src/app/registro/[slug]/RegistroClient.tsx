@@ -149,7 +149,7 @@ export default function RegistroClient({ viaje, logoUrl, brandColor, domain }: P
   const [modoClasico, setModoClasico] = useState(false);
 
   if (modoClasico) {
-    return <FormularioClasico viaje={viaje} logoUrl={logoUrl} brandColor={brandColor} onChat={() => setModoClasico(false)} />;
+    return <FormularioClasico viaje={viaje} logoUrl={logoUrl} brandColor={brandColor} domain={domain} onChat={() => setModoClasico(false)} />;
   }
 
   return <ChatRegistro viaje={viaje} logoUrl={logoUrl} color={color} domain={domain} onModoClasico={() => setModoClasico(true)} />;
@@ -2096,6 +2096,7 @@ function FormularioClasico({
   viaje,
   logoUrl,
   brandColor,
+  domain,
   onChat,
 }: Props & { onChat: () => void }) {
   const color = brandColor ?? "#2563eb";
@@ -2200,13 +2201,47 @@ function FormularioClasico({
   async function handleSubmit() {
     if (!metodoPago) { setErrores({ metodo_pago: "Selecciona un método de pago" }); return; }
     const { submitRegistro } = await import("@/actions/portal");
+    const numViajeros = viajeros.length || 1;
+    const totalExtras = viajeros.reduce(
+      (s, v) => s + (v.extras ?? []).reduce((se, e) => se + e.pvp * e.cantidad, 0), 0
+    );
+    const plazosCalculados = viaje.plazos.map((p, i) => {
+      const esUltimo = i === viaje.plazos.length - 1;
+      return {
+        descripcion: p.descripcion,
+        fecha: p.fecha,
+        importeCalculado: p.importe * numViajeros + (esUltimo ? totalExtras : 0),
+      };
+    });
+
     await submitRegistro({
       domain,
       slug: viaje.slug,
-      viajeros,
+      viajeros: viajeros.map((v) => ({
+        nombre: v.nombre,
+        apellidos: v.apellidos,
+        dni: v.dni,
+        dni_caducidad: v.dni_caducidad,
+        pasaporte: v.pasaporte,
+        pasaporte_caducidad: v.pasaporte_caducidad,
+        fecha_nacimiento: v.fecha_nacimiento,
+        sexo: v.sexo ?? null,
+        numero_soporte: v.numero_soporte ?? null,
+        email: v.email,
+        telefono: v.telefono,
+        direccion: v.direccion,
+        alergias: v.alergias ?? [],
+        extras: (v.extras ?? []).map((e) => ({
+          id: e.id,
+          nombre: e.nombre,
+          pvp: e.pvp,
+          cantidad: e.cantidad,
+        })),
+        tutor: v.tutor ?? null,
+      })),
       pagador,
-      extras,
       metodoPago,
+      plazosCalculados,
     });
     setEnviado(true);
   }

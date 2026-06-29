@@ -5,7 +5,7 @@ import {
   Mail, Users, Backpack, Megaphone, FileText,
   Paperclip, CheckCheck, Check, AlertTriangle, Eye, ChevronRight,
 } from "lucide-react";
-import { ComunicacionDB, DestinatarioTracking, WhatsAppIcon, formatBytes } from "./comunicaciones.types.tsx";
+import { ComunicacionDB, DestinatarioTracking, WhatsAppIcon, formatBytes } from "./comunicaciones.types";
 
 // ── Badge estado individual ───────────────────────────────────────────────────
 export function EstadoDestBadge({ dest }: { dest: DestinatarioTracking }) {

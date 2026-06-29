@@ -124,90 +124,133 @@ export default function DocumentosTab({ expedienteId }: DocumentosTabProps) {
 
   return (
     <div className={styles.tabContainer}>
-      {/* Google Drive Banner */}
-      {!loadingDrive && expediente && (
-        <div className={styles.driveBanner}>
-          {hasLinkedFolder ? (
-            <>
-              <div className={styles.driveInfo}>
-                <HardDrive size={18} style={{ color: "#10b981" }} />
-                <span>
-                  Carpeta de Drive vinculada:{" "}
-                  <a
-                    href={`https://drive.google.com/drive/folders/${expediente.metadata.drive_folder.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      fontWeight: "700",
-                      color: "var(--primary-color, #475569)",
-                      textDecoration: "underline",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "0.25rem",
-                    }}
-                  >
-                    {expediente.metadata.drive_folder.name}
-                    <ExternalLink size={14} />
-                  </a>
-                </span>
-              </div>
-              <div className={styles.driveActions}>
-                <button className={styles.driveButton} onClick={() => setIsPickerOpen(true)}>
-                  <FolderOpen size={14} /> Cambiar carpeta
-                </button>
-                <button
-                  className={styles.driveButton}
-                  onClick={handleUnlink}
-                  style={{ color: "#ef4444", borderColor: "#fecaca" }}
-                >
-                  <Unlink size={14} /> Desvincular
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className={styles.driveInfo}>
-                <HardDrive size={18} style={{ color: "#94a3b8" }} />
-                <span style={{ color: "#64748b" }}>
-                  Este expediente no tiene ninguna carpeta de Google Drive vinculada.
-                </span>
-              </div>
-              <div className={styles.driveActions}>
-                <button
-                  className={`${styles.driveButton} ${styles.driveButtonPrimary}`}
-                  onClick={() => setIsPickerOpen(true)}
-                >
-                  <FolderOpen size={14} /> Vincular carpeta
-                </button>
-                <button className={styles.driveButton} onClick={handleCreateFolder} disabled={creatingFolder}>
-                  {creatingFolder ? (
-                    <>
-                      <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Creando carpeta...
-                    </>
-                  ) : (
-                    <>
-                      <FolderPlus size={14} /> Crear carpeta
-                    </>
-                  )}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {loadingDrive && (
-        <div className={styles.driveBanner} style={{ justifyContent: "center", height: "46px" }}>
-          <Loader2 size={16} style={{ animation: "spin 1s linear infinite", color: "#64748b", marginRight: "0.5rem" }} />
-          <span style={{ fontSize: "0.8rem", color: "#64748b" }}>Cargando datos de Google Drive...</span>
-        </div>
-      )}
-
       {/* Header */}
-      <div className={styles.listHeaderTop}>
-        <div className={styles.listTitleWrapper}>
-          <Icons.Documentos size={18} className={styles.titleIcon} />
-          <h2 className={styles.listTitle}>Documentos de Proveedor ({d.filteredData.length})</h2>
+      <div className={styles.listHeaderTop} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.8rem 1.5rem" }}>
+        <div className={styles.listTitleWrapper} style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "0.25rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <Icons.Documentos size={18} className={styles.titleIcon} />
+            <h2 className={styles.listTitle}>Documentos de Proveedor ({d.filteredData.length})</h2>
+          </div>
+
+          {/* Google Drive Status/Actions under the Title */}
+          {!loadingDrive && expediente && (
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", fontSize: "0.72rem", color: "rgba(255, 255, 255, 0.9)", marginTop: "0.2rem" }}>
+              {hasLinkedFolder ? (
+                <>
+                  <HardDrive size={13} style={{ color: "#4ade80", flexShrink: 0 }} />
+                  <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                    Carpeta Drive:{" "}
+                    <a
+                      href={`https://drive.google.com/drive/folders/${expediente?.metadata?.drive_folder?.id ?? ""}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontWeight: "700",
+                        color: "#ffffff",
+                        textDecoration: "underline",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.15rem",
+                      }}
+                    >
+                      {expediente?.metadata?.drive_folder?.name ?? ""}
+                      <ExternalLink size={11} />
+                    </a>
+                  </span>
+                  <div style={{ display: "flex", gap: "0.35rem", marginLeft: "0.5rem" }}>
+                    <button
+                      onClick={() => setIsPickerOpen(true)}
+                      style={{
+                        background: "rgba(255, 255, 255, 0.2)",
+                        border: "1px solid rgba(255, 255, 255, 0.3)",
+                        borderRadius: "0.25rem",
+                        padding: "0.15rem 0.4rem",
+                        fontSize: "0.68rem",
+                        color: "#ffffff",
+                        cursor: "pointer",
+                        fontWeight: "600",
+                        transition: "background 0.2s",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.3)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.2)")}
+                    >
+                      Cambiar
+                    </button>
+                    <button
+                      onClick={handleUnlink}
+                      style={{
+                        background: "rgba(239, 68, 68, 0.2)",
+                        border: "1px solid rgba(239, 68, 68, 0.3)",
+                        borderRadius: "0.25rem",
+                        padding: "0.15rem 0.4rem",
+                        fontSize: "0.68rem",
+                        color: "#fca5a5",
+                        cursor: "pointer",
+                        fontWeight: "600",
+                        transition: "background 0.2s",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239,68,68,0.3)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(239,68,68,0.2)")}
+                    >
+                      Desvincular
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <HardDrive size={13} style={{ color: "rgba(255, 255, 255, 0.6)", flexShrink: 0 }} />
+                  <span>Este expediente no tiene ninguna carpeta de Google Drive vinculada.</span>
+                  <div style={{ display: "flex", gap: "0.35rem", marginLeft: "0.5rem" }}>
+                    <button
+                      onClick={() => setIsPickerOpen(true)}
+                      style={{
+                        background: "#ffffff",
+                        border: "none",
+                        borderRadius: "0.25rem",
+                        padding: "0.15rem 0.5rem",
+                        fontSize: "0.68rem",
+                        color: "var(--primary-color, #475569)",
+                        fontWeight: "700",
+                        cursor: "pointer",
+                        boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                        transition: "background 0.2s",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "#ffffff")}
+                    >
+                      Vincular
+                    </button>
+                    <button
+                      onClick={handleCreateFolder}
+                      disabled={creatingFolder}
+                      style={{
+                        background: "rgba(255, 255, 255, 0.2)",
+                        border: "1px solid rgba(255, 255, 255, 0.3)",
+                        borderRadius: "0.25rem",
+                        padding: "0.15rem 0.4rem",
+                        fontSize: "0.68rem",
+                        color: "#ffffff",
+                        cursor: "pointer",
+                        fontWeight: "600",
+                        transition: "background 0.2s",
+                      }}
+                      onMouseEnter={(e) => { if (!creatingFolder) e.currentTarget.style.background = "rgba(255,255,255,0.3)"; }}
+                      onMouseLeave={(e) => { if (!creatingFolder) e.currentTarget.style.background = "rgba(255,255,255,0.2)"; }}
+                    >
+                      {creatingFolder ? "Creando..." : "Crear carpeta"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {loadingDrive && (
+            <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.7rem", color: "rgba(255, 255, 255, 0.7)", marginTop: "0.2rem" }}>
+              <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} />
+              <span>Cargando datos de Drive...</span>
+            </div>
+          )}
         </div>
         <div className={styles.actionsWrapper}>
           <div className={styles.searchWrapper}>
@@ -310,4 +353,3 @@ export default function DocumentosTab({ expedienteId }: DocumentosTabProps) {
     </div>
   );
 }
-

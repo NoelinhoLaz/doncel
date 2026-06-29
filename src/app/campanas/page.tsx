@@ -500,7 +500,7 @@ function AjustesCampanaModal({ campana, onClose, onUpdated }: {
           getAgencyUsers(),
           apiFetch(`/api/crm/campanas/${campana.id}/agentes`),
         ]);
-        const agenteMap = new Map((agentesCampana ?? []).map((a: any) => [a.agente_id, a.objetivo_valor]));
+        const agenteMap = new Map<string, number | null>((agentesCampana ?? []).map((a: any) => [a.agente_id as string, a.objetivo_valor as number | null]));
         setAgentes(users.map(u => ({
           id: u.id,
           nombre: `${u.nombre} ${u.apellidos}`.trim(),

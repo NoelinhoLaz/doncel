@@ -238,8 +238,8 @@ ${cotizacionContext}`;
   // Fix DISTINCT + ORDER BY conflict — only for outermost SELECT, not inside CTEs
   const isOuterDistinct = /^\s*SELECT\s+DISTINCT/i.test(safeSQL);
   if (isOuterDistinct && /\bORDER\s+BY\b/i.test(safeSQL)) {
-    const orderMatch = safeSQL.match(/\bORDER\s+BY\b(.+)$/is);
-    const withoutOrder = safeSQL.replace(/\bORDER\s+BY\b.+$/is, "").trim();
+    const orderMatch = safeSQL.match(/\bORDER\s+BY\b([\s\S]+)$/i);
+    const withoutOrder = safeSQL.replace(/\bORDER\s+BY\b[\s\S]+$/i, "").trim();
     const orderClause = (orderMatch?.[1]?.trim() ?? "1").replace(/\b\w+\./g, "");
     safeSQL = `SELECT * FROM (${withoutOrder}) _dw ORDER BY ${orderClause}`;
   }
@@ -255,7 +255,7 @@ ${cotizacionContext}`;
     }
     else if (data && typeof data === "object") {
       const keys = Object.keys(data);
-      const first = data[keys[0]];
+      const first = (data as Record<string, unknown>)[keys[0]];
       queryData = Array.isArray(first) ? first : [];
     }
   } catch (dbErr: any) {

@@ -492,7 +492,7 @@ export default function GlobalCopilotoDrawer({ isOpen, onClose }: Props) {
       ? new URLSearchParams(window.location.search).get("id") ?? undefined
       : undefined;
 
-    const propuestaIdLive = config.mode === "propuestas" && typeof window !== "undefined"
+    const propuestaIdLive = config.mode.startsWith("propuestas") && typeof window !== "undefined"
       ? (() => {
           const pathMatch = window.location.pathname.match(/^\/propuestas\/([^/]+)(?:\/|$)/);
           const fromPath = pathMatch?.[1] !== "nueva" ? pathMatch?.[1] : undefined;

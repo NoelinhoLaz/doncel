@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Mail, Search, Download, Plus, Paperclip } from "lucide-react";
 import Pagination from "@/app/components/Pagination";
 import { getComunicacionesByExpediente } from "@/actions/comunicaciones";
-import { ComunicacionDB, TabSegmento } from "./comunicaciones.types.tsx";
+import { ComunicacionDB, TabSegmento } from "./comunicaciones.types";
 import { FilaComunicacion } from "./ComunicacionesTabla";
 import NuevaComunicacionModal from "./NuevaComunicacionModal";
 import styles from "../page.module.css";

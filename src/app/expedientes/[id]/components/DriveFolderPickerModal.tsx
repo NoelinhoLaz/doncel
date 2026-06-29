@@ -205,7 +205,6 @@ export default function DriveFolderPickerModal({
         backdropFilter: "blur(4px)",
         display: "flex",
         alignItems: "center",
-        justify: "center",
         alignContent: "center",
         justifyContent: "center",
         zIndex: 2000,

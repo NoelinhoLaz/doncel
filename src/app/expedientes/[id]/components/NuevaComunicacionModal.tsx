@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { getViajerosByExpediente } from "@/actions/viajeros";
 import { sendExpedienteEmail } from "@/actions/comunicaciones";
-import { Contacto, FiltroGrupo, WhatsAppIcon, formatBytes } from "./comunicaciones.types.tsx";
+import { Contacto, FiltroGrupo, WhatsAppIcon, formatBytes } from "./comunicaciones.types";
 
 interface Props {
   expedienteId: string;

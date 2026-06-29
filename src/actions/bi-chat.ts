@@ -487,8 +487,8 @@ Para filtrar por agente usa su id directamente (más fiable que buscar por nombr
   // CTEs start with WITH — wrapping them breaks the syntax.
   const isOuterDistinct = /^\s*SELECT\s+DISTINCT/i.test(safeSQL);
   if (isOuterDistinct && /\bORDER\s+BY\b/i.test(safeSQL)) {
-    const orderMatch = safeSQL.match(/\bORDER\s+BY\b(.+)$/is);
-    const withoutOrder = safeSQL.replace(/\bORDER\s+BY\b.+$/is, "").trim();
+    const orderMatch = safeSQL.match(/\bORDER\s+BY\b([\s\S]+)$/i);
+    const withoutOrder = safeSQL.replace(/\bORDER\s+BY\b[\s\S]+$/i, "").trim();
     const orderClause = (orderMatch?.[1]?.trim() ?? "1").replace(/\b\w+\./g, "");
     safeSQL = `SELECT * FROM (${withoutOrder}) _distinct_wrapper ORDER BY ${orderClause}`;
   }
@@ -511,7 +511,7 @@ Para filtrar por agente usa su id directamente (más fiable que buscar por nombr
     } else if (data && typeof data === "object") {
       // Sometimes Supabase wraps the jsonb response differently
       const keys = Object.keys(data);
-      const firstVal = data[keys[0]];
+      const firstVal = (data as Record<string, unknown>)[keys[0]];
       queryData = Array.isArray(firstVal) ? firstVal : [];
     }
   } catch (dbErr: any) {

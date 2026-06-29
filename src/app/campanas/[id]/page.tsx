@@ -48,7 +48,8 @@ type Oportunidad = {
   prioridad: number | null;
   agente_id: string | null;
   crm_agentes: { id: string; nombre: string; apellidos: string; avatar_url?: string | null } | null;
-  contabilidad_entidades: { id: string; nombre: string; tipo_entidad: string; email?: string | null; telefono?: string | null; otros_tlfs?: string[] | null; otros_emails?: string[] | null; lat?: number | null; lng?: number | null; direccion: { ciudad?: string; provincia?: string } | null; crm_contactos?: { id: string; nombre: string; cargo: string | null; telefono: string | null; email: string | null; metadatos?: { estrategia?: string; horarios?: string; poder_decision?: string; movil?: string } | null }[] } | null;
+  contabilidad_entidades: { id: string; nombre: string; tipo_entidad: string; email?: string | null; telefono?: string | null; otros_tlfs?: string[] | null; otros_emails?: string[] | null; lat?: number | null; lng?: number | null; direccion: { direccion?: string; calle?: string; cp?: string; ciudad?: string; provincia?: string } | null; crm_contactos?: { id: string; nombre: string; cargo: string | null; telefono: string | null; email: string | null; metadatos?: { estrategia?: string; horarios?: string; poder_decision?: string; movil?: string; antiguedad?: string; desde?: string; anios_experiencia?: string } | null }[] } | null;
+  crm_campanas_estados: { id: string; nombre: string; color: string; es_ganado: boolean; es_final: boolean } | null;
   crm_contactos: { nombre: string; cargo: string | null } | null;
   estados_campanas_anteriores?: { nombre: string; color: string; descripcion: string | null; campana: string | null; estrategia: string | null; campanaCreatedAt?: string | null }[];
   ultima_nota_log?: string | null;
@@ -1255,7 +1256,7 @@ function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: EntidadDetall
       getEntidadHistorial(entidad.id),
       getEntidadResumen(entidad.id),
     ]).then(([rows, resumen]) => {
-      setHistorial(rows as CampanaHistorialRow[]);
+      setHistorial(rows as unknown as CampanaHistorialRow[]);
       setPresupuestos(resumen.presupuestos);
       setCotizaciones(resumen.cotizaciones);
       setExpedientes(resumen.expedientes);
@@ -2804,7 +2805,7 @@ function ModalEstrategia({ op, onClose, onSave }: {
   function limpiarDescripcionLegado(raw: string | null): { cuerpo: string; estrategia: string | null } {
     if (!raw) return { cuerpo: "", estrategia: null };
     // Extraer estrategia del campo legado si existe
-    const estrategiaMatch = raw.match(/Estrategia campa[ñn]a pr[oó]xima:\s*(.+?)(?:\n--- DETALLES|$)/s);
+    const estrategiaMatch = raw.match(/Estrategia campa[ñn]a pr[oó]xima:\s*([\s\S]+?)(?:\n--- DETALLES|$)/);
     const estrategia = estrategiaMatch ? estrategiaMatch[1].trim() : null;
     // Quitar la línea de ciudad (formato "Texto (Texto)" al inicio)
     const lineas = raw.split("\n").filter(l => !/^[A-ZÁÉÍÓÚÑ][^()\n]*\([^)]+\)\s*$/.test(l.trim()));
@@ -2825,7 +2826,7 @@ function ModalEstrategia({ op, onClose, onSave }: {
     setSaving(false);
   }
 
-  function openEditarContacto(c: NonNullable<typeof op.contabilidad_entidades>["crm_contactos"][number]) {
+  function openEditarContacto(c: NonNullable<NonNullable<typeof op.contabilidad_entidades>["crm_contactos"]>[number]) {
     const meta = c.metadatos ?? {};
     const parts = (c.nombre ?? "").split(" ");
     setEditandoContacto({
