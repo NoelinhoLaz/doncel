@@ -35,41 +35,46 @@ function isRateLimited(ip: string): boolean {
 }
 
 export async function middleware(request: NextRequest) {
-  const pathname = request.nextUrl.pathname;
+  try {
+    const pathname = request.nextUrl.pathname;
 
-  // Rate limiting en el login del portal
-  if (pathname === "/api/portal/login" && request.method === "POST") {
-    const ip =
-      request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
-      request.headers.get("x-real-ip") ||
-      "unknown";
+    // Rate limiting en el login del portal
+    if (pathname === "/api/portal/login" && request.method === "POST") {
+      const ip =
+        request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+        request.headers.get("x-real-ip") ||
+        "unknown";
 
-    if (isRateLimited(ip)) {
-      return NextResponse.redirect(
-        new URL("/portal/login?error=Demasiados+intentos.+Espera+15+minutos.", request.nextUrl),
-        { status: 303 }
-      );
+      if (isRateLimited(ip)) {
+        return NextResponse.redirect(
+          new URL("/portal/login?error=Demasiados+intentos.+Espera+15+minutos.", request.nextUrl),
+          { status: 303 }
+        );
+      }
     }
-  }
 
-  // Protect /portal/* routes (except /portal/login)
-  if (pathname.startsWith("/portal/") && pathname !== "/portal/login") {
-    const sessionCookie = request.cookies.get(PORTAL_SESSION_COOKIE)?.value;
+    // Protect /portal/* routes (except /portal/login)
+    if (pathname.startsWith("/portal/") && pathname !== "/portal/login") {
+      const sessionCookie = request.cookies.get(PORTAL_SESSION_COOKIE)?.value;
 
-    if (!sessionCookie) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/portal/login";
-      return NextResponse.redirect(url);
+      if (!sessionCookie) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/portal/login";
+        return NextResponse.redirect(url);
+      }
     }
-  }
 
-  // Propagar el dominio efectivo como header de REQUEST para que headers() lo lea en Server Components
-  const domain = getEffectiveDomain(request);
-  const requestHeaders = new Headers(request.headers);
-  if (domain) {
-    requestHeaders.set("x-agency-domain", domain);
+    // Propagar el dominio efectivo como header de REQUEST para que headers() lo lea en Server Components
+    const domain = getEffectiveDomain(request);
+    const requestHeaders = new Headers(request.headers);
+    if (domain) {
+      requestHeaders.set("x-agency-domain", domain);
+    }
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  } catch (error) {
+    console.error("Middleware invocation crashed:", error);
+    return NextResponse.next();
   }
-  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {
