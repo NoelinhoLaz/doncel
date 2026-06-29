@@ -138,7 +138,11 @@ export default async function RegistroPage({ params }: Props) {
   const headersList = await headers();
   const domain =
     process.env.NEXT_PUBLIC_AGENCY_DOMAIN_OVERRIDE ||
-    headersList.get("x-agency-domain");
+    (() => {
+      const host = headersList.get("host") || "";
+      if (!host || host.startsWith("localhost") || host.startsWith("127.0.0.1")) return null;
+      return host.split(":")[0];
+    })();
 
   const [viaje, { logoUrl, color }] = await Promise.all([
     getViajeBySlug(slug, domain),
