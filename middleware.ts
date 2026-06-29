@@ -70,6 +70,12 @@ export async function middleware(request: NextRequest) {
     if (domain) {
       requestHeaders.set("x-agency-domain", domain);
     }
+    // Sanitizar cabeceras para eliminar caracteres no-ASCII (acentos, etc.) que hacen fallar a Vercel
+    requestHeaders.forEach((value, key) => {
+      if (/[^\x00-\x7F]/.test(value)) {
+        requestHeaders.delete(key);
+      }
+    });
     return NextResponse.next({ request: { headers: requestHeaders } });
   } catch (error) {
     console.error("Middleware invocation crashed:", error);
