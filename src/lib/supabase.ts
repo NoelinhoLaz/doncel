@@ -9,4 +9,6 @@ const getSupabaseClient = () => {
   return createBrowserClient(adminUrl, adminAnonKey);
 };
 
+// Force recompile to load updated production env variables from Vercel
 export const supabase = getSupabaseClient();
+
