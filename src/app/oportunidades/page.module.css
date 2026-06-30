@@ -465,3 +465,15 @@
   font-size: 0.68rem;
   font-weight: 700;
 }
+
+@media (max-width: 1024px) {
+  .kpiRow {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .kpiCard {
+    flex: unset;
+    min-width: unset;
+  }
+}

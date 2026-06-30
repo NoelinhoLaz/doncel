@@ -37,6 +37,7 @@ export default function PresupuestosPage() {
   const [showModal, setShowModal] = useState(false);
   const [presupuestoEditar, setPresupuestoEditar] = useState<any>(null);
   const [destinosMap, setDestinosMap] = useState<Record<string, string>>({});
+  const [agentesMap, setAgentesMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetch("/api/destinos").then(r => r.json()).then(j => {
@@ -45,6 +46,19 @@ export default function PresupuestosPage() {
         for (const d of j.data ?? []) map[d.id] = d.nombre_comercial || d.nombre;
         setDestinosMap(map);
       }
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/usuarios").then(r => r.json()).then(j => {
+      const lista = j?.data ?? j?.users ?? j ?? [];
+      const map: Record<string, string> = {};
+      for (const u of lista) {
+        const nombre = [u.nombre, u.apellidos].filter(Boolean).join(" ");
+        if (u.id) map[u.id] = nombre;
+        if (u.auth_user_id) map[u.auth_user_id] = nombre;
+      }
+      setAgentesMap(map);
     }).catch(() => {});
   }, []);
 
@@ -130,7 +144,8 @@ export default function PresupuestosPage() {
             <table className={styles.table} style={{ paddingLeft: "1rem" }}>
               <thead>
                 <tr>
-                  <th style={{ paddingLeft: "1rem" }}>Cliente</th>
+                  <th style={{ paddingLeft: "1rem" }}>Agente</th>
+                  <th>Cliente</th>
                   <th>Título</th>
                   <th>Tipo</th>
                   <th>Destino</th>
@@ -143,7 +158,7 @@ export default function PresupuestosPage() {
               <tbody>
                 {paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: "center", color: "#94a3b8", padding: "2.5rem" }}>
+                    <td colSpan={9} style={{ textAlign: "center", color: "#94a3b8", padding: "2.5rem" }}>
                       No hay presupuestos todavía. Crea uno con el botón +.
                     </td>
                   </tr>
@@ -159,6 +174,23 @@ export default function PresupuestosPage() {
                         style={{ cursor: "pointer" }}
                       >
                         <td style={{ paddingLeft: "1rem" }}>
+                          {(() => {
+                            const nombre = agentesMap[p.agente_id];
+                            if (!nombre) return <span style={{ color: "#94a3b8" }}>—</span>;
+                            const partes = nombre.trim().split(" ");
+                            const ini = partes.map((w: string) => w[0]?.toUpperCase() ?? "").slice(0, 2).join("");
+                            return (
+                              <span title={nombre} style={{
+                                width: 26, height: 26, borderRadius: "50%",
+                                background: "color-mix(in srgb, var(--primary-color, #475569) 15%, white)",
+                                color: "var(--primary-color, #475569)",
+                                fontSize: "0.6rem", fontWeight: 700,
+                                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                              }}>{ini}</span>
+                            );
+                          })()}
+                        </td>
+                        <td style={{ paddingLeft: "0" }}>
                           <span style={{ fontWeight: 600, fontSize: "0.85rem", color: "#1e293b" }}>
                             {p.cliente_nombre || "—"}
                           </span>

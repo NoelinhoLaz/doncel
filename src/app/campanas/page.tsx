@@ -854,13 +854,20 @@ export default function CampanasPage() {
             <tr>
               <th className={styles.th}>Campaña</th>
               <th className={styles.th}>Estado</th>
-              <th className={styles.th} style={{ textAlign: "center" }}>Inicio</th>
-              <th className={styles.th} style={{ textAlign: "center" }}>Fin</th>
-              <th className={styles.th} style={{ textAlign: "right" }}>Potencial</th>
-              <th className={styles.th} style={{ textAlign: "right" }}>Conseguido</th>
-              <th className={styles.th}>Objetivo</th>
-              <th className={styles.th} style={{ textAlign: "right", width: "1%", whiteSpace: "nowrap", fontSize: "0.6rem" }}>%</th>
-              <th className={styles.th}>Pipeline</th>
+              {/* Desktop: Inicio y Fin separados */}
+              <th className={`${styles.th} ${styles.colDesktop}`} style={{ textAlign: "center" }}>Inicio</th>
+              <th className={`${styles.th} ${styles.colDesktop}`} style={{ textAlign: "center" }}>Fin</th>
+              {/* Mobile: Inicio/Fin combinados */}
+              <th className={`${styles.th} ${styles.colMobile}`} style={{ textAlign: "center" }}>Inicio/Fin</th>
+              {/* Desktop: Potencial y Conseguido separados */}
+              <th className={`${styles.th} ${styles.colDesktop}`} style={{ textAlign: "right" }}>Potencial</th>
+              <th className={`${styles.th} ${styles.colDesktop}`} style={{ textAlign: "right" }}>Conseguido</th>
+              {/* Mobile: Potencial/Conseguido combinados */}
+              <th className={`${styles.th} ${styles.colMobile}`} style={{ textAlign: "right" }}>Potencial/Conseg.</th>
+              <th className={`${styles.th} ${styles.colDesktop}`}>Objetivo</th>
+              <th className={`${styles.th} ${styles.colDesktop}`} style={{ textAlign: "right", width: "1%", whiteSpace: "nowrap", fontSize: "0.6rem" }}>%</th>
+              <th className={`${styles.th} ${styles.colDesktop}`}>Pipeline</th>
+              <th className={`${styles.th} ${styles.colMobile}`}>Objetivo/Pipeline</th>
               <th className={styles.th} />
             </tr>
           </thead>
@@ -922,22 +929,40 @@ export default function CampanasPage() {
                     <td className={styles.td}>
                       <span className={styles.estadoPill} style={{ background: bg, color }}>{ESTADO_LABELS[c.estado]}</span>
                     </td>
-                    <td className={styles.tdCenter}>
+                    {/* Desktop: Inicio y Fin separados */}
+                    <td className={`${styles.tdCenter} ${styles.colDesktop}`}>
                       <span className={styles.fecha}><Calendar size={11} style={{ opacity: 0.5 }} />{formatFecha(c.fecha_inicio)}</span>
                     </td>
-                    <td className={styles.tdCenter}>
+                    <td className={`${styles.tdCenter} ${styles.colDesktop}`}>
                       <span className={styles.fecha}><Calendar size={11} style={{ opacity: 0.5 }} />{formatFecha(c.fecha_fin)}</span>
                     </td>
-                    <td className={styles.tdRight}>
+                    {/* Mobile: Inicio/Fin en una celda */}
+                    <td className={`${styles.tdCenter} ${styles.colMobile}`}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                        <span className={styles.fecha}><Calendar size={10} style={{ opacity: 0.5 }} />{formatFecha(c.fecha_inicio)}</span>
+                        <span style={{ fontSize: "0.6rem", color: "#cbd5e1" }}>↓</span>
+                        <span className={styles.fecha}><Calendar size={10} style={{ opacity: 0.5 }} />{formatFecha(c.fecha_fin)}</span>
+                      </div>
+                    </td>
+                    {/* Desktop: Potencial y Conseguido separados */}
+                    <td className={`${styles.tdRight} ${styles.colDesktop}`}>
                       <span style={{ color: "#3d9183", fontWeight: 600 }}>{c.potencial.toLocaleString("es-ES")} € <span style={{ fontWeight: 400, color: "#94a3b8" }}>({c.numOport})</span></span>
                     </td>
-                    <td className={styles.tdRight}>
+                    <td className={`${styles.tdRight} ${styles.colDesktop}`}>
                       <span style={{ fontWeight: 600, color: over ? "#16a34a" : "#1e293b" }}>{c.conseguido.toLocaleString("es-ES")} € <span style={{ fontWeight: 400, color: "#94a3b8" }}>({c.numConseguido})</span></span>
                     </td>
-                    <td className={styles.td} style={{ paddingRight: 0 }}>
+                    {/* Mobile: Potencial/Conseguido en una celda */}
+                    <td className={`${styles.tdRight} ${styles.colMobile}`}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                        <span style={{ color: "#3d9183", fontWeight: 600, fontSize: "0.75rem" }}>{c.potencial.toLocaleString("es-ES")} €</span>
+                        <span style={{ fontWeight: 600, color: over ? "#16a34a" : "#1e293b", fontSize: "0.75rem" }}>{c.conseguido.toLocaleString("es-ES")} €</span>
+                      </div>
+                    </td>
+                    {/* Desktop: Objetivo separado */}
+                    <td className={`${styles.td} ${styles.colDesktop}`} style={{ paddingRight: 0 }}>
                       <ObjetivoBar conseguido={c.conseguido} objetivo={c.objetivo} height={18} />
                     </td>
-                    <td className={styles.tdRight} style={{ whiteSpace: "nowrap", paddingLeft: 6 }}>
+                    <td className={`${styles.tdRight} ${styles.colDesktop}`} style={{ whiteSpace: "nowrap", paddingLeft: 6 }}>
                       {c.objetivo > 0 ? (() => {
                         const pctVal = Math.round((c.conseguido / c.objetivo) * 100);
                         return over
@@ -948,8 +973,16 @@ export default function CampanasPage() {
                           : <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#6366f1" }}>{pctVal}%</span>;
                       })() : "—"}
                     </td>
-                    <td className={styles.td} style={{ paddingRight: "0.75rem" }}>
+                    {/* Desktop: Pipeline separado */}
+                    <td className={`${styles.td} ${styles.colDesktop}`} style={{ paddingRight: "0.75rem" }}>
                       <IphoneBar segmentos={c.segmentos} potencial={c.potencial} height={18} />
+                    </td>
+                    {/* Mobile: Objetivo/Pipeline combinados */}
+                    <td className={`${styles.td} ${styles.colMobile}`} style={{ paddingRight: "0.5rem" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <ObjetivoBar conseguido={c.conseguido} objetivo={c.objetivo} height={14} />
+                        <IphoneBar segmentos={c.segmentos} potencial={c.potencial} height={14} />
+                      </div>
                     </td>
                     <td className={styles.td} onClick={e => e.stopPropagation()}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -986,24 +1019,34 @@ export default function CampanasPage() {
                             <span style={{ fontSize: "0.8rem", fontWeight: 500, color: "#475569" }}>{a.nombre}</span>
                           </div>
                         </td>
-                        {/* Estado, Inicio, Fin → vacíos */}
+                        {/* Estado → vacío */}
                         <td className={styles.subTd} />
-                        <td className={styles.subTd} />
-                        <td className={styles.subTd} />
-                        {/* Potencial */}
-                        <td className={styles.subTdRight} style={{ color: "#3d9183", fontWeight: 600 }}>
+                        {/* Desktop: Inicio, Fin vacíos */}
+                        <td className={`${styles.subTd} ${styles.colDesktop}`} />
+                        <td className={`${styles.subTd} ${styles.colDesktop}`} />
+                        {/* Mobile: Inicio/Fin vacío */}
+                        <td className={`${styles.subTd} ${styles.colMobile}`} />
+                        {/* Desktop: Potencial */}
+                        <td className={`${styles.subTdRight} ${styles.colDesktop}`} style={{ color: "#3d9183", fontWeight: 600 }}>
                           {a.potencial > 0 ? <>{a.potencial.toLocaleString("es-ES")} € <span style={{ fontWeight: 400, color: "#94a3b8" }}>({a.numOport})</span></> : "—"}
                         </td>
-                        {/* Conseguido */}
-                        <td className={styles.subTdRight} style={{ color: aOver ? "#16a34a" : "#1e293b", fontWeight: 600 }}>
+                        {/* Desktop: Conseguido */}
+                        <td className={`${styles.subTdRight} ${styles.colDesktop}`} style={{ color: aOver ? "#16a34a" : "#1e293b", fontWeight: 600 }}>
                           {a.conseguido > 0 ? <>{a.conseguido.toLocaleString("es-ES")} € <span style={{ fontWeight: 400, color: "#94a3b8" }}>({a.numConseguido})</span></> : "—"}
                         </td>
-                        {/* Objetivo */}
-                        <td className={styles.subTd} style={{ paddingRight: 0 }}>
+                        {/* Mobile: Potencial/Conseguido */}
+                        <td className={`${styles.subTdRight} ${styles.colMobile}`}>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                            <span style={{ color: "#3d9183", fontWeight: 600, fontSize: "0.75rem" }}>{a.potencial > 0 ? `${a.potencial.toLocaleString("es-ES")} €` : "—"}</span>
+                            <span style={{ fontWeight: 600, color: aOver ? "#16a34a" : "#1e293b", fontSize: "0.75rem" }}>{a.conseguido > 0 ? `${a.conseguido.toLocaleString("es-ES")} €` : "—"}</span>
+                          </div>
+                        </td>
+                        {/* Desktop: Objetivo */}
+                        <td className={`${styles.subTd} ${styles.colDesktop}`} style={{ paddingRight: 0 }}>
                           <ObjetivoBar conseguido={a.conseguido} objetivo={a.objetivo} />
                         </td>
-                        {/* % obj */}
-                        <td className={styles.subTdRight} style={{ whiteSpace: "nowrap", paddingLeft: 6 }}>
+                        {/* % obj — solo desktop */}
+                        <td className={`${styles.subTdRight} ${styles.colDesktop}`} style={{ whiteSpace: "nowrap", paddingLeft: 6 }}>
                           {a.objetivo > 0 ? (() => {
                             const pctVal = Math.round((a.conseguido / a.objetivo) * 100);
                             return aOver
@@ -1014,9 +1057,16 @@ export default function CampanasPage() {
                               : <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#6366f1" }}>{pctVal}%</span>;
                           })() : "—"}
                         </td>
-                        {/* Pipeline */}
-                        <td className={styles.subTd} style={{ paddingRight: "0.75rem" }}>
+                        {/* Desktop: Pipeline */}
+                        <td className={`${styles.subTd} ${styles.colDesktop}`} style={{ paddingRight: "0.75rem" }}>
                           <IphoneBar segmentos={a.segmentos} potencial={a.potencial} />
+                        </td>
+                        {/* Mobile: Objetivo/Pipeline combinados */}
+                        <td className={`${styles.subTd} ${styles.colMobile}`} style={{ paddingRight: "0.5rem" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                            <ObjetivoBar conseguido={a.conseguido} objetivo={a.objetivo} height={14} />
+                            <IphoneBar segmentos={a.segmentos} potencial={a.potencial} height={14} />
+                          </div>
                         </td>
                         {/* Acciones → vacío */}
                         <td className={styles.subTd} />

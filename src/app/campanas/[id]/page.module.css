@@ -662,12 +662,14 @@
 .kpiCard {
   flex: 1;
   min-width: 90px;
+  min-height: 80px;
   border-radius: 0.75rem;
   padding: 0.7rem 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
   align-items: center;
+  justify-content: center;
 }
 
 .kpiCardLabel {
@@ -1414,3 +1416,42 @@
 }
 
 
+
+/* ── Responsive: collapsed estado column on tablet/mobile ── */
+.thEstadoCol,
+.tdEstadoCol {
+  display: none;
+}
+.thEstado,
+.tdEstado,
+.thSepEstado,
+.tdSepEstado {
+  display: table-cell;
+}
+
+@media (max-width: 1024px) {
+  /* Hide all individual estado columns */
+  .thEstado,
+  .tdEstado,
+  .thSepEstado,
+  .tdSepEstado {
+    display: none;
+  }
+  /* Show collapsed single estado column */
+  .thEstadoCol,
+  .tdEstadoCol {
+    display: table-cell;
+  }
+
+  /* KPI rows: max 4 per row */
+  .kpiRow {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .kpi,
+  .kpiCard {
+    flex: unset;
+    min-width: unset;
+  }
+}

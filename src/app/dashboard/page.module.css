@@ -1,18 +1,64 @@
 .container {
   padding: 1rem;
+  height: calc(100vh - 60px);
+  display: flex;
+  flex-direction: column;
 }
 
 .title {
   font-size: 2.25rem;
   font-weight: 400;
   color: #1e293b;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+
+.topRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 1024px) {
+  .container {
+    height: calc(100vh - 60px - 56px);
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(6, 1fr);
+  }
+}
+
+.topCard {
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.topCardNum {
+  font-size: 3rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  letter-spacing: -0.04em;
 }
 
 .blank {
-  width: 100%;
-  max-width: 900px;
   min-height: 380px;
   border-radius: 18px;
   background: #ffffff;
@@ -20,5 +66,227 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto;
+}
+
+/* ── List card (presupuestos, etc.) ─────────────────────────────────── */
+.listCard {
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.listCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem 0.6rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--primary-color, #475569) 20%, white);
+  background: color-mix(in srgb, var(--primary-color, #475569) 10%, white);
+  border-radius: 16px 16px 0 0;
+}
+
+.listCardTitle {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--primary-color, #475569);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.listCardLink {
+  font-size: 0.65rem;
+  color: color-mix(in srgb, var(--primary-color, #475569) 70%, white);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.listCardLink:hover {
+  color: var(--primary-color, #475569);
+  text-decoration: underline;
+}
+
+.listCardBody {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.listCardEmpty {
+  padding: 2rem;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+.listCardRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 1rem;
+  border-bottom: 1px solid #f8fafc;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.12s;
+}
+
+.listCardRow:last-child {
+  border-bottom: none;
+}
+
+.listCardRow:hover {
+  background: #f8fafc;
+}
+
+.listCardRowMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.listCardRowTitle {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.listCardRowSub {
+  font-size: 0.62rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.listCardRowMeta {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.listCardRowAmount {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+}
+
+.listCardAvatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary-color, #475569) 15%, white);
+  color: var(--primary-color, #475569);
+  font-size: 0.55rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.listCardBadge {
+  font-size: 0.58rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+/* ── Welcome card ────────────────────────────────────────────────────── */
+.welcomeCard {
+  border-radius: 18px;
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--primary-color, #475569) 25%, white) 0%,
+    color-mix(in srgb, var(--primary-color, #475569) 15%, white) 50%,
+    color-mix(in srgb, var(--primary-color, #475569) 28%, white) 100%
+  );
+  border: 2px solid #ffffff;
+  box-shadow: 0 24px 64px color-mix(in srgb, var(--primary-color, #475569) 12%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem 1.5rem;
+}
+
+.welcomeContent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 400px;
+}
+
+.welcomeGreeting {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--primary-color, #475569);
+  letter-spacing: -0.02em;
+}
+
+.welcomeSub {
+  margin: 0;
+  font-size: 0.78rem;
+  color: color-mix(in srgb, var(--primary-color, #475569) 70%, black);
+}
+
+.welcomeInputWrapper {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.welcomeInput {
+  flex: 1;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--primary-color, #475569) 30%, white);
+  background: rgba(255, 255, 255, 0.7);
+  color: #1e293b;
+  font-size: 0.78rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.welcomeInput::placeholder {
+  color: color-mix(in srgb, var(--primary-color, #475569) 40%, white);
+}
+
+.welcomeInput:focus {
+  border-color: var(--primary-color, #475569);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.welcomeBtn {
+  padding: 0.4rem 0.85rem;
+  border-radius: 0.6rem;
+  border: none;
+  background: var(--primary-color, #475569);
+  color: #ffffff;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.welcomeBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary-color, #475569) 80%, black);
+}
+
+.welcomeBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }

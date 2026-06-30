@@ -66,7 +66,9 @@ async function getDefaultTipoId(agencyDb: any): Promise<string | null> {
       const lineas: any[] = c.operativa_cotizacion_lineas || [];
       const checked = lineas.filter((l: any) => l.checked !== false);
       const total_coste = checked.reduce((sum: number, l: any) => {
-        return sum + Number(l.total_neto ?? (Number(l.neto || 0) * Number(l.plazas || 0) * Number(l.noches || 0)));
+        const plazas = !l.plazas || Number(l.plazas) === 0 ? 1 : Number(l.plazas);
+        const noches = !l.noches || Number(l.noches) === 0 ? 1 : Number(l.noches);
+        return sum + Number(l.total_neto ?? (Number(l.neto || 0) * plazas * noches));
       }, 0);
       const total_ingresos = Number(c.pvp_viajero || 0) * Number(c.plazas || 0);
       const total_beneficio = total_ingresos - total_coste;

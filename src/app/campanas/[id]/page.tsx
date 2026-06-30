@@ -876,10 +876,22 @@ function ResponsablesTooltip({ contactos }: { contactos: { id: string; nombre: s
 
   if (!contactos.length) return <span style={{ color: "#e2e8f0", fontSize: "0.7rem" }}>—</span>;
 
+  const sinContacto = contactos.some(c => !c.nombre || !c.telefono && !c.metadatos?.movil || !c.email);
+
   return (
     <div ref={ref} style={{ display: "inline-flex" }} onMouseEnter={handleEnter} onMouseLeave={() => setTooltip(null)}>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.75rem", fontWeight: 600, color: "#475569", cursor: "default" }}>
-        <User size={12} style={{ opacity: 0.5 }} />{contactos.length}
+      <span style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.75rem", fontWeight: 600, color: "#475569", cursor: "default" }}>
+        <span style={{ position: "relative", display: "inline-flex", paddingTop: sinContacto ? 4 : 0 }}>
+          <User size={12} style={{ opacity: 0.5 }} />
+          {sinContacto && (
+            <span style={{
+              position: "absolute", top: -3, right: -4,
+              width: 7, height: 7, borderRadius: "50%",
+              background: "#eab308", border: "1.5px solid #fff",
+            }} />
+          )}
+        </span>
+        {contactos.length}
       </span>
       {tooltip && (
         <div style={{
@@ -889,28 +901,42 @@ function ResponsablesTooltip({ contactos }: { contactos: { id: string; nombre: s
           left: tooltip.left,
           zIndex: 99999,
           background: "#1e293b", borderRadius: 8, padding: "0.5rem 0",
-          boxShadow: "0 8px 24px rgba(15,23,42,0.22)", minWidth: 200, maxWidth: TOOLTIP_W,
+          boxShadow: "0 8px 24px rgba(15,23,42,0.22)", width: "max-content", maxWidth: TOOLTIP_W,
           pointerEvents: "none",
         }}>
-          {contactos.map((c, i) => (
-            <div key={c.id} style={{
-              padding: "0.35rem 0.75rem",
-              borderTop: i > 0 ? "1px solid rgba(255,255,255,0.07)" : undefined,
-            }}>
-              <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "#f1f5f9", lineHeight: 1.3 }}>{c.nombre}</div>
-              {c.cargo && <div style={{ fontSize: "0.68rem", color: "#94a3b8", lineHeight: 1.3 }}>{c.cargo}</div>}
-              {(c.telefono || c.metadatos?.movil) && <div style={{ fontSize: "0.68rem", color: "#64748b", lineHeight: 1.3 }}>{c.telefono || c.metadatos?.movil}</div>}
-              {c.email && <div style={{ fontSize: "0.68rem", color: "#64748b", lineHeight: 1.3 }}>{c.email}</div>}
-              {c.metadatos?.estrategia && (
-                <div style={{ fontSize: "0.67rem", color: "#7dd3a8", lineHeight: 1.4, marginTop: 2, fontStyle: "italic", maxWidth: 260, whiteSpace: "pre-wrap" }}>
-                  {c.metadatos.estrategia}
-                </div>
-              )}
-              {c.metadatos?.horarios && (
-                <div style={{ fontSize: "0.66rem", color: "#94a3b8", lineHeight: 1.3, marginTop: 1 }}>⏰ {c.metadatos.horarios}</div>
-              )}
-            </div>
-          ))}
+          {contactos.map((c, i) => {
+            const sinNombre = !c.nombre;
+            const sinTlf = !c.telefono && !c.metadatos?.movil;
+            const sinEmail = !c.email;
+            return (
+              <div key={c.id} style={{
+                padding: "0.35rem 0.75rem",
+                borderTop: i > 0 ? "1px solid rgba(255,255,255,0.07)" : undefined,
+              }}>
+                {sinNombre
+                  ? <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "#eab308", lineHeight: 1.3 }}>⚠ Nombre no registrado</div>
+                  : <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "#f1f5f9", lineHeight: 1.3 }}>{c.nombre}</div>
+                }
+                {c.cargo && <div style={{ fontSize: "0.68rem", color: "#94a3b8", lineHeight: 1.3 }}>{c.cargo}</div>}
+                {sinTlf
+                  ? <div style={{ fontSize: "0.68rem", color: "#eab308", lineHeight: 1.3 }}>⚠ Teléfono no registrado</div>
+                  : <div style={{ fontSize: "0.68rem", color: "#64748b", lineHeight: 1.3 }}>{c.telefono || c.metadatos?.movil}</div>
+                }
+                {sinEmail
+                  ? <div style={{ fontSize: "0.68rem", color: "#eab308", lineHeight: 1.3 }}>⚠ Email no registrado</div>
+                  : <div style={{ fontSize: "0.68rem", color: "#64748b", lineHeight: 1.3 }}>{c.email}</div>
+                }
+                {c.metadatos?.estrategia && (
+                  <div style={{ fontSize: "0.67rem", color: "#7dd3a8", lineHeight: 1.4, marginTop: 2, fontStyle: "italic", maxWidth: 260, whiteSpace: "pre-wrap" }}>
+                    {c.metadatos.estrategia}
+                  </div>
+                )}
+                {c.metadatos?.horarios && (
+                  <div style={{ fontSize: "0.66rem", color: "#94a3b8", lineHeight: 1.3, marginTop: 1 }}>⏰ {c.metadatos.horarios}</div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -2136,8 +2162,8 @@ function TablaOportunidades({ oportunidades, estados, monocromo, isOwner, campan
             const p2val = p2.reduce((s, o) => s + o.valor_estimado, 0);
             return (
               <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 2, width: "100%" }}>
-                {p1.length > 0 && <span style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.85)", display: "flex", justifyContent: "space-between", width: "100%" }}><span>P1</span><span>{p1val.toLocaleString("es-ES")} € ({p1.length})</span></span>}
-                {p2.length > 0 && <span style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.85)", display: "flex", justifyContent: "space-between", width: "100%" }}><span>P2</span><span>{p2val.toLocaleString("es-ES")} € ({p2.length})</span></span>}
+                <span style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.85)", display: "flex", justifyContent: "space-between", width: "100%" }}><span>P1</span><span>{p1val.toLocaleString("es-ES")} € ({p1.length})</span></span>
+                <span style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.85)", display: "flex", justifyContent: "space-between", width: "100%" }}><span>P2</span><span>{p2val.toLocaleString("es-ES")} € ({p2.length})</span></span>
               </div>
             );
           })()}
@@ -2158,8 +2184,8 @@ function TablaOportunidades({ oportunidades, estados, monocromo, isOwner, campan
                 {valor > 0 ? `${valor.toLocaleString("es-ES")} € (${ops.length})` : ops.length}
               </span>
               <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 2, width: "100%" }}>
-                {p1.length > 0 && <span style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.85)", display: "flex", justifyContent: "space-between", width: "100%" }}><span>P1</span><span>{p1val > 0 ? `${p1val.toLocaleString("es-ES")} € ` : ""}({p1.length})</span></span>}
-                {p2.length > 0 && <span style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.85)", display: "flex", justifyContent: "space-between", width: "100%" }}><span>P2</span><span>{p2val > 0 ? `${p2val.toLocaleString("es-ES")} € ` : ""}({p2.length})</span></span>}
+                <span style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.85)", display: "flex", justifyContent: "space-between", width: "100%" }}><span>P1</span><span>{p1val > 0 ? `${p1val.toLocaleString("es-ES")} € ` : "0 € "}({p1.length})</span></span>
+                <span style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.85)", display: "flex", justifyContent: "space-between", width: "100%" }}><span>P2</span><span>{p2val > 0 ? `${p2val.toLocaleString("es-ES")} € ` : "0 € "}({p2.length})</span></span>
               </div>
             </div>
           );
@@ -2380,12 +2406,13 @@ function TablaOportunidades({ oportunidades, estados, monocromo, isOwner, campan
             <th className={styles.th} style={{ width: 58, cursor: "pointer", userSelect: "none" }} onClick={() => toggleSort("resp")}><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 2 }}>Resp.<SortIcon col="resp" /></span></th>
             <th className={styles.th} style={{ textAlign: "left", whiteSpace: "nowrap" }}>Camp. ant.</th>
             {estadosNormales.map(e => (
-              <th key={e.id} className={styles.th} style={{ textAlign: "center" }}>{e.nombre}</th>
+              <th key={e.id} className={`${styles.th} ${styles.thEstado}`} style={{ textAlign: "center" }}>{e.nombre}</th>
             ))}
-            {conSeparador && <th className={styles.thSep} />}
+            {conSeparador && <th className={`${styles.thSep} ${styles.thSepEstado}`} />}
             {estadosFinalesNegativos.map(e => (
-              <th key={e.id} className={`${styles.th} ${styles.thGray}`} style={{ textAlign: "center" }}>{e.nombre}</th>
+              <th key={e.id} className={`${styles.th} ${styles.thGray} ${styles.thEstado}`} style={{ textAlign: "center" }}>{e.nombre}</th>
             ))}
+            <th className={`${styles.th} ${styles.thEstadoCol}`} style={{ textAlign: "center" }}>Estado</th>
             <th className={styles.th} style={{ cursor: "pointer", userSelect: "none" }} onClick={() => toggleSort("estimacion")}><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 2, width: "100%" }}>Estimación<SortIcon col="estimacion" /></span></th>
             <th className={styles.th} style={{ textAlign: "center", width: 60 }}></th>
           </tr>
@@ -2462,7 +2489,7 @@ function TablaOportunidades({ oportunidades, estados, monocromo, isOwner, campan
                 return (
                 <td
                   key={e.id}
-                  className={`${styles.tdCenter} ${styles.dropZone} ${
+                  className={`${styles.tdCenter} ${styles.dropZone} ${styles.tdEstado} ${
                     dragOverCell?.opId === o.id && dragOverCell?.estadoId === e.id
                       ? styles.dropZoneActive
                       : ""
@@ -2512,11 +2539,11 @@ function TablaOportunidades({ oportunidades, estados, monocromo, isOwner, campan
                 </td>
               );
               })}
-              {conSeparador && <td className={styles.tdSep} />}
+              {conSeparador && <td className={`${styles.tdSep} ${styles.tdSepEstado}`} />}
               {estadosFinalesNegativos.map(e => (
                 <td
                   key={e.id}
-                  className={`${styles.tdCenter} ${styles.tdGray} ${styles.dropZone} ${
+                  className={`${styles.tdCenter} ${styles.tdGray} ${styles.dropZone} ${styles.tdEstado} ${
                     dragOverCell?.opId === o.id && dragOverCell?.estadoId === e.id
                       ? styles.dropZoneActive
                       : ""
@@ -2565,6 +2592,11 @@ function TablaOportunidades({ oportunidades, estados, monocromo, isOwner, campan
                   )}
                 </td>
               ))}
+              <td className={`${styles.tdCenter} ${styles.tdEstadoCol}`}>
+                {o.crm_campanas_estados && (
+                  <StatePill color={o.crm_campanas_estados.color} mono={monocromo} fecha={o.fecha_ultimo_cambio_estado ?? o.fecha_cierre_est} notas={o.ultima_nota_log ?? o.mig_notas?.observaciones ?? null} />
+                )}
+              </td>
               <td className={styles.tdRight} style={{ fontWeight: 600, color: "#1e293b" }} onClick={e => e.stopPropagation()}>
                 {editingCell?.opId === o.id && editingCell.field === "valor_estimado" ? (
                   <input

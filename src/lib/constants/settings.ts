@@ -2,7 +2,7 @@ export const TRAVEL_ICONS = [
   "Plane", "Bed", "Compass", "FolderPlus", "Train", "Car", "Ship", "Map", "Bus",
   "Ticket", "Utensils", "Camera", "Heart", "Shield", "Sun", "Mountain", "Activity",
   "Calendar", "Gift", "Luggage", "CreditCard", "Globe", "User", "Bike", "Wine",
-  "MapPin", "ShoppingBag", "Coffee", "FileText"
+  "MapPin", "ShoppingBag", "Coffee", "FileText", "Box"
 ];
 
 export const DEFAULT_FORM_EXAMPLE = [

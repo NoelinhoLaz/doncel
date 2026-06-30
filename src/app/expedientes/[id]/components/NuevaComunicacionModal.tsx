@@ -361,9 +361,24 @@ export default function NuevaComunicacionModal({ expedienteId, pagadores, onClos
           </div>
 
           {envioError && (
-            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", padding: "0.6rem 0.85rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", fontSize: "0.78rem", color: "#dc2626" }}>
-              <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: "1px" }} />
-              {envioError}
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", padding: "0.75rem 0.85rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", fontSize: "0.78rem", color: "#dc2626" }}>
+              <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: "2px" }} />
+              {envioError === "GMAIL_AUTH_FAILED" ? (
+                <div>
+                  <div style={{ fontWeight: 700, marginBottom: "0.3rem" }}>Error de autenticación con Gmail</div>
+                  <div style={{ color: "#7f1d1d", lineHeight: 1.5 }}>
+                    Gmail no acepta contraseñas normales en SMTP. Debes usar una <strong>Contraseña de aplicación</strong>:
+                  </div>
+                  <ol style={{ margin: "0.4rem 0 0 1rem", padding: 0, color: "#7f1d1d", lineHeight: 1.7 }}>
+                    <li>Activa la <strong>verificación en dos pasos</strong> en tu cuenta Google</li>
+                    <li>Ve a <strong>myaccount.google.com → Seguridad → Contraseñas de aplicaciones</strong></li>
+                    <li>Crea una nueva con nombre "Momo" y copia los 16 caracteres</li>
+                    <li>Guarda esa clave en <strong>Ajustes → Correo</strong> (sin espacios)</li>
+                  </ol>
+                </div>
+              ) : (
+                envioError
+              )}
             </div>
           )}
 

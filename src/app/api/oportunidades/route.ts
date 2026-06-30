@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAgencyDbClient } from "@/lib/agencyDb";
+import { getCurrentAgentePublic } from "@/actions/crm";
 
 export async function GET(req: Request) {
   try {
@@ -11,15 +12,20 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: "campana_id requerido" }, { status: 400 });
     }
 
-    const agencyDb = await getAgencyDbClient();
+    const [agencyDb, agente] = await Promise.all([getAgencyDbClient(), getCurrentAgentePublic()]);
+    const isOwner = ["Owner", "SuperAdmin", "Admin"].includes(agente.rol ?? "");
 
     // Base: todas las oportunidades de la campaña (sin query) o filtradas por título
-    const opQuery = agencyDb
+    let opQuery = agencyDb
       .from("crm_oportunidades")
       .select("id, titulo, valor_estimado, entidad_id, estado_id")
       .eq("campana_id", campanaId)
       .order("created_at", { ascending: false })
       .limit(30);
+
+    if (!isOwner && agente.usuarioId) {
+      opQuery = opQuery.eq("agente_id", agente.usuarioId) as typeof opQuery;
+    }
 
     const [{ data: opsPorTitulo }, entidadesQResult] = await Promise.all([
       q.length >= 2 ? opQuery.ilike("titulo", `%${q}%`) : opQuery,
@@ -38,12 +44,16 @@ export async function GET(req: Request) {
     if (entidadesQ.length > 0) {
       entidadesQ.forEach((e: any) => { entidadMap[e.id] = e; });
       const entQIds = entidadesQ.map((e: any) => e.id);
-      const { data: opsPorEntidad } = await agencyDb
+      let entidadOpQuery = agencyDb
         .from("crm_oportunidades")
         .select("id, titulo, valor_estimado, entidad_id, estado_id")
         .eq("campana_id", campanaId)
         .in("entidad_id", entQIds)
         .limit(20);
+      if (!isOwner && agente.usuarioId) {
+        entidadOpQuery = entidadOpQuery.eq("agente_id", agente.usuarioId) as typeof entidadOpQuery;
+      }
+      const { data: opsPorEntidad } = await entidadOpQuery;
       (opsPorEntidad ?? []).forEach((o: any) => {
         if (!existingIds.has(o.id)) { allOps.push(o); existingIds.add(o.id); }
       });

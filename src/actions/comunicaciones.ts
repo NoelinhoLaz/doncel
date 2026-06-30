@@ -43,15 +43,16 @@ export async function sendExpedienteEmail(params: SendEmailParams) {
   }
 
   const config = configRes.data;
-  const smtpHost = config.email_smtp_host || (
-    config.email_provider === "gmail" ? "smtp.gmail.com" : "smtp.office365.com"
-  );
-  const smtpPort = config.email_smtp_port ? Number(config.email_smtp_port) : 465;
+  const isGmail = config.email_provider === "gmail" || config.email_address?.endsWith("@gmail.com") || config.email_address?.endsWith("@googlemail.com");
+  const smtpHost = config.email_smtp_host || (isGmail ? "smtp.gmail.com" : "smtp.office365.com");
+  const smtpPort = config.email_smtp_port ? Number(config.email_smtp_port) : (isGmail ? 587 : 587);
   const secure = smtpPort === 465;
 
-  const emailPassword = verifyToken(config.email_password_enc || "") || config.email_password_enc;
+  const decryptedPassword = verifyToken(config.email_password_enc || "");
+  console.log(`[SMTP debug] host=${smtpHost} port=${smtpPort} secure=${secure} user=${config.email_address} decrypt_ok=${decryptedPassword !== null} enc_len=${(config.email_password_enc || "").length}`);
+  const emailPassword = decryptedPassword;
   if (!emailPassword) {
-    return { success: false, error: "No se pudo obtener la contraseña de correo. Reconfigura tu cuenta en Ajustes > Correo." };
+    return { success: false, error: "No se pudo descifrar la contraseña de correo. Vuelve a guardar tu configuración en Ajustes → Correo." };
   }
 
   const destinatariosValidos = destinatarios.filter((d) => d.email && d.email.includes("@"));
@@ -66,14 +67,24 @@ export async function sendExpedienteEmail(params: SendEmailParams) {
       port: smtpPort,
       secure,
       auth: {
+        type: "LOGIN",
         user: config.email_address,
         pass: emailPassword,
       },
+      tls: { rejectUnauthorized: false },
       connectionTimeout: 15000,
       socketTimeout: 30000,
     });
   } catch (err: any) {
     return { success: false, error: `Error al crear el transporter SMTP: ${err.message}` };
+  }
+
+  try {
+    await transporter.verify();
+    console.log("[SMTP debug] verify OK");
+  } catch (err: any) {
+    console.error("[SMTP debug] verify FAILED:", err.message);
+    return { success: false, error: `Error de conexión SMTP: ${err.message}` };
   }
 
   const attachments = adjuntos.map((a) => ({
@@ -155,7 +166,14 @@ export async function sendExpedienteEmail(params: SendEmailParams) {
       });
       resultados.push({ email: dest.email, ok: true, destinatarioId: destRecord?.id });
     } catch (err: any) {
-      resultados.push({ email: dest.email, ok: false, error: err.message, destinatarioId: destRecord?.id });
+      const raw: string = err.message ?? "";
+      let mensajeError = raw;
+      if (raw.includes("535") || raw.toLowerCase().includes("authentication failed") || raw.toLowerCase().includes("username and password not accepted")) {
+        mensajeError = isGmail
+          ? "GMAIL_AUTH_FAILED"
+          : "AUTH_FAILED:" + raw;
+      }
+      resultados.push({ email: dest.email, ok: false, error: mensajeError, destinatarioId: destRecord?.id });
     }
   }
 

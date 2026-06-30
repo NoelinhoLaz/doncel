@@ -362,11 +362,15 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
   const [ubicacion, setUbicacion] = useState("centro");
   const [prefHab, setPrefHab] = useState<string[]>([]);
   const [vuelo, setVuelo] = useState(false);
+  const [tipoAerolinea, setTipoAerolinea] = useState("indiferente");
   const [horarioVuelo, setHorarioVuelo] = useState("indiferente");
   const [tren, setTren] = useState(false);
   const [autocar, setAutocar] = useState(false);
   const [trasladosInt, setTrasladosInt] = useState(false);
   const [conoceDestino, setConoceDestino] = useState(false);
+  const [aconsejamosDestino, setAconsejamosDestino] = useState(false);
+  const [viajaronAnoPasado, setViajaronAnoPasado] = useState(false);
+  const [viajeAnterior, setViajeAnterior] = useState({ destino: "", fechas: "", agencia: "", excursiones: "", valoracion: "" });
   const [regimen, setRegimen] = useState<string[]>(["mp"]);
   const [monitores, setMonitores] = useState(false);
   const [visitas, setVisitas] = useState("");
@@ -462,12 +466,16 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
     setPrefHab(Array.isArray(ph) ? ph : ph ? [ph] : []);
     const transp = pref.transporte ?? {};
     setVuelo(transp.requiere_vuelo || false);
+    setTipoAerolinea(transp.tipo_aerolinea || "indiferente");
     setHorarioVuelo(transp.preferencia_horario_vuelos || "indiferente");
     setTren(transp.requiere_tren || false);
     setAutocar(transp.requiere_autocar_origen || false);
     setTrasladosInt(transp.requiere_traslados_destino || false);
     const prog = pref.programa_destino ?? {};
     setConoceDestino(prog.conoce_destino || false);
+    setAconsejamosDestino(pref.aconsejamos_destino || false);
+    setViajaronAnoPasado(pref.viajaron_ano_pasado || false);
+    setViajeAnterior(pref.viaje_anterior || { destino: "", fechas: "", agencia: "", excursiones: "", valoracion: "" });
     const reg = prog.regimen_comidas;
     setRegimen(Array.isArray(reg) ? reg : reg ? [reg] : ["mp"]);
     setMonitores(prog.requiere_monitores_24h || false);
@@ -547,6 +555,9 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
 
       const preferencias = {
         enfoque_viaje: enfoques.length > 0 ? enfoques : null,
+        aconsejamos_destino: aconsejamosDestino,
+        viajaron_ano_pasado: viajaronAnoPasado,
+        viaje_anterior: viajaronAnoPasado ? viajeAnterior : null,
         alojamiento: {
           tipo: tipoAloj,
           categoria_minima: categoria,
@@ -555,6 +566,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
         },
         transporte: {
           requiere_vuelo: vuelo,
+          tipo_aerolinea: vuelo ? tipoAerolinea : null,
           preferencia_horario_vuelos: vuelo ? horarioVuelo : null,
           requiere_tren: tren,
           requiere_autocar_origen: autocar,
@@ -641,7 +653,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
             </button>
           </div>
           {/* Steps */}
-          <div style={{ display: "flex", gap: 0 }}>
+          <div style={{ display: "flex", gap: 0, width: "100%" }}>
             {STEPS.map((s, i) => {
               const n = i + 1;
               const done = n < step;
@@ -1198,6 +1210,8 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                 {savingDestino && <div style={{ fontSize: "0.75rem", color: "var(--primary-color, #475569)", marginTop: "0.25rem" }}>Guardando destino...</div>}
               </div>
 
+              <Toggle value={aconsejamosDestino} onChange={setAconsejamosDestino} label="Aconsejamos destino" />
+
               {/* Noches + PVP */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                 <div>
@@ -1245,8 +1259,8 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
           {step === 3 && (
             <>
               {/* Enfoque del viaje */}
-              <div>
-                <FL text="Enfoque del viaje" />
+              <div style={{ background: "#fafbff", border: "1px solid #e0e7ff", borderRadius: "0.6rem", padding: "0.9rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--primary-color, #475569)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Enfoque del viaje</span>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
                   {ENFOQUE_OPTS.map(o => (
                     <button key={o.value} type="button" onClick={() => {
@@ -1269,6 +1283,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                   ))}
                 </div>
               </div>
+
 
               {/* Alojamiento */}
               <div style={{ background: "#fafbff", border: "1px solid #e0e7ff", borderRadius: "0.6rem", padding: "0.9rem", display: "flex", flexDirection: "column", gap: "0.85rem" }}>
@@ -1330,7 +1345,18 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                 <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--primary-color, #475569)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Transporte</span>
                 <Toggle value={vuelo} onChange={setVuelo} label="Requiere vuelo" />
                 {vuelo && (
-                  <div style={{ paddingLeft: "2.8rem" }}>
+                  <div style={{ paddingLeft: "2.8rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    <FL text="Tipo de aerolínea" />
+                    <ChipSelect
+                      options={[
+                        { value: "indiferente", label: "Indiferente" },
+                        { value: "lowcost", label: "Low cost" },
+                        { value: "regular", label: "Regular" },
+                        { value: "charter", label: "Charter" },
+                      ]}
+                      value={tipoAerolinea}
+                      onChange={setTipoAerolinea}
+                    />
                     <FL text="Preferencia de horario" />
                     <ChipSelect options={HORARIO_VUELO_OPTS} value={horarioVuelo} onChange={setHorarioVuelo} />
                   </div>
@@ -1356,6 +1382,47 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                     style={{ ...inp, resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }}
                     placeholder={VISITAS_PLACEHOLDER[enfoques[0]] ?? VISITAS_PLACEHOLDER[""]} />
                 </div>
+              </div>
+
+              {/* Viaje año pasado */}
+              <div style={{ background: "#fafbff", border: "1px solid #e0e7ff", borderRadius: "0.6rem", padding: "0.9rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--primary-color, #475569)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Historial de viaje</span>
+                <Toggle value={viajaronAnoPasado} onChange={setViajaronAnoPasado} label="¿Viajaron el año pasado?" />
+                {viajaronAnoPasado && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem", paddingLeft: "2.8rem" }}>
+                    <div>
+                      <FL text="Destino" />
+                      <input value={viajeAnterior.destino} onChange={e => setViajeAnterior(p => ({ ...p, destino: e.target.value }))} style={inp} placeholder="Ej. París, Roma, Londres…" />
+                    </div>
+                    <div>
+                      <FL text="Fechas" />
+                      <input value={viajeAnterior.fechas} onChange={e => setViajeAnterior(p => ({ ...p, fechas: e.target.value }))} style={inp} placeholder="Ej. 15–22 marzo 2024" />
+                    </div>
+                    <div>
+                      <FL text="Agencia contratada" />
+                      <input value={viajeAnterior.agencia} onChange={e => setViajeAnterior(p => ({ ...p, agencia: e.target.value }))} style={inp} placeholder="Ej. Viajes El Corte Inglés, agencia local…" />
+                    </div>
+                    <div>
+                      <FL text="Excursiones / actividades" />
+                      <textarea value={viajeAnterior.excursiones} onChange={e => setViajeAnterior(p => ({ ...p, excursiones: e.target.value }))} rows={2}
+                        style={{ ...inp, resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }}
+                        placeholder="Ej. Visita Coliseo, tour en barco, noche flamenca…" />
+                    </div>
+                    <div>
+                      <FL text="Valoración del viaje anterior" />
+                      <ChipSelect
+                        options={[
+                          { value: "muy_satisfecho", label: "Muy satisfecho" },
+                          { value: "satisfecho", label: "Satisfecho" },
+                          { value: "regular", label: "Regular" },
+                          { value: "insatisfecho", label: "Insatisfecho" },
+                        ]}
+                        value={viajeAnterior.valoracion}
+                        onChange={v => setViajeAnterior(p => ({ ...p, valoracion: v as string }))}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}

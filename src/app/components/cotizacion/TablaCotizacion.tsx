@@ -41,6 +41,14 @@ function getGroupLabel(groupId: string, displayItems: any[]): string {
 
 export default function TablaCotizacion({ c, hideHeader, compactHeader, title, sidePanel }: Props) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [openTipoRowId, setOpenTipoRowId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!openTipoRowId) return;
+    const close = () => setOpenTipoRowId(null);
+    window.addEventListener('mousedown', close);
+    return () => window.removeEventListener('mousedown', close);
+  }, [openTipoRowId]);
 
   // ── Google Sheets import state ──────────────────────────────────
   const [showSheetsModal, setShowSheetsModal] = useState(false);
@@ -457,13 +465,43 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                       <td style={{ verticalAlign: 'middle', textAlign: 'center', width: '20px' }}>
                         {isInGroup && groupLabel && <span className={tablaStyles.groupBadge}>{groupLabel}</span>}
                       </td>
-                      <td style={{ whiteSpace: 'nowrap', width: compactHeader ? '32px' : '1%', verticalAlign: 'middle' }}>
-                        <div
-                          title={(it.config_tipos_servicios?.etiqueta) || c.tiposMap[it.tipo]?.etiqueta || 'Tipo'}
-                          style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', borderRadius: 6 }}
+                      <td style={{ whiteSpace: 'nowrap', width: compactHeader ? '32px' : '1%', verticalAlign: 'middle', position: 'relative' }}>
+                        <button
+                          type="button"
+                          title={(it.config_tipos_servicios?.etiqueta) || c.tiposMap[it.tipo]?.etiqueta || 'Cambiar tipo'}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={() => setOpenTipoRowId(openTipoRowId === it.id ? null : it.id)}
+                          style={{
+                            width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            background: openTipoRowId === it.id ? '#eef2ff' : '#f1f5f9',
+                            border: openTipoRowId === it.id ? '1px solid #6366f1' : '1px solid transparent',
+                            borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
+                          }}
                         >
                           <TipoIcon iconName={it.config_tipos_servicios?.icono || c.tiposMap[it.tipo]?.icono} size={14} />
-                        </div>
+                        </button>
+                        {openTipoRowId === it.id && (
+                          <div className={tablaStyles.tipoPopup} style={{ right: 'auto', left: 0 }} onMouseDown={(e) => e.stopPropagation()}>
+                            <div className={tablaStyles.tipoPopupLabel}>Cambiar tipo</div>
+                            {Object.values(c.tiposMap).map((t: any) => {
+                              const isSelected = (it.tipo === t.id) || (it.config_tipos_servicios?.id === t.id);
+                              return (
+                                <div
+                                  key={t.id}
+                                  className={tablaStyles.tipoPopupItem}
+                                  style={{ background: isSelected ? '#eef2ff' : undefined, color: isSelected ? '#6366f1' : undefined, fontWeight: isSelected ? 600 : undefined }}
+                                  onClick={() => { c.handleItemChange(it.id, 'tipo', t.id); setOpenTipoRowId(null); }}
+                                >
+                                  <span style={{ width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: isSelected ? '#6366f1' : '#64748b' }}>
+                                    <TipoIcon iconName={t.icono} size={12} />
+                                  </span>
+                                  <span style={{ flex: 1 }}>{t.etiqueta}</span>
+                                  {isSelected && <span style={{ fontSize: '0.65rem' }}>✓</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </td>
                       <td>
                         <input
@@ -550,7 +588,7 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                               <button type="button" className={tablaStyles.iconBtn} onClick={() => c.handleCreateAlternative(it)} title="Crear alternativa"><Layers size={13} /></button>
                               {isInGroup && <button type="button" className={tablaStyles.iconBtn} onClick={() => c.handleUngroup(it)} title="Desagrupar"><Unlink size={13} /></button>}
                               <button type="button" className={tablaStyles.iconBtn} onClick={() => c.handleDuplicateItem(it)} title="Duplicar fila"><Copy size={13} /></button>
-                              <button type="button" className={tablaStyles.iconBtn} onClick={() => setDeleteConfirmId(it.id)} title="Eliminar fila"><Trash2 size={13} /></button>
+                              {c.canDelete && <button type="button" className={tablaStyles.iconBtn} onClick={() => setDeleteConfirmId(it.id)} title="Eliminar fila"><Trash2 size={13} /></button>}
                             </>
                           )}
                         </div>

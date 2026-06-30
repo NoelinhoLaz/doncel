@@ -154,7 +154,7 @@
     width: 100%;
     height: 56px;
     flex-direction: row;
-    justify-content: space-around;
+    justify-content: stretch;
     align-items: center;
     padding-top: 0;
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -163,12 +163,28 @@
     box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.06);
   }
 
+  .menu > button,
+  .menu > .menuItemWrapper {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .settingsWrapper {
+    flex: 2;
     margin-top: 0;
     padding-bottom: 0;
     display: flex;
     flex-direction: row;
     gap: 0;
+  }
+
+  .settingsWrapper > button {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .menuItemWrapper {

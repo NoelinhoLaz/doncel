@@ -692,3 +692,12 @@
   color: #475569;
   font-size: 0.8rem;
 }
+
+/* ── Responsive: tablet/mobile column collapse ── */
+.colDesktop { display: table-cell; }
+.colMobile  { display: none; }
+
+@media (max-width: 1024px) {
+  .colDesktop { display: none; }
+  .colMobile  { display: table-cell; }
+}

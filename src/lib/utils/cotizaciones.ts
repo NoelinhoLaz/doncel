@@ -1,8 +1,12 @@
 import { getFullSchema } from "@/lib/serviceFormSchemas";
 
 export function computeLineTotals(line: any): { total_neto: number; total_pvp: number } {
-  const plazas = Number(line.plazas ?? 0);
-  const noches = Number(line.noches ?? 0);
+  const rawPlazas = line.plazas != null ? Number(line.plazas) : 0;
+  const rawNoches = line.noches != null ? Number(line.noches) : 0;
+
+  const plazas = rawPlazas === 0 ? 1 : rawPlazas;
+  const noches = rawNoches === 0 ? 1 : rawNoches;
+
   const neto = Number(line.neto ?? 0);
   const pvp = Number(line.pvp ?? 0);
   return {

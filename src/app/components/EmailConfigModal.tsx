@@ -1,15 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  X, 
-  Mail, 
-  Lock, 
-  Server, 
-  HelpCircle, 
-  Check, 
+import {
+  X,
+  Mail,
+  Lock,
+  Server,
+  HelpCircle,
+  Check,
   Loader2,
-  ShieldAlert
+  ShieldAlert,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { saveEmailConfiguration, getCurrentUserEmailConfig } from "@/actions/usuarios";
 
@@ -24,6 +26,9 @@ export default function EmailConfigModal({ isOpen, onClose }: EmailConfigModalPr
   const [loadingConfig, setLoadingConfig] = useState<boolean>(true);
   const [success, setSuccess] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [verifyStatus, setVerifyStatus] = useState<"idle" | "checking" | "ok" | "error">("idle");
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Form State
   const [emailAddress, setEmailAddress] = useState<string>("");
@@ -65,6 +70,38 @@ export default function EmailConfigModal({ isOpen, onClose }: EmailConfigModalPr
 
   if (!isOpen) return null;
 
+  const resolvedSmtpHost = activeTab === "imap" ? smtpHost.trim() : `smtp.${activeTab === "gmail" ? "gmail.com" : "outlook.com"}`;
+  const resolvedSmtpPort = activeTab === "imap" ? Number(smtpPort) : 465;
+
+  const handleVerify = async () => {
+    if (!emailAddress.trim() || !password) return;
+    setVerifyStatus("checking");
+    setVerifyError(null);
+    try {
+      const res = await fetch("/api/email/verify-smtp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email_address: emailAddress.trim(),
+          email_password: password,
+          smtp_host: resolvedSmtpHost,
+          smtp_port: resolvedSmtpPort,
+          use_ssl: useSsl,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setVerifyStatus("ok");
+      } else {
+        setVerifyStatus("error");
+        setVerifyError(json.error || "Error de conexión desconocido.");
+      }
+    } catch {
+      setVerifyStatus("error");
+      setVerifyError("No se pudo contactar con el servidor de verificación.");
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!emailAddress.trim()) {
@@ -77,14 +114,36 @@ export default function EmailConfigModal({ isOpen, onClose }: EmailConfigModalPr
       setErrorMsg(null);
       setSuccess(false);
 
+      // Verificar SMTP antes de guardar
+      const verifyRes = await fetch("/api/email/verify-smtp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email_address: emailAddress.trim(),
+          email_password: password,
+          smtp_host: resolvedSmtpHost,
+          smtp_port: resolvedSmtpPort,
+          use_ssl: useSsl,
+        }),
+      });
+      const verifyJson = await verifyRes.json();
+      if (!verifyJson.success) {
+        setVerifyStatus("error");
+        setVerifyError(verifyJson.error || "Error de conexión SMTP.");
+        setLoading(false);
+        return;
+      }
+      setVerifyStatus("ok");
+      setVerifyError(null);
+
       const payload = {
         email_provider: activeTab,
         email_address: emailAddress.trim(),
         email_password_enc: password,
         email_imap_host: activeTab === "imap" ? imapHost.trim() : `imap.${activeTab === "gmail" ? "gmail.com" : "outlook.com"}`,
         email_imap_port: activeTab === "imap" ? Number(imapPort) : 993,
-        email_smtp_host: activeTab === "imap" ? smtpHost.trim() : `smtp.${activeTab === "gmail" ? "gmail.com" : "outlook.com"}`,
-        email_smtp_port: activeTab === "imap" ? Number(smtpPort) : 465,
+        email_smtp_host: resolvedSmtpHost,
+        email_smtp_port: resolvedSmtpPort,
         email_use_ssl: useSsl
       };
 
@@ -286,21 +345,29 @@ export default function EmailConfigModal({ isOpen, onClose }: EmailConfigModalPr
                 </label>
                 <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
                   <Lock size={16} style={{ position: "absolute", left: "0.75rem", color: "#94a3b8" }} />
-                  <input 
-                    type="password"
+                  <input
+                    type={showPassword ? "text" : "password"}
                     required
                     placeholder="••••••••••••••••"
                     style={{
                       width: "100%",
-                      padding: "0.55rem 0.75rem 0.55rem 2.25rem",
+                      padding: "0.55rem 2.25rem 0.55rem 2.25rem",
                       fontSize: "0.85rem",
                       borderRadius: "8px",
                       border: "1px solid #cbd5e1",
-                      outline: "none"
+                      outline: "none",
                     }}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    style={{ position: "absolute", right: "0.65rem", background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: 0, display: "flex" }}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
                 </div>
               </div>
 
@@ -400,6 +467,39 @@ export default function EmailConfigModal({ isOpen, onClose }: EmailConfigModalPr
                     />
                     <span>Requerir conexión segura (SSL / TLS)</span>
                   </label>
+                </div>
+              )}
+            </div>
+
+            {/* Test connection */}
+            <div style={{ margin: "0 1.5rem 0.75rem 1.5rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <button
+                type="button"
+                onClick={handleVerify}
+                disabled={verifyStatus === "checking" || !emailAddress || !password}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem",
+                  padding: "0.45rem 1rem", fontSize: "0.78rem", fontWeight: "700", borderRadius: "8px",
+                  border: `1px solid ${verifyStatus === "ok" ? "#10b981" : verifyStatus === "error" ? "#ef4444" : "#cbd5e1"}`,
+                  background: verifyStatus === "ok" ? "#f0fdf4" : verifyStatus === "error" ? "#fef2f2" : "#f8fafc",
+                  color: verifyStatus === "ok" ? "#059669" : verifyStatus === "error" ? "#dc2626" : "#475569",
+                  cursor: verifyStatus === "checking" ? "not-allowed" : "pointer",
+                  transition: "all 0.2s",
+                }}
+              >
+                {verifyStatus === "checking" ? (
+                  <><Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> Probando conexión…</>
+                ) : verifyStatus === "ok" ? (
+                  <><Check size={13} /> Conexión verificada</>
+                ) : verifyStatus === "error" ? (
+                  <><ShieldAlert size={13} /> Error de conexión</>
+                ) : (
+                  <><Server size={13} /> Probar conexión SMTP</>
+                )}
+              </button>
+              {verifyStatus === "error" && verifyError && (
+                <div style={{ padding: "0.5rem 0.75rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "6px", fontSize: "0.75rem", color: "#dc2626" }}>
+                  {verifyError}
                 </div>
               )}
             </div>

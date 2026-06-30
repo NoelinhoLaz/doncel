@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getTiposServicios } from "@/actions/tiposServicios";
 import { createDestinoFromPlace } from "@/actions/destinos";
 import { computeLineTotals } from "@/lib/utils/cotizaciones";
+import { supabase } from "@/lib/supabase";
 
 const _fmt = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
 export const formatCurrency = (v: any): string => {
@@ -34,17 +35,34 @@ export function useCotizacion(
   const [summaryFree, setSummaryFree] = useState(2);
   const [summaryPvpViajero, setSummaryPvpViajero] = useState(0);
   const [hasEditedPvp, setHasEditedPvp] = useState(false);
+  const [currentAuthUid, setCurrentAuthUid] = useState<string | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [allItemsForHistory, setAllItemsForHistory] = useState<any[]>([]);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentAuthUid(data?.user?.id ?? null));
+  }, []);
+
   const openHistoryModal = async () => {
-    if (cotizacionId) {
-      try {
-        const res = await fetch(`/api/cotizaciones?id=${cotizacionId}`);
-        const j = await res.json();
-        setAllItemsForHistory((j?.data?.operativa_cotizacion_lineas || []).map(parseDetalles));
-      } catch { setAllItemsForHistory(items); }
-    } else {
-      setAllItemsForHistory(items);
+    try {
+      const res = await fetch(`/api/cotizaciones`);
+      const j = await res.json();
+      if (j?.success && Array.isArray(j.data)) {
+        const otherLines: any[] = [];
+        j.data.forEach((cot: any) => {
+          if (cot.id !== cotizacionId) {
+            const lines = (cot.operativa_cotizacion_lineas || []).map((l: any) => ({
+              ...l,
+              cotizacionTitulo: cot.titulo,
+            }));
+            otherLines.push(...lines);
+          }
+        });
+        setAllItemsForHistory(otherLines.map(parseDetalles));
+      } else {
+        setAllItemsForHistory([]);
+      }
+    } catch {
+      setAllItemsForHistory([]);
     }
     setShowHistoryModal(true);
   };
@@ -186,7 +204,9 @@ export function useCotizacion(
   const totalCost = useMemo(
     () => displayItems.reduce((sum, it) => {
       if (checkedIds[it.id] === false) return sum;
-      return sum + Number(it.total_neto ?? (Number(it.neto || 0) * Number(it.plazas || 0) * Number(it.noches || 0)));
+      const plazas = !it.plazas || Number(it.plazas) === 0 ? 1 : Number(it.plazas);
+      const noches = !it.noches || Number(it.noches) === 0 ? 1 : Number(it.noches);
+      return sum + Number(it.total_neto ?? (Number(it.neto || 0) * plazas * noches));
     }, 0),
     [displayItems, checkedIds]
   );
@@ -194,7 +214,9 @@ export function useCotizacion(
   const totalRevenue = useMemo(
     () => displayItems.reduce((sum, it) => {
       if (checkedIds[it.id] === false) return sum;
-      return sum + Number(it.total_pvp ?? (Number(it.pvp || 0) * Number(it.plazas || 0) * Number(it.noches || 0)));
+      const plazas = !it.plazas || Number(it.plazas) === 0 ? 1 : Number(it.plazas);
+      const noches = !it.noches || Number(it.noches) === 0 ? 1 : Number(it.noches);
+      return sum + Number(it.total_pvp ?? (Number(it.pvp || 0) * plazas * noches));
     }, 0),
     [displayItems, checkedIds]
   );
@@ -411,6 +433,7 @@ export function useCotizacion(
     totalCost, totalRevenue,
     showHistoryModal, setShowHistoryModal, openHistoryModal,
     infoModalItem, openInfoModal: setInfoModalItem, closeInfoModal: () => setInfoModalItem(null),
+    canDelete: !initialCotizacion?.agente_id || currentAuthUid === initialCotizacion?.agente_id,
     handleItemChange, handleCheckedChange, handleDeleteItem, handleDuplicateItem,
     handleCreateAlternative, handleUngroup, handleAddItemByTipo, addItemFromHistory, handleSaveInfoModal,
     handleImportFromSheets,

@@ -219,7 +219,12 @@ export default function ModalHistorialCotizacion({ isOpen, onClose, items, tipos
                   </td>
                   <td style={tdStyle}>
                     <div>{it.descripcion || '-'}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
+                      {it.cotizacionTitulo && (
+                        <span style={{ fontSize: '0.65rem', color: 'var(--primary-color, #4f46e5)', fontWeight: 600, background: 'color-mix(in srgb, var(--primary-color, #6366f1) 12%, transparent)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }} title="Cotización de procedencia">
+                          {it.cotizacionTitulo}
+                        </span>
+                      )}
                       {(() => { const n = it.contabilidad_proveedores?.nombre || it.contabilidad_proveedores?.razon_social || ''; return n ? <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{n.length > 32 ? n.slice(0, 32) + '…' : n}</span> : null; })()}
                       {ratings[it.id] != null && (() => {
                         const stars = Math.round(ratings[it.id]);

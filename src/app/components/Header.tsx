@@ -162,22 +162,40 @@ export default function AgentBar() {
                       {currentUser.rol}
                     </span>
                   </div>
-                  <div style={{
-                    width: "36px",
-                    height: "36px",
-                    borderRadius: "50%",
-                    background: "color-mix(in srgb, var(--primary-color, #475569) 25%, white)",
-                    color: "var(--primary-color, #475569)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "0.875rem",
-                    fontWeight: "700",
-                    border: "2px solid color-mix(in srgb, var(--primary-color, #475569) 40%, white)",
-                    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.12)",
-                    flexShrink: 0
-                  }}>
-                    {getInitials(currentUser)}
+                  <div style={{ position: "relative", flexShrink: 0 }}>
+                    <div style={{
+                      width: "36px",
+                      height: "36px",
+                      borderRadius: "50%",
+                      background: "color-mix(in srgb, var(--primary-color, #475569) 25%, white)",
+                      color: "var(--primary-color, #475569)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "0.875rem",
+                      fontWeight: "700",
+                      border: "2px solid color-mix(in srgb, var(--primary-color, #475569) 40%, white)",
+                      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.12)",
+                    }}>
+                      {getInitials(currentUser)}
+                    </div>
+                    <span style={{
+                      position: "absolute",
+                      top: 0,
+                      right: 0,
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      border: "2px solid white",
+                      background: isEmailConnected && isDriveConnected ? "#10b981"
+                        : isEmailConnected || isDriveConnected ? "#f97316"
+                        : "#94a3b8",
+                    }} title={
+                      isEmailConnected && isDriveConnected ? "Email y Drive conectados"
+                      : isEmailConnected ? "Solo Email conectado"
+                      : isDriveConnected ? "Solo Drive conectado"
+                      : "Sin conexiones activas"
+                    } />
                   </div>
                 </div>
               ) : (

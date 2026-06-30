@@ -4,7 +4,7 @@ import styles from "./MenuPrincipal.module.css";
 import { useRouter, usePathname } from "next/navigation";
 import { Icons } from "@/lib/icons";
 import { Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 interface Props {
   onOpenCopiloto?: () => void;
@@ -16,6 +16,22 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
   const [expSubOpen, setExpSubOpen] = useState(false);
   const [presupSubOpen, setPresupSubOpen] = useState(false);
   const [bancoSubOpen, setBancoSubOpen] = useState(false);
+  const expTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const presupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bancoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const makeHover = (
+    setter: (v: boolean) => void,
+    timer: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
+  ) => ({
+    onMouseEnter: () => {
+      if (timer.current) clearTimeout(timer.current);
+      setter(true);
+    },
+    onMouseLeave: () => {
+      timer.current = setTimeout(() => setter(false), 1000);
+    },
+  });
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(path + "/");
 
@@ -47,8 +63,7 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
  
       <div
         className={styles.menuItemWrapper}
-        onMouseEnter={() => setPresupSubOpen(true)}
-        onMouseLeave={() => setPresupSubOpen(false)}
+        {...makeHover(setPresupSubOpen, presupTimer)}
       >
         <button
           className={`${styles.menuItem} ${isActive("/presupuestos") || isActive("/cotizaciones") || isActive("/propuestas") ? styles.active : ""}`}
@@ -87,8 +102,7 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
 
       <div
         className={styles.menuItemWrapper}
-        onMouseEnter={() => setExpSubOpen(true)}
-        onMouseLeave={() => setExpSubOpen(false)}
+        {...makeHover(setExpSubOpen, expTimer)}
       >
         <button
           className={`${styles.menuItem} ${isActive("/expedientes") ? styles.active : ""}`}
@@ -126,8 +140,7 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
 
       <div
         className={styles.menuItemWrapper}
-        onMouseEnter={() => setBancoSubOpen(true)}
-        onMouseLeave={() => setBancoSubOpen(false)}
+        {...makeHover(setBancoSubOpen, bancoTimer)}
       >
         <button 
           className={`${styles.menuItem} ${isActive("/cobros") || isActive("/banco") ? styles.active : ""}`} 

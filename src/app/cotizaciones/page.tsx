@@ -5,7 +5,7 @@ import styles from "../expedientes/[id]/page.module.css";
 import { Icons } from "@/lib/icons";
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Trash2, UserRound, X, Search, MapPin, Rows3, List, Filter, ChevronRight, ChevronDown, Compass } from "lucide-react";
+import { Copy, Trash2, UserRound, X, Search, MapPin, Rows3, List, SlidersHorizontal, ChevronRight, ChevronDown, Compass, DatabaseZap } from "lucide-react";
 import Pagination from "@/app/components/Pagination";
 import { duplicateCotizacion, deleteCotizacion, updateCotizacionLinea } from "@/actions/cotizaciones";
 import TipoIcon from "@/app/components/cotizacion/TipoIcon";
@@ -124,6 +124,14 @@ export default function CotizacionesPage() {
   const [showMap, setShowMap] = useState(false);
   const [expandedCotizacionIds, setExpandedCotizacionIds] = useState<string[]>([]);
   const [allServiceTypes, setAllServiceTypes] = useState<any[]>([]);
+  const [showMigracion, setShowMigracion] = useState(false);
+  const [migracionPreview, setMigracionPreview] = useState<any[]>([]);
+  const [migracionLoading, setMigracionLoading] = useState(false);
+  const [migracionResult, setMigracionResult] = useState<any>(null);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+  const [selectedImportIds, setSelectedImportIds] = useState<Set<string>>(new Set());
+  const [migracionSearch, setMigracionSearch] = useState("");
 
   const toggleExpandCotizacion = (id: string) => {
     if (expandedCotizacionIds.includes(id)) {
@@ -365,6 +373,16 @@ export default function CotizacionesPage() {
       : filteredLines.slice(startIndex, startIndex + itemsPerPage);
   }, [viewMode, filteredCotizaciones, filteredLines, startIndex, itemsPerPage]);
 
+  const filteredMigracionPreview = useMemo(() => {
+    if (!migracionSearch.trim()) return migracionPreview;
+    const query = migracionSearch.toLowerCase();
+    return migracionPreview.filter((c: any) =>
+      (c.titulo ?? "").toLowerCase().includes(query) ||
+      (c.agente_nombre ?? "").toLowerCase().includes(query) ||
+      (c.entidad_nombre ?? "").toLowerCase().includes(query)
+    );
+  }, [migracionPreview, migracionSearch]);
+
   const formatDate = (d: string) => {
     if (!d) return "—";
     return new Date(d).toLocaleDateString("es-ES");
@@ -450,6 +468,300 @@ export default function CotizacionesPage() {
 
   return (
     <div className={listStyles.container}>
+      {/* Modal importar desde CSV legacy */}
+      {showMigracion && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.45)" }} onClick={() => { setShowMigracion(false); setCsvFile(null); setMigracionPreview([]); setMigracionResult(null); setMigracionSearch(""); }}>
+          <div style={{ background: "#fff", borderRadius: "1rem", width: 720, maxWidth: "95vw", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(0,0,0,0.18)" }} onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", borderBottom: "1px solid #f1f5f9" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <DatabaseZap size={16} style={{ color: "#6366f1" }} />
+                <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#1e293b" }}>Importar cotizaciones desde CSV</span>
+              </div>
+              <button onClick={() => { setShowMigracion(false); setCsvFile(null); setMigracionPreview([]); setMigracionResult(null); setMigracionSearch(""); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex" }}><X size={16} /></button>
+            </div>
+
+            {/* Body */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.25rem" }}>
+              {migracionResult ? (
+                /* ── Resultado final ── */
+                <div>
+                  <div style={{ marginBottom: "1rem", padding: "0.75rem 1rem", borderRadius: "0.5rem", background: migracionResult.errores > 0 ? "#fef9c3" : "#dcfce7", color: migracionResult.errores > 0 ? "#854d0e" : "#16a34a", fontWeight: 600, fontSize: "0.85rem" }}>
+                    ✓ Importación completada: <strong>{migracionResult.importadas}</strong> cotizaciones importadas
+                    {migracionResult.errores > 0 && <>, <strong style={{ color: "#dc2626" }}>{migracionResult.errores} errores</strong></>}.
+                  </div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                    <thead><tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                      <th style={{ padding: "0.4rem 0.6rem", textAlign: "left", color: "#64748b", fontWeight: 600 }}>Título</th>
+                      <th style={{ padding: "0.4rem 0.6rem", textAlign: "center", color: "#64748b", fontWeight: 600 }}>Servicios</th>
+                      <th style={{ padding: "0.4rem 0.6rem", textAlign: "right", color: "#64748b", fontWeight: 600 }}>Resultado</th>
+                    </tr></thead>
+                    <tbody>
+                      {(migracionResult.data ?? []).map((r: any) => (
+                        <tr key={r.id} style={{ borderBottom: "1px solid #f8fafc" }}>
+                          <td style={{ padding: "0.4rem 0.6rem", color: "#1e293b" }}>{r.titulo ?? "—"}</td>
+                          <td style={{ padding: "0.4rem 0.6rem", textAlign: "center", color: "#475569" }}>{r.lineas ?? "—"}</td>
+                          <td style={{ padding: "0.4rem 0.6rem", textAlign: "right" }}>
+                            {r.ok ? <span style={{ color: "#16a34a", fontWeight: 600 }}>✓ OK</span> : <span style={{ color: "#dc2626", fontWeight: 600 }}>✗ {r.error}</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : migracionLoading ? (
+                /* ── Cargando ── */
+                <div style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>
+                  <div style={{ marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: 600 }}>Procesando CSV…</div>
+                  <div style={{ fontSize: "0.78rem" }}>Esto puede tardar unos segundos.</div>
+                </div>
+              ) : migracionPreview.length > 0 ? (
+                /* ── Preview ── */
+                <>
+                  {/* Buscador */}
+                  <div style={{ marginBottom: "1rem", display: "flex", gap: "0.5rem" }}>
+                    <input
+                      type="text"
+                      placeholder="Buscar por título, agente o entidad..."
+                      value={migracionSearch}
+                      onChange={(e) => setMigracionSearch(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "0.5rem 0.75rem",
+                        borderRadius: "0.5rem",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "0.82rem",
+                        outline: "none",
+                        boxSizing: "border-box"
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
+                    <p style={{ fontSize: "0.82rem", color: "#64748b", margin: 0 }}>
+                      <strong style={{ color: "#1e293b" }}>
+                        {Array.from(selectedImportIds).filter(id => filteredMigracionPreview.some(fp => fp.id === id)).length}
+                      </strong> de <strong style={{ color: "#1e293b" }}>{filteredMigracionPreview.length}</strong> seleccionadas
+                      {csvFile && <span style={{ color: "#94a3b8" }}> · {csvFile.name}</span>}
+                    </p>
+                    <button
+                      onClick={() => {
+                        const allVisibleIds = filteredMigracionPreview.map((c: any) => c.id);
+                        const allVisibleSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selectedImportIds.has(id));
+                        const next = new Set(selectedImportIds);
+                        if (allVisibleSelected) {
+                          allVisibleIds.forEach(id => next.delete(id));
+                        } else {
+                          allVisibleIds.forEach(id => next.add(id));
+                        }
+                        setSelectedImportIds(next);
+                      }}
+                      style={{ fontSize: "0.75rem", color: "#6366f1", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
+                    >
+                      {filteredMigracionPreview.length > 0 && filteredMigracionPreview.map((c: any) => c.id).every(id => selectedImportIds.has(id))
+                        ? "Deseleccionar visibles"
+                        : "Seleccionar visibles"}
+                    </button>
+                  </div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                    <thead><tr style={{ borderBottom: "2px solid #f1f5f9", background: "#f8fafc" }}>
+                      <th style={{ padding: "0.4rem 0.5rem", width: 32 }}>
+                        <input
+                          type="checkbox"
+                          checked={filteredMigracionPreview.length > 0 && filteredMigracionPreview.map((c: any) => c.id).every(id => selectedImportIds.has(id))}
+                          onChange={(e) => {
+                            const next = new Set(selectedImportIds);
+                            const allVisibleIds = filteredMigracionPreview.map((c: any) => c.id);
+                            if (e.target.checked) {
+                              allVisibleIds.forEach(id => next.add(id));
+                            } else {
+                              allVisibleIds.forEach(id => next.delete(id));
+                            }
+                            setSelectedImportIds(next);
+                          }}
+                          style={{ cursor: "pointer", accentColor: "#6366f1" }}
+                        />
+                      </th>
+                      <th style={{ padding: "0.4rem 0.6rem", textAlign: "left", color: "#64748b", fontWeight: 600 }}>Título</th>
+                      <th style={{ padding: "0.4rem 0.6rem", textAlign: "left", color: "#64748b", fontWeight: 600 }}>Agente</th>
+                      <th style={{ padding: "0.4rem 0.6rem", textAlign: "left", color: "#64748b", fontWeight: 600 }}>Estado</th>
+                      <th style={{ padding: "0.4rem 0.6rem", textAlign: "center", color: "#64748b", fontWeight: 600 }}>Servicios</th>
+                      <th style={{ padding: "0.4rem 0.6rem", textAlign: "right", color: "#64748b", fontWeight: 600 }}>Total</th>
+                    </tr></thead>
+                    <tbody>
+                      {filteredMigracionPreview.map((c: any) => {
+                        const isSelected = selectedImportIds.has(c.id);
+                        return (
+                          <tr
+                            key={c.id}
+                            style={{ borderBottom: "1px solid #f8fafc", background: isSelected ? "#fafafa" : "#fff", cursor: "pointer" }}
+                            onClick={() => {
+                              const next = new Set(selectedImportIds);
+                              if (isSelected) next.delete(c.id); else next.add(c.id);
+                              setSelectedImportIds(next);
+                            }}
+                          >
+                            <td style={{ padding: "0.4rem 0.5rem" }} onClick={e => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  const next = new Set(selectedImportIds);
+                                  if (e.target.checked) next.add(c.id); else next.delete(c.id);
+                                  setSelectedImportIds(next);
+                                }}
+                                style={{ cursor: "pointer", accentColor: "#6366f1" }}
+                              />
+                            </td>
+                            <td style={{ padding: "0.4rem 0.6rem", maxWidth: 220 }}>
+                              <div style={{ fontWeight: 600, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={c.titulo || "Sin título"}>
+                                {c.titulo ?? "Sin título"}
+                              </div>
+                              {c.entidad_nombre ? (
+                                <div style={{ fontSize: "0.68rem", color: "#16a34a", fontWeight: 500, marginTop: "2px" }} title="Contacto asociado automáticamente">
+                                  ✓ {c.entidad_nombre}
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: "0.68rem", color: "#94a3b8", marginTop: "2px" }}>
+                                  Sin contacto
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ padding: "0.4rem 0.6rem" }}>
+                              <div
+                                title={c.agente_nombre ?? 'Agente'}
+                                style={{
+                                  width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center',
+                                  justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700, flexShrink: 0,
+                                  background: 'color-mix(in srgb, var(--primary-color, #6366f1) 25%, transparent)',
+                                  color: 'var(--primary-color, #4f46e5)',
+                                }}
+                              >
+                                {c.agente_nombre
+                                  ? c.agente_nombre.split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase()
+                                  : "?"
+                                }
+                              </div>
+                            </td>
+                            <td style={{ padding: "0.4rem 0.6rem" }}>
+                              <span style={{ fontSize: "0.7rem", fontWeight: 600, padding: "0.15rem 0.45rem", borderRadius: "0.3rem", background: c.estado === "aceptada" ? "#dcfce7" : c.estado === "rechazada" ? "#fee2e2" : "#f1f5f9", color: c.estado === "aceptada" ? "#16a34a" : c.estado === "rechazada" ? "#dc2626" : "#64748b" }}>{c.estado ?? "—"}</span>
+                            </td>
+                            <td style={{ padding: "0.4rem 0.6rem", textAlign: "center", color: "#475569" }}>{c.lineas_count}</td>
+                            <td style={{ padding: "0.4rem 0.6rem", textAlign: "right", color: "#0f172a", fontWeight: 600 }}>
+                              {c.total ? `${Number(c.total).toLocaleString("es-ES", { maximumFractionDigits: 0 })} €` : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </>
+              ) : (
+                /* ── Paso 1: Seleccionar fichero ── */
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1.25rem", padding: "2rem 1rem" }}>
+                  <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#ede9fe", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <DatabaseZap size={24} style={{ color: "#6366f1" }} />
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "#1e293b", marginBottom: "0.35rem" }}>Selecciona el fichero CSV exportado</div>
+                    <div style={{ fontSize: "0.8rem", color: "#64748b", maxWidth: 420 }}>Exporta la tabla <code style={{ background: "#f1f5f9", padding: "0.1rem 0.3rem", borderRadius: 4 }}>cotizaciones</code> desde Supabase como CSV y selecciónalo aquí. Solo se importarán las versiones actuales (<code style={{ background: "#f1f5f9", padding: "0.1rem 0.3rem", borderRadius: 4 }}>es_version_actual = true</code>).</div>
+                  </div>
+                  <input
+                    ref={csvInputRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    style={{ display: "none" }}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setCsvFile(file);
+                      setMigracionLoading(true);
+                      try {
+                        const fd = new FormData();
+                        fd.append("csv", file);
+                        fd.append("modo", "preview");
+                        const r = await fetch("/api/migracion/cotizaciones-csv", { method: "POST", body: fd });
+                        const j = await r.json();
+                        if (j.success) {
+                          setMigracionPreview(j.data ?? []);
+                          setSelectedImportIds(new Set((j.data ?? []).map((c: any) => c.id)));
+                        }
+                        else { alert("Error procesando CSV: " + j.error); }
+                      } finally {
+                        setMigracionLoading(false);
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={() => csvInputRef.current?.click()}
+                    style={{ padding: "0.6rem 1.5rem", borderRadius: "0.6rem", border: "2px dashed #c7d2fe", background: "#f5f3ff", color: "#6366f1", fontWeight: 700, fontSize: "0.85rem", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
+                  >
+                    <DatabaseZap size={15} /> Seleccionar fichero CSV…
+                  </button>
+                  {csvFile && <div style={{ fontSize: "0.78rem", color: "#64748b" }}>📄 {csvFile.name}</div>}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "0.85rem 1.25rem", borderTop: "1px solid #f1f5f9" }}>
+              <div>
+                {migracionPreview.length > 0 && !migracionResult && (
+                  <button
+                    onClick={() => { setCsvFile(null); setMigracionPreview([]); setSelectedImportIds(new Set()); if (csvInputRef.current) csvInputRef.current.value = ""; }}
+                    style={{ padding: "0.4rem 0.85rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: "#fff", color: "#94a3b8", fontWeight: 600, fontSize: "0.78rem", cursor: "pointer" }}
+                  >
+                    ← Cambiar fichero
+                  </button>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {migracionResult ? (
+                  <button
+                    onClick={() => { setShowMigracion(false); setCsvFile(null); setMigracionPreview([]); setMigracionResult(null); setMigracionSearch(""); loadCotizaciones(); }}
+                    style={{ padding: "0.45rem 1.1rem", borderRadius: "0.5rem", border: "none", background: "#6366f1", color: "#fff", fontWeight: 700, fontSize: "0.82rem", cursor: "pointer" }}
+                  >
+                    Cerrar y recargar
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => { setShowMigracion(false); setCsvFile(null); setMigracionPreview([]); setMigracionResult(null); setMigracionSearch(""); }}
+                      style={{ padding: "0.45rem 1rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", fontWeight: 600, fontSize: "0.82rem", cursor: "pointer" }}
+                    >
+                      Cancelar
+                    </button>
+                    {migracionPreview.length > 0 && (
+                      <button
+                        disabled={migracionLoading || selectedImportIds.size === 0}
+                        onClick={async () => {
+                          if (!csvFile) return;
+                          setMigracionLoading(true);
+                          try {
+                            const fd = new FormData();
+                            fd.append("csv", csvFile);
+                            fd.append("modo", "import");
+                            fd.append("selectedIds", JSON.stringify(Array.from(selectedImportIds)));
+                            const r = await fetch("/api/migracion/cotizaciones-csv", { method: "POST", body: fd });
+                            const j = await r.json();
+                            setMigracionResult(j);
+                          } finally {
+                            setMigracionLoading(false);
+                          }
+                        }}
+                        style={{ padding: "0.45rem 1.1rem", borderRadius: "0.5rem", border: "none", background: "#6366f1", color: "#fff", fontWeight: 700, fontSize: "0.82rem", cursor: (migracionLoading || selectedImportIds.size === 0) ? "not-allowed" : "pointer", opacity: (migracionLoading || selectedImportIds.size === 0) ? 0.6 : 1 }}
+                      >
+                        {migracionLoading ? "Importando…" : `Importar ${selectedImportIds.size} cotizaciones`}
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {contactoModal && (
         <ModalBuscarContacto
           modal={contactoModal}
@@ -463,18 +775,12 @@ export default function CotizacionesPage() {
         </div>
       </header>
 
-      <div 
-        style={{ 
-          display: "grid", 
-          gridTemplateColumns: "repeat(6, 1fr)",
-          gridTemplateRows: "repeat(2, auto)",
-          gap: "1rem", 
-          marginBottom: "1.25rem",
-          width: "100%",
-          boxSizing: "border-box"
-        }}
-      >
-        {kpisServicios.types.slice(0, 12).map((type) => (
+      {(() => {
+        const items = kpisServicios.types;
+        const total = items.length;
+        if (total === 0) return null;
+
+        const renderCard = (type: any) => (
           <div 
             key={type.label} 
             style={{ 
@@ -488,35 +794,87 @@ export default function CotizacionesPage() {
               overflow: "hidden"
             }}
           >
-              <div style={{ position: "relative", zIndex: 2 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                  <span style={{ fontSize: "0.62rem", fontWeight: 700, textTransform: "uppercase", color: "#64748b", letterSpacing: "0.05em" }}>{type.label}</span>
-                </div>
-                <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#1e293b", lineHeight: 1.1, marginBottom: "0.25rem" }}>
-                  {type.count}
-                </div>
-                <div style={{ fontSize: "0.68rem", color: "#64748b" }}>
-                  Neto: <span style={{ fontWeight: 600, color: "#475569" }}>{f(type.neto)} €</span>
-                </div>
-                <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: "2px" }}>
-                  PVP: <span style={{ fontWeight: 600, color: "#1e293b" }}>{f(type.pvp)} €</span>
-                </div>
+            <div style={{ position: "relative", zIndex: 2 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                <span style={{ fontSize: "0.62rem", fontWeight: 700, textTransform: "uppercase", color: "#64748b", letterSpacing: "0.05em" }}>{type.label}</span>
+              </div>
+              <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#1e293b", lineHeight: 1.1, marginBottom: "0.25rem" }}>
+                {type.count}
+              </div>
+              <div style={{ fontSize: "0.68rem", color: "#64748b" }}>
+                Neto: <span style={{ fontWeight: 600, color: "#475569" }}>{f(type.neto)} €</span>
+              </div>
+              <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: "2px" }}>
+                PVP: <span style={{ fontWeight: 600, color: "#1e293b" }}>{f(type.pvp)} €</span>
+              </div>
+            </div>
+            <div 
+              style={{ 
+                position: "absolute", 
+                right: "-10px", 
+                bottom: "-10px", 
+                color: "var(--primary-color, #4f46e5)", 
+                opacity: 0.08, 
+                pointerEvents: "none"
+              }}
+            >
+              <TipoIcon iconName={type.icon} size={64} />
+            </div>
+          </div>
+        );
+
+        if (total <= 6) {
+          return (
+            <div 
+              style={{ 
+                display: "grid", 
+                gridTemplateColumns: `repeat(${total}, 1fr)`,
+                gap: "1rem", 
+                marginBottom: "1.25rem",
+                width: "100%",
+                boxSizing: "border-box"
+              }}
+            >
+              {items.map(renderCard)}
+            </div>
+          );
+        } else {
+          const topCount = Math.ceil(total / 2);
+          const topRowItems = items.slice(0, topCount);
+          const bottomRowItems = items.slice(topCount);
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.25rem", width: "100%" }}>
+              <div 
+                style={{ 
+                  display: "grid", 
+                  gridTemplateColumns: `repeat(${topCount}, 1fr)`,
+                  gap: "1rem",
+                  width: "100%",
+                  boxSizing: "border-box"
+                }}
+              >
+                {topRowItems.map(renderCard)}
               </div>
               <div 
                 style={{ 
-                  position: "absolute", 
-                  right: "-10px", 
-                  bottom: "-10px", 
-                  color: "var(--primary-color, #4f46e5)", 
-                  opacity: 0.08, 
-                  pointerEvents: "none"
+                  display: "grid", 
+                  gridTemplateColumns: `repeat(${topCount}, 1fr)`,
+                  gap: "1rem",
+                  width: "100%",
+                  boxSizing: "border-box"
                 }}
               >
-                <TipoIcon iconName={type.icon} size={64} />
+                {bottomRowItems.map(renderCard)}
+                {bottomRowItems.length < topCount && (
+                  Array.from({ length: topCount - bottomRowItems.length }).map((_, i) => (
+                    <div key={`empty-${i}`} style={{ visibility: "hidden" }} />
+                  ))
+                )}
               </div>
             </div>
-          ))}
-      </div>
+          );
+        }
+      })()}
 
       <div style={{ background: "#ffffff", borderRadius: "0.75rem", border: "1px solid #f1f5f9", overflow: "hidden", boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)", marginTop: "-1rem" }}>
         <div className={styles.listHeaderTop} style={{ marginBottom: "0" }}>
@@ -538,6 +896,20 @@ export default function CotizacionesPage() {
                   onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
                 />
               </div>
+              <button
+                type="button"
+                title="Importar cotizaciones desde CSV"
+                onClick={() => {
+                  setShowMigracion(true);
+                  setCsvFile(null);
+                  setMigracionPreview([]);
+                  setMigracionResult(null);
+                  setMigracionLoading(false);
+                }}
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: "0.5rem", border: "1px solid #cbd5e1", background: "#fff", color: "#6366f1", cursor: "pointer", padding: 0 }}
+              >
+                <DatabaseZap size={15} />
+              </button>
               <button
                 type="button"
                 className={styles.addActionButton}
@@ -565,7 +937,7 @@ export default function CotizacionesPage() {
                 padding: 0
               }}
             >
-              <Filter size={15} />
+              <SlidersHorizontal size={15} />
             </button>
             <button
               type="button"
@@ -917,12 +1289,12 @@ export default function CotizacionesPage() {
                             </span>
                           </td>
                           <td onClick={(e) => e.stopPropagation()} style={{ whiteSpace: "nowrap" }}>
-                            <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                            <div style={{ display: "flex", gap: 2, justifyContent: "flex-end" }}>
                               <button
                                 type="button"
                                 title={isExpanded ? "Contraer" : "Desplegar"}
                                 onClick={() => toggleExpandCotizacion(c.id)}
-                                style={{ border: "1px solid #e2e8f0", background: "#fff", borderRadius: 6, padding: "0.25rem 0.4rem", cursor: "pointer", color: "#64748b", display: "inline-flex", alignItems: "center" }}
+                                style={{ border: "1px solid #e2e8f0", background: "#fff", borderRadius: 6, padding: "0.2rem 0.35rem", cursor: "pointer", color: "#64748b", display: "inline-flex", alignItems: "center" }}
                               >
                                 {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                               </button>
@@ -930,7 +1302,7 @@ export default function CotizacionesPage() {
                                 title="Duplicar cotización"
                                 disabled={duplicating === c.id}
                                 onClick={(e) => handleDuplicate(e, c.id)}
-                                style={{ border: "1px solid #e2e8f0", background: "#fff", borderRadius: 6, padding: "0.25rem 0.4rem", cursor: "pointer", color: "#64748b", display: "inline-flex", alignItems: "center", opacity: duplicating === c.id ? 0.5 : 1 }}
+                                style={{ border: "1px solid #e2e8f0", background: "#fff", borderRadius: 6, padding: "0.2rem 0.35rem", cursor: "pointer", color: "#64748b", display: "inline-flex", alignItems: "center", opacity: duplicating === c.id ? 0.5 : 1 }}
                               >
                                 <Copy size={13} />
                               </button>
@@ -938,7 +1310,7 @@ export default function CotizacionesPage() {
                                 title="Eliminar cotización"
                                 disabled={deleting === c.id}
                                 onClick={(e) => handleDelete(e, c.id, c.titulo)}
-                                style={{ border: "1px solid #fecaca", background: "#fff", borderRadius: 6, padding: "0.25rem 0.4rem", cursor: "pointer", color: "#dc2626", display: "inline-flex", alignItems: "center", opacity: deleting === c.id ? 0.5 : 1 }}
+                                style={{ border: "1px solid #fecaca", background: "#fff", borderRadius: 6, padding: "0.2rem 0.35rem", cursor: "pointer", color: "#dc2626", display: "inline-flex", alignItems: "center", opacity: deleting === c.id ? 0.5 : 1 }}
                               >
                                 <Trash2 size={13} />
                               </button>
