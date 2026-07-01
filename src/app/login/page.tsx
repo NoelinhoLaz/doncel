@@ -6,6 +6,11 @@ import { supabase } from "@/lib/supabase";
 import { Icons } from "@/lib/icons";
 import styles from "./page.module.css";
 
+const REDIRECT_URL =
+  typeof window !== "undefined"
+    ? `${window.location.origin}/auth/callback`
+    : `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback`;
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -13,6 +18,26 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotLoading, setForgotLoading] = useState(false);
+
+  const handleForgot = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setForgotError(null);
+    setForgotLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
+      redirectTo: REDIRECT_URL,
+    });
+    setForgotLoading(false);
+    if (error) {
+      setForgotError(error.message);
+    } else {
+      setForgotSent(true);
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -64,6 +89,47 @@ export default function LoginPage() {
     }
   };
 
+  if (forgotMode) {
+    return (
+      <main className={styles.container}>
+        <section className={styles.card}>
+          <h1 className={styles.title}>Recuperar contraseña</h1>
+          {forgotSent ? (
+            <div style={{ textAlign: "center", display: "grid", gap: "1rem" }}>
+              <p style={{ color: "#15803d", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "0.5rem", padding: "0.75rem", fontSize: "0.875rem" }}>
+                Te hemos enviado un email con el enlace para restablecer tu contraseña.
+              </p>
+              <button className={styles.secondaryButton} onClick={() => { setForgotMode(false); setForgotSent(false); }}>
+                Volver al inicio de sesión
+              </button>
+            </div>
+          ) : (
+            <form className={styles.form} onSubmit={handleForgot}>
+              {forgotError && <p className={styles.error}>{forgotError}</p>}
+              <label className={styles.label} htmlFor="forgot-email">Email</label>
+              <input
+                id="forgot-email"
+                type="email"
+                placeholder="admin@agencia.com"
+                className={styles.input}
+                autoComplete="email"
+                value={forgotEmail}
+                onChange={(e) => setForgotEmail(e.target.value)}
+                required
+              />
+              <button type="submit" className={styles.button} disabled={forgotLoading}>
+                {forgotLoading ? "Enviando..." : "Enviar enlace"}
+              </button>
+              <button type="button" className={styles.secondaryButton} onClick={() => setForgotMode(false)}>
+                Volver al inicio de sesión
+              </button>
+            </form>
+          )}
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className={styles.container}>
       <section className={styles.card}>
@@ -111,6 +177,9 @@ export default function LoginPage() {
 
           <button type="submit" className={styles.button} disabled={loading}>
             {loading ? "Entrando..." : "Entrar"}
+          </button>
+          <button type="button" className={styles.secondaryButton} onClick={() => setForgotMode(true)}>
+            ¿Olvidaste tu contraseña?
           </button>
         </form>
       </section>
