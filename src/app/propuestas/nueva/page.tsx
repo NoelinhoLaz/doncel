@@ -62,6 +62,19 @@ interface RutaItem {
   segmentos?: SegmentoRuta[];
 }
 
+interface MenuItemConfig {
+  uid: string;    // uid de la sección referenciada
+  etiqueta: string;
+  ocultaEnMenu?: boolean;
+}
+
+interface MenuBoton {
+  etiqueta: string;
+  tipo: "externo" | "seccion";
+  href?: string;       // URL externa
+  seccionUid?: string; // uid de sección destino
+}
+
 interface Seccion {
   uid: string;
   tipo: string;
@@ -90,6 +103,13 @@ interface Seccion {
     media?: MediaItem;
     medias?: MediaItem[];
   }[];
+  // Campos específicos de sección menú
+  menuLogo?: string;          // URL del logo
+  menuItems?: MenuItemConfig[];
+  menuBoton?: MenuBoton | null;
+  menuColorFondo?: string;    // hex + alpha soportado (rgba o hex8)
+  menuColorTexto?: string;
+  menuColorBoton?: string;
 }
 
 const DISPOSITIVOS: { id: Dispositivo; label: string; Icon: React.ElementType; width: string; height: string }[] = [
@@ -124,17 +144,44 @@ function Bloque({ h, dashed }: { h?: string; dashed?: boolean }) {
   return <div className={styles.phBloque} style={{ height: h ?? "60px", borderStyle: dashed ? "dashed" : "solid" }} />;
 }
 
-function PHMenu({ mobile }: { mobile?: boolean }) {
+function PHMenu({ mobile, seccion, secciones }: { mobile?: boolean; seccion?: Seccion; secciones?: Seccion[] }) {
+  const bg = seccion?.menuColorFondo ?? "rgba(255,255,255,0.95)";
+  const colorTexto = seccion?.menuColorTexto ?? "#1e293b";
+  const colorBoton = seccion?.menuColorBoton ?? "var(--primary-color, #475569)";
+  const logo = seccion?.menuLogo;
+
+  // Items visibles en el menú
+  const items: { etiqueta: string; uid: string }[] = seccion?.menuItems
+    ? seccion.menuItems.filter(i => !i.ocultaEnMenu)
+    : (secciones ?? []).filter(s => s.tipo !== "menu" && !s.oculta).slice(0, 4).map(s => ({ etiqueta: s.label, uid: s.uid }));
+
+  const boton = seccion?.menuBoton;
+
   return (
-    <div className={styles.phMenu}>
+    <div className={styles.phMenu} style={{ background: bg }}>
       <div className={styles.phMenuRow}>
-        <div className={styles.phLogo} />
+        {logo
+          ? <img src={logo} alt="Logo" style={{ height: 32, maxWidth: 120, objectFit: "contain" }} />
+          : <div className={styles.phLogo} />
+        }
         {!mobile && (
           <div className={styles.phNavLinks}>
-            <Bar w="40px" /><Bar w="40px" /><Bar w="40px" /><Bar w="40px" />
+            {items.length > 0
+              ? items.map(item => (
+                  <span key={item.uid} style={{ fontSize: "0.78rem", fontWeight: 600, color: colorTexto, padding: "0 8px", cursor: "pointer" }}>
+                    {item.etiqueta}
+                  </span>
+                ))
+              : <><Bar w="40px" /><Bar w="40px" /><Bar w="40px" /><Bar w="40px" /></>
+            }
           </div>
         )}
-        <div className={styles.phNavBtn} />
+        {boton?.etiqueta
+          ? <div style={{ padding: "0.3rem 0.85rem", borderRadius: "0.4rem", background: colorBoton, color: "#fff", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>
+              {boton.etiqueta}
+            </div>
+          : <div className={styles.phNavBtn} style={{ background: colorBoton }} />
+        }
       </div>
     </div>
   );
@@ -1385,11 +1432,11 @@ function PHTextoColumnas({
   );
 }
 
-export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dispositivo) {
+export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dispositivo, allSecciones?: Seccion[]) {
   const mobile = dispositivo === "mobile";
   const tablet = dispositivo === "tablet";
   switch (s.tipo) {
-    case "menu":           return <PHMenu key={s.uid} mobile={mobile} />;
+    case "menu":           return <PHMenu key={s.uid} mobile={mobile} seccion={s} secciones={allSecciones} />;
     case "portada":        return <PHPortada key={s.uid} height={canvasHeight} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} medias={s.medias} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} colorFondo={s.colorFondo} />;
     case "texto-imagenes": return <PHTextoImagenes key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} medias={s.medias} colorFondo={s.colorFondo} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} anchoMax={s.anchoMax} />;
     case "texto-columnas": return <PHTextoColumnas key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} columnas={s.columnas} anchoMax={s.anchoMax} />;
@@ -2129,7 +2176,127 @@ function UbicacionEditorRuta({ ub, rutaUid, seccion, onUpdate }: {
   );
 }
 
-function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onToggleFav }: { seccion: Seccion; onClose: () => void; onRename: (uid: string, label: string) => void; onUpdate: (uid: string, patch: Partial<Seccion>) => void; isFav: boolean; onToggleFav: () => void }) {
+function MenuEditorContenido({ seccion, onUpdate, todasSecciones }: { seccion: Seccion; onUpdate: (uid: string, patch: Partial<Seccion>) => void; todasSecciones?: Seccion[] }) {
+  const logoFileRef = useRef<HTMLInputElement>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  const otrasSecciones = (todasSecciones ?? []).filter(s => s.tipo !== "menu");
+  const itemsActuales: MenuItemConfig[] = seccion.menuItems
+    ?? otrasSecciones.map(s => ({ uid: s.uid, etiqueta: s.label }));
+  const boton: MenuBoton = seccion.menuBoton ?? { etiqueta: "", tipo: "externo", href: "" };
+
+  return (
+    <>
+      {/* Logo */}
+      <div className={styles.editorSection}>
+        <label className={styles.editorFieldLabel}>Logo</label>
+        {seccion.menuLogo ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <img src={seccion.menuLogo} alt="Logo" style={{ height: 40, maxWidth: 140, objectFit: "contain", borderRadius: 6, border: "1px solid #e2e8f0" }} />
+            <button type="button" onClick={() => onUpdate(seccion.uid, { menuLogo: undefined })}
+              style={{ fontSize: "0.75rem", color: "#ef4444", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+              Quitar
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={() => logoFileRef.current?.click()} disabled={uploadingLogo}
+            style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.55rem 0.9rem", borderRadius: "0.5rem", border: "1.5px dashed #cbd5e1", background: "#f8fafc", color: "#64748b", fontSize: "0.78rem", cursor: "pointer", width: "100%", boxSizing: "border-box" }}>
+            <Image size={14} />{uploadingLogo ? "Subiendo…" : "Subir imagen de logo"}
+          </button>
+        )}
+        <input ref={logoFileRef} type="file" accept="image/*" style={{ display: "none" }}
+          onChange={async e => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            setUploadingLogo(true);
+            try {
+              const fd = new FormData(); fd.append("file", f);
+              const res = await fetch("/api/propuestas/upload-image", { method: "POST", body: fd });
+              const data = await res.json();
+              if (data.url) onUpdate(seccion.uid, { menuLogo: data.url });
+            } catch {} finally { setUploadingLogo(false); e.target.value = ""; }
+          }}
+        />
+      </div>
+
+      {/* Items del menú */}
+      <div className={styles.editorSection}>
+        <label className={styles.editorFieldLabel}>Secciones en el menú</label>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {itemsActuales.length === 0 && (
+            <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: 0 }}>Añade secciones a la propuesta para que aparezcan aquí.</p>
+          )}
+          {itemsActuales.map((item, i) => (
+            <div key={item.uid} style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.45rem 0.65rem", borderRadius: "0.5rem", background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+              <input
+                value={item.etiqueta}
+                onChange={e => {
+                  const next = itemsActuales.map((it, j) => j === i ? { ...it, etiqueta: e.target.value } : it);
+                  onUpdate(seccion.uid, { menuItems: next });
+                }}
+                style={{ flex: 1, border: "none", background: "transparent", fontSize: "0.82rem", color: "#1e293b", outline: "none" }}
+                placeholder="Etiqueta"
+              />
+              <button type="button" title={item.ocultaEnMenu ? "Mostrar en menú" : "Ocultar en menú"}
+                onClick={() => {
+                  const next = itemsActuales.map((it, j) => j === i ? { ...it, ocultaEnMenu: !it.ocultaEnMenu } : it);
+                  onUpdate(seccion.uid, { menuItems: next });
+                }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: item.ocultaEnMenu ? "#cbd5e1" : "#64748b", display: "flex", padding: 2 }}>
+                {item.ocultaEnMenu ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Botón CTA */}
+      <div className={styles.editorSection}>
+        <label className={styles.editorFieldLabel}>Botón CTA</label>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <input
+            value={boton.etiqueta}
+            onChange={e => onUpdate(seccion.uid, { menuBoton: { ...boton, etiqueta: e.target.value } })}
+            style={{ width: "100%", boxSizing: "border-box", padding: "0.45rem 0.65rem", border: "1.5px solid #e2e8f0", borderRadius: "0.5rem", fontSize: "0.82rem", color: "#1e293b", outline: "none" }}
+            placeholder="Etiqueta del botón (ej: Solicitar info)"
+          />
+          <div style={{ display: "flex", gap: 6 }}>
+            {(["externo", "seccion"] as const).map(t => (
+              <button key={t} type="button"
+                onClick={() => onUpdate(seccion.uid, { menuBoton: { ...boton, tipo: t } })}
+                style={{ flex: 1, padding: "0.35rem 0.5rem", borderRadius: "0.4rem", fontSize: "0.73rem", fontWeight: 600, cursor: "pointer",
+                  border: boton.tipo === t ? "2px solid var(--primary-color,#475569)" : "1.5px solid #e2e8f0",
+                  background: boton.tipo === t ? "color-mix(in srgb,var(--primary-color,#475569) 10%,white)" : "#fff",
+                  color: boton.tipo === t ? "var(--primary-color,#475569)" : "#64748b" }}>
+                {t === "externo" ? "URL externa" : "A sección"}
+              </button>
+            ))}
+          </div>
+          {boton.tipo === "externo" && (
+            <input value={boton.href ?? ""} onChange={e => onUpdate(seccion.uid, { menuBoton: { ...boton, href: e.target.value } })}
+              style={{ width: "100%", boxSizing: "border-box", padding: "0.45rem 0.65rem", border: "1.5px solid #e2e8f0", borderRadius: "0.5rem", fontSize: "0.82rem", color: "#1e293b", outline: "none" }}
+              placeholder="https://..." />
+          )}
+          {boton.tipo === "seccion" && (
+            <select value={boton.seccionUid ?? ""} onChange={e => onUpdate(seccion.uid, { menuBoton: { ...boton, seccionUid: e.target.value } })}
+              style={{ width: "100%", padding: "0.45rem 0.65rem", border: "1.5px solid #e2e8f0", borderRadius: "0.5rem", fontSize: "0.82rem", color: "#1e293b", outline: "none", background: "#fff" }}>
+              <option value="">— Selecciona sección —</option>
+              {itemsActuales.map(it => <option key={it.uid} value={it.uid}>{it.etiqueta}</option>)}
+            </select>
+          )}
+          {boton.etiqueta && (
+            <button type="button" onClick={() => onUpdate(seccion.uid, { menuBoton: null })}
+              style={{ fontSize: "0.73rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0, alignSelf: "flex-start" }}>
+              Quitar botón
+            </button>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onToggleFav, todasSecciones }: { seccion: Seccion; onClose: () => void; onRename: (uid: string, label: string) => void; onUpdate: (uid: string, patch: Partial<Seccion>) => void; isFav: boolean; onToggleFav: () => void; todasSecciones?: Seccion[] }) {
   const [tab, setTab] = useState<"contenido" | "diseño">("contenido");
   const [mediaAbierto, setMediaAbierto] = useState<boolean | number | "new" | string>(false);
   const [expandedDayIdx, setExpandedDayIdx] = useState<number | null>(null);
@@ -3115,7 +3282,10 @@ function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onToggleFav 
             </div>
           );
         })()}
-        {tab === "contenido" && seccion.tipo !== "portada" && seccion.tipo !== "texto-imagenes" && seccion.tipo !== "itinerario" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && (
+        {tab === "contenido" && seccion.tipo === "menu" && (
+          <MenuEditorContenido seccion={seccion} onUpdate={onUpdate} todasSecciones={todasSecciones} />
+        )}
+        {tab === "contenido" && seccion.tipo !== "portada" && seccion.tipo !== "texto-imagenes" && seccion.tipo !== "itinerario" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && (
           <p className={styles.editorEmpty}>Opciones de contenido próximamente.</p>
         )}
         {tab === "diseño" && (
@@ -3636,7 +3806,63 @@ function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onToggleFav 
                 </div>
               </>
             )}
-            {seccion.tipo !== "texto-imagenes" && seccion.tipo !== "portada" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "itinerario" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && (
+            {seccion.tipo === "menu" && (
+              <>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Color de fondo del menú</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label className={styles.colorPickerBtn} style={{ background: seccion.menuColorFondo ?? "rgba(255,255,255,0.95)", width: 34, height: 34, borderRadius: "0.5rem", border: "1px solid #e2e8f0", overflow: "hidden", cursor: "pointer", flexShrink: 0 }}>
+                      <input type="color" value={seccion.menuColorFondo?.replace(/rgba?\([^)]+\)/, "#ffffff") ?? "#ffffff"}
+                        onChange={e => onUpdate(seccion.uid, { menuColorFondo: e.target.value })} style={{ opacity: 0, position: "absolute" }} />
+                    </label>
+                    <input
+                      value={seccion.menuColorFondo ?? "rgba(255,255,255,0.95)"}
+                      onChange={e => onUpdate(seccion.uid, { menuColorFondo: e.target.value })}
+                      style={{ flex: 1, padding: "0.35rem 0.55rem", border: "1.5px solid #e2e8f0", borderRadius: "0.5rem", fontSize: "0.78rem", color: "#1e293b", outline: "none", fontFamily: "monospace" }}
+                      placeholder="rgba(255,255,255,0.95) o #fff"
+                    />
+                    {seccion.menuColorFondo && (
+                      <button onClick={() => onUpdate(seccion.uid, { menuColorFondo: undefined })}
+                        style={{ fontSize: "0.73rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}>
+                        Restablecer
+                      </button>
+                    )}
+                  </div>
+                  <p style={{ fontSize: "0.7rem", color: "#94a3b8", margin: "0.3rem 0 0" }}>Admite <code>rgba(r,g,b,a)</code> para transparencia</p>
+                </div>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Color del texto</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 34, height: 34, borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: seccion.menuColorTexto ?? "#1e293b", flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
+                      <input type="color" value={seccion.menuColorTexto ?? "#1e293b"} onChange={e => onUpdate(seccion.uid, { menuColorTexto: e.target.value })} style={{ opacity: 0, position: "absolute" }} />
+                    </label>
+                    <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.menuColorTexto ?? "#1e293b"}</span>
+                    {seccion.menuColorTexto && (
+                      <button onClick={() => onUpdate(seccion.uid, { menuColorTexto: undefined })}
+                        style={{ fontSize: "0.73rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                        Restablecer
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Color del botón</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 34, height: 34, borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: seccion.menuColorBoton ?? "var(--primary-color,#475569)", flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
+                      <input type="color" value={seccion.menuColorBoton ?? "#475569"} onChange={e => onUpdate(seccion.uid, { menuColorBoton: e.target.value })} style={{ opacity: 0, position: "absolute" }} />
+                    </label>
+                    <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.menuColorBoton ?? "color principal"}</span>
+                    {seccion.menuColorBoton && (
+                      <button onClick={() => onUpdate(seccion.uid, { menuColorBoton: undefined })}
+                        style={{ fontSize: "0.73rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                        Restablecer
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+            {seccion.tipo !== "texto-imagenes" && seccion.tipo !== "portada" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "itinerario" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && (
               <p className={styles.editorEmpty}>Opciones de diseño próximamente.</p>
             )}
           </>
@@ -3926,7 +4152,7 @@ export function PropuestaEditor({ initialPropuestaId, initialSecciones, initialC
               {/* Vista editor */}
               <div className={`${styles.panelView} ${styles.panelViewEditor} ${editorSeccion ? styles.panelViewEditorOpen : ""}`}>
                 {editorSeccion && (
-                  <EditorPanel seccion={editorSeccion} onClose={() => setEditorUid(null)} onRename={renombrarSeccion} onUpdate={actualizarSeccion} isFav={isFav(editorSeccion.uid)} onToggleFav={() => toggleFav(editorSeccion)} />
+                  <EditorPanel seccion={editorSeccion} onClose={() => setEditorUid(null)} onRename={renombrarSeccion} onUpdate={actualizarSeccion} isFav={isFav(editorSeccion.uid)} onToggleFav={() => toggleFav(editorSeccion)} todasSecciones={secciones} />
                 )}
               </div>
 
@@ -3981,7 +4207,7 @@ export function PropuestaEditor({ initialPropuestaId, initialSecciones, initialC
                 <div className={styles.canvasContent} ref={canvasContentRef}>
                   {secciones.filter(s => !s.oculta).map(s => (
                     <div key={s.uid} ref={el => { seccionRefs.current[s.uid] = el; }}>
-                      {renderSeccion(s, current.height, dispositivo)}
+                      {renderSeccion(s, current.height, dispositivo, secciones)}
                     </div>
                   ))}
                 </div>
