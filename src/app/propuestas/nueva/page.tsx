@@ -110,6 +110,7 @@ interface Seccion {
   menuColorFondo?: string;    // hex + alpha soportado (rgba o hex8)
   menuColorTexto?: string;
   menuColorBoton?: string;
+  menuFijo?: boolean;
 }
 
 const DISPOSITIVOS: { id: Dispositivo; label: string; Icon: React.ElementType; width: string; height: string }[] = [
@@ -148,6 +149,7 @@ function PHMenu({ mobile, seccion, secciones }: { mobile?: boolean; seccion?: Se
   const bg = seccion?.menuColorFondo ?? "rgba(255,255,255,0.95)";
   const colorTexto = seccion?.menuColorTexto ?? "#1e293b";
   const colorBoton = seccion?.menuColorBoton ?? "var(--primary-color, #475569)";
+  const fijo = seccion?.menuFijo ?? false;
   const logo = seccion?.menuLogo;
 
   // Items visibles en el menú
@@ -158,7 +160,7 @@ function PHMenu({ mobile, seccion, secciones }: { mobile?: boolean; seccion?: Se
   const boton = seccion?.menuBoton;
 
   return (
-    <div className={styles.phMenu} style={{ background: bg }}>
+    <div className={styles.phMenu} style={{ background: bg, ...(fijo ? { position: "sticky", top: 0, zIndex: 100 } : {}) }}>
       <div className={styles.phMenuRow}>
         {logo
           ? <img src={logo} alt="Logo" style={{ height: 32, maxWidth: 120, objectFit: "contain" }} />
@@ -3808,6 +3810,18 @@ function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onToggleFav,
             )}
             {seccion.tipo === "menu" && (
               <>
+                <div className={styles.editorSection}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}>
+                    <input
+                      type="checkbox"
+                      checked={seccion.menuFijo ?? false}
+                      onChange={e => onUpdate(seccion.uid, { menuFijo: e.target.checked })}
+                      style={{ width: 15, height: 15, accentColor: "var(--primary-color,#475569)", cursor: "pointer" }}
+                    />
+                    <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#1e293b" }}>Menú fijo (sticky)</span>
+                  </label>
+                  <p style={{ fontSize: "0.7rem", color: "#94a3b8", margin: "0.25rem 0 0 23px" }}>El menú permanece visible al hacer scroll</p>
+                </div>
                 <div className={styles.editorSection}>
                   <label className={styles.editorFieldLabel}>Color de fondo del menú</label>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
