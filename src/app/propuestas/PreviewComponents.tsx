@@ -52,6 +52,14 @@ export interface Seccion {
     media?: MediaItem;
     medias?: MediaItem[];
   }[];
+  // Campos de sección menú
+  menuLogo?: string;
+  menuItems?: { uid: string; etiqueta: string; ocultaEnMenu?: boolean }[];
+  menuBoton?: { etiqueta: string; tipo: "externo" | "seccion"; href?: string; seccionUid?: string } | null;
+  menuColorFondo?: string;
+  menuColorTexto?: string;
+  menuColorBoton?: string;
+  menuFijo?: boolean;
 }
 
 export type Dispositivo = "desktop" | "tablet" | "mobile";
@@ -432,17 +440,44 @@ export function PHPortada({ height, layout, titulo, subtitulo, medias, estiloTit
   );
 }
 
-export function PHMenu({ mobile }: { mobile?: boolean }) {
+export function PHMenu({ mobile, seccion, secciones }: { mobile?: boolean; seccion?: Seccion; secciones?: Seccion[] }) {
+  const bg = seccion?.menuColorFondo ?? "rgba(255,255,255,0.95)";
+  const colorTexto = seccion?.menuColorTexto ?? "#1e293b";
+  const colorBoton = seccion?.menuColorBoton ?? "var(--primary-color, #475569)";
+  const fijo = seccion?.menuFijo ?? false;
+  const logo = seccion?.menuLogo;
+
+  const items = seccion?.menuItems
+    ? seccion.menuItems.filter(i => !i.ocultaEnMenu)
+    : (secciones ?? []).filter(s => s.tipo !== "menu" && !s.oculta).slice(0, 4).map(s => ({ etiqueta: s.label, uid: s.uid }));
+
+  const boton = seccion?.menuBoton;
+
   return (
-    <div className={styles.phMenu}>
+    <div className={styles.phMenu} style={{ background: bg, ...(fijo ? { position: "sticky", top: 0, zIndex: 100 } : {}) }}>
       <div className={styles.phMenuRow}>
-        <div className={styles.phLogo} />
+        {logo
+          ? <img src={logo} alt="Logo" style={{ height: 32, maxWidth: 120, objectFit: "contain" }} />
+          : <div className={styles.phLogo} />
+        }
         {!mobile && (
           <div className={styles.phNavLinks}>
-            <Bar w="40px" /><Bar w="40px" /><Bar w="40px" /><Bar w="40px" />
+            {items.length > 0
+              ? items.map(item => (
+                  <span key={item.uid} style={{ fontSize: "0.78rem", fontWeight: 600, color: colorTexto, padding: "0 8px", cursor: "pointer" }}>
+                    {item.etiqueta}
+                  </span>
+                ))
+              : <><Bar w="40px" /><Bar w="40px" /><Bar w="40px" /><Bar w="40px" /></>
+            }
           </div>
         )}
-        <div className={styles.phNavBtn} />
+        {boton?.etiqueta
+          ? <div style={{ padding: "0.3rem 0.85rem", borderRadius: "0.4rem", background: colorBoton, color: "#fff", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>
+              {boton.etiqueta}
+            </div>
+          : <div className={styles.phNavBtn} style={{ background: colorBoton }} />
+        }
       </div>
     </div>
   );
@@ -1236,11 +1271,11 @@ export function PHTextoColumnas({
   );
 }
 
-export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dispositivo) {
+export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dispositivo, allSecciones?: Seccion[]) {
   const mobile = dispositivo === "mobile";
   const tablet = dispositivo === "tablet";
   switch (s.tipo) {
-    case "menu":           return <PHMenu key={s.uid} mobile={mobile} />;
+    case "menu":           return <PHMenu key={s.uid} mobile={mobile} seccion={s} secciones={allSecciones} />;
     case "portada":        return <PHPortada key={s.uid} height={canvasHeight} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} medias={s.medias} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} colorFondo={s.colorFondo} />;
     case "texto-imagenes": return <PHTextoImagenes key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} medias={s.medias} colorFondo={s.colorFondo} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} anchoMax={s.anchoMax} />;
     case "texto-columnas": return <PHTextoColumnas key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} columnas={s.columnas} anchoMax={s.anchoMax} />;

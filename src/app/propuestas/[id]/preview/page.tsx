@@ -57,6 +57,13 @@ export default function PreviewIdPage() {
               estiloDescDia: d.estiloDescDia,
               colorFondo: d.colorFondo,
               anchoMax: d.anchoMax,
+              menuLogo: s.menuLogo,
+              menuItems: s.menuItems,
+              menuBoton: s.menuBoton,
+              menuColorFondo: d.menuColorFondo,
+              menuColorTexto: d.menuColorTexto,
+              menuColorBoton: d.menuColorBoton,
+              menuFijo: d.menuFijo,
             };
           });
           setSecciones(mapped);
@@ -79,7 +86,7 @@ export default function PreviewIdPage() {
     <div style={{ background: "#ffffff", minHeight: "100vh", containerType: "inline-size" }}>
       {secciones.filter(s => !s.oculta).map(s => (
         <div key={s.uid}>
-          {renderSeccion(s, "100vh", "desktop")}
+          {renderSeccion(s, "100vh", "desktop", secciones)}
         </div>
       ))}
     </div>

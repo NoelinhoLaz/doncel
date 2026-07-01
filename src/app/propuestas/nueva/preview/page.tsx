@@ -21,7 +21,7 @@ export default function PreviewNuevaPage() {
     <div style={{ background: "#ffffff", minHeight: "100vh", containerType: "inline-size" }}>
       {secciones.filter(s => !s.oculta).map(s => (
         <div key={s.uid}>
-          {renderSeccion(s, "100vh", "desktop")}
+          {renderSeccion(s, "100vh", "desktop", secciones)}
         </div>
       ))}
     </div>
