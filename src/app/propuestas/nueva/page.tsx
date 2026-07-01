@@ -3824,25 +3824,54 @@ function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onToggleFav,
                 </div>
                 <div className={styles.editorSection}>
                   <label className={styles.editorFieldLabel}>Color de fondo del menú</label>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <label className={styles.colorPickerBtn} style={{ background: seccion.menuColorFondo ?? "rgba(255,255,255,0.95)", width: 34, height: 34, borderRadius: "0.5rem", border: "1px solid #e2e8f0", overflow: "hidden", cursor: "pointer", flexShrink: 0 }}>
-                      <input type="color" value={seccion.menuColorFondo?.replace(/rgba?\([^)]+\)/, "#ffffff") ?? "#ffffff"}
-                        onChange={e => onUpdate(seccion.uid, { menuColorFondo: e.target.value })} style={{ opacity: 0, position: "absolute" }} />
-                    </label>
-                    <input
-                      value={seccion.menuColorFondo ?? "rgba(255,255,255,0.95)"}
-                      onChange={e => onUpdate(seccion.uid, { menuColorFondo: e.target.value })}
-                      style={{ flex: 1, padding: "0.35rem 0.55rem", border: "1.5px solid #e2e8f0", borderRadius: "0.5rem", fontSize: "0.78rem", color: "#1e293b", outline: "none", fontFamily: "monospace" }}
-                      placeholder="rgba(255,255,255,0.95) o #fff"
-                    />
-                    {seccion.menuColorFondo && (
-                      <button onClick={() => onUpdate(seccion.uid, { menuColorFondo: undefined })}
-                        style={{ fontSize: "0.73rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}>
-                        Restablecer
-                      </button>
-                    )}
-                  </div>
-                  <p style={{ fontSize: "0.7rem", color: "#94a3b8", margin: "0.3rem 0 0" }}>Admite <code>rgba(r,g,b,a)</code> para transparencia</p>
+                  {(() => {
+                    // Parsear el color actual para separar hex y alpha
+                    const raw = seccion.menuColorFondo ?? "rgba(255,255,255,0.95)";
+                    const rgbaMatch = raw.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+                    let hexVal = "#ffffff";
+                    let alphaVal = 0.95;
+                    if (rgbaMatch) {
+                      const r = parseInt(rgbaMatch[1]), g = parseInt(rgbaMatch[2]), b = parseInt(rgbaMatch[3]);
+                      hexVal = "#" + [r, g, b].map(v => v.toString(16).padStart(2, "0")).join("");
+                      alphaVal = rgbaMatch[4] !== undefined ? parseFloat(rgbaMatch[4]) : 1;
+                    } else if (raw.startsWith("#")) {
+                      hexVal = raw.slice(0, 7);
+                      alphaVal = 1;
+                    }
+                    const hexToRgba = (hex: string, a: number) => {
+                      const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+                      return `rgba(${r},${g},${b},${a})`;
+                    };
+                    return (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <label style={{ width: 34, height: 34, borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: hexVal, flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
+                            <input type="color" value={hexVal}
+                              onChange={e => onUpdate(seccion.uid, { menuColorFondo: hexToRgba(e.target.value, alphaVal) })}
+                              style={{ opacity: 0, position: "absolute" }} />
+                          </label>
+                          <div style={{ flex: 1, height: 34, borderRadius: "0.5rem", border: "1px solid #e2e8f0", overflow: "hidden",
+                            background: `linear-gradient(to right, rgba(0,0,0,0), ${hexVal})` }}>
+                            <input type="range" min={0} max={1} step={0.01} value={alphaVal}
+                              onChange={e => onUpdate(seccion.uid, { menuColorFondo: hexToRgba(hexVal, parseFloat(e.target.value)) })}
+                              style={{ width: "100%", height: "100%", cursor: "pointer", accentColor: hexVal }} />
+                          </div>
+                          <span style={{ fontSize: "0.75rem", color: "#64748b", fontFamily: "monospace", minWidth: 32, textAlign: "right" }}>
+                            {Math.round(alphaVal * 100)}%
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: "0.7rem", color: "#94a3b8", fontFamily: "monospace", flex: 1 }}>{raw}</span>
+                          {seccion.menuColorFondo && (
+                            <button onClick={() => onUpdate(seccion.uid, { menuColorFondo: undefined })}
+                              style={{ fontSize: "0.73rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}>
+                              Restablecer
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className={styles.editorSection}>
                   <label className={styles.editorFieldLabel}>Color del texto</label>
@@ -3937,6 +3966,10 @@ export function PropuestaEditor({ initialPropuestaId, initialSecciones, initialC
       columnas: s.columnas,
       mapas: s.mapas,
       rutas: s.rutas,
+      // Campos de sección menú
+      menuLogo: s.menuLogo,
+      menuItems: s.menuItems,
+      menuBoton: s.menuBoton,
     }));
     const designTokens = secciones.map(s => ({
       uid: s.uid, layout: s.layout,
@@ -3944,6 +3977,11 @@ export function PropuestaEditor({ initialPropuestaId, initialSecciones, initialC
       estiloTituloDia: s.estiloTituloDia, estiloDescDia: s.estiloDescDia,
       colorFondo: s.colorFondo,
       anchoMax: s.anchoMax,
+      // Diseño del menú
+      menuColorFondo: s.menuColorFondo,
+      menuColorTexto: s.menuColorTexto,
+      menuColorBoton: s.menuColorBoton,
+      menuFijo: s.menuFijo,
     }));
 
     try {

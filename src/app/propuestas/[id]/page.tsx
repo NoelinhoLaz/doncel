@@ -39,6 +39,14 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
       estiloDescDia: d.estiloDescDia,
       colorFondo: d.colorFondo,
       anchoMax: d.anchoMax,
+      // Campos de sección menú
+      menuLogo: s.menuLogo,
+      menuItems: s.menuItems,
+      menuBoton: s.menuBoton,
+      menuColorFondo: d.menuColorFondo,
+      menuColorTexto: d.menuColorTexto,
+      menuColorBoton: d.menuColorBoton,
+      menuFijo: d.menuFijo,
     };
   });
 
