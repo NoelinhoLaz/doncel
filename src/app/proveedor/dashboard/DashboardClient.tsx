@@ -493,7 +493,7 @@ function TabRendimiento({ servicios }: { servicios: ServicioProveedor[] }) {
                   tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
                 />
                 <Tooltip
-                  formatter={(v: number) => [formatEur(v), "Importe"]}
+                  formatter={(v) => [formatEur(Number(v ?? 0)), "Importe"]}
                   contentStyle={{
                     fontSize: "0.78rem",
                     borderRadius: 8,
