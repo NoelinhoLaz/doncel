@@ -4,7 +4,7 @@ import { getAgencyDbClient } from "@/lib/agencyDb";
 import { getCurrentAgentePublic } from "@/actions/crm";
 
 export type TipoPresupuesto = "vacacional" | "P2P" | "grupo";
-export type EstadoPresupuesto = "borrador" | "pendiente_cotizar" | "cotizado" | "descartado";
+export type EstadoPresupuesto = "borrador" | "pendiente_cotizar" | "cotizando" | "cotizado" | "descartado";
 
 export interface ContactoInput {
   nombre: string;
@@ -240,5 +240,20 @@ export async function getPresupuestos(filters?: { oportunidad_id?: string }) {
   } catch (error: any) {
     console.error("Failed to get presupuestos:", error.message);
     return [];
+  }
+}
+
+export async function updateEstadoPresupuesto(presupuestoId: string, estado: EstadoPresupuesto) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { error } = await agencyDb
+      .from("operativa_presupuestos")
+      .update({ estado })
+      .eq("id", presupuestoId);
+    if (error) throw error;
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to update estado presupuesto:", error.message);
+    return { success: false, error: error.message };
   }
 }

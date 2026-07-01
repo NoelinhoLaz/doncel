@@ -58,6 +58,17 @@ export async function middleware(request: NextRequest) {
       }
     }
 
+    // Protect /proveedor/* routes (except /proveedor/login)
+    if (pathname.startsWith("/proveedor/") && pathname !== "/proveedor/login") {
+      const sessionCookie = request.cookies.get("proveedor_session")?.value;
+
+      if (!sessionCookie) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/proveedor/login";
+        return NextResponse.redirect(url);
+      }
+    }
+
     // Propagar el dominio efectivo como header de REQUEST para que headers() lo lea en Server Components
     const host = request.headers.get("host") || "";
     const domain =

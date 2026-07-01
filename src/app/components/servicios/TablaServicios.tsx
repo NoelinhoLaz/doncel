@@ -17,6 +17,7 @@ interface Props {
   s: ServiciosHook;
   onOpenMatchModal?: () => void;
   onEnviarValoracion?: () => void;
+  onExportClick?: (ser: any) => void;
 }
 
 function TipoIconServicio({ ser, getTypeInfo }: { ser: any; getTypeInfo: (id: string) => any }) {
@@ -66,7 +67,7 @@ function AddMenu({ onAddService, onImportCotizacion, onImportPdf }: { onAddServi
   );
 }
 
-export default function TablaServicios({ s, onOpenMatchModal, onEnviarValoracion }: Props) {
+export default function TablaServicios({ s, onOpenMatchModal, onEnviarValoracion, onExportClick }: Props) {
   return (
     <div className={styles.tabContainer}>
       {/* Header */}
@@ -147,6 +148,8 @@ export default function TablaServicios({ s, onOpenMatchModal, onEnviarValoracion
                 const isExpanded = s.expandedServicios.has(ser.id);
                 const pagos = ser.pagos || [];
                 const match = s.getMatch(ser);
+                const typeInfo = s.getTypeInfo(ser.tipo);
+                const isAlojamiento = typeInfo.id === "alojamiento" || typeInfo.label.toLowerCase().includes("alojamiento");
                 return (
                   <Fragment key={ser.id}>
                     <tr style={{ borderBottom: isExpanded ? "none" : "1px solid #f1f5f9" }}>
@@ -208,6 +211,15 @@ export default function TablaServicios({ s, onOpenMatchModal, onEnviarValoracion
                               <span style={{ position: "absolute", top: 0, right: 0, color: "var(--primary-color, #475569)", fontSize: "0.5rem", lineHeight: 1 }}>
                                 <LucideIcons.Sparkles size={10} fill="var(--primary-color, #475569)" />
                               </span>
+                            </button>
+                          )}
+                          {isAlojamiento && (
+                            <button onClick={() => onExportClick?.(ser)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "0.4rem", borderRadius: "0.25rem", transition: "color 0.15s, background-color 0.15s" }}
+                              onMouseEnter={(e) => { e.currentTarget.style.color = "var(--primary-color, #475569)"; e.currentTarget.style.backgroundColor = "#f8fafc"; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.backgroundColor = "transparent"; }}
+                              title="Exportar viajeros para este alojamiento"
+                            >
+                              <Icons.Export size={16} />
                             </button>
                           )}
                           <button onClick={() => s.openEditService(ser)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "0.4rem", borderRadius: "0.25rem", transition: "color 0.15s, background-color 0.15s" }}

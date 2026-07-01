@@ -151,16 +151,15 @@ export default function DestinationSelector({ value, onChange, compact, label }:
       {/* Trigger Button/Input */}
       <div
         onClick={async () => {
-          if (!isOpen && destinos.length === 0 && !label) {
+          if (!isOpen) {
+            // Recargar siempre al abrir para incluir destinos recién creados en otras líneas
             const destsData = await getDestinos();
             setDestinos(destsData || []);
             setDataLoaded(true);
-          }
-          setIsOpen(!isOpen);
-          if (!isOpen) {
             setSearchTerm("");
             setShowPlacesPanel(false);
           }
+          setIsOpen(!isOpen);
         }}
         style={{
           display: "flex",
@@ -178,9 +177,16 @@ export default function DestinationSelector({ value, onChange, compact, label }:
           boxSizing: "border-box"
         }}
       >
-        <span style={{ color: value ? "#0f172a" : "#94a3b8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <span style={{ color: value ? "#0f172a" : "#94a3b8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1 }}>
           {value ? (label || (dataLoaded ? getDestinoName(value) : "")) : "Seleccionar..."}
         </span>
+        {value && (
+          <X
+            size={12}
+            style={{ color: "#94a3b8", flexShrink: 0, marginRight: 2 }}
+            onClick={(e) => { e.stopPropagation(); onChange(""); }}
+          />
+        )}
         <ChevronDown size={14} style={{ color: "#64748b", transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }} />
       </div>
 

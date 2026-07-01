@@ -23,6 +23,7 @@ const TIPO_COLORS: Record<string, { bg: string; color: string }> = {
 const ESTADO_MAP: Record<string, { bg: string; color: string; label: string }> = {
   borrador:          { bg: "#f1f5f9", color: "#64748b", label: "Borrador" },
   pendiente_cotizar: { bg: "#dbeafe", color: "#2563eb", label: "Pendiente cotizar" },
+  cotizando:         { bg: "#fef9c3", color: "#a16207", label: "Cotizando" },
   cotizado:          { bg: "#dcfce7", color: "#16a34a", label: "Cotizado" },
   descartado:        { bg: "#fee2e2", color: "#dc2626", label: "Descartado" },
 };
@@ -36,6 +37,7 @@ export default function PresupuestosPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [showModal, setShowModal] = useState(false);
   const [presupuestoEditar, setPresupuestoEditar] = useState<any>(null);
+  const [cotizando, setCotizando] = useState<string | null>(null);
   const [destinosMap, setDestinosMap] = useState<Record<string, string>>({});
   const [agentesMap, setAgentesMap] = useState<Record<string, string>>({});
 
@@ -96,6 +98,33 @@ export default function PresupuestosPage() {
     return new Date(d).toLocaleDateString("es-ES");
   };
 
+  async function handleCotizar(e: React.MouseEvent, p: any) {
+    e.stopPropagation();
+    if (cotizando) return;
+    setCotizando(p.id);
+    try {
+      const res = await fetch("/api/cotizaciones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          titulo: p.titulo_viaje,
+          presupuesto_id: p.id,
+          plazas: p.plazas_estimadas ?? null,
+          fecha_salida: p.fecha_salida_estimada ?? null,
+          fecha_regreso: p.fecha_regreso_estimada ?? null,
+          pvp_viajero: p.pvp_estimado ?? null,
+          contacto: p.entidad_id ?? null,
+        }),
+      });
+      const j = await res.json();
+      if (j?.success && j?.data?.id) {
+        load();
+        router.push(`/cotizaciones/nueva?id=${j.data.id}`);
+      }
+    } catch {}
+    setCotizando(null);
+  }
+
   return (
     <div className={listStyles.container}>
       <header className={listStyles.header} style={{ marginBottom: "0px" }}>
@@ -153,6 +182,7 @@ export default function PresupuestosPage() {
                   <th style={{ textAlign: "right" }}>Noches</th>
                   <th style={{ textAlign: "right" }}>Plazas</th>
                   <th>Estado</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -256,6 +286,24 @@ export default function PresupuestosPage() {
                           }}>
                             {estado.label}
                           </span>
+                        </td>
+                        <td style={{ textAlign: "right", paddingRight: "0.75rem" }}>
+                          {(p.estado === "pendiente_cotizar" || p.estado === "cotizando") && (
+                            <button
+                              onClick={(e) => handleCotizar(e, p)}
+                              disabled={cotizando === p.id}
+                              style={{
+                                padding: "0.25rem 0.65rem", fontSize: "0.72rem", fontWeight: 600,
+                                borderRadius: "0.4rem", border: "1.5px solid var(--primary-color, #475569)",
+                                background: "color-mix(in srgb, var(--primary-color, #475569) 10%, white)",
+                                color: "var(--primary-color, #475569)",
+                                cursor: cotizando === p.id ? "wait" : "pointer",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {cotizando === p.id ? "Creando…" : "Cotizar"}
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );

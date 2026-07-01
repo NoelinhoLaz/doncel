@@ -71,3 +71,52 @@ export function verifyToken(token: string): string | null {
     return null;
   }
 }
+
+export function encryptAllergies(allergies: string[]): any {
+  if (!allergies) return [];
+  try {
+    const text = JSON.stringify(allergies);
+    const enc = encrypt(text);
+    if (!enc.encryptedData) return allergies;
+    return {
+      __encrypted: true,
+      data: enc.encryptedData,
+      iv: enc.iv,
+      tag: enc.authTag
+    };
+  } catch (err) {
+    console.error("encryptAllergies error:", err);
+    return allergies;
+  }
+}
+
+export function decryptAllergies(alergiasField: any): string[] {
+  if (!alergiasField) return [];
+  
+  if (alergiasField && typeof alergiasField === 'object' && alergiasField.__encrypted === true) {
+    try {
+      const decryptedText = decrypt(alergiasField.data, alergiasField.iv, alergiasField.tag);
+      const parsed = JSON.parse(decryptedText);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (err) {
+      console.error("Failed to decrypt allergies:", err);
+      return [];
+    }
+  }
+  
+  if (Array.isArray(alergiasField)) {
+    return alergiasField;
+  }
+  
+  if (typeof alergiasField === 'string') {
+    try {
+      const parsed = JSON.parse(alergiasField);
+      return Array.isArray(parsed) ? parsed : [alergiasField];
+    } catch {
+      return [alergiasField];
+    }
+  }
+  
+  return [];
+}
+

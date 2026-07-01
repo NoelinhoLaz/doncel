@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useViajeros } from "@/hooks/useViajeros";
 import ViajerosKpiGrid from "@/app/components/viajeros/ViajerosKpiGrid";
 import TablaViajeros from "@/app/components/viajeros/TablaViajeros";
+import ExportViajerosModal from "@/components/modals/ExportViajerosModal";
 
 interface Props {
   expedienteId: string;
@@ -15,6 +17,7 @@ interface Props {
 
 export default function ViajerosTab({ expedienteId, fechaSalida, pvpViajero, pagadores = [], plazos = [], onOpenMatchModal }: Props) {
   const v = useViajeros(expedienteId, fechaSalida, pvpViajero, pagadores, plazos);
+  const [isExportOpen, setIsExportOpen] = useState(false);
 
   return (
     <>
@@ -54,6 +57,13 @@ export default function ViajerosTab({ expedienteId, fechaSalida, pvpViajero, pag
         rowsPerPage={v.rowsPerPage}
         onPageChange={v.setCurrentPage}
         onRowsPerPageChange={v.handleRowsPerPageChange}
+        onExportClick={() => setIsExportOpen(true)}
+      />
+
+      <ExportViajerosModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        expedienteId={expedienteId}
       />
     </>
   );

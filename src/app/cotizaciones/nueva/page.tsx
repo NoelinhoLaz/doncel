@@ -253,6 +253,22 @@ export default function NuevaCotizacionPage() {
           </div>
 
           <div style={{ flexGrow: 1 }} />
+
+          {cotId && (
+            <button
+              onClick={() => router.push(`/propuestas/nueva?cotizacion_id=${cotId}`)}
+              style={{
+                display: "flex", alignItems: "center", gap: "0.4rem",
+                padding: "0.4rem 0.9rem", fontSize: "0.78rem", fontWeight: 600,
+                borderRadius: "0.5rem", border: "1.5px solid var(--primary-color, #475569)",
+                background: "color-mix(in srgb, var(--primary-color, #475569) 10%, white)",
+                color: "var(--primary-color, #475569)", cursor: "pointer", whiteSpace: "nowrap",
+              }}
+            >
+              <Icons.Add size={14} />
+              Crear propuesta
+            </button>
+          )}
         </div>
       </header>
 

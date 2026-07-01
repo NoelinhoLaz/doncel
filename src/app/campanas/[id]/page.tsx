@@ -1183,7 +1183,9 @@ function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: EntidadDetall
   const [entidadForm, setEntidadForm] = useState({
     nombre: entidad?.nombre ?? "",
     telefono: entidad?.telefono ?? "",
+    otros_tlfs: (entidad?.otros_tlfs ?? []) as string[],
     email: entidad?.email ?? "",
+    otros_emails: (entidad?.otros_emails ?? []) as string[],
     direccion: entidad?.direccion?.direccion ?? entidad?.direccion?.calle ?? "",
     ciudad: entidad?.direccion?.ciudad ?? "",
     provincia: entidad?.direccion?.provincia ?? "",
@@ -1253,7 +1255,9 @@ function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: EntidadDetall
         body: JSON.stringify({
           nombre: entidadForm.nombre,
           telefono: entidadForm.telefono || null,
+          otros_tlfs: entidadForm.otros_tlfs.filter(Boolean),
           email: entidadForm.email || null,
+          otros_emails: entidadForm.otros_emails.filter(Boolean),
           direccion: {
             ...(entidadLocal.direccion ?? {}),
             direccion: entidadForm.direccion || null,
@@ -1267,7 +1271,9 @@ function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: EntidadDetall
         ...entidadLocal,
         nombre: entidadForm.nombre,
         telefono: entidadForm.telefono || null,
+        otros_tlfs: entidadForm.otros_tlfs.filter(Boolean),
         email: entidadForm.email || null,
+        otros_emails: entidadForm.otros_emails.filter(Boolean),
         direccion: { ...(entidadLocal.direccion ?? {}), direccion: entidadForm.direccion || null, ciudad: entidadForm.ciudad || null, provincia: entidadForm.provincia || null, cp: entidadForm.cp || null },
       };
       setEntidadLocal(updated);
@@ -1414,7 +1420,9 @@ function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: EntidadDetall
                     setEntidadForm({
                       nombre: entidadLocal.nombre ?? "",
                       telefono: entidadLocal.telefono ?? "",
+                      otros_tlfs: entidadLocal.otros_tlfs ?? [],
                       email: entidadLocal.email ?? "",
+                      otros_emails: entidadLocal.otros_emails ?? [],
                       direccion: entidadLocal.direccion?.direccion ?? entidadLocal.direccion?.calle ?? "",
                       ciudad: entidadLocal.direccion?.ciudad ?? "",
                       provincia: entidadLocal.direccion?.provincia ?? "",
@@ -1438,14 +1446,54 @@ function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: EntidadDetall
                     <input value={entidadForm.nombre} onChange={setEF("nombre")} style={inp} />
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: "0.6rem" }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={lbl}>Teléfono</label>
-                    <input value={entidadForm.telefono} onChange={setEF("telefono")} style={inp} placeholder="Ej: 957123456" />
+                {/* Teléfonos */}
+                <div>
+                  <label style={lbl}>Teléfonos</label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                    <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                      <input value={entidadForm.telefono} onChange={setEF("telefono")} style={{ ...inp, flex: 1 }} placeholder="Ej: 957123456" />
+                    </div>
+                    {entidadForm.otros_tlfs.map((t, i) => (
+                      <div key={i} style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                        <input
+                          value={t}
+                          onChange={e => setEntidadForm(p => { const arr = [...p.otros_tlfs]; arr[i] = e.target.value; return { ...p, otros_tlfs: arr }; })}
+                          style={{ ...inp, flex: 1 }}
+                          placeholder="Teléfono adicional"
+                        />
+                        <button type="button" onClick={() => setEntidadForm(p => ({ ...p, otros_tlfs: p.otros_tlfs.filter((_, j) => j !== i) }))} style={{ display: "flex", alignItems: "center", padding: "0.3rem", border: "none", background: "#fee2e2", borderRadius: 5, cursor: "pointer", color: "#dc2626", flexShrink: 0 }}>
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => setEntidadForm(p => ({ ...p, otros_tlfs: [...p.otros_tlfs, ""] }))} style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.72rem", color: "var(--primary-color, #475569)", background: "none", border: "none", cursor: "pointer", padding: "0.1rem 0" }}>
+                      <Plus size={12} /> Añadir teléfono
+                    </button>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={lbl}>Email</label>
-                    <input value={entidadForm.email} onChange={setEF("email")} style={inp} placeholder="centro@ejemplo.com" />
+                </div>
+                {/* Emails */}
+                <div>
+                  <label style={lbl}>Emails</label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                    <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                      <input value={entidadForm.email} onChange={setEF("email")} style={{ ...inp, flex: 1 }} placeholder="centro@ejemplo.com" />
+                    </div>
+                    {entidadForm.otros_emails.map((e, i) => (
+                      <div key={i} style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                        <input
+                          value={e}
+                          onChange={ev => setEntidadForm(p => { const arr = [...p.otros_emails]; arr[i] = ev.target.value; return { ...p, otros_emails: arr }; })}
+                          style={{ ...inp, flex: 1 }}
+                          placeholder="Email adicional"
+                        />
+                        <button type="button" onClick={() => setEntidadForm(p => ({ ...p, otros_emails: p.otros_emails.filter((_, j) => j !== i) }))} style={{ display: "flex", alignItems: "center", padding: "0.3rem", border: "none", background: "#fee2e2", borderRadius: 5, cursor: "pointer", color: "#dc2626", flexShrink: 0 }}>
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => setEntidadForm(p => ({ ...p, otros_emails: [...p.otros_emails, ""] }))} style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.72rem", color: "var(--primary-color, #475569)", background: "none", border: "none", cursor: "pointer", padding: "0.1rem 0" }}>
+                      <Plus size={12} /> Añadir email
+                    </button>
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: "0.6rem" }}>

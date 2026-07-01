@@ -13,7 +13,9 @@ export async function PATCH(
     const update: Record<string, any> = {};
     if (body.nombre !== undefined) update.nombre = body.nombre;
     if (body.telefono !== undefined) update.telefono = body.telefono;
+    if (body.otros_tlfs !== undefined) update.otros_tlfs = body.otros_tlfs;
     if (body.email !== undefined) update.email = body.email;
+    if (body.otros_emails !== undefined) update.otros_emails = body.otros_emails;
     if (body.lat !== undefined) update.lat = body.lat;
     if (body.lng !== undefined) update.lng = body.lng;
     if (body.direccion !== undefined) update.direccion = body.direccion;

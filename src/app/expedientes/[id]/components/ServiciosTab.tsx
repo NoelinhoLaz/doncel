@@ -9,6 +9,7 @@ import MatchBancarioModal from "@/components/modals/MatchBancarioModal";
 import ImportarPdfModal from "@/components/modals/ImportarPdfModal";
 import ServicioFormModal from "@/components/modals/ServicioFormModal";
 import ModalEnviarValoracion from "@/components/modals/ModalEnviarValoracion";
+import ExportViajerosModal from "@/components/modals/ExportViajerosModal";
 
 interface ServiciosTabProps {
   onOpenMatchModal?: () => void;
@@ -18,6 +19,13 @@ interface ServiciosTabProps {
 export default function ServiciosTab({ expedienteId, onOpenMatchModal }: ServiciosTabProps) {
   const s = useServicios(expedienteId);
   const [valoracionOpen, setValoracionOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [selectedExportService, setSelectedExportService] = useState<any | null>(null);
+
+  const handleOpenExport = (ser: any) => {
+    setSelectedExportService(ser);
+    setIsExportOpen(true);
+  };
 
   return (
     <>
@@ -27,7 +35,12 @@ export default function ServiciosTab({ expedienteId, onOpenMatchModal }: Servici
         categoriesToRender={s.categoriesToRender}
       />
 
-      <TablaServicios s={s} onOpenMatchModal={onOpenMatchModal} onEnviarValoracion={() => setValoracionOpen(true)} />
+      <TablaServicios 
+        s={s} 
+        onOpenMatchModal={onOpenMatchModal} 
+        onEnviarValoracion={() => setValoracionOpen(true)} 
+        onExportClick={handleOpenExport}
+      />
 
       <ImportarCotizacionModal
         isOpen={s.isImportCotizacionOpen}
@@ -73,6 +86,16 @@ export default function ServiciosTab({ expedienteId, onOpenMatchModal }: Servici
           onSent={() => setTimeout(() => setValoracionOpen(false), 1500)}
         />
       )}
+
+      <ExportViajerosModal
+        isOpen={isExportOpen}
+        onClose={() => {
+          setIsExportOpen(false);
+          setSelectedExportService(null);
+        }}
+        expedienteId={expedienteId}
+        selectedService={selectedExportService}
+      />
     </>
   );
 }

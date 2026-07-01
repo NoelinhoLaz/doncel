@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { createAdminServiceClient } from "@/lib/supabaseServer";
 import { createClient } from "@supabase/supabase-js";
-import { decrypt, encrypt } from "@/lib/encryption";
+import { decrypt, encrypt, encryptAllergies } from "@/lib/encryption";
 
 const COOKIE_NAME = "portal_session";
 
@@ -645,7 +645,7 @@ export async function submitRegistro(payload: {
         estado: "pendiente" as const,
         extras: extrasJsonb,
         importe_extras: importeExtrasViajero,
-        alergias: v.alergias ?? [],
+        alergias: encryptAllergies(v.alergias ?? []),
         pagador_id: pagadorEntidadId,
         tutor_id: tutorEntidadId,
         datos_viaje: { metodo_pago: payload.metodoPago },

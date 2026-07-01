@@ -67,10 +67,12 @@ export async function guardarPropuesta({
   propuestaId,
   editorContent,
   designTokens,
+  cotizacionId,
 }: {
   propuestaId?: string;
   editorContent: any[];
   designTokens: any[];
+  cotizacionId?: string | null;
 }) {
   try {
     const agencyDb = await getAgencyDbClient();
@@ -95,12 +97,31 @@ export async function guardarPropuesta({
     const portada = editorContent.find((s: any) => s.tipo === "portada");
     const title = portada?.titulo ?? "Nueva propuesta";
 
+    const propInsert: any = { title, proposal_data: {} };
+    if (cotizacionId) propInsert.cotizacion_id = cotizacionId;
+
     const { data: prop, error: propErr } = await agencyDb
       .from("operativa_propuestas")
-      .insert({ title, proposal_data: {} })
+      .insert(propInsert)
       .select("id")
       .single();
     if (propErr || !prop) throw propErr;
+
+    // Si viene vinculada a una cotización, buscar el presupuesto_id y marcarlo como cotizado
+    if (cotizacionId) {
+      const { data: cot } = await agencyDb
+        .from("operativa_cotizaciones")
+        .select("presupuesto_id")
+        .eq("id", cotizacionId)
+        .single();
+      if (cot?.presupuesto_id) {
+        agencyDb
+          .from("operativa_presupuestos")
+          .update({ estado: "cotizado" })
+          .eq("id", cot.presupuesto_id)
+          .then(() => {});
+      }
+    }
 
     const { error: landingErr } = await agencyDb.from("landings").insert({
       proposal_id: prop.id,

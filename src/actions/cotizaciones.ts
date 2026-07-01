@@ -3,6 +3,72 @@
 import { getAgencyDbClient } from "@/lib/agencyDb";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { revalidatePath } from "next/cache";
+import { ingestMetricaCotizacion, deleteMetricaCotizacion, deleteTodasMetricasCotizacion } from "@/lib/analyticsIngest";
+
+// Recalcula las métricas de un destino concreto dentro de una cotización.
+// Agrupa las líneas activas por servicio_categoria → una fila por (cotizacion, localidad, categoria).
+// Así MP + PC del mismo grupo = 1 fila con las plazas reales, no la suma de alternativas.
+async function recalcularMetrica(agencyDb: any, cotizacionId: string, destinoId: string | null | undefined) {
+  if (!destinoId) return;
+  try {
+    const [{ data: cot }, { data: dest }] = await Promise.all([
+      agencyDb.from("operativa_cotizaciones").select("plazas, fecha_salida, expediente_id").eq("id", cotizacionId).single(),
+      agencyDb.from("maestro_destinos").select("lat, lng, nombre_comercial, nombre, locality, admin_area_l2, admin_area_l1").eq("id", destinoId).single(),
+    ]);
+
+    if (!dest?.lat || !dest?.lng) return;
+
+    const fecha = cot?.fecha_salida ? new Date(cot.fecha_salida) : new Date();
+    const mes_viaje = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-01`;
+    const lat = Math.round(Number(dest.lat) * 100) / 100;
+    const lng = Math.round(Number(dest.lng) * 100) / 100;
+    // Ciudad/zona: nunca el nombre del hotel
+    const localidad = dest.locality ?? dest.admin_area_l2 ?? dest.admin_area_l1 ?? dest.nombre_comercial ?? dest.nombre ?? "Desconocido";
+    const provincia = dest.admin_area_l1 ?? undefined;
+
+    // Líneas activas para este destino, agrupadas por categoría de servicio
+    const { data: lineasActivas } = await agencyDb
+      .from("operativa_cotizacion_lineas")
+      .select("config_tipos_servicios(etiqueta)")
+      .eq("cotizacion_id", cotizacionId)
+      .eq("destino", destinoId)
+      .eq("checked", true);
+
+    if ((lineasActivas?.length ?? 0) === 0) {
+      // Sin líneas activas → borrar todas las métricas de esta cotización+localidad
+      await deleteMetricaCotizacion({ cotizacion_id: cotizacionId, localidad });
+      return;
+    }
+
+    let tipo_grupo: string | undefined;
+    if (cot?.expediente_id) {
+      const { data: exp } = await agencyDb.from("operativa_expedientes").select("tipo_expediente").eq("id", cot.expediente_id).single();
+      tipo_grupo = exp?.tipo_expediente ?? undefined;
+    }
+
+    // Obtener categorías únicas presentes en las líneas activas (etiqueta exacta del CRM)
+    const categoriasPresentes = new Set<string>(
+      (lineasActivas as any[]).map(l => l.config_tipos_servicios?.etiqueta ?? "Sin categoría").filter(Boolean)
+    );
+
+    // Una ingestión por categoría presente — plazas reales de la cotización (no suma de líneas)
+    const plazas = cot?.plazas ?? 1;
+    for (const categoria of categoriasPresentes) {
+      await ingestMetricaCotizacion({
+        cotizacion_id: cotizacionId,
+        lat, lng, localidad, provincia,
+        servicio_categoria: categoria,
+        mes_viaje,
+        total_plazas: plazas,
+        tipo_grupo,
+      });
+    }
+  } catch (err: any) {
+    console.error("[analytics] recalcularMetrica error:", err.message);
+  }
+}
+
+const tryIngestLinea = recalcularMetrica;
 
 async function getDefaultTipoId(agencyDb: any): Promise<string | null> {
   const { data } = await agencyDb
@@ -160,12 +226,24 @@ export async function getCotizacionWithLineas(cotizacionId: string) {
 export async function createCotizacion(payload: {
   expediente_id?: string | null;
   titulo?: string | null;
+  presupuesto_id?: string | null;
+  plazas?: number | null;
+  fecha_salida?: string | null;
+  fecha_regreso?: string | null;
+  pvp_viajero?: number | null;
+  contacto?: string | null;
 }) {
   try {
     const agencyDb = await getAgencyDbClient();
     const insertObj: any = {};
     if (payload.expediente_id) insertObj.expediente_id = payload.expediente_id;
     if (payload.titulo) insertObj.titulo = payload.titulo;
+    if (payload.presupuesto_id) insertObj.presupuesto_id = payload.presupuesto_id;
+    if (payload.plazas) insertObj.plazas = payload.plazas;
+    if (payload.fecha_salida) insertObj.fecha_salida = payload.fecha_salida;
+    if (payload.fecha_regreso) insertObj.fecha_regreso = payload.fecha_regreso;
+    if (payload.pvp_viajero) insertObj.pvp_viajero = payload.pvp_viajero;
+    if (payload.contacto) insertObj.contacto = payload.contacto;
 
     // Capture creating agent
     try {
@@ -183,6 +261,16 @@ export async function createCotizacion(payload: {
       .single();
 
     if (error) throw error;
+
+    // Marcar el presupuesto como "cotizando" si viene vinculado
+    if (payload.presupuesto_id) {
+      agencyDb
+        .from("operativa_presupuestos")
+        .update({ estado: "cotizando" })
+        .eq("id", payload.presupuesto_id)
+        .then(() => {});
+    }
+
     return { success: true, data };
   } catch (error: any) {
     console.error("Failed to create cotizacion:", error.message);
@@ -235,6 +323,7 @@ export async function createCotizacionLinea(payload: {
       .single();
 
     if (error) throw error;
+    tryIngestLinea(agencyDb, payload.cotizacion_id, payload.destino);
     revalidatePath("/cotizaciones");
     return { success: true, data };
   } catch (error: any) {
@@ -285,6 +374,19 @@ export async function updateCotizacionLinea(id: string, payload: {
       .single();
 
     if (error) throw error;
+
+    // Recalcular métrica si cambia algo que afecta al cómputo de plazas o destino
+    if (payload.destino !== undefined || payload.plazas !== undefined || payload.checked !== undefined) {
+      const { data: linea } = await agencyDb
+        .from("operativa_cotizacion_lineas")
+        .select("cotizacion_id, destino")
+        .eq("id", id)
+        .single();
+      const destinoId = payload.destino ?? linea?.destino;
+      if (linea?.cotizacion_id && destinoId) {
+        recalcularMetrica(agencyDb, linea.cotizacion_id, destinoId);
+      }
+    }
     return { success: true, data };
   } catch (error: any) {
     console.error("Failed to update cotizacion linea:", error.message);
@@ -295,12 +397,26 @@ export async function updateCotizacionLinea(id: string, payload: {
 export async function deleteCotizacionLinea(id: string) {
   try {
     const agencyDb = await getAgencyDbClient();
+
+    // Leer destino y cotizacion_id antes de borrar para poder recalcular
+    const { data: linea } = await agencyDb
+      .from("operativa_cotizacion_lineas")
+      .select("destino, cotizacion_id")
+      .eq("id", id)
+      .single();
+
     const { error } = await agencyDb
       .from("operativa_cotizacion_lineas")
       .delete()
       .eq("id", id);
 
     if (error) throw error;
+
+    // Recalcular métrica tras el borrado (si había destino)
+    if (linea?.destino && linea?.cotizacion_id) {
+      recalcularMetrica(agencyDb, linea.cotizacion_id, linea.destino);
+    }
+
     revalidatePath("/cotizaciones");
     return { success: true };
   } catch (error: any) {
@@ -317,6 +433,20 @@ export async function updateCotizacionMeta(cotizacionId: string, payload: { titu
       .update(payload)
       .eq("id", cotizacionId);
     if (error) throw error;
+
+    // Si cambian plazas o fecha, recalcular métricas de todos los destinos de esta cotización
+    if (payload.plazas !== undefined || payload.fecha_salida !== undefined) {
+      const { data: lineas } = await agencyDb
+        .from("operativa_cotizacion_lineas")
+        .select("destino")
+        .eq("cotizacion_id", cotizacionId)
+        .eq("checked", true)
+        .not("destino", "is", null);
+
+      const destinosUnicos = [...new Set((lineas ?? []).map((l: any) => l.destino).filter(Boolean))];
+      destinosUnicos.forEach(destinoId => recalcularMetrica(agencyDb, cotizacionId, destinoId));
+    }
+
     return { success: true };
   } catch (error: any) {
     console.error("Failed to update cotizacion meta:", error.message);

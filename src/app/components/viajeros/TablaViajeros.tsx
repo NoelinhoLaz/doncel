@@ -31,7 +31,7 @@ function AlergiaTip({ alergias }: { alergias: string[] }) {
           padding: "4px 8px", borderRadius: 5,
           pointerEvents: "none", zIndex: 99999,
         }}>
-          {alergias.join(" · ")}
+          Datos sensibles encriptados
         </span>
       )}
     </span>
@@ -166,6 +166,7 @@ interface Props {
   rowsPerPage: number;
   onPageChange: (p: number) => void;
   onRowsPerPageChange: (r: number) => void;
+  onExportClick?: () => void;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -184,6 +185,7 @@ export default function TablaViajeros({
   onClearAllFilters,
   sortKey, sortDirection, onSort,
   currentPage, rowsPerPage, onPageChange, onRowsPerPageChange,
+  onExportClick,
 }: Props) {
   const hasActiveFilters = activePlazoFilters.length + activeExtraFilters.length + activeNewsletterFilters.length + activeContratoFilters.length > 0;
 
@@ -210,7 +212,7 @@ export default function TablaViajeros({
           >
             <Icons.Filter size={18} />
           </button>
-          <button className={styles.actionIconButton} title="Exportar"><Icons.Export size={18} /></button>
+          <button className={styles.actionIconButton} title="Exportar" onClick={onExportClick}><Icons.Export size={18} /></button>
           {matchesCobros.length > 0 && (
             <button className={styles.actionIconButton} style={{ position: "relative" }} onClick={onOpenMatchModal}
               title={`${matchesCobros.length} cobro${matchesCobros.length > 1 ? "s" : ""} pendiente${matchesCobros.length > 1 ? "s" : ""} de conciliar`}

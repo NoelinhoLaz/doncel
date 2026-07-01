@@ -3672,7 +3672,7 @@ function useFavoritos() {
   return { favs, toggleFav, isFav };
 }
 
-export function PropuestaEditor({ initialPropuestaId, initialSecciones }: { initialPropuestaId?: string; initialSecciones?: Seccion[] } = {}) {
+export function PropuestaEditor({ initialPropuestaId, initialSecciones, initialCotizacionId }: { initialPropuestaId?: string; initialSecciones?: Seccion[]; initialCotizacionId?: string | null } = {}) {
   const [secciones, setSecciones] = useState<Seccion[]>(initialSecciones ?? []);
   const [dispositivo, setDispositivo] = useState<Dispositivo>("desktop");
   const [menuAbierto, setMenuAbierto] = useState(false);
@@ -3681,6 +3681,7 @@ export function PropuestaEditor({ initialPropuestaId, initialSecciones }: { init
   const [guardando, setGuardando] = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
   const [propuestaId, setPropuestaId] = useState<string | null>(initialPropuestaId ?? null);
+  const [cotizacionId] = useState<string | null>(initialCotizacionId ?? null);
   const { favs, toggleFav, isFav } = useFavoritos();
 
   const guardar = useCallback(async () => {
@@ -3710,6 +3711,7 @@ export function PropuestaEditor({ initialPropuestaId, initialSecciones }: { init
         propuestaId: propuestaId ?? undefined,
         editorContent,
         designTokens,
+        cotizacionId: propuestaId ? undefined : (cotizacionId ?? undefined),
       });
       if (!result.ok) throw new Error(result.error);
       if (!propuestaId && result.id) setPropuestaId(result.id);
@@ -3994,6 +3996,12 @@ export function PropuestaEditor({ initialPropuestaId, initialSecciones }: { init
   );
 }
 
-export default function NuevaPropuestaPage() {
-  return <PropuestaEditor />;
+export default function NuevaPropuestaPage({ searchParams }: { searchParams: Promise<{ cotizacion_id?: string }> }) {
+  const [cotizacionId, setCotizacionId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    searchParams.then(p => { if (p.cotizacion_id) setCotizacionId(p.cotizacion_id); });
+  }, []);
+
+  return <PropuestaEditor initialCotizacionId={cotizacionId} />;
 }

@@ -25,7 +25,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
 
   const isLoginPage = pathname === "/login";
   const isAdministracionPage = pathname === "/administracion";
-  const isPortal = pathname.startsWith("/portal");
+  const isPortal = pathname.startsWith("/portal") || pathname.startsWith("/proveedor");
   const isRegistro = pathname.startsWith("/registro");
   const isPreview = pathname.endsWith("/preview");
 

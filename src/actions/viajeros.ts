@@ -1,6 +1,7 @@
 "use server";
 
 import { getAgencyDbClient } from "@/lib/agencyDb";
+import { decryptAllergies } from "@/lib/encryption";
 
 export async function getViajerosByExpediente(expedienteId: string) {
   try {
@@ -14,7 +15,21 @@ export async function getViajerosByExpediente(expedienteId: string) {
       console.error("getViajerosByExpediente error:", error);
       return [];
     }
-    return data || [];
+
+    const decryptedData = (data || []).map((row: any) => {
+      let decryptedAlergias = row.alergias;
+      try {
+        decryptedAlergias = decryptAllergies(row.alergias);
+      } catch (err) {
+        console.error("Error decrypting allergies for traveler", row.id, err);
+      }
+      return {
+        ...row,
+        alergias: decryptedAlergias
+      };
+    });
+
+    return decryptedData;
   } catch (error: any) {
     console.error("Failed to get viajeros:", error.message);
     return [];
