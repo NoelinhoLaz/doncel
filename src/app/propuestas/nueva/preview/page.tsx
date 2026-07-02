@@ -17,10 +17,18 @@ export default function PreviewNuevaPage() {
     }
   }, []);
 
+  const seccionesVisibles = secciones.filter(s => !s.oculta);
+  const menuFijo = seccionesVisibles.find(s => s.tipo === "menu" && s.menuFijo);
+
   return (
     <div style={{ background: "#ffffff", minHeight: "100vh", containerType: "inline-size" }}>
-      {secciones.filter(s => !s.oculta).map(s => (
-        <div key={s.uid}>
+      {menuFijo && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 1000 }}>
+          {renderSeccion(menuFijo, "100vh", "desktop", secciones)}
+        </div>
+      )}
+      {seccionesVisibles.map(s => (
+        <div key={s.uid} style={s.tipo === "menu" && s.menuFijo ? { visibility: "hidden" } : undefined}>
           {renderSeccion(s, "100vh", "desktop", secciones)}
         </div>
       ))}

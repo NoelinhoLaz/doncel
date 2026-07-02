@@ -38,13 +38,11 @@ export async function getCurrentAgencyDetails() {
   try {
     const adminSupabase = await createAdminServerClient();
 
-    // 1. Obtener el usuario actual de forma segura
     const { data: { user }, error: userError } = await adminSupabase.auth.getUser();
     if (userError || !user) {
       return null;
     }
 
-    // 2. Obtener el agencia_id del usuario actual usando el Service Role client
     const adminServiceSupabase = createAdminServiceClient();
     const { data: usuario, error: usuarioError } = await adminServiceSupabase
       .from("usuarios")
@@ -56,7 +54,6 @@ export async function getCurrentAgencyDetails() {
       return null;
     }
 
-    // 3. Obtener el logo_url, nombre_comercial, color_corporativo y color_secundario de la tabla agencias
     const { data: agencia, error: agenciaError } = await adminServiceSupabase
       .from("agencias")
       .select("logo_url, nombre_comercial, color_corporativo, color_secundario")

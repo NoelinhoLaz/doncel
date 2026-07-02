@@ -1657,10 +1657,6 @@ function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: EntidadDetall
                       <label style={lbl}>Años de Experiencia</label>
                       <input type="number" min={0} placeholder="0" value={form.anios_experiencia} onChange={setF("anios_experiencia")} style={inp} />
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <label style={lbl}>Poder de Decisión</label>
-                      <input placeholder="Ej: Alto, Medio, Bajo" value={form.poder_decision} onChange={setF("poder_decision")} style={inp} />
-                    </div>
                   </div>
                 </div>
 
@@ -1669,15 +1665,19 @@ function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: EntidadDetall
                   <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#334155", marginBottom: "0.6rem", display: "flex", alignItems: "center", gap: 5 }}>
                     <Info size={13} /> Información Adicional
                   </div>
-                  <div style={{ display: "flex", gap: "0.6rem" }}>
+                  <div style={{ display: "flex", gap: "0.6rem", marginBottom: "0.5rem" }}>
                     <div style={{ flex: 1 }}>
-                      <label style={lbl}>Estrategia</label>
-                      <textarea placeholder="Estrategia o enfoque del responsable..." value={form.estrategia} onChange={setF("estrategia")} rows={3} style={{ ...inp, resize: "vertical" }} />
+                      <label style={lbl}>Poder de Decisión</label>
+                      <input placeholder="Ej: Alto, Medio, Bajo" value={form.poder_decision} onChange={setF("poder_decision")} style={inp} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={lbl}>Horarios</label>
-                      <textarea placeholder="Horarios de disponibilidad..." value={form.horarios} onChange={setF("horarios")} rows={3} style={{ ...inp, resize: "vertical" }} />
+                      <textarea placeholder="Horarios de disponibilidad..." value={form.horarios} onChange={setF("horarios")} rows={2} style={{ ...inp, resize: "vertical" }} />
                     </div>
+                  </div>
+                  <div>
+                    <label style={{ ...lbl, display: "flex", alignItems: "center", gap: 4 }}><Rocket size={12} /> Estrategia</label>
+                    <textarea placeholder="Estrategia o enfoque del responsable..." value={form.estrategia} onChange={setF("estrategia")} rows={3} style={{ ...inp, resize: "vertical" }} />
                   </div>
                 </div>
 
@@ -1713,10 +1713,35 @@ function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: EntidadDetall
                                 <Phone size={11} /> {c.telefono}
                               </a>
                             )}
+                            {c.metadatos?.movil && (
+                              <a href={`tel:${c.metadatos.movil}`} style={{ fontSize: "0.75rem", color: "var(--primary-color, #475569)", textDecoration: "none", display: "flex", alignItems: "center", gap: 5 }}>
+                                <Phone size={11} /> {c.metadatos.movil} <span style={{ fontSize: "0.65rem", color: "#94a3b8" }}>(móvil)</span>
+                              </a>
+                            )}
                             {c.email && (
                               <a href={`mailto:${c.email}`} style={{ fontSize: "0.75rem", color: "var(--primary-color, #475569)", textDecoration: "none", display: "flex", alignItems: "center", gap: 5 }}>
                                 <Mail size={11} /> {c.email}
                               </a>
+                            )}
+                            {(c.metadatos?.poder_decision || c.metadatos?.horarios) && (
+                              <div style={{ display: "flex", gap: "0.75rem", marginTop: 2 }}>
+                                {c.metadatos?.poder_decision && (
+                                  <span style={{ fontSize: "0.72rem", color: "#475569" }}>
+                                    <span style={{ fontWeight: 600, color: "#94a3b8", fontSize: "0.65rem", textTransform: "uppercase" }}>Decisión: </span>{c.metadatos.poder_decision}
+                                  </span>
+                                )}
+                                {c.metadatos?.horarios && (
+                                  <span style={{ fontSize: "0.72rem", color: "#475569" }}>
+                                    <span style={{ fontWeight: 600, color: "#94a3b8", fontSize: "0.65rem", textTransform: "uppercase" }}>Horarios: </span>{c.metadatos.horarios}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {c.metadatos?.estrategia && (
+                              <div style={{ marginTop: 4, fontSize: "0.75rem", color: "#334155", background: "#f0f4ff", borderRadius: 5, padding: "0.3rem 0.5rem", borderLeft: "2.5px solid var(--primary-color, #475569)", display: "flex", gap: 5, alignItems: "flex-start" }}>
+                                <Rocket size={11} style={{ flexShrink: 0, marginTop: 2, color: "var(--primary-color, #475569)" }} />
+                                <span>{c.metadatos.estrategia}</span>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -2808,6 +2833,7 @@ function TablaOportunidades({ oportunidades, estados, monocromo, isOwner, campan
       <ModalEstrategia
         op={estrategiaModal.op}
         onClose={() => setEstrategiaModal(null)}
+        onOportunidadUpdate={onOportunidadUpdate}
         onSave={async (descripcion) => {
           onOportunidadUpdate?.(estrategiaModal.op.id, { descripcion });
           setEstrategiaModal(null);
@@ -2827,10 +2853,11 @@ function TablaOportunidades({ oportunidades, estados, monocromo, isOwner, campan
 
 // ─── Modal Estrategia ────────────────────────────────────────────────────────
 
-function ModalEstrategia({ op, onClose, onSave }: {
+function ModalEstrategia({ op, onClose, onSave, onOportunidadUpdate }: {
   op: Oportunidad;
   onClose: () => void;
   onSave: (descripcion: string) => void;
+  onOportunidadUpdate?: (id: string, patch: Partial<Oportunidad>) => void;
 }) {
   function limpiarDescripcion(raw: string | null): string {
     if (!raw) return "";
@@ -3050,7 +3077,8 @@ function ModalEstrategia({ op, onClose, onSave }: {
                           { icon: <Mail size={12} />, value: contacto.email, text: contacto.email || "—" },
                           { icon: <Phone size={12} />, value: contacto.telefono || contacto.metadatos?.movil, text: contacto.telefono || contacto.metadatos?.movil || "—" },
                           { icon: <Clock size={12} />, value: contacto.metadatos?.horarios, text: contacto.metadatos?.horarios || "—" },
-                          { icon: <Heart size={12} />, value: contacto.metadatos?.estrategia, text: contacto.metadatos?.estrategia || "—" },
+                          { icon: <User size={12} />, value: contacto.metadatos?.poder_decision, text: contacto.metadatos?.poder_decision ? `Decisión: ${contacto.metadatos.poder_decision}` : "—" },
+                          { icon: <Rocket size={12} />, value: contacto.metadatos?.estrategia, text: contacto.metadatos?.estrategia || "—" },
                         ];
                         return (
                           <div
@@ -3140,7 +3168,7 @@ function ModalEstrategia({ op, onClose, onSave }: {
                   { key: "email", label: "Email", icon: <Mail size={14} /> },
                   { key: "telefono", label: "Teléfono", icon: <Phone size={14} /> },
                   { key: "horarios", label: "Horarios", icon: <Clock size={14} /> },
-                  { key: "preferencias", label: "Preferencias", icon: <Heart size={14} /> },
+                  { key: "preferencias", label: "Preferencias", icon: <Rocket size={14} /> },
                 ] as { key: keyof typeof checks; label: string; icon: React.ReactNode }[]).map(({ key, label, icon }) => (
                   <label key={key} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }} title={label}>
                     <span style={{ color: checks[key] ? "var(--primary-color,#475569)" : "#94a3b8", display: "flex", alignItems: "center" }}>{icon}</span>
@@ -3214,9 +3242,10 @@ function ModalEstrategia({ op, onClose, onSave }: {
                   <div style={{ flex: 1 }}><label style={lbl}>Años experiencia</label><input type="number" min={0} value={f.anios_experiencia} onChange={setF("anios_experiencia")} style={inp} /></div>
                   <div style={{ flex: 1 }}><label style={lbl}>Poder de decisión</label><input value={f.poder_decision} onChange={setF("poder_decision")} style={inp} /></div>
                 </div>
-                <div style={{ display: "flex", gap: "0.6rem" }}>
-                  <div style={{ flex: 1 }}><label style={lbl}>Horarios</label><textarea value={f.horarios} onChange={setF("horarios")} rows={3} style={{ ...inp, resize: "vertical" }} /></div>
-                  <div style={{ flex: 1 }}><label style={lbl}>Preferencias</label><textarea value={f.estrategia} onChange={setF("estrategia")} rows={3} style={{ ...inp, resize: "vertical" }} /></div>
+                <div><label style={lbl}>Horarios</label><textarea value={f.horarios} onChange={setF("horarios")} rows={2} style={{ ...inp, resize: "vertical" }} /></div>
+                <div>
+                  <label style={{ ...lbl, display: "flex", alignItems: "center", gap: 4 }}><Rocket size={11} /> Estrategia</label>
+                  <textarea value={f.estrategia} onChange={setF("estrategia")} rows={3} style={{ ...inp, resize: "vertical" }} />
                 </div>
               </div>
               <div style={{ padding: "0.75rem 1.4rem", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", gap: 8 }}>

@@ -262,7 +262,7 @@ export async function getCurrentUsuario() {
         .select("oficina")
         .eq("usuario_id", usuario.id)
         .single();
-      
+
       if (config && config.oficina) {
         oficina_id = config.oficina;
       }

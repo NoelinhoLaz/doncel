@@ -391,57 +391,92 @@ export async function getOportunidades(campanaId?: string) {
   if (error) throw error;
   const oportunidades = data ?? [];
 
-  // Para cada oportunidad de esta campaña, busca el estado en campañas anteriores
   if (campanaId && oportunidades.length > 0) {
-    // Obtener la fecha de creación de la campaña actual para filtrar solo campañas anteriores
-    const { data: campanaData } = await agencyDb
-      .from("crm_campanas")
-      .select("created_at")
-      .eq("id", campanaId)
-      .single();
+    const entidadIds = [...new Set(oportunidades.map((o: any) => o.entidad_id).filter(Boolean))];
+    const opIds = oportunidades.map((o: any) => o.id);
+
+    const [
+      campanaData,
+      prevData,
+      logsData,
+      entidadesData,
+    ] = await Promise.all([
+      agencyDb.from("crm_campanas").select("created_at").eq("id", campanaId).single().then(r => r.data),
+      agencyDb
+        .from("crm_oportunidades")
+        .select("id, entidad_id, campana_id, estado_id, descripcion, crm_campanas_estados!estado_id(id, nombre, color), crm_campanas!campana_id(nombre)")
+        .in("entidad_id", entidadIds)
+        .neq("campana_id", campanaId)
+        .order("created_at", { ascending: false })
+        .then(r => r.data ?? []),
+      agencyDb
+        .from("crm_oportunidades_estados_log")
+        .select("oportunidad_id, estado_nuevo_id, notas, created_at")
+        .in("oportunidad_id", opIds)
+        .order("created_at", { ascending: false })
+        .then(r => r.data ?? []),
+      agencyDb
+        .from("contabilidad_entidades")
+        .select("id, metadatos")
+        .in("id", entidadIds)
+        .then(r => r.data ?? []),
+    ]);
+
     const campanaCreatedAt = campanaData?.created_at ?? null;
 
-    const entidadIds = [...new Set(oportunidades.map((o: any) => o.entidad_id).filter(Boolean))];
-    const { data: prevData } = await agencyDb
-      .from("crm_oportunidades")
-      .select("id, entidad_id, campana_id, estado_id, descripcion, crm_campanas_estados!estado_id(id, nombre, color), crm_campanas!campana_id(nombre)")
-      .in("entidad_id", entidadIds)
-      .neq("campana_id", campanaId)
-      .order("created_at", { ascending: false });
+    // Mapa de mig_centro_id → para la query de migración
+    const centroIdByEntidad: Record<string, string> = {};
+    for (const e of entidadesData as any[]) {
+      const migCentroId = e.metadatos?.mig_centro_id;
+      if (migCentroId) centroIdByEntidad[e.id] = migCentroId;
+    }
 
-    // Construir mapa de created_at por campaña para ordenar correctamente
-    const campanaIdsEnResultado = [...new Set((prevData ?? []).map((r: any) => r.campana_id).filter(Boolean))];
+    // Queries dependientes — en paralelo, sin la de logs previos (lenta con 500+ IDs)
+    const campanaIdsEnResultado = [...new Set((prevData as any[]).map((r: any) => r.campana_id).filter(Boolean))];
+    const centroIds = Object.values(centroIdByEntidad);
+
+    const [campanasPrevData, migData] = await Promise.all([
+      campanaIdsEnResultado.length > 0
+        ? agencyDb.from("crm_campanas").select("id, created_at").in("id", campanaIdsEnResultado).then(r => r.data ?? [])
+        : Promise.resolve([]),
+      centroIds.length > 0
+        ? agencyDb
+            .from("mig_campanas_visita")
+            .select("centro_id, notas")
+            .in("centro_id", centroIds)
+            .not("notas", "is", null)
+            .order("updated_at", { ascending: false })
+            .then(r => r.data ?? [])
+        : Promise.resolve([]),
+    ]);
+
+;
+
     const campanaCreatedAtMap: Record<string, string> = {};
-    if (campanaIdsEnResultado.length > 0) {
-      const { data: campanasPrevData } = await agencyDb
-        .from("crm_campanas")
-        .select("id, created_at")
-        .in("id", campanaIdsEnResultado);
-      for (const c of campanasPrevData ?? []) {
-        campanaCreatedAtMap[c.id] = c.created_at;
+    for (const c of campanasPrevData as any[]) campanaCreatedAtMap[c.id] = c.created_at;
+
+    const logByOp: Record<string, { notas: string | null; created_at: string }> = {};
+    for (const log of logsData as any[]) {
+      if (logByOp[log.oportunidad_id]) continue;
+      const op = oportunidades.find((o: any) => o.id === log.oportunidad_id);
+      if (op && log.estado_nuevo_id === op.estado_id) {
+        logByOp[log.oportunidad_id] = { notas: log.notas, created_at: log.created_at };
       }
     }
 
-    // Obtener las notas (estrategia) del log para las oportunidades anteriores
-    const prevOpIds = (prevData ?? []).map((r: any) => r.id).filter(Boolean);
-    const notasByPrevOp: Record<string, string | null> = {};
-    if (prevOpIds.length > 0) {
-      const { data: prevLogsData } = await agencyDb
-        .from("crm_oportunidades_estados_log")
-        .select("oportunidad_id, notas")
-        .in("oportunidad_id", prevOpIds)
-        .not("notas", "is", null)
-        .order("created_at", { ascending: false });
-      for (const log of (prevLogsData ?? []) as any[]) {
-        if (!notasByPrevOp[log.oportunidad_id]) {
-          notasByPrevOp[log.oportunidad_id] = log.notas;
-        }
-      }
+    const migByCentro: Record<string, any> = {};
+    for (const row of migData as any[]) {
+      if (!migByCentro[row.centro_id]) migByCentro[row.centro_id] = row.notas;
+    }
+    const migNotasByEntidad: Record<string, any> = {};
+    for (const [entidadId, centroId] of Object.entries(centroIdByEntidad)) {
+      if (migByCentro[centroId]) migNotasByEntidad[entidadId] = migByCentro[centroId];
     }
 
+    // La estrategia se extrae de descripcion en el frontend (limpiarDescripcionLegado)
     const seenCampana = new Set<string>();
     const prevByEntidad: Record<string, { nombre: string; color: string; descripcion: string | null; campana: string | null; estrategia: string | null; campanaCreatedAt: string | null }[]> = {};
-    for (const row of (prevData ?? []) as any[]) {
+    for (const row of prevData as any[]) {
       if (!row.entidad_id || !row.campana_id) continue;
       const rowCampanaDate = campanaCreatedAtMap[row.campana_id];
       if (campanaCreatedAt && rowCampanaDate && rowCampanaDate >= campanaCreatedAt) continue;
@@ -451,71 +486,14 @@ export async function getOportunidades(campanaId?: string) {
       if (seenCampana.has(key)) continue;
       seenCampana.add(key);
       if (!prevByEntidad[row.entidad_id]) prevByEntidad[row.entidad_id] = [];
-      let estrategia: string | null = null;
-      try {
-        const rawNotas = notasByPrevOp[row.id];
-        const notas = typeof rawNotas === "string" ? JSON.parse(rawNotas) : rawNotas;
-        estrategia = notas?.estrategiaCampana ?? null;
-      } catch { /* noop */ }
       prevByEntidad[row.entidad_id].push({
         nombre: e.nombre,
         color: e.color,
         descripcion: row.descripcion ?? null,
         campana: (Array.isArray(row.crm_campanas) ? row.crm_campanas[0] : row.crm_campanas)?.nombre ?? null,
-        estrategia,
+        estrategia: null,
         campanaCreatedAt: campanaCreatedAtMap[row.campana_id] ?? null,
       });
-    }
-
-    // Cargar el log más reciente por oportunidad (estado actual)
-    const opIds = oportunidades.map((o: any) => o.id);
-    const { data: logsData } = await agencyDb
-      .from("crm_oportunidades_estados_log")
-      .select("oportunidad_id, estado_nuevo_id, notas, created_at")
-      .in("oportunidad_id", opIds)
-      .order("created_at", { ascending: false });
-
-    // Para cada oportunidad, el log más reciente cuyo estado_nuevo_id = estado actual
-    const logByOp: Record<string, { notas: string | null; created_at: string }> = {};
-    for (const log of (logsData ?? []) as any[]) {
-      if (logByOp[log.oportunidad_id]) continue;
-      const op = oportunidades.find((o: any) => o.id === log.oportunidad_id);
-      if (op && log.estado_nuevo_id === op.estado_id) {
-        logByOp[log.oportunidad_id] = { notas: log.notas, created_at: log.created_at };
-      }
-    }
-
-    // Cargar notas de migración desde mig_campanas_visita (datos históricos del agente)
-    const migEntidadIds = [...new Set(oportunidades.map((o: any) => o.entidad_id).filter(Boolean))];
-    const migNotasByEntidad: Record<string, any> = {};
-    if (migEntidadIds.length > 0) {
-      // Obtener mig_centro_id desde metadatos de las entidades
-      const { data: entidadesData } = await agencyDb
-        .from("contabilidad_entidades")
-        .select("id, metadatos")
-        .in("id", migEntidadIds);
-      const centroIdByEntidad: Record<string, string> = {};
-      for (const e of (entidadesData ?? []) as any[]) {
-        const migCentroId = e.metadatos?.mig_centro_id;
-        if (migCentroId) centroIdByEntidad[e.id] = migCentroId;
-      }
-      const centroIds = Object.values(centroIdByEntidad);
-      if (centroIds.length > 0) {
-        const { data: migData } = await agencyDb
-          .from("mig_campanas_visita")
-          .select("centro_id, notas")
-          .in("centro_id", centroIds)
-          .not("notas", "is", null)
-          .order("updated_at", { ascending: false });
-        // Índice: centro_id → notas más recientes
-        const migByCentro: Record<string, any> = {};
-        for (const row of (migData ?? []) as any[]) {
-          if (!migByCentro[row.centro_id]) migByCentro[row.centro_id] = row.notas;
-        }
-        for (const [entidadId, centroId] of Object.entries(centroIdByEntidad)) {
-          if (migByCentro[centroId]) migNotasByEntidad[entidadId] = migByCentro[centroId];
-        }
-      }
     }
 
     return oportunidades.map((o: any) => ({

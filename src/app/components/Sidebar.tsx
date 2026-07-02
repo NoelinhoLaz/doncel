@@ -16,9 +16,11 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
   const [expSubOpen, setExpSubOpen] = useState(false);
   const [presupSubOpen, setPresupSubOpen] = useState(false);
   const [bancoSubOpen, setBancoSubOpen] = useState(false);
+  const [contactosSubOpen, setContactosSubOpen] = useState(false);
   const expTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const presupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bancoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const contactosTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const makeHover = (
     setter: (v: boolean) => void,
@@ -53,13 +55,44 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
         <Icons.Target size={20} strokeWidth={isActive("/campanas") || isActive("/oportunidades") ? 3 : 2} />
       </button>
 
-      <button
-        className={`${styles.menuItem} ${isActive("/users") ? styles.active : ""}`}
-        onClick={() => router.push("/users")}
-        title="Usuarios"
+      <div
+        className={styles.menuItemWrapper}
+        {...makeHover(setContactosSubOpen, contactosTimer)}
       >
-        <Icons.Users size={20} strokeWidth={isActive("/users") ? 3 : 2} />
-      </button>
+        <button
+          className={`${styles.menuItem} ${isActive("/contactos") ? styles.active : ""}`}
+          onClick={() => router.push("/contactos/clientes")}
+          title="Contactos"
+        >
+          <Icons.Users size={20} strokeWidth={isActive("/contactos") ? 3 : 2} />
+        </button>
+
+        {contactosSubOpen && (
+          <div className={styles.submenuFlyout}>
+            <button
+              className={styles.submenuItem}
+              onClick={() => { setContactosSubOpen(false); router.push("/contactos/clientes"); }}
+            >
+              <Icons.Users size={14} className={styles.submenuIcon} />
+              <span>Clientes</span>
+            </button>
+            <button
+              className={styles.submenuItem}
+              onClick={() => { setContactosSubOpen(false); router.push("/contactos/viajeros"); }}
+            >
+              <Icons.Viajeros size={14} className={styles.submenuIcon} />
+              <span>Viajeros</span>
+            </button>
+            <button
+              className={styles.submenuItem}
+              onClick={() => { setContactosSubOpen(false); router.push("/contactos/proveedores"); }}
+            >
+              <Icons.Building size={14} className={styles.submenuIcon} />
+              <span>Proveedores</span>
+            </button>
+          </div>
+        )}
+      </div>
  
       <div
         className={styles.menuItemWrapper}

@@ -140,7 +140,7 @@ export default async function RegistroPage({ params }: Props) {
     process.env.NEXT_PUBLIC_AGENCY_DOMAIN_OVERRIDE ||
     (() => {
       const host = headersList.get("host") || "";
-      if (!host || host.startsWith("localhost") || host.startsWith("127.0.0.1")) return null;
+      if (!host || host.startsWith("localhost") || host.startsWith("127.0.0.1") || /^192\.168\.|^10\.|^172\.(1[6-9]|2\d|3[01])\./.test(host)) return null;
       return host.split(":")[0];
     })();
 
