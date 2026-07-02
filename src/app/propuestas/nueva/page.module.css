@@ -1148,7 +1148,6 @@
 .canvasWrapper {
   display: flex;
   justify-content: center;
-  overflow: hidden;
 }
 
 .canvas {
@@ -1166,7 +1165,6 @@
               border-radius 0.35s cubic-bezier(0.4, 0, 0.2, 1),
               border 0.35s cubic-bezier(0.4, 0, 0.2, 1),
               box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
   flex-shrink: 0;
   container-type: inline-size;
 }
@@ -1257,9 +1255,6 @@
 
 /* ── Menú ── */
 .phMenu {
-  position: sticky;
-  top: 0;
-  z-index: 10;
   background: #ffffff;
   border-bottom: 1px solid #f1f5f9;
   padding: 0.75rem 1.5rem;
