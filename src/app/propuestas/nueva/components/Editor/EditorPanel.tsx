@@ -12,6 +12,7 @@ import EditorTextoColumnas from "./EditorTextoColumnas";
 import EditorMapa from "./EditorMapa";
 import EditorRuta from "./EditorRuta";
 import DisenioPanel from "./DisenioPanel";
+import { GuiaFormato } from "./GuiaFormato";
 
 export function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onToggleFav, todasSecciones }: { seccion: Seccion; onClose: () => void; onRename: (uid: string, label: string) => void; onUpdate: (uid: string, patch: Partial<Seccion>) => void; isFav: boolean; onToggleFav: () => void; todasSecciones?: Seccion[] }) {
   const [tab, setTab] = useState<"contenido" | "diseño">("contenido");
@@ -203,6 +204,7 @@ export function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onTog
         {tab === "diseño" && (
           <DisenioPanel seccion={seccion} onUpdate={onUpdate} />
         )}
+        {tab === "contenido" && <GuiaFormato />}
       </div>
     </div>
   );
