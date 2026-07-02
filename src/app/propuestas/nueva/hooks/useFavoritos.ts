@@ -1,26 +1,28 @@
 "use client";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useTransition } from "react";
 import type { SeccionFavorita, Seccion } from "../types";
-import { FAV_KEY } from "../constants";
+import { getFavoritos, toggleFavoritoAction } from "@/actions/propuestas_favoritos";
 
 function useFavoritos() {
   const [favs, setFavs] = useState<SeccionFavorita[]>([]);
+  const [, startTransition] = useTransition();
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(FAV_KEY);
-      if (stored) setFavs(JSON.parse(stored));
-    } catch { /* noop */ }
+    getFavoritos().then(setFavs);
   }, []);
 
   const toggleFav = useCallback((seccion: Seccion) => {
+    // Optimistic update
     setFavs(prev => {
       const exists = prev.find(f => f.favId === seccion.uid);
-      const next = exists
+      return exists
         ? prev.filter(f => f.favId !== seccion.uid)
         : [...prev, { ...seccion, favId: seccion.uid, savedAt: Date.now() }];
-      localStorage.setItem(FAV_KEY, JSON.stringify(next));
-      return next;
+    });
+
+    startTransition(async () => {
+      const { favs: updated } = await toggleFavoritoAction(seccion);
+      setFavs(updated);
     });
   }, []);
 
