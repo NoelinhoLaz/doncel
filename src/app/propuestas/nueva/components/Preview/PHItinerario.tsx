@@ -5,39 +5,10 @@ import styles from "../../page.module.css";
 import type { TextoEstilo, MediaItem } from "../../types";
 import { estiloTextoCSS } from "../../utils/style-utils";
 import { Ph, Bar, Title } from "./PHPlaceholders";
+import { parseFormattedText } from "../../utils/text-formatting";
 
-function renderTextWithBold(text?: string, estilo?: TextoEstilo) {
-  if (!text) return null;
-  const lineas = text.split("\n");
-  return lineas.map((linea, index) => {
-    const trimmed = linea.trim();
-    const esVineta = trimmed.startsWith(".-");
-    const contenidoLinea = esVineta ? trimmed.slice(2).trim() : linea;
-
-    const parts = contenidoLinea.split("**");
-    const lineContent = parts.map((part, i) => {
-      if (i % 2 === 1) {
-        return <strong key={i} style={{ color: estilo?.colorDestacado ?? undefined, fontWeight: estilo?.grosorDestacado ?? "800" }}>{part}</strong>;
-      }
-      return part;
-    });
-
-    if (esVineta) {
-      return (
-        <span key={index} style={{ display: "flex", gap: "8px", alignItems: "flex-start", paddingLeft: "8px", marginTop: "4px", marginBottom: "4px", textAlign: "left" }}>
-          <span style={{ color: estilo?.colorDestacado ?? undefined, fontWeight: "bold" }}>•</span>
-          <span style={{ flex: 1 }}>{lineContent}</span>
-        </span>
-      );
-    } else {
-      return (
-        <span key={index} style={{ display: "block", minHeight: linea === "" ? "0.75em" : undefined }}>
-          {lineContent}
-        </span>
-      );
-    }
-  });
-}
+const renderTextWithBold = (text?: string, estilo?: TextoEstilo) =>
+  parseFormattedText(text ?? "", estilo?.colorDestacado, estilo?.grosorDestacado, estilo);
 
 function PHItinerarioMediaCarousel({ medias, showArrows, autoplay = true }: { medias: MediaItem[]; showArrows?: boolean; autoplay?: boolean }) {
   const [idx, setIdx] = useState(0);

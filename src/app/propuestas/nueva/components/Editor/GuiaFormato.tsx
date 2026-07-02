@@ -3,26 +3,19 @@
 import React from "react";
 import { X, BookOpen } from "lucide-react";
 import styles from "../../page.module.css";
+import { VARIABLES_PROPUESTA } from "../../utils/text-formatting";
 
 const FORMATOS = [
-  { sintaxis: "**texto**", descripcion: "Negrita", ejemplo: "Viaje a **París** en primavera" },
-  { sintaxis: ".- texto", descripcion: "Viñeta / lista", ejemplo: ".- Traslados incluidos" },
-  { sintaxis: "[texto](url)", descripcion: "Enlace", ejemplo: "[Ver hotel](https://hotel.com)" },
-  { sintaxis: "Línea vacía", descripcion: "Párrafo / espaciado", ejemplo: "Línea 1\n\nLínea 2" },
+  { sintaxis: "**texto**", descripcion: "Negrita" },
+  { sintaxis: ".- texto", descripcion: "Viñeta / lista" },
+  { sintaxis: "[texto](url)", descripcion: "Enlace" },
+  { sintaxis: "Línea vacía", descripcion: "Párrafo / espaciado" },
 ];
 
-const VARIABLES = [
-  { variable: "[Nombre_Cliente]", descripcion: "Nombre del cliente" },
-  { variable: "[Apellidos_Cliente]", descripcion: "Apellidos del cliente" },
-  { variable: "[Nombre_Responsable]", descripcion: "Nombre del agente responsable" },
-  { variable: "[Fecha_Salida]", descripcion: "Fecha de inicio del viaje" },
-  { variable: "[Fecha_Vuelta]", descripcion: "Fecha de regreso" },
-  { variable: "[Destino]", descripcion: "Destino principal" },
-  { variable: "[Num_Viajeros]", descripcion: "Número de viajeros" },
-  { variable: "[Num_Noches]", descripcion: "Número de noches" },
-  { variable: "[Precio_Total]", descripcion: "Precio total de la propuesta" },
-  { variable: "[Precio_Por_Persona]", descripcion: "Precio por persona" },
-];
+const VARIABLES = Object.entries(VARIABLES_PROPUESTA).map(([variable, ejemplo]) => ({
+  variable,
+  ejemplo,
+}));
 
 export function GuiaFormato() {
   const [abierto, setAbierto] = React.useState(false);
@@ -81,7 +74,7 @@ export function GuiaFormato() {
                         <td>
                           <code className={styles.guiaCode}>{v.variable}</code>
                         </td>
-                        <td className={styles.guiaDesc}>{v.descripcion}</td>
+                        <td className={styles.guiaDesc} style={{ color: "#94a3b8", fontStyle: "italic" }}>{v.ejemplo}</td>
                       </tr>
                     ))}
                   </tbody>

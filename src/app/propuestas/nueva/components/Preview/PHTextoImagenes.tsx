@@ -6,38 +6,10 @@ import type { TextoEstilo, MediaItem } from "../../types";
 import { estiloTextoCSS } from "../../utils/style-utils";
 import { VideoBg } from "../../utils/video-utils";
 import { Ph, Bar, Title } from "./PHPlaceholders";
+import { parseFormattedText } from "../../utils/text-formatting";
 
-function renderConDestacado(texto: string, colorDestacado?: string, grosorDestacado?: string): React.ReactNode {
-  if (!texto) return null;
-  const lineas = texto.split("\n");
-  return lineas.map((linea, index) => {
-    const trimmed = linea.trim();
-    const esVineta = trimmed.startsWith(".-");
-    const contenidoLinea = esVineta ? trimmed.slice(2).trim() : linea;
-
-    const partes = contenidoLinea.split(/(\*\*.*?\*\*)/g);
-    const lineContent = partes.map((p, i) =>
-      p.startsWith("**") && p.endsWith("**")
-        ? <strong key={i} style={{ color: colorDestacado ?? "#6366f1", fontWeight: grosorDestacado ?? "bold" }}>{p.slice(2, -2)}</strong>
-        : p
-    );
-
-    if (esVineta) {
-      return (
-        <span key={index} style={{ display: "flex", gap: "8px", alignItems: "flex-start", paddingLeft: "8px", marginTop: "4px", marginBottom: "4px", textAlign: "left" }}>
-          <span style={{ color: colorDestacado ?? "#6366f1", fontWeight: "bold" }}>•</span>
-          <span style={{ flex: 1 }}>{lineContent}</span>
-        </span>
-      );
-    } else {
-      return (
-        <span key={index} style={{ display: "block", minHeight: linea === "" ? "0.75em" : undefined }}>
-          {lineContent}
-        </span>
-      );
-    }
-  });
-}
+const renderConDestacado = (texto: string, colorDestacado?: string, grosorDestacado?: string) =>
+  parseFormattedText(texto, colorDestacado, grosorDestacado);
 
 export default function PHTextoImagenes({
   mobile,
