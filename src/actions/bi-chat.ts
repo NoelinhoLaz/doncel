@@ -184,9 +184,29 @@ async function tavilySearch(query: string): Promise<string> {
   }
 }
 
-function isWebQuery(text: string): boolean {
+function isWebQuery(text: string, history: ChatTurn[] = []): boolean {
   const lower = text.toLowerCase();
   if (isGeoProspectingQuery(text)) return false;
+
+  // If recent assistant messages contain DB results (UUIDs, referencia patterns, proveedor names)
+  // assume the user is following up on those results → NOT a web query
+  const recentAssistant = history.filter(m => m.role === "assistant").slice(-3).map(m => m.content).join(" ");
+  const hasPriorDbContext = (
+    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(recentAssistant) || // UUID
+    /\b(expediente|cotizacion|cotización|referencia|proveedor|neto|pvp|registro)\b/i.test(recentAssistant)
+  );
+  if (hasPriorDbContext) return false;
+
+  // Followup pronouns referencing previous results → NOT web
+  const isFollowup = (
+    lower.includes("ese viaje") || lower.includes("esa cotizacion") || lower.includes("esa cotización") ||
+    lower.includes("ese expediente") || lower.includes("ese registro") || lower.includes("esos datos") ||
+    lower.includes("el mismo") || lower.includes("la misma") || lower.includes("de ese") ||
+    lower.includes("de esa") || lower.includes("del mismo") || lower.includes("de los anteriores") ||
+    lower.includes("de los mismos") || lower.includes("dame más") || lower.includes("dame mas") ||
+    lower.includes("amplía") || lower.includes("amplia") || lower.includes("detalla")
+  );
+  if (isFollowup) return false;
 
   // Explicit DB/internal keywords → NOT a web query
   const isInternalQuery = (
@@ -349,7 +369,7 @@ export async function runBiChat(
 
   // ─── Web search branch ────────────────────────────────────────────────────
   // Detect if query needs web context AND also references DB data (hybrid query)
-  const isHybrid = isWebQuery(lastUserText) && (
+  const isHybrid = isWebQuery(lastUserText, history) && (
     lastUserText.toLowerCase().includes("colegio") ||
     lastUserText.toLowerCase().includes("centro") ||
     lastUserText.toLowerCase().includes("oportunidad") ||
@@ -358,9 +378,10 @@ export async function runBiChat(
     lastUserText.toLowerCase().includes("base de datos") ||
     lastUserText.toLowerCase().includes("tenemos")
   );
-  console.log("[bi-chat] isWebQuery:", isWebQuery(lastUserText), "isHybrid:", isHybrid, "text:", lastUserText.slice(0, 80));
+  const webQueryResult = isWebQuery(lastUserText, history);
+  console.log("[bi-chat] isWebQuery:", webQueryResult, "isHybrid:", isHybrid, "text:", lastUserText.slice(0, 80));
   let webContextInjection = "";
-  if (isWebQuery(lastUserText)) {
+  if (webQueryResult) {
     const webContext = await tavilySearch(lastUserText);
     console.log("[bi-chat] webContext length:", webContext.length, webContext.slice(0, 200));
     if (isHybrid && webContext) {
