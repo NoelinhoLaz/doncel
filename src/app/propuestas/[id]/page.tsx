@@ -54,6 +54,8 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
     <PropuestaEditor
       initialPropuestaId={id}
       initialSecciones={initialSecciones}
+      initialContactoId={propuesta.contacto_id}
+      initialContactoNombre={(propuesta as any).contabilidad_entidades?.nombre || null}
     />
   );
 }

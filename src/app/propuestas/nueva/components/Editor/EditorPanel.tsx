@@ -14,7 +14,7 @@ import EditorRuta from "./EditorRuta";
 import DisenioPanel from "./DisenioPanel";
 import { GuiaFormato } from "./GuiaFormato";
 
-export function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onToggleFav, todasSecciones }: { seccion: Seccion; onClose: () => void; onRename: (uid: string, label: string) => void; onUpdate: (uid: string, patch: Partial<Seccion>) => void; isFav: boolean; onToggleFav: () => void; todasSecciones?: Seccion[] }) {
+export function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onToggleFav, todasSecciones, cotizacionId, propuestaId }: { seccion: Seccion; onClose: () => void; onRename: (uid: string, label: string) => void; onUpdate: (uid: string, patch: Partial<Seccion>) => void; isFav: boolean; onToggleFav: () => void; todasSecciones?: Seccion[]; cotizacionId?: string | null; propuestaId?: string | null }) {
   const [tab, setTab] = useState<"contenido" | "diseño">("contenido");
   const [mediaAbierto, setMediaAbierto] = useState<boolean | number | "new" | string>(false);
   const [expandedDayIdx, setExpandedDayIdx] = useState<number | null>(null);
@@ -204,7 +204,7 @@ export function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onTog
         {tab === "diseño" && (
           <DisenioPanel seccion={seccion} onUpdate={onUpdate} />
         )}
-        {tab === "contenido" && <GuiaFormato />}
+        {tab === "contenido" && <GuiaFormato cotizacionId={cotizacionId} propuestaId={propuestaId} />}
       </div>
     </div>
   );

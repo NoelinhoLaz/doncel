@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { X, BookOpen } from "lucide-react";
 import styles from "../../page.module.css";
 import { VARIABLES_PROPUESTA } from "../../utils/text-formatting";
+import { getDatosRealesPropuesta } from "@/actions/propuestas";
 
 const FORMATOS = [
   { sintaxis: "**texto**", descripcion: "Negrita" },
@@ -12,13 +13,34 @@ const FORMATOS = [
   { sintaxis: "Línea vacía", descripcion: "Párrafo / espaciado" },
 ];
 
-const VARIABLES = Object.entries(VARIABLES_PROPUESTA).map(([variable, ejemplo]) => ({
-  variable,
-  ejemplo,
-}));
+export function GuiaFormato({
+  cotizacionId,
+  propuestaId,
+}: {
+  cotizacionId?: string | null;
+  propuestaId?: string | null;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const [variablesValues, setVariablesValues] = useState<Record<string, string>>(VARIABLES_PROPUESTA);
 
-export function GuiaFormato() {
-  const [abierto, setAbierto] = React.useState(false);
+  useEffect(() => {
+    async function loadRealData() {
+      try {
+        const res = await getDatosRealesPropuesta({ propuestaId, cotizacionId });
+        if (res.ok && res.data) {
+          setVariablesValues(res.data);
+        }
+      } catch (err) {
+        console.error("Error loading real variables data:", err);
+      }
+    }
+    loadRealData();
+  }, [propuestaId, cotizacionId]);
+
+  const variablesList = Object.entries(variablesValues).map(([variable, ejemplo]) => ({
+    variable,
+    ejemplo,
+  }));
 
   return (
     <>
@@ -44,8 +66,8 @@ export function GuiaFormato() {
               </button>
             </div>
 
-            <div className={styles.guiaCols}>
-              {/* Columna izquierda: formatos */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+              {/* Sección superior: formatos */}
               <div className={styles.guiaCol}>
                 <p className={styles.guiaColTitle}>Formatos de texto</p>
                 <p className={styles.guiaColSubtitle}>Se renderiza en la previsualización, no en el editor.</p>
@@ -63,13 +85,13 @@ export function GuiaFormato() {
                 </table>
               </div>
 
-              {/* Columna derecha: variables */}
-              <div className={styles.guiaCol}>
+              {/* Sección inferior: variables */}
+              <div className={styles.guiaCol} style={{ borderTop: "1px solid #f1f5f9", paddingTop: "16px" }}>
                 <p className={styles.guiaColTitle}>Variables / Etiquetas</p>
                 <p className={styles.guiaColSubtitle}>Se sustituyen con los datos de la propuesta.</p>
                 <table className={styles.guiaTable}>
                   <tbody>
-                    {VARIABLES.map(v => (
+                    {variablesList.map(v => (
                       <tr key={v.variable}>
                         <td>
                           <code className={styles.guiaCode}>{v.variable}</code>

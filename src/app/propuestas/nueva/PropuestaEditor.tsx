@@ -10,9 +10,23 @@ import { DISPOSITIVOS, OPCIONES_SECCION } from "./constants";
 import { useFavoritos } from "./hooks/useFavoritos";
 import { EditorPanel } from "./components/Editor/EditorPanel";
 import { renderSeccion } from "./utils/section-render";
-import { guardarPropuesta } from "@/actions/propuestas";
+import { guardarPropuesta, getDatosRealesPropuesta } from "@/actions/propuestas";
+import { buscarEntidades } from "@/actions/entidades";
+import ExpedienteActionsToolbar from "@/app/components/ExpedienteActionsToolbar";
 
-export function PropuestaEditor({ initialPropuestaId, initialSecciones, initialCotizacionId }: { initialPropuestaId?: string; initialSecciones?: Seccion[]; initialCotizacionId?: string | null } = {}) {
+export function PropuestaEditor({
+  initialPropuestaId,
+  initialSecciones,
+  initialCotizacionId,
+  initialContactoId,
+  initialContactoNombre,
+}: {
+  initialPropuestaId?: string;
+  initialSecciones?: Seccion[];
+  initialCotizacionId?: string | null;
+  initialContactoId?: string | null;
+  initialContactoNombre?: string | null;
+} = {}) {
   const [secciones, setSecciones] = useState<Seccion[]>(initialSecciones ?? []);
   const [dispositivo, setDispositivo] = useState<Dispositivo>("desktop");
   const [menuAbierto, setMenuAbierto] = useState(false);
@@ -22,7 +36,66 @@ export function PropuestaEditor({ initialPropuestaId, initialSecciones, initialC
   const [guardadoOk, setGuardadoOk] = useState(false);
   const [propuestaId, setPropuestaId] = useState<string | null>(initialPropuestaId ?? null);
   const [cotizacionId] = useState<string | null>(initialCotizacionId ?? null);
+  const [contactoId, setContactoId] = useState<string | null>(initialContactoId ?? null);
+  const [contactoNombre, setContactoNombre] = useState<string | null>(initialContactoNombre ?? null);
+  const [contactos, setContactos] = useState<{ id: string; nombre: string }[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [buscando, setBuscando] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const { favs, toggleFav, isFav } = useFavoritos();
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (searchQuery.trim().length < 3) {
+      setContactos([]);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      setBuscando(true);
+      try {
+        const results = await buscarEntidades(searchQuery);
+        setContactos(results.map((r: any) => ({ id: r.id, nombre: r.nombre || "Sin nombre" })));
+      } catch (err) {
+        console.error("Error buscando contactos:", err);
+      } finally {
+        setBuscando(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    async function updateRealVariables() {
+      try {
+        const res = await getDatosRealesPropuesta({
+          propuestaId: propuestaId || undefined,
+          cotizacionId: cotizacionId || undefined,
+          contactoId: contactoId || undefined,
+        });
+        if (res.ok && res.data) {
+          const { VARIABLES_PROPUESTA } = await import("./utils/text-formatting");
+          Object.assign(VARIABLES_PROPUESTA, res.data);
+          // Force visual re-render of canvas preview
+          setSecciones(prev => [...prev]);
+        }
+      } catch (e) {
+        console.error("Error updating real variables:", e);
+      }
+    }
+    updateRealVariables();
+  }, [contactoId, cotizacionId, propuestaId]);
 
   const guardar = useCallback(async () => {
     setGuardando(true);
@@ -61,6 +134,7 @@ export function PropuestaEditor({ initialPropuestaId, initialSecciones, initialC
         editorContent,
         designTokens,
         cotizacionId: propuestaId ? undefined : (cotizacionId ?? undefined),
+        contactoId: contactoId,
       });
       if (!result.ok) throw new Error(result.error);
       if (!propuestaId && result.id) setPropuestaId(result.id);
@@ -71,7 +145,7 @@ export function PropuestaEditor({ initialPropuestaId, initialSecciones, initialC
     } finally {
       setGuardando(false);
     }
-  }, [secciones, propuestaId]);
+  }, [secciones, propuestaId, contactoId]);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const toggleOcultar = (uid: string) => {
@@ -171,7 +245,10 @@ export function PropuestaEditor({ initialPropuestaId, initialSecciones, initialC
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>Creador de propuestas</h1>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem" }}>
+        <h1 className={styles.title} style={{ margin: 0 }}>Creador de propuestas</h1>
+        {propuestaId && <ExpedienteActionsToolbar propuestaId={propuestaId} />}
+      </div>
 
       <div className={styles.columns}>
         {/* Columna izquierda */}
@@ -197,6 +274,113 @@ export function PropuestaEditor({ initialPropuestaId, initialSecciones, initialC
 
               {/* Vista lista */}
               <div className={`${styles.panelView} ${editorSeccion ? styles.panelViewHidden : ""}`}>
+                <div ref={dropdownRef} style={{ marginBottom: "1rem", borderBottom: "1px solid #f1f5f9", paddingBottom: "0.75rem", position: "relative" }}>
+                  <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: "0.35rem" }}>
+                    Contacto Vinculado
+                  </label>
+                  
+                  {(() => {
+                    const selectedContactoName = contactoNombre || (contactoId ? contactos.find(c => c.id === contactoId)?.nombre : null);
+                    if (selectedContactoName) {
+                      return (
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.4rem 0.6rem", backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "0.375rem" }}>
+                          <span style={{ fontSize: "0.85rem", color: "#334155", fontWeight: 500 }}>
+                            👤 {selectedContactoName}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setContactoId(null);
+                              setContactoNombre(null);
+                              setSearchQuery("");
+                              setShowDropdown(true);
+                            }}
+                            style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600 }}
+                          >
+                            Cambiar
+                          </button>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div>
+                        <input
+                          type="text"
+                          placeholder="Buscar contacto..."
+                          value={searchQuery}
+                          onChange={e => {
+                            setSearchQuery(e.target.value);
+                            setShowDropdown(true);
+                          }}
+                          onFocus={() => setShowDropdown(true)}
+                          style={{
+                            width: "100%",
+                            padding: "0.4rem 0.6rem",
+                            fontSize: "0.85rem",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "0.375rem",
+                            backgroundColor: "#ffffff",
+                            color: "#334155",
+                            outline: "none",
+                            fontFamily: "inherit"
+                          }}
+                        />
+                        
+                        {searchQuery.trim().length > 0 && searchQuery.trim().length < 3 && (
+                          <div style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: "0.25rem" }}>
+                            Escribe al menos 3 letras para buscar...
+                          </div>
+                        )}
+
+                        {showDropdown && searchQuery.trim().length >= 3 && (
+                          <div style={{
+                            position: "absolute",
+                            top: "100%",
+                            left: 0,
+                            right: 0,
+                            backgroundColor: "#ffffff",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "0.375rem",
+                            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                            zIndex: 50,
+                            maxHeight: "150px",
+                            overflowY: "auto",
+                            marginTop: "0.25rem"
+                          }}>
+                            {buscando ? (
+                              <div style={{ padding: "0.5rem 0.75rem", fontSize: "0.8rem", color: "#94a3b8" }}>Buscando...</div>
+                            ) : contactos.length === 0 ? (
+                              <div style={{ padding: "0.5rem 0.75rem", fontSize: "0.8rem", color: "#94a3b8" }}>Sin resultados</div>
+                            ) : (
+                              contactos.map(c => (
+                                <div
+                                  key={c.id}
+                                  onClick={() => {
+                                    setContactoId(c.id);
+                                    setContactoNombre(c.nombre);
+                                    setShowDropdown(false);
+                                  }}
+                                  style={{
+                                    padding: "0.5rem 0.75rem",
+                                    fontSize: "0.8rem",
+                                    color: "#334155",
+                                    cursor: "pointer",
+                                    borderBottom: "1px solid #f1f5f9"
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.backgroundColor = "#f8fafc"}
+                                  onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                                >
+                                  {c.nombre}
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+
                 <span className={styles.sectionesTitle}>SECCIONES</span>
                 <ul className={styles.seccionesList}>
                   {secciones.map((s, i) => (
@@ -275,7 +459,17 @@ export function PropuestaEditor({ initialPropuestaId, initialSecciones, initialC
               {/* Vista editor */}
               <div className={`${styles.panelView} ${styles.panelViewEditor} ${editorSeccion ? styles.panelViewEditorOpen : ""}`}>
                 {editorSeccion && (
-                  <EditorPanel seccion={editorSeccion} onClose={() => setEditorUid(null)} onRename={renombrarSeccion} onUpdate={actualizarSeccion} isFav={isFav(editorSeccion.uid)} onToggleFav={() => toggleFav(editorSeccion)} todasSecciones={secciones} />
+                  <EditorPanel
+                    seccion={editorSeccion}
+                    onClose={() => setEditorUid(null)}
+                    onRename={renombrarSeccion}
+                    onUpdate={actualizarSeccion}
+                    isFav={isFav(editorSeccion.uid)}
+                    onToggleFav={() => toggleFav(editorSeccion)}
+                    todasSecciones={secciones}
+                    cotizacionId={cotizacionId}
+                    propuestaId={propuestaId}
+                  />
                 )}
               </div>
 
