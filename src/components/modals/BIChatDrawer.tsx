@@ -311,11 +311,12 @@ export default function BIChatDrawer({ isOpen, onClose, campanaId, campanaNombre
       const json = await res.json();
       if (!json.success) throw new Error(json.error ?? "Error");
       const rawSummary = json.summary ?? json.result?.summary ?? "Sin respuesta";
-      const cleanSummary = (s: string) => {
-        const t = s.trim();
-        if ((t.startsWith("{") && t.endsWith("}")) || (t.startsWith("[") && t.endsWith("]"))) return "";
-        return s;
-      };
+      const cleanSummary = (s: string) => s
+        .replace(/```json[\s\S]*?```/gi, "")   // strip ```json...``` blocks
+        .replace(/```[\s\S]*?```/gi, "")        // strip any other code blocks
+        .replace(/\{[\s\S]*?\}/g, "")           // strip inline JSON objects
+        .replace(/\[[\s\S]*?\]/g, "")           // strip inline JSON arrays
+        .trim();
       setMessages(prev => [...prev.slice(0, -1), {
         id: Date.now() + "-done",
         role: "assistant",

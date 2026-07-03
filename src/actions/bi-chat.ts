@@ -493,10 +493,15 @@ Para filtrar por agente usa su id directamente (más fiable que buscar por nombr
 
   const sql: string = parsed.sql ?? "";
 
-  // Sanitize summary: never expose raw JSON to the user
+  // Sanitize summary: strip any JSON or code blocks before showing to user
   function safeSummary(s: string | undefined): string {
-    if (!s) return "Procesando...";
-    return looksLikeJson(s) ? "Analizando datos, por favor espera..." : s;
+    if (!s) return "";
+    return s
+      .replace(/```json[\s\S]*?```/gi, "")
+      .replace(/```[\s\S]*?```/gi, "")
+      .replace(/\{[\s\S]*?\}/g, "")
+      .replace(/\[[\s\S]*?\]/g, "")
+      .trim();
   }
 
   // Step 2: Execute SQL if present — always run SQL even for type:text (metrics/counts)

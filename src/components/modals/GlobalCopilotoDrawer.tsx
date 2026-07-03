@@ -540,7 +540,12 @@ export default function GlobalCopilotoDrawer({ isOpen, onClose }: Props) {
       }
 
       const rawSummary = json.summary ?? json.result?.summary ?? "Sin respuesta";
-      const cleanSummary = (s: string) => { const t = s.trim(); return (t.startsWith("{") && t.endsWith("}")) || (t.startsWith("[") && t.endsWith("]")) ? "" : s; };
+      const cleanSummary = (s: string) => s
+        .replace(/```json[\s\S]*?```/gi, "")
+        .replace(/```[\s\S]*?```/gi, "")
+        .replace(/\{[\s\S]*?\}/g, "")
+        .replace(/\[[\s\S]*?\]/g, "")
+        .trim();
       setMessages(prev => [...prev.slice(0, -1), {
         id: Date.now() + "-done",
         role: "assistant",
