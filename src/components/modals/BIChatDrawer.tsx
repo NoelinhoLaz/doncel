@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Bot, X, RotateCcw, Sparkles, Send, Eye, Loader2 } from "lucide-react";
+import { Bot, X, RotateCcw, Sparkles, Send, Eye, Loader2, Database, Globe, Layers } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -34,6 +34,7 @@ interface Message {
   result?: AIResult;
   extra?: AIResult;
   isLoading?: boolean;
+  source?: "db" | "web" | "hybrid";
 }
 
 interface Props {
@@ -226,6 +227,13 @@ function Bubble({ msg, onNavigate }: { msg: Message; onNavigate: (id: string, ty
           </div>
         ) : (
           <>
+            {msg.source && (
+              <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "6px" }}>
+                {msg.source === "db" && <><Database size={11} style={{ color: "#6366f1" }} /><span style={{ fontSize: "0.68rem", color: "#6366f1", fontWeight: 600 }}>Base de datos</span></>}
+                {msg.source === "web" && <><Globe size={11} style={{ color: "#0ea5e9" }} /><span style={{ fontSize: "0.68rem", color: "#0ea5e9", fontWeight: 600 }}>Internet</span></>}
+                {msg.source === "hybrid" && <><Layers size={11} style={{ color: "#8b5cf6" }} /><span style={{ fontSize: "0.68rem", color: "#8b5cf6", fontWeight: 600 }}>BD + Internet</span></>}
+              </div>
+            )}
             <p style={{ lineHeight: 1.55, whiteSpace: "pre-wrap", margin: 0 }}>{msg.text}</p>
             {msg.result && <ResultBlock result={msg.result} onNavigate={onNavigate} />}
             {msg.extra && <ResultBlock result={msg.extra} onNavigate={onNavigate} />}
@@ -323,6 +331,7 @@ export default function BIChatDrawer({ isOpen, onClose, campanaId, campanaNombre
         text: cleanSummary(rawSummary),
         result: json.result,
         extra: json.extra,
+        source: json.source,
       }]);
     } catch (err: any) {
       setMessages(prev => [...prev.slice(0, -1), {

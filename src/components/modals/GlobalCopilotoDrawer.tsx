@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Bot, X, RotateCcw, Send, Loader2 } from "lucide-react";
+import { Bot, X, RotateCcw, Send, Loader2, Database, Globe, Layers } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,6 +25,7 @@ interface Message {
   result?: AnyResult;
   extra?: AIResult;
   isLoading?: boolean;
+  source?: "db" | "web" | "hybrid";
 }
 
 interface Props {
@@ -398,6 +399,13 @@ function Bubble({ msg, baseUrl }: { msg: Message; baseUrl: string }) {
           </div>
         ) : (
           <>
+            {msg.source && (
+              <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "6px" }}>
+                {msg.source === "db" && <><Database size={11} style={{ color: "#6366f1" }} /><span style={{ fontSize: "0.68rem", color: "#6366f1", fontWeight: 600 }}>Base de datos</span></>}
+                {msg.source === "web" && <><Globe size={11} style={{ color: "#0ea5e9" }} /><span style={{ fontSize: "0.68rem", color: "#0ea5e9", fontWeight: 600 }}>Internet</span></>}
+                {msg.source === "hybrid" && <><Layers size={11} style={{ color: "#8b5cf6" }} /><span style={{ fontSize: "0.68rem", color: "#8b5cf6", fontWeight: 600 }}>BD + Internet</span></>}
+              </div>
+            )}
             {msg.text && <p style={{ lineHeight: 1.55, whiteSpace: "pre-wrap", margin: 0 }}>{msg.text}</p>}
             {msg.result && renderResult(msg.result)}
             {msg.extra && <ResultBlock result={msg.extra} />}
@@ -552,6 +560,7 @@ export default function GlobalCopilotoDrawer({ isOpen, onClose }: Props) {
         text: cleanSummary(rawSummary),
         result: json.result,
         extra: json.extra,
+        source: json.source,
       }]);
     } catch (err: any) {
       setMessages(prev => [...prev.slice(0, -1), {

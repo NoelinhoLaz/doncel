@@ -27,6 +27,7 @@ export interface BIChatResponse {
   summary: string;
   result?: AIResult;
   extra?: AIResult;
+  source?: "db" | "web" | "hybrid";
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -379,7 +380,8 @@ export async function runBiChat(
     lastUserText.toLowerCase().includes("tenemos")
   );
   const webQueryResult = isWebQuery(lastUserText, history);
-  console.log("[bi-chat] isWebQuery:", webQueryResult, "isHybrid:", isHybrid, "text:", lastUserText.slice(0, 80));
+  const responseSource: "db" | "web" | "hybrid" = webQueryResult ? (isHybrid ? "hybrid" : "web") : "db";
+  console.log("[bi-chat] isWebQuery:", webQueryResult, "isHybrid:", isHybrid, "source:", responseSource, "text:", lastUserText.slice(0, 80));
   let webContextInjection = "";
   if (webQueryResult) {
     const webContext = await tavilySearch(lastUserText);
@@ -397,7 +399,7 @@ export async function runBiChat(
         messages: [{ role: "user", content: `${contextBlock}Pregunta: ${lastUserText}` }],
       });
       const answer = webResponse.content[0].type === "text" ? webResponse.content[0].text : "";
-      return { summary: answer, result: { type: "text", summary: answer } };
+      return { summary: answer, result: { type: "text", summary: answer }, source: "web" };
     }
   }
 
@@ -528,10 +530,7 @@ Para filtrar por agente usa su id directamente (más fiable que buscar por nombr
   // Step 2: Execute SQL if present — always run SQL even for type:text (metrics/counts)
   if (!sql) {
     const summary = safeSummary(parsed.summary ?? rawText);
-    return {
-      summary,
-      result: { type: "text", summary },
-    };
+    return { summary, result: { type: "text", summary }, source: responseSource };
   }
 
   // Safety: only allow SELECT — strip trailing semicolon (breaks EXECUTE format inside RPC)
@@ -645,6 +644,7 @@ Para filtrar por agente usa su id directamente (más fiable que buscar por nombr
         entityType: parsed.entityType ?? "generic",
         summary: factualSummary,
       },
+      source: responseSource,
       ...(extra ? { extra } : {}),
     };
   }
@@ -666,6 +666,7 @@ Para filtrar por agente usa su id directamente (más fiable que buscar por nombr
         data,
         summary: parsed.summary,
       },
+      source: responseSource,
     };
   }
 
@@ -709,5 +710,5 @@ Para filtrar por agente usa su id directamente (más fiable que buscar por nombr
       }).join(" · ");
     }
   }
-  return { summary: metricSummary, result: { type: "text", summary: metricSummary } };
+  return { summary: metricSummary, result: { type: "text", summary: metricSummary }, source: responseSource };
 }
