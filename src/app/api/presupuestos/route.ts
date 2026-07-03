@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createPresupuesto, getPresupuestos } from "@/actions/presupuestos";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);

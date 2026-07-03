@@ -1000,5 +1000,20 @@
   border-color: color-mix(in srgb, var(--primary-color, #475569) 90%, black);
 }
 
+.formColumnsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+  padding: 0 1.5rem;
+}
+
+@media (max-width: 1024px) {
+  .formColumnsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
 
 

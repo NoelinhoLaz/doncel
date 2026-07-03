@@ -675,6 +675,70 @@ const FIJOS_TREN: SchemaRow[] = [
   }
 ];
 
+const FIJOS_PACKS: SchemaRow[] = [
+  {
+    fila_id: 'row_fijo_descripcion_packs',
+    fijo: true,
+    columnas: [
+      { ancho: 12, campo: 'descripcion', label: 'Descripción', tipo: 'textarea', origen: 'tabla_nativa', propiedades: { required: false, placeholder: 'Descripción del pack...', rows_textarea: 2 } }
+    ]
+  },
+  {
+    fila_id: 'row_fijo_packs_detalles',
+    fijo: true,
+    columnas: [
+      { ancho: 4, campo: 'monitor_24h', label: 'Monitor 24h', tipo: 'select', origen: 'jsonb_detalles', propiedades: { opciones: ['Sí', 'No'] } },
+      { ancho: 4, campo: 'acompanamiento', label: 'Acompañamiento', tipo: 'select', origen: 'jsonb_detalles', propiedades: { opciones: ['Sí', 'No'] } },
+      { ancho: 4, campo: 'ratio', label: 'Ratio', tipo: 'select', origen: 'jsonb_detalles', propiedades: { opciones: ['1:15', '1:20', '1:25', 'Sin ratio'] } },
+    ]
+  },
+  {
+    fila_id: 'row_fijo_packs_config',
+    fijo: true,
+    columnas: [
+      { ancho: 6, campo: 'ambito_frecuencia', label: 'Ámbito / Frecuencia', tipo: 'select', origen: 'jsonb_detalles', propiedades: { opciones: ['Por viaje completo', 'Por día', 'Por actividad'] } },
+      { ancho: 6, campo: 'idioma', label: 'Idioma', tipo: 'select', origen: 'jsonb_detalles', propiedades: { opciones: ['Español', 'Inglés', 'Francés', 'Alemán', 'Bilingüe'] } },
+    ]
+  },
+  {
+    fila_id: 'row_fijo_packs_incluye',
+    fijo: true,
+    columnas: [
+      { ancho: 12, campo: 'incluye', label: 'Incluye', tipo: 'text', origen: 'jsonb_detalles', propiedades: { placeholder: 'Ej: Alojamiento, Comidas, Actividades' } }
+    ]
+  },
+  {
+    fila_id: 'row_fijo_destino_packs',
+    fijo: true,
+    columnas: [
+      { ancho: 12, campo: 'destino', label: 'Destino', tipo: 'db_destination', origen: 'tabla_nativa', propiedades: { required: true } }
+    ]
+  },
+  {
+    fila_id: 'row_fijo_proveedor_packs',
+    fijo: true,
+    columnas: [
+      { ancho: 12, campo: 'proveedor', label: 'Proveedor', tipo: 'db_select', origen: 'tabla_nativa', propiedades: { required: true } }
+    ]
+  },
+  {
+    fila_id: 'row_fijo_importes_packs',
+    fijo: true,
+    columnas: [
+      { ancho: 4, campo: 'plazas', label: 'Personas', tipo: 'db_number', origen: 'tabla_nativa', propiedades: { required: true } },
+      { ancho: 4, campo: 'noches', label: 'Noches / Días', tipo: 'db_number', origen: 'tabla_nativa', propiedades: { required: true } },
+      { ancho: 4, campo: 'neto', label: 'Precio Coste', tipo: 'number_decimal', origen: 'tabla_nativa', propiedades: { required: true } },
+    ]
+  },
+  {
+    fila_id: 'row_fijo_notas_packs',
+    fijo: true,
+    columnas: [
+      { ancho: 12, campo: 'notas', label: 'Notas', tipo: 'textarea', origen: 'jsonb_detalles', propiedades: { placeholder: 'Instrucciones o notas adicionales...', rows_textarea: 3 } }
+    ]
+  }
+];
+
 const FIXED_FIELDS_MAP: Record<string, SchemaRow[]> = {
   'Alojamiento': FIJOS_ALOJAMIENTO,
   'Entradas': FIJOS_ENTRADAS,
@@ -699,6 +763,8 @@ const FIXED_FIELDS_MAP: Record<string, SchemaRow[]> = {
   'Restaurantes': FIJOS_RESTAURACION,
   'Tren': FIJOS_TREN,
   'Trenes': FIJOS_TREN,
+  'Packs': FIJOS_PACKS,
+  'Pack': FIJOS_PACKS,
 };
 
 export function getFixedFields(etiqueta?: string): SchemaRow[] {

@@ -48,7 +48,7 @@ export async function createEntidadCompleta(payload: {
   email?: string;
   direccion?: {
     calle?: string;
-    ciudad?: string;
+    city?: string;
     provincia?: string;
   };
 }) {
@@ -74,6 +74,28 @@ export async function createEntidadCompleta(payload: {
   } catch (error: any) {
     console.error("Failed to create entidad completa:", error.message);
     throw new Error(error.message || "Failed to create entidad completa");
+  }
+}
+
+export async function buscarEntidades(query: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { data, error } = await agencyDb
+      .from("contabilidad_entidades")
+      .select("id, nombre")
+      .ilike("nombre", `%${query.trim()}%`)
+      .order("nombre", { ascending: true })
+      .limit(30);
+
+    if (error) {
+      console.error("Error searching entidades:", error);
+      throw error;
+    }
+
+    return data || [];
+  } catch (error: any) {
+    console.error("Failed to search entidades:", error.message);
+    return [];
   }
 }
 

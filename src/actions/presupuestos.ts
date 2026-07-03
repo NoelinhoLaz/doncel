@@ -232,10 +232,24 @@ export async function getPresupuestos(filters?: { oportunidad_id?: string }) {
       }
     }
 
+    // Enriquecer con conteo de cotizaciones
+    const { data: cotizaciones } = await agencyDb
+      .from("operativa_cotizaciones")
+      .select("id, presupuesto_id")
+      .in("presupuesto_id", presupuestoIds);
+
+    const cotizacionesCountMap: Record<string, number> = {};
+    for (const c of cotizaciones ?? []) {
+      if (c.presupuesto_id) {
+        cotizacionesCountMap[c.presupuesto_id] = (cotizacionesCountMap[c.presupuesto_id] || 0) + 1;
+      }
+    }
+
     return presupuestos.map((p: any) => ({
       ...p,
       cliente_nombre: entidadesMap[p.entidad_id] ?? null,
       contacto_principal: contactosMap[p.id] ?? null,
+      cotizaciones_count: cotizacionesCountMap[p.id] || 0,
     }));
   } catch (error: any) {
     console.error("Failed to get presupuestos:", error.message);
@@ -254,6 +268,27 @@ export async function updateEstadoPresupuesto(presupuestoId: string, estado: Est
     return { success: true };
   } catch (error: any) {
     console.error("Failed to update estado presupuesto:", error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getPresupuestoDetalle(id: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { data: p, error } = await agencyDb
+      .from("operativa_presupuestos")
+      .select(`
+        *,
+        contabilidad_entidades!entidad_id(id, nombre, email, telefono),
+        operativa_presupuesto_contactos(*)
+      `)
+      .eq("id", id)
+      .single();
+
+    if (error) throw error;
+    return { success: true, data: p };
+  } catch (error: any) {
+    console.error("Failed to get presupuesto detalle:", error.message);
     return { success: false, error: error.message };
   }
 }

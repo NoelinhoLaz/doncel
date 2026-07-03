@@ -36,6 +36,14 @@ function buildDescription(etiqueta: string, formValues: Record<string, any>, fal
   } else if (etiquetaLower === 'tren' || etiquetaLower === 'trenes') {
     const route = (formValues.origen_tren && formValues.destino_tren) ? `${formValues.origen_tren}-${formValues.destino_tren}` : (formValues.origen_tren || formValues.destino_tren || null);
     parts = [formValues.compania_tren, formValues.numero_tren, route].filter(Boolean);
+  } else if (etiquetaLower === 'packs' || etiquetaLower === 'pack') {
+    const monitor = formValues.monitor_24h === 'Sí' ? 'Monitor 24h' : null;
+    const acomp = formValues.acompanamiento === 'Sí' ? 'Acompañamiento' : null;
+    const ratio = formValues.ratio && formValues.ratio !== 'Sin ratio' ? formValues.ratio : null;
+    const ambito = formValues.ambito_frecuencia || null;
+    const idioma = formValues.idioma || null;
+    const incl = formValues.incluye ? `Incluye: ${formValues.incluye}` : null;
+    parts = [monitor, acomp, ratio, ambito, idioma, incl].filter(Boolean);
   } else {
     parts = [formValues.nombre_alojamiento, formValues.uso, formValues.regimen].filter(Boolean);
   }

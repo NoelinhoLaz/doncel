@@ -5,7 +5,8 @@ import styles from "../expedientes/[id]/page.module.css";
 import { Icons } from "@/lib/icons";
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Trash2, UserRound, X, Search, MapPin, Rows3, List, SlidersHorizontal, ChevronRight, ChevronDown, Compass, DatabaseZap } from "lucide-react";
+import { Copy, Trash2, UserRound, X, Search, MapPin, Rows3, List, SlidersHorizontal, ChevronRight, ChevronDown, Compass, DatabaseZap, Link2 } from "lucide-react";
+import { PresupuestoDetalleDrawer } from "@/components/modals/PresupuestoDetalleDrawer";
 import Pagination from "@/app/components/Pagination";
 import { duplicateCotizacion, deleteCotizacion, updateCotizacionLinea } from "@/actions/cotizaciones";
 import TipoIcon from "@/app/components/cotizacion/TipoIcon";
@@ -132,6 +133,7 @@ export default function CotizacionesPage() {
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [selectedImportIds, setSelectedImportIds] = useState<Set<string>>(new Set());
   const [migracionSearch, setMigracionSearch] = useState("");
+  const [selectedPresupuestoId, setSelectedPresupuestoId] = useState<string | null>(null);
 
   const toggleExpandCotizacion = (id: string) => {
     if (expandedCotizacionIds.includes(id)) {
@@ -1190,8 +1192,21 @@ export default function CotizacionesPage() {
                                 <UserRound size={10} /> Sin contacto
                               </div>
                             )}
-                            <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "#1e293b" }}>
+                            <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
                               {c.titulo || "Cotización"}
+                              {c.presupuesto_id && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedPresupuestoId(c.presupuesto_id);
+                                  }}
+                                  style={{ background: "none", border: "none", color: "var(--primary-color, #4f46e5)", cursor: "pointer", display: "inline-flex", alignItems: "center", padding: 0 }}
+                                  title="Ver presupuesto vinculado"
+                                >
+                                  <Link2 size={13} />
+                                </button>
+                              )}
                             </div>
                           </td>
                           <td style={{ textAlign: "center" }}>
@@ -1584,6 +1599,11 @@ export default function CotizacionesPage() {
              />
           </>
         )}
+        <PresupuestoDetalleDrawer
+          isOpen={!!selectedPresupuestoId}
+          onClose={() => setSelectedPresupuestoId(null)}
+          presupuestoId={selectedPresupuestoId || ""}
+        />
       </div>
     </div>
   );
