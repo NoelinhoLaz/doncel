@@ -287,8 +287,20 @@ export default function BIChatDrawer({ isOpen, onClose, campanaId, campanaNombre
 
     const history = [...messages, userMsg]
       .filter(m => !m.isLoading)
-      .slice(-6)
-      .map(m => ({ role: m.role, content: m.text }));
+      .slice(-16)
+      .map(m => {
+        if (m.role === "user") return { role: m.role, content: m.text };
+        // For assistant: combine text + result summary + table rows preview so the model remembers what it said
+        let content = m.text || "";
+        if (m.result) {
+          if (m.result.summary && !content.includes(m.result.summary)) content += (content ? "\n" : "") + m.result.summary;
+          if (m.result.type === "table" && m.result.columns && m.result.rows?.length) {
+            const preview = m.result.rows.slice(0, 5).map((r: any[]) => m.result.columns!.map((c: string, i: number) => `${c}: ${r[i]}`).join(", ")).join("\n");
+            content += `\nResultados (${m.result.rows.length} filas):\n${preview}`;
+          }
+        }
+        return { role: m.role, content: content || "..." };
+      });
 
     try {
       const res = await fetch("/api/bi-chat", {

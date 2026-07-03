@@ -484,8 +484,20 @@ export default function GlobalCopilotoDrawer({ isOpen, onClose }: Props) {
 
     const history = [...messages, userMsg]
       .filter(m => !m.isLoading)
-      .slice(-8)
-      .map(m => ({ role: m.role, content: m.text }));
+      .slice(-16)
+      .map(m => {
+        if (m.role === "user") return { role: m.role, content: m.text };
+        let content = m.text || "";
+        if ((m as any).result) {
+          const r = (m as any).result;
+          if (r.summary && !content.includes(r.summary)) content += (content ? "\n" : "") + r.summary;
+          if (r.type === "table" && r.columns && r.rows?.length) {
+            const preview = r.rows.slice(0, 5).map((row: any[]) => r.columns.map((c: string, i: number) => `${c}: ${row[i]}`).join(", ")).join("\n");
+            content += `\nResultados (${r.rows.length} filas):\n${preview}`;
+          }
+        }
+        return { role: m.role, content: content || "..." };
+      });
 
     // Re-read IDs at send time in case they weren't available at render
     const cotizacionId = config.mode === "cotizacion" && typeof window !== "undefined"
