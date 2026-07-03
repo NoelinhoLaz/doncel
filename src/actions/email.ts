@@ -5,7 +5,7 @@ import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { verifyToken } from "@/lib/encryption";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 50;
 
 interface SimpleEmail {
   id: string;
@@ -297,7 +297,7 @@ async function parseMessage(msg: any, direction: "inbound" | "outbound" = "inbou
 
 // Main server action: fetch inbox + sent emails, each email enriched with its full thread
 // Always fetches the last PAGE_SIZE messages; page>1 goes further back
-export async function downloadRealInboxEmails(page: number = 1) {
+export async function downloadRealInboxEmails(page: number = 1, mailboxPath: string = "INBOX") {
   try {
     const configRes = await getCurrentUserEmailConfig();
     if (!configRes.success || !configRes.data?.email_address) {
@@ -306,15 +306,15 @@ export async function downloadRealInboxEmails(page: number = 1) {
 
     const client = await buildImapClient(configRes.data);
 
-    // ── Fetch INBOX ──────────────────────────────────────────────────────────
+    // ── Fetch Mailbox ──────────────────────────────────────────────────────────
     const inboxEmails: SimpleEmail[] = [];
     let totalMessages = 0;
     let hasMore = false;
 
-    const inboxLock = await client.getMailboxLock("INBOX");
+    const inboxLock = await client.getMailboxLock(mailboxPath);
     try {
       const mailbox = client.mailbox;
-      if (!mailbox) throw new Error("No se pudo acceder a la bandeja de entrada.");
+      if (!mailbox) throw new Error(`No se pudo acceder a la carpeta ${mailboxPath}.`);
       totalMessages = mailbox.exists || 0;
 
       if (totalMessages > 0) {
@@ -326,9 +326,63 @@ export async function downloadRealInboxEmails(page: number = 1) {
 
         hasMore = startSeq > 1;
 
-        for await (const msg of client.fetch(seqNums.join(","), { envelope: true, source: true })) {
-          const email = await parseMessage(msg, "inbound");
-          if (email) inboxEmails.push(email);
+        // Stage 1: Fetch envelope and size only (very fast, <100ms)
+        const metadataList: any[] = [];
+        for await (const msg of client.fetch(seqNums.join(","), { envelope: true, size: true })) {
+          metadataList.push(msg);
+        }
+
+        // Stage 2: Fetch source only for small messages (<2MB)
+        for (const meta of metadataList) {
+          if (meta.size && meta.size > 2 * 1024 * 1024) {
+            console.warn(`[IMAP] Large message skipped (${meta.size} bytes), parsing envelope only.`);
+            const dateObj = meta.envelope.date ? new Date(meta.envelope.date) : new Date();
+            const senderName = meta.envelope.from?.[0]?.name || meta.envelope.from?.[0]?.address?.split("@")[0] || "Remitente";
+            const senderEmail = meta.envelope.from?.[0]?.address || "";
+            const subject = meta.envelope.subject || "(Sin asunto)";
+            inboxEmails.push({
+              id: `real-${meta.uid || meta.seq}`,
+              senderName: senderName,
+              subject,
+              threadKey: normalizeSubject(subject),
+              time: dateObj.toLocaleString("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }),
+              body: "[Archivo/Mensaje pesado - Edición minimalista para evitar cortes de conexión. Haz clic para ver detalles]",
+              color: getPremiumColor(senderName),
+              avatarText: senderName[0]?.toUpperCase() || "E",
+              starred: false,
+              contactName: senderName,
+              contactRole: "Contacto Externo",
+              contactEmail: senderEmail,
+              contactPhone: "No especificado",
+              companyName: senderEmail.split("@")[1] || "Externo",
+              companyLocation: "Ubicación desconocida",
+              companyIndustry: "N/A",
+              companyFounded: "N/A",
+              companyEmployees: "N/A",
+              companyRevenue: "N/A",
+              companyLogoText: senderName[0]?.toUpperCase() || "E",
+              companyLogoColor: getPremiumColor(senderEmail.split("@")[1] || "Externo"),
+              attachments: [],
+              thread: [{
+                id: `t-${meta.uid || meta.seq}-1`,
+                senderName,
+                senderEmail,
+                avatarColor: getPremiumColor(senderName),
+                date: dateObj.toLocaleString("es-ES"),
+                dateMs: dateObj.getTime(),
+                body: "Este mensaje es demasiado pesado (>2MB) para descargarse automáticamente en el panel web. Utiliza tu cliente de correo para descargar archivos adjuntos grandes.",
+                direction: "inbound",
+                subject
+              }],
+              whatsappThread: []
+            });
+          } else {
+            // Fetch raw source for small emails
+            for await (const msg of client.fetch(String(meta.seq), { source: true })) {
+              const email = await parseMessage(msg, "inbound");
+              if (email) inboxEmails.push(email);
+            }
+          }
         }
       }
     } finally {
@@ -349,12 +403,21 @@ export async function downloadRealInboxEmails(page: number = 1) {
             const sStart = Math.max(1, sentTotal - PAGE_SIZE * page + 1);
             const sSeqs: number[] = [];
             for (let i = sEnd; i >= sStart; i--) sSeqs.push(i);
-            for await (const msg of client.fetch(sSeqs.join(","), { envelope: true, source: true })) {
-              const email = await parseMessage(msg, "outbound");
-              if (!email) continue;
-              const existing = sentByThread.get(email.threadKey) || [];
-              existing.push(...email.thread);
-              sentByThread.set(email.threadKey, existing);
+
+            const sentMetaList: any[] = [];
+            for await (const msg of client.fetch(sSeqs.join(","), { envelope: true, size: true })) {
+              sentMetaList.push(msg);
+            }
+
+            for (const meta of sentMetaList) {
+              if (meta.size && meta.size > 2 * 1024 * 1024) continue; // skip huge outbound files
+              for await (const msg of client.fetch(String(meta.seq), { source: true })) {
+                const email = await parseMessage(msg, "outbound");
+                if (!email) continue;
+                const existing = sentByThread.get(email.threadKey) || [];
+                existing.push(...email.thread);
+                sentByThread.set(email.threadKey, existing);
+              }
             }
           }
         } finally {
@@ -400,5 +463,30 @@ export async function downloadRealInboxEmails(page: number = 1) {
   } catch (err: any) {
     console.error("[IMAP] Connection/Fetch failed:", err);
     return { success: false, error: err.message || "Error de conexión con el servidor de correo IMAP." };
+  }
+}
+
+export async function getImapMailboxes() {
+  try {
+    const configRes = await getCurrentUserEmailConfig();
+    if (!configRes.success || !configRes.data?.email_address) {
+      return { success: false, error: "No se encontró configuración de correo activa." };
+    }
+
+    const client = await buildImapClient(configRes.data);
+    const folders = await client.list();
+    await client.logout();
+
+    // Map to simplified array of paths/names
+    const list = folders.map((f: any) => ({
+      path: f.path,
+      name: f.name,
+      specialUse: f.specialUse || null
+    }));
+
+    return { success: true, folders: list };
+  } catch (err: any) {
+    console.error("[IMAP] List mailboxes failed:", err);
+    return { success: false, error: err.message || "Error al obtener las carpetas del servidor de correo." };
   }
 }
