@@ -65,7 +65,14 @@ TABLAS PRINCIPALES:
   -- oportunidad_id → crm_oportunidades.id (puente entre operativa y CRM)
   -- pvp_total = importe total del viaje facturado/presupuestado
   -- Para filtrar por año escolar: fecha_inicio BETWEEN 'YYYY-09-01' AND 'YYYY+1-07-31'
-- operativa_cotizaciones(id, expediente_id, estado[borrador|presentada|aceptada|rechazada])
+- operativa_cotizaciones(id, expediente_id, titulo, estado[borrador|presentada|aceptada|rechazada], plazas, pvp_viajero, fecha_salida DATE, fecha_regreso DATE)
+- operativa_cotizacion_lineas(id, cotizacion_id, descripcion, proveedor[FK→contabilidad_proveedores.id], neto, pvp, plazas, noches, total_neto, total_pvp, opcional BOOL, checked BOOL)
+  -- contabilidad_proveedores(id, nombre, razon_social, email, telefono)
+  -- Para buscar servicios cotizados por nombre de proveedor o descripción de línea:
+  --   JOIN operativa_cotizacion_lineas ocl ON ocl.cotizacion_id = oc.id
+  --   JOIN contabilidad_proveedores cp ON cp.id = ocl.proveedor
+  --   WHERE ocl.descripcion ILIKE '%texto%' OR cp.nombre ILIKE '%texto%' OR cp.razon_social ILIKE '%texto%'
+  -- NUNCA buscar servicios cotizados en crm_oportunidades.descripcion — eso son notas comerciales, no líneas de servicio
 - facturas_emitidas(id, expediente_id, importe_total, fecha_emision) — facturas reales emitidas
 - contabilidad_movimientos_banco(id, cuenta_bancaria_id[FK→config_cuentas_bancarias.id], fecha_operacion DATE, importe DECIMAL — negativo=salida/pago positivo=entrada/cobro, concepto_limpio, concepto_original, estado[pendiente|propuesto|conciliado|descartado|futuro], match_score DECIMAL 0-100, conciliacion_tipo[automatica|manual], conciliado_at TIMESTAMP, origen[bridge|n43], deleted BOOL)
 - config_cuentas_bancarias(id, banco VARCHAR, iban VARCHAR, oficina_id FK→config_oficinas.id, descripcion VARCHAR, activa BOOL)
@@ -464,15 +471,23 @@ Para filtrar por agente usa su id directamente (más fiable que buscar por nombr
   }
 
   // Parse the JSON response from Claude
+  // Claude sometimes adds prose before/after the JSON — extract the JSON object robustly
   let parsed: any;
   try {
-    // Claude sometimes wraps in ```json — strip it
-    const cleaned = rawText.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim();
+    // 1. Strip ```json fences
+    let cleaned = rawText.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim();
+    // 2. If there's text before the first '{', extract just the JSON object
+    const jsonStart = cleaned.indexOf("{");
+    const jsonEnd = cleaned.lastIndexOf("}");
+    if (jsonStart > 0 && jsonEnd > jsonStart) {
+      cleaned = cleaned.slice(jsonStart, jsonEnd + 1);
+    }
     parsed = JSON.parse(cleaned);
   } catch {
-    // Claude returned truncated or non-JSON — log and treat as text
     console.error("[bi-chat] JSON parse failed. Raw response:", rawText.slice(0, 300));
-    const safeText = looksLikeJson(rawText) ? "Procesando consulta, por favor espera..." : rawText;
+    // Return the prose text (stripping any embedded JSON block)
+    const withoutJson = rawText.replace(/\{[\s\S]*\}/g, "").trim();
+    const safeText = withoutJson || "No he podido procesar la consulta. Intenta reformularla.";
     return { summary: safeText, result: { type: "text", summary: safeText } };
   }
 
