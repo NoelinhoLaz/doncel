@@ -371,7 +371,8 @@ export async function runBiChat(
   }
 
   // Optionally inject campaign context into the last user message
-  let systemWithContext = SYSTEM_PROMPT;
+  const todayStr = new Date().toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+  let systemWithContext = SYSTEM_PROMPT + `\n\nFECHA ACTUAL: Hoy es ${todayStr}. Usa esta fecha como referencia para cualquier pregunta sobre "hoy", "este mes", "este año", etc.`;
   if (campanaId) {
     const [{ data: campana }, { count: logCount }] = await Promise.all([
       db

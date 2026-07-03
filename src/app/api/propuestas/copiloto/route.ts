@@ -272,7 +272,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const agenciaId = await getAgenciaId();
     const anthropic = await getAnthropicClient(agenciaId);
 
-    const systemPrompt = `Eres el Copilot de propuestas para una agencia de viajes especializada en viajes de grupo y excursiones escolares.
+    const todayStr = new Date().toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+    const systemPrompt = `Fecha actual: ${todayStr}.\n\nEres el Copilot de propuestas para una agencia de viajes especializada en viajes de grupo y excursiones escolares.
 Tu rol es ayudar a crear propuestas atractivas, analizar itinerarios, sugerir destinos, actividades, hoteles y servicios, y redactar descripciones de venta.
 Responde siempre en español, de forma concisa y orientada a la venta.
 Cuando el usuario pregunte "analiza", "qué te parece", "revisa", "mejora" el itinerario u otro contenido — úsalo como contexto principal para tu respuesta.

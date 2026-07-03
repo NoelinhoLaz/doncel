@@ -160,7 +160,8 @@ async function runBiChatCotizacion(history: ChatTurn[], cotizacionContext: strin
   const anthropic = await getAnthropicClient(agenciaId);
 
   // Import the system prompt logic from bi-chat by reconstructing what we need
-  const COTIZACION_SYSTEM = `Eres el Copilot de cotizaciones para una agencia de viajes. Tienes acceso a PostgreSQL (Supabase) para consultas históricas.
+  const todayStr = new Date().toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+  const COTIZACION_SYSTEM = `Fecha actual: ${todayStr}.\n\nEres el Copilot de cotizaciones para una agencia de viajes. Tienes acceso a PostgreSQL (Supabase) para consultas históricas.
 
 Tu misión principal es ayudar a optimizar la cotización activa (ver COTIZACIÓN ACTIVA más abajo). Cuando el usuario pregunta algo que requiere datos históricos (otros proveedores, precios pasados, hoteles en la misma ciudad en otras cotizaciones), genera SQL para obtenerlos.
 
