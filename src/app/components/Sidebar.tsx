@@ -22,12 +22,34 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
   const bancoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contactosTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const closeAllOthers = (exceptSetter: ((v: boolean) => void) | null) => {
+    const submenus = [
+      { setter: setExpSubOpen, timer: expTimer },
+      { setter: setPresupSubOpen, timer: presupTimer },
+      { setter: setBancoSubOpen, timer: bancoTimer },
+      { setter: setContactosSubOpen, timer: contactosTimer },
+    ];
+    for (const sub of submenus) {
+      if (sub.setter !== exceptSetter) {
+        if (sub.timer.current) {
+          clearTimeout(sub.timer.current);
+          sub.timer.current = null;
+        }
+        sub.setter(false);
+      }
+    }
+  };
+
   const makeHover = (
     setter: (v: boolean) => void,
     timer: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
   ) => ({
     onMouseEnter: () => {
-      if (timer.current) clearTimeout(timer.current);
+      if (timer.current) {
+        clearTimeout(timer.current);
+        timer.current = null;
+      }
+      closeAllOthers(setter);
       setter(true);
     },
     onMouseLeave: () => {
@@ -43,6 +65,7 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
         className={`${styles.menuItem} ${isActive("/dashboard") ? styles.active : ""}`} 
         onClick={() => router.push("/dashboard")} 
         title="Home"
+        onMouseEnter={() => closeAllOthers(null)}
       >
         <Icons.Home size={20} strokeWidth={isActive("/dashboard") ? 3 : 2} />
       </button>
@@ -51,6 +74,7 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
         className={`${styles.menuItem} ${isActive("/campanas") || isActive("/oportunidades") ? styles.active : ""}`}
         title="Campañas"
         onClick={() => router.push("/campanas")}
+        onMouseEnter={() => closeAllOthers(null)}
       >
         <Icons.Target size={20} strokeWidth={isActive("/campanas") || isActive("/oportunidades") ? 3 : 2} />
       </button>
@@ -243,6 +267,7 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
         className={`${styles.menuItem} ${isActive("/mensajes") ? styles.active : ""}`} 
         onClick={() => router.push("/mensajes")} 
         title="Mensajes"
+        onMouseEnter={() => closeAllOthers(null)}
       >
         <Icons.Mensajes size={20} strokeWidth={isActive("/mensajes") ? 3 : 2} />
       </button>
@@ -253,6 +278,7 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
           title="Copilot AI"
           className={styles.menuItem}
           style={{ color: "var(--primary-color, #4f46e5)", marginBottom: "0.5rem" }}
+          onMouseEnter={() => closeAllOthers(null)}
         >
           <Sparkles size={20} />
         </button>
@@ -260,6 +286,7 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
           className={`${styles.menuItem} ${isActive("/settings") ? styles.active : ""}`}
           onClick={() => router.push("/settings")}
           title="Ajustes"
+          onMouseEnter={() => closeAllOthers(null)}
         >
           <Icons.Settings size={20} strokeWidth={isActive("/settings") ? 3 : 2} />
         </button>

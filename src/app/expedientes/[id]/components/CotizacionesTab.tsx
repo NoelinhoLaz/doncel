@@ -44,7 +44,7 @@ export default function CotizacionesTab({ expedienteId, hideHeader, compactHeade
   return (
     <>
       <div className={styles.tabContainer} style={{ overflow: 'visible', marginTop: compactHeader ? '-0.75rem' : '0px', borderRadius: '0.75rem' }}>
-        <TablaCotizacion c={c} hideHeader={hideHeader} compactHeader={compactHeader} title={title} sidePanel={resumen} />
+        <TablaCotizacion c={c} hideHeader={hideHeader} compactHeader={compactHeader} title={title} sidePanel={resumen} cotizacionId={cotizacionId} />
       </div>
 
       <ModalHistorialCotizacion

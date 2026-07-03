@@ -159,6 +159,7 @@ export async function sendExpedienteEmail(params: SendEmailParams) {
       await transporter.sendMail({
         from: `"${config.email_address}" <${config.email_address}>`,
         to: dest.email,
+        bcc: config.email_address,
         subject: asunto,
         text: cuerpo,
         html: htmlCuerpo,
@@ -236,4 +237,175 @@ export async function markEmailAbierto(token: string) {
     .eq("token", token)
     .is("abierto_at", null); // solo la primera vez
   return { success: !error };
+}
+
+export async function assignEmailToExpediente(expedienteId: string, emailData: {
+  subject: string;
+  body: string;
+  senderName: string;
+  senderEmail: string;
+  attachments?: Array<{ nombre: string; tamanio: number }>;
+}) {
+  const adminSupabase = await createAdminServerClient();
+  const { data: { user }, error: userError } = await adminSupabase.auth.getUser();
+  if (userError || !user) return { success: false, error: "Usuario no autenticado." };
+
+  const agencyDb = await getAgencyDbClient();
+  const { data, error } = await agencyDb
+    .from("comunicaciones_expediente")
+    .insert({
+      expediente_id: expedienteId,
+      agente_id: user.id,
+      canal: "email",
+      asunto: emailData.subject,
+      cuerpo: emailData.body,
+      destinatarios: [{
+        nombre: emailData.senderName,
+        email: emailData.senderEmail,
+        rol: "remitente"
+      }],
+      adjuntos: emailData.attachments || [],
+      estado: "enviado",
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("[comunicaciones] Error al asignar email a expediente:", error);
+    return { success: false, error: "Error al guardar el email en la base de datos." };
+  }
+  return { success: true, id: data.id };
+}
+
+export async function getComunicacionesByEntity(params: {
+  expedienteId?: string | null;
+  cotizacionId?: string | null;
+  propuestaId?: string | null;
+  presupuestoId?: string | null;
+}) {
+  const agencyDb = await getAgencyDbClient();
+
+  // Collect all IDs that could link to communications
+  const conditions: string[] = [];
+  if (params.expedienteId) conditions.push(`expediente_id.eq.${params.expedienteId}`);
+  if (params.cotizacionId) conditions.push(`cotizacion_id.eq.${params.cotizacionId}`);
+  if (params.propuestaId) conditions.push(`propuesta_id.eq.${params.propuestaId}`);
+  if (params.presupuestoId) conditions.push(`presupuesto_id.eq.${params.presupuestoId}`);
+
+  if (conditions.length === 0) return { success: true, data: [] };
+
+  const { data, error } = await agencyDb
+    .from("comunicaciones_expediente")
+    .select("*, comunicaciones_destinatarios(id, contacto_key, rol, nombre, email, estado, abierto_at, entregado_at, error_detalle)")
+    .or(conditions.join(","))
+    .order("created_at", { ascending: false });
+
+  if (error) return { success: false, error: error.message, data: [] };
+  return { success: true, data: data || [] };
+}
+
+export async function saveComunicacion(params: {
+  expedienteId?: string | null;
+  cotizacionId?: string | null;
+  propuestaId?: string | null;
+  presupuestoId?: string | null;
+  canal: "email" | "whatsapp" | "nota";
+  asunto?: string;
+  cuerpo: string;
+  destinatarios?: Array<{ nombre: string; email?: string; telefono?: string; rol?: string }>;
+  adjuntos?: Array<{ nombre: string; tamanio: number }>;
+}) {
+  const adminSupabase = await createAdminServerClient();
+  const { data: { user }, error: userError } = await adminSupabase.auth.getUser();
+  if (userError || !user) return { success: false, error: "Usuario no autenticado." };
+
+  const agencyDb = await getAgencyDbClient();
+  const { data, error } = await agencyDb
+    .from("comunicaciones_expediente")
+    .insert({
+      expediente_id: params.expedienteId || null,
+      cotizacion_id: params.cotizacionId || null,
+      propuesta_id: params.propuestaId || null,
+      presupuesto_id: params.presupuestoId || null,
+      agente_id: user.id,
+      canal: params.canal,
+      asunto: params.asunto || null,
+      cuerpo: params.cuerpo,
+      destinatarios: params.destinatarios || [],
+      adjuntos: params.adjuntos || [],
+      estado: "enviado",
+    })
+    .select("id")
+    .single();
+
+  if (error) return { success: false, error: error.message };
+  return { success: true, id: data.id };
+}
+
+export async function getContactosByEntity(params: {
+  expedienteId?: string | null;
+  cotizacionId?: string | null;
+  propuestaId?: string | null;
+  presupuestoId?: string | null;
+}): Promise<Array<{ key: string; nombre: string; email: string; telefono: string; rol: "pagador" | "viajero" }>> {
+  const agencyDb = await getAgencyDbClient();
+
+  // Si hay expediente, cargar los pagadores reales de operativa_pagadores_expedientes
+  if (params.expedienteId) {
+    const { data } = await agencyDb
+      .from("operativa_pagadores_expedientes")
+      .select("entidad_id, contabilidad_entidades!operativa_pagadores_expedientes_entidad_id_fkey(id, nombre, email, telefono)")
+      .eq("expediente_id", params.expedienteId);
+    if (data && data.length > 0) {
+      return data
+        .map((p: any) => {
+          const ent = p.contabilidad_entidades || {};
+          return { key: `p-${ent.id}`, nombre: ent.nombre || "Sin nombre", email: ent.email || "", telefono: ent.telefono || "", rol: "pagador" as const };
+        })
+        .filter((c, i, arr) => arr.findIndex(x => x.key === c.key) === i);
+    }
+  }
+
+  // Sin expediente: resolver entidad principal subiendo la cadena
+  let entidadId: string | null = null;
+  let cotizacionId = params.cotizacionId;
+
+  if (params.presupuestoId && !entidadId) {
+    const { data } = await agencyDb.from("operativa_presupuestos").select("entidad_id, cotizaciones:operativa_cotizaciones(id, contacto)").eq("id", params.presupuestoId).maybeSingle();
+    if (data?.entidad_id) entidadId = data.entidad_id;
+    if (!cotizacionId && (data?.cotizaciones as any)?.[0]?.id) cotizacionId = (data.cotizaciones as any)[0].id;
+  }
+
+  if (cotizacionId && !entidadId) {
+    const { data } = await agencyDb.from("operativa_cotizaciones").select("contacto").eq("id", cotizacionId).maybeSingle();
+    if (data?.contacto) entidadId = data.contacto;
+  }
+
+  if (params.propuestaId && !entidadId) {
+    const { data } = await agencyDb.from("operativa_propuestas").select("cotizacion_id").eq("id", params.propuestaId).maybeSingle();
+    if (data?.cotizacion_id) {
+      const { data: cot } = await agencyDb.from("operativa_cotizaciones").select("contacto").eq("id", data.cotizacion_id).maybeSingle();
+      if (cot?.contacto) entidadId = cot.contacto;
+    }
+  }
+
+  if (!entidadId) return [];
+
+  const { data: ent } = await agencyDb.from("contabilidad_entidades").select("id, nombre, email, telefono").eq("id", entidadId).maybeSingle();
+  if (!ent) return [];
+
+  return [{ key: `p-${ent.id}`, nombre: ent.nombre || "Sin nombre", email: ent.email || "", telefono: ent.telefono || "", rol: "pagador" }];
+}
+
+export async function getAllSavedCommunications() {
+  const agencyDb = await getAgencyDbClient();
+  const { data, error } = await agencyDb
+    .from("comunicaciones_expediente")
+    .select("id, asunto, expediente_id")
+    .order("created_at", { ascending: false });
+  if (error) {
+    console.error("[comunicaciones] Error fetching saved communications:", error);
+    return [];
+  }
+  return data || [];
 }

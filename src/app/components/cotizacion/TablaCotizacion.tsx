@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Info, Layers, Unlink, Copy, Trash2, ClipboardPaste } from "lucide-react";
+import { Info, Layers, Unlink, Copy, Trash2, ClipboardPaste, Mail } from "lucide-react";
 import type { ReactNode } from "react";
+import dynamic from "next/dynamic";
+const NuevaComunicacionModal = dynamic(() => import("@/app/expedientes/[id]/components/NuevaComunicacionModal"), { ssr: false });
 import { Icons } from "@/lib/icons";
 import Pagination from "@/app/components/Pagination";
 import ProviderSelector from "@/app/expedientes/[id]/components/ProviderSelector";
@@ -22,6 +24,7 @@ interface Props {
   compactHeader?: boolean;
   title?: string;
   sidePanel?: ReactNode;
+  cotizacionId?: string | null;
 }
 
 const fieldStyle: React.CSSProperties = {
@@ -39,8 +42,9 @@ function getGroupLabel(groupId: string, displayItems: any[]): string {
   return String.fromCharCode(65 + (idx >= 0 ? idx % 26 : 0));
 }
 
-export default function TablaCotizacion({ c, hideHeader, compactHeader, title, sidePanel }: Props) {
+export default function TablaCotizacion({ c, hideHeader, compactHeader, title, sidePanel, cotizacionId }: Props) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [mailModalProveedor, setMailModalProveedor] = useState<{ nombre: string; email: string } | null>(null);
   const [openTipoRowId, setOpenTipoRowId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -410,7 +414,6 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
             <table className={styles.table} style={{ tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
                 <col style={{ width: 28 }} />
-                <col style={{ width: 24 }} />
                 <col style={{ width: 36 }} />
                 <col />
                 <col style={{ width: 180 }} />
@@ -425,7 +428,6 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
               </colgroup>
               <thead>
                 <tr>
-                  <th />
                   <th />
                   <th style={{ whiteSpace: 'nowrap' }}>TIPO</th>
                   <th>Descripción</th>
@@ -443,15 +445,27 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
               <tbody>
                 {c.paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={13} style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>
+                    <td colSpan={12} style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>
                       No hay líneas en esta cotización. Usa el botón + para añadir.
                     </td>
                   </tr>
-                ) : c.paginated.map((it: any) => {
+                ) : (() => {
+                  const sorted = [...c.paginated].sort((a: any, b: any) => {
+                    const ga = a.grupo_alternativa_id || '';
+                    const gb = b.grupo_alternativa_id || '';
+                    if (ga && gb && ga === gb) return 0;
+                    if (ga && !gb) return -1;
+                    if (!ga && gb) return 1;
+                    if (ga && gb && ga !== gb) return ga < gb ? -1 : 1;
+                    return 0;
+                  });
+                  const seenGroups = new Set<string>();
+                  return sorted.map((it: any) => {
                   const groupColor = getGroupColor(it.grupo_alternativa_id);
-                  const groupLabel = it.grupo_alternativa_id ? getGroupLabel(it.grupo_alternativa_id, c.displayItems) : undefined;
                   const isInGroup = !!it.grupo_alternativa_id;
                   const isUnchecked = isInGroup && c.checkedIds[it.id] === false;
+                  const isGroupLeader = isInGroup && !seenGroups.has(it.grupo_alternativa_id);
+                  if (isInGroup) seenGroups.add(it.grupo_alternativa_id);
                   return (
                     <tr key={it.id} style={groupColor ? { borderLeft: `3px solid ${groupColor}`, background: isUnchecked ? '#f8fafc' : undefined } : {}}>
                       <td style={{ verticalAlign: 'middle', width: '1%' }}>
@@ -461,9 +475,6 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                           onChange={(e) => c.handleCheckedChange(it.id, e.target.checked, it.grupo_alternativa_id)}
                           aria-label={`Seleccionar ${it.id}`}
                         />
-                      </td>
-                      <td style={{ verticalAlign: 'middle', textAlign: 'center', width: '20px' }}>
-                        {isInGroup && groupLabel && <span className={tablaStyles.groupBadge}>{groupLabel}</span>}
                       </td>
                       <td style={{ whiteSpace: 'nowrap', width: compactHeader ? '32px' : '1%', verticalAlign: 'middle', position: 'relative' }}>
                         <button
@@ -585,9 +596,19 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                           ) : (
                             <>
                               <button type="button" className={tablaStyles.iconBtn} onClick={() => c.openInfoModal(it)} title="Formulario del servicio"><Info size={13} /></button>
-                              <button type="button" className={tablaStyles.iconBtn} onClick={() => c.handleCreateAlternative(it)} title="Crear alternativa"><Layers size={13} /></button>
-                              {isInGroup && <button type="button" className={tablaStyles.iconBtn} onClick={() => c.handleUngroup(it)} title="Desagrupar"><Unlink size={13} /></button>}
+                              {isInGroup && !isGroupLeader
+                                ? <button type="button" className={tablaStyles.iconBtn} onClick={() => c.handleUngroup(it)} title="Desagrupar esta alternativa"><Unlink size={13} /></button>
+                                : <button type="button" className={tablaStyles.iconBtn} onClick={() => c.handleCreateAlternative(it)} title="Crear alternativa"><Layers size={13} /></button>
+                              }
                               <button type="button" className={tablaStyles.iconBtn} onClick={() => c.handleDuplicateItem(it)} title="Duplicar fila"><Copy size={13} /></button>
+                              <button
+                                type="button"
+                                className={tablaStyles.iconBtn}
+                                title={it.contabilidad_proveedores?.email ? `Enviar email a ${it.contabilidad_proveedores.nombre || it.contabilidad_proveedores.razon_social}` : "Enviar email al proveedor"}
+                                onClick={() => setMailModalProveedor({ nombre: it.contabilidad_proveedores?.nombre || it.contabilidad_proveedores?.razon_social || it.descripcion || "", email: it.contabilidad_proveedores?.email || "" })}
+                              >
+                                <Mail size={13} />
+                              </button>
                               {c.canDelete && <button type="button" className={tablaStyles.iconBtn} onClick={() => setDeleteConfirmId(it.id)} title="Eliminar fila"><Trash2 size={13} /></button>}
                             </>
                           )}
@@ -595,7 +616,8 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                       </td>
                     </tr>
                   );
-                })}
+                  });
+                })()}
               </tbody>
             </table>
 
@@ -610,6 +632,15 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
 
           {sidePanel}
         </div>
+      )}
+
+      {mailModalProveedor && (
+        <NuevaComunicacionModal
+          cotizacionId={cotizacionId || undefined}
+          destinatarioInicial={mailModalProveedor}
+          onClose={() => setMailModalProveedor(null)}
+          onSent={() => setMailModalProveedor(null)}
+        />
       )}
     </>
   );

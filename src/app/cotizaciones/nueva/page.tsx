@@ -2,14 +2,16 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Icons } from "@/lib/icons";
-import { MapPin, X, Search, Loader2 } from "lucide-react";
+import { MapPin, X, Search, Loader2, Link2 } from "lucide-react";
+import { PresupuestoDetalleDrawer } from "@/components/modals/PresupuestoDetalleDrawer";
 import dynamic from "next/dynamic";
 import listStyles from "../../expedientes/page.module.css";
 import styles from "../../expedientes/[id]/page.module.css";
 import CotizacionesTab from "../../expedientes/[id]/components/CotizacionesTab";
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from "next/navigation";
 import { addDestinoCotizacion, removeDestinoCotizacion, updateCotizacionMeta } from "@/actions/cotizaciones";
 import { getEntidades } from "@/actions/entidades";
+import ExpedienteActionsToolbar from "@/app/components/ExpedienteActionsToolbar";
 
 const InlineCotizacionMap = dynamic(() => import("../../expedientes/[id]/components/InlineCotizacionMap"), { ssr: false });
 
@@ -20,6 +22,7 @@ export default function NuevaCotizacionPage() {
   const [isContactoModalOpen, setIsContactoModalOpen] = useState(false);
   const [fechaSalida, setFechaSalida] = useState<string>("");
   const [fechaRegreso, setFechaRegreso] = useState<string>("");
+  const [selectedPresupuestoId, setSelectedPresupuestoId] = useState<string | null>(null);
 
   // Summary Panel States
   const [summaryPlazas, setSummaryPlazas] = useState<number>(30);
@@ -193,6 +196,16 @@ export default function NuevaCotizacionPage() {
                   maxWidth: '50vw'
                 }}
               />
+              {cotizacion?.presupuesto_id && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedPresupuestoId(cotizacion.presupuesto_id)}
+                  style={{ background: "none", border: "none", color: "var(--primary-color, #4f46e5)", cursor: "pointer", display: "inline-flex", alignItems: "center", padding: 0 }}
+                  title="Ver presupuesto vinculado"
+                >
+                  <Link2 size={16} />
+                </button>
+              )}
               <div style={{ position: 'relative' }}>
                 <button
                   ref={destinoBtnRef}
@@ -253,22 +266,7 @@ export default function NuevaCotizacionPage() {
           </div>
 
           <div style={{ flexGrow: 1 }} />
-
-          {cotId && (
-            <button
-              onClick={() => router.push(`/propuestas/nueva?cotizacion_id=${cotId}`)}
-              style={{
-                display: "flex", alignItems: "center", gap: "0.4rem",
-                padding: "0.4rem 0.9rem", fontSize: "0.78rem", fontWeight: 600,
-                borderRadius: "0.5rem", border: "1.5px solid var(--primary-color, #475569)",
-                background: "color-mix(in srgb, var(--primary-color, #475569) 10%, white)",
-                color: "var(--primary-color, #475569)", cursor: "pointer", whiteSpace: "nowrap",
-              }}
-            >
-              <Icons.Add size={14} />
-              Crear propuesta
-            </button>
-          )}
+          {cotId && <ExpedienteActionsToolbar cotizacionId={cotId} />}
         </div>
       </header>
 
@@ -485,6 +483,11 @@ export default function NuevaCotizacionPage() {
         />
       )}
 
+      <PresupuestoDetalleDrawer
+        isOpen={!!selectedPresupuestoId}
+        onClose={() => setSelectedPresupuestoId(null)}
+        presupuestoId={selectedPresupuestoId || ""}
+      />
     </div>
   );
 }

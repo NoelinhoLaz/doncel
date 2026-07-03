@@ -83,7 +83,7 @@ async function getDefaultTipoId(agencyDb: any): Promise<string | null> {
     const agencyDb = await getAgencyDbClient();
     const { data, error } = await agencyDb
       .from("operativa_cotizaciones")
-      .select("*, contabilidad_entidades!contacto(id, nombre), operativa_cotizacion_lineas(id, tipo, descripcion, plazas, noches, neto, pvp, total_neto, total_pvp, checked, opcional, maestro_destinos(id, nombre, nombre_comercial, lat, lng), contabilidad_proveedores!proveedor(id, nombre), config_tipos_servicios(id, etiqueta, icono, contenido))")
+      .select("*, contabilidad_entidades!contacto(id, nombre), operativa_cotizacion_lineas(id, tipo, descripcion, plazas, noches, neto, pvp, total_neto, total_pvp, checked, opcional, maestro_destinos(id, nombre, nombre_comercial, lat, lng), contabilidad_proveedores!proveedor(id, nombre, email), config_tipos_servicios(id, etiqueta, icono, contenido))")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -210,7 +210,7 @@ export async function getCotizacionWithLineas(cotizacionId: string) {
 
     const { data: lineas, error: err2 } = await agencyDb
       .from("operativa_cotizacion_lineas")
-      .select("*, maestro_destinos(id, nombre, nombre_comercial, lat, lng, admin_area_l2, admin_area_l1), config_tipos_servicios(id, etiqueta, icono, contenido), contabilidad_proveedores!proveedor(id, nombre, razon_social)")
+      .select("*, maestro_destinos(id, nombre, nombre_comercial, lat, lng, admin_area_l2, admin_area_l1), config_tipos_servicios(id, etiqueta, icono, contenido), contabilidad_proveedores!proveedor(id, nombre, razon_social, email)")
       .eq("cotizacion_id", cotizacionId)
       .order("created_at", { ascending: true });
 
@@ -319,7 +319,7 @@ export async function createCotizacionLinea(payload: {
     const { data, error } = await agencyDb
       .from("operativa_cotizacion_lineas")
       .insert([insertObj])
-      .select("*, maestro_destinos(id, nombre, nombre_comercial, lat, lng, admin_area_l2, admin_area_l1), config_tipos_servicios(id, etiqueta, icono, contenido), contabilidad_proveedores!proveedor(id, nombre, razon_social)")
+      .select("*, maestro_destinos(id, nombre, nombre_comercial, lat, lng, admin_area_l2, admin_area_l1), config_tipos_servicios(id, etiqueta, icono, contenido), contabilidad_proveedores!proveedor(id, nombre, razon_social, email)")
       .single();
 
     if (error) throw error;
@@ -370,7 +370,7 @@ export async function updateCotizacionLinea(id: string, payload: {
       .from("operativa_cotizacion_lineas")
       .update(updatePayload)
       .eq("id", id)
-      .select("*, maestro_destinos(id, nombre, nombre_comercial, lat, lng, admin_area_l2, admin_area_l1), config_tipos_servicios(id, etiqueta, icono, contenido), contabilidad_proveedores!proveedor(id, nombre, razon_social)")
+      .select("*, maestro_destinos(id, nombre, nombre_comercial, lat, lng, admin_area_l2, admin_area_l1), config_tipos_servicios(id, etiqueta, icono, contenido), contabilidad_proveedores!proveedor(id, nombre, razon_social, email)")
       .single();
 
     if (error) throw error;

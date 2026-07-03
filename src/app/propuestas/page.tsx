@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getPropuestas, deletePropuesta } from "@/actions/propuestas";
-import { Plus, Search, Eye, Pencil, Trash2, FileText, Calendar, LayoutTemplate } from "lucide-react";
+import { getPropuestas, deletePropuesta, duplicarPropuesta } from "@/actions/propuestas";
+import { Plus, Search, Eye, Pencil, Trash2, Copy, FileText, Calendar, LayoutTemplate } from "lucide-react";
 import styles from "./page.module.css";
 
 interface Propuesta {
@@ -11,6 +11,11 @@ interface Propuesta {
   title: string;
   destination: string | null;
   created_at: string;
+  contacto_id?: string | null;
+  contabilidad_entidades?: {
+    id: string;
+    nombre: string;
+  } | null;
   landing?: {
     id: string;
     is_active: boolean;
@@ -51,7 +56,8 @@ export default function PropuestasPage() {
 
   const filtradas = propuestas.filter(p =>
     (p.title ?? "").toLowerCase().includes(busqueda.toLowerCase()) ||
-    (p.destination ?? "").toLowerCase().includes(busqueda.toLowerCase())
+    (p.destination ?? "").toLowerCase().includes(busqueda.toLowerCase()) ||
+    (p.contabilidad_entidades?.nombre ?? "").toLowerCase().includes(busqueda.toLowerCase())
   );
 
   const titulo = (p: Propuesta) => {
@@ -134,7 +140,12 @@ export default function PropuestasPage() {
                         <FileText size={14} />
                       </div>
                       <div>
-                        <div className={styles.titleMain}>{titulo(p)}</div>
+                        {p.contabilidad_entidades?.nombre && (
+                          <div style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.1rem" }}>
+                            {p.contabilidad_entidades.nombre}
+                          </div>
+                        )}
+                        <div className={styles.titleMain} style={{ fontWeight: 300 }}>{titulo(p)}</div>
                         {p.title && p.title !== titulo(p) && (
                           <div className={styles.titleSub}>{p.title}</div>
                         )}
@@ -176,6 +187,9 @@ export default function PropuestasPage() {
                       </button>
                       <button className={styles.actionBtn} title="Previsualizar" onClick={() => window.open(`/propuestas/${p.id}/preview`, "_blank")}>
                         <Eye size={14} />
+                      </button>
+                      <button className={styles.actionBtn} title="Duplicar" onClick={async () => { const r = await duplicarPropuesta(p.id); if (r.ok) cargar(); }}>
+                        <Copy size={14} />
                       </button>
                       <button
                         className={`${styles.actionBtn} ${styles.actionBtnDanger}`}

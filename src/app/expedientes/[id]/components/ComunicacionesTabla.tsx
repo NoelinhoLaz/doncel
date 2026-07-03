@@ -3,7 +3,8 @@
 import { useState } from "react";
 import {
   Mail, Users, Backpack, Megaphone, FileText,
-  Paperclip, CheckCheck, Check, AlertTriangle, Eye, ChevronRight,
+  Paperclip, CheckCheck, Check, AlertTriangle, Eye, ChevronRight, StickyNote,
+  ArrowUpRight, ArrowDownLeft,
 } from "lucide-react";
 import { ComunicacionDB, DestinatarioTracking, WhatsAppIcon, formatBytes } from "./comunicaciones.types";
 
@@ -46,6 +47,16 @@ export function EstadoBadge({ item }: { item: ComunicacionDB }) {
       <AlertTriangle size={11} /> Parcial
     </span>
   );
+
+  // Check if it is a received email
+  const isRecibido = item.destinatarios && item.destinatarios.some((d: any) => d.rol === "remitente");
+  if (isRecibido) {
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", background: "#f5f3ff", color: "#7c3aed", border: "1px solid #ddd6fe", borderRadius: "20px", padding: "0.2rem 0.6rem", fontSize: "0.72rem", fontWeight: "700" }}>
+        Recibido
+      </span>
+    );
+  }
 
   if (dests.length > 0) {
     const abiertos = dests.filter((d) => d.estado === "abierto").length;
@@ -138,6 +149,7 @@ export function FilaComunicacion({ item }: { item: ComunicacionDB }) {
     day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
   const tieneAdjuntos = item.adjuntos && item.adjuntos.length > 0;
+  const esRecibido = item.destinatarios?.some((d: any) => d.rol === "remitente");
 
   return (
     <>
@@ -147,18 +159,29 @@ export function FilaComunicacion({ item }: { item: ComunicacionDB }) {
         onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f8fafc"; }}
         onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = expandida ? "#f8fafc" : ""; }}
       >
-        <td style={{ width: "80px" }}>
-          {item.canal === "email" ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", background: "color-mix(in srgb, var(--primary-color,#475569), transparent 88%)", color: "var(--primary-color,#475569)", border: "1px solid color-mix(in srgb, var(--primary-color,#475569), transparent 70%)", borderRadius: "20px", padding: "0.2rem 0.55rem", fontSize: "0.7rem", fontWeight: "700" }}>
-              <Mail size={11} /> Email
-            </span>
-          ) : (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: "20px", padding: "0.2rem 0.55rem", fontSize: "0.7rem", fontWeight: "700" }}>
-              <WhatsAppIcon size={11} /> WA
-            </span>
-          )}
+        <td style={{ width: "56px", paddingLeft: "1rem", paddingRight: "0.25rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+            {item.canal === "email" ? (
+              <span title="Email" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, background: "color-mix(in srgb, var(--primary-color,#475569), transparent 88%)", color: "var(--primary-color,#475569)", border: "1px solid color-mix(in srgb, var(--primary-color,#475569), transparent 70%)", borderRadius: "50%" }}>
+                <Mail size={13} />
+              </span>
+            ) : item.canal === "nota" ? (
+              <span title="Nota interna" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, background: "#ede9fe", color: "#7c3aed", border: "1px solid #ddd6fe", borderRadius: "50%" }}>
+                <StickyNote size={13} />
+              </span>
+            ) : (
+              <span title="WhatsApp" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: "50%" }}>
+                <WhatsAppIcon size={13} />
+              </span>
+            )}
+            {item.canal !== "nota" && (
+              esRecibido
+                ? <ArrowDownLeft size={12} title="Recibido" style={{ color: "#7c3aed", flexShrink: 0 }} />
+                : <ArrowUpRight size={12} title="Enviado" style={{ color: "#64748b", flexShrink: 0 }} />
+            )}
+          </div>
         </td>
-        <td style={{ maxWidth: "200px" }} onClick={(e) => e.stopPropagation()}>
+        <td style={{ maxWidth: "200px", paddingLeft: "0.75rem", paddingRight: "0.75rem" }} onClick={(e) => e.stopPropagation()}>
           <DestinatariosCell item={item} />
         </td>
         <td style={{ maxWidth: "260px" }}>
@@ -269,5 +292,27 @@ export function FilaComunicacion({ item }: { item: ComunicacionDB }) {
         </tr>
       )}
     </>
+  );
+}
+
+export function ComunicacionesTabla({ items }: { items: ComunicacionDB[] }) {
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+      <thead>
+        <tr style={{ borderBottom: "1px solid #f1f5f9", background: "#fafafa" }}>
+          <th style={{ padding: "0.65rem 1rem", width: "40px" }}></th>
+          <th style={{ padding: "0.65rem 0.75rem", textAlign: "left", fontWeight: 700, fontSize: "0.7rem", color: "#64748b", textTransform: "uppercase" }}>Destinatario</th>
+          <th style={{ padding: "0.65rem 0.75rem", textAlign: "left", fontWeight: 700, fontSize: "0.7rem", color: "#64748b", textTransform: "uppercase" }}>Asunto / Mensaje</th>
+          <th style={{ padding: "0.65rem 0.75rem", textAlign: "left", fontWeight: 700, fontSize: "0.7rem", color: "#64748b", textTransform: "uppercase" }}>Adjuntos</th>
+          <th style={{ padding: "0.65rem 0.75rem", textAlign: "left", fontWeight: 700, fontSize: "0.7rem", color: "#64748b", textTransform: "uppercase" }}>Fecha</th>
+          <th style={{ padding: "0.65rem 1rem", textAlign: "left", fontWeight: 700, fontSize: "0.7rem", color: "#64748b", textTransform: "uppercase" }}>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map(item => (
+          <FilaComunicacion key={item.id} item={item} />
+        ))}
+      </tbody>
+    </table>
   );
 }

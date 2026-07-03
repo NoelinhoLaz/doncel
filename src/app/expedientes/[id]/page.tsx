@@ -2,10 +2,11 @@
 
 import styles from "./page.module.css";
 import { Icons } from "@/lib/icons";
-import { CheckCircle2, AlertCircle } from "lucide-react";
+import { CheckCircle2, AlertCircle, Receipt, Globe, Mail, Paperclip, FolderOpen } from "lucide-react";
 import Link from "next/link";
 import { useState, use, useEffect } from "react";
-import { getExpedienteById } from "@/actions/expedientes";
+import ExpedienteActionsToolbar from "@/app/components/ExpedienteActionsToolbar";
+import { getExpedienteById, getExpedienteLinksStatus } from "@/actions/expedientes";
 import { getCobrosByExpediente } from "@/actions/cobros";
 import { getMatchesPendientesPorExpediente, conciliarDesdeMovimientoBanco, conciliarIngresoTutor } from "@/actions/banco";
 
@@ -28,6 +29,7 @@ export default function ExpedienteDetailPage({ params }: { params: Promise<{ id:
   
   const [expediente, setExpediente] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [linksStatus, setLinksStatus] = useState({ hasCotizacion: false, hasPropuesta: false });
   const [cobrosData, setCobrosData] = useState<{ pagadores: any[]; movimientos?: any[]; movimientosBanco: any[] }>({ pagadores: [], movimientos: [], movimientosBanco: [] });
 
   // States for bank match detection modal
@@ -106,6 +108,10 @@ export default function ExpedienteDetailPage({ params }: { params: Promise<{ id:
         const data = await getExpedienteById(resolvedParams.id);
         setExpediente(data);
 
+        // Fetch links status
+        const links = await getExpedienteLinksStatus(resolvedParams.id);
+        setLinksStatus(links);
+
         // Fetch pending matches for this expediente
         const matches = await getMatchesPendientesPorExpediente(resolvedParams.id);
         if (matches && matches.length > 0) {
@@ -177,6 +183,8 @@ export default function ExpedienteDetailPage({ params }: { params: Promise<{ id:
           <p className={styles.reference}>{expediente?.numero ? `${expediente.numero} - ${expediente.referencia}` : expediente?.referencia}</p>
         </div>
           <div style={{ flexGrow: 1 }} />
+          
+          <ExpedienteActionsToolbar expedienteId={resolvedParams.id} />
         </div>
       </header>
 

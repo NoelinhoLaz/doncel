@@ -3,8 +3,10 @@
 import { useState, useEffect, useRef } from "react";
 import { Icons } from "@/lib/icons";
 import { Phone, Mail, MapPin, Check } from "lucide-react";
+import ExpedienteActionsToolbar from "@/app/components/ExpedienteActionsToolbar";
+import styles from "../expedientes/[id]/page.module.css";
 
-// ─── Tipos ───────────────────────────────────────────────────────────────────
+// --- Tipos -------------------------------------------------------------------
 
 type TipoPresupuesto = "vacacional" | "P2P" | "grupo";
 type TipoEntidad = "particular" | "organizacion";
@@ -16,7 +18,7 @@ interface ContactoForm {
   nombre: string; apellidos: string; cargo: string; email: string; telefono: string;
 }
 
-// ─── Estilos compartidos ─────────────────────────────────────────────────────
+// --- Estilos compartidos -----------------------------------------------------
 
 const inp: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", padding: "0.5rem 0.75rem",
@@ -39,7 +41,7 @@ const btnSecondary: React.CSSProperties = {
   background: "#fff", color: "#64748b",
 };
 
-// ─── Sub-componentes UI ──────────────────────────────────────────────────────
+// --- Sub-componentes UI ------------------------------------------------------
 
 function FL({ text, required }: { text: string; required?: boolean }) {
   return (
@@ -125,7 +127,7 @@ function Counter({ value, onChange, min = 0 }: { value: number; onChange: (v: nu
     <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
       <button type="button" onClick={() => onChange(Math.max(min, value - 1))}
         style={{ width: "1.6rem", height: "1.6rem", borderRadius: "50%", border: "1.5px solid #e2e8f0", background: "#fff", cursor: "pointer", fontWeight: 700, color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        −
+        -
       </button>
       <span style={{ minWidth: "1.5rem", textAlign: "center", fontWeight: 700, fontSize: "0.9rem", color: "#1e293b" }}>{value}</span>
       <button type="button" onClick={() => onChange(value + 1)}
@@ -173,7 +175,7 @@ function ChipSelect({ options, value, onChange }: {
   );
 }
 
-// ─── Buscador con autocomplete genérico ─────────────────────────────────────
+// --- Buscador con autocomplete generico -------------------------------------
 
 function AutocompleteInput({
   placeholder, value, onQueryChange, onSelect, onClear, items, renderItem, getLabel,
@@ -231,9 +233,73 @@ function AutocompleteInput({
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+function FooterActions({ step, step1Valid, step2Valid, saving, modoEdicion, onBack, onNext, onSubmit, pageMode }: {
+  step: number; step1Valid: boolean; step2Valid: boolean; saving: boolean; modoEdicion: boolean;
+  onBack: () => void; onNext: () => void; onSubmit: () => void; pageMode?: boolean;
+}) {
+  const nextDisabled = (step === 1 && !step1Valid) || (step === 2 && !step2Valid);
+  if (pageMode) {
+    return (
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", padding: "1.25rem 0 0.5rem", borderTop: "1px solid #e2e8f0", marginTop: "0.5rem" }}>
+        <button type="button" onClick={onBack} style={btnSecondary}>Cancelar</button>
+        <button type="button" disabled={saving} onClick={onSubmit} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
+          {saving ? "Guardando..." : (modoEdicion ? "Guardar cambios" : "Crear presupuesto")}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1rem 1.5rem", borderTop: "1px solid #f1f5f9", background: "#fafafa", borderRadius: "0 0 0.875rem 0.875rem" }}>
+      <button type="button" onClick={onBack} style={btnSecondary}>
+        {step === 1 ? "Cancelar" : "<- Atras"}
+      </button>
+      {step < 3 ? (
+        <button type="button" disabled={nextDisabled} onClick={onNext} style={{ ...btnPrimary, opacity: nextDisabled ? 0.5 : 1, cursor: nextDisabled ? "not-allowed" : "pointer" }}>
+          {"Siguiente ->"}
+        </button>
+      ) : (
+        <button type="button" disabled={saving} onClick={onSubmit} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
+          {saving ? "Guardando..." : (modoEdicion ? "Guardar cambios" : "Crear presupuesto")}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function StepsBar({ steps, step }: { steps: string[]; step: number }) {
+  return (
+    <div style={{ display: "flex", gap: 0, width: "100%" }}>
+      {steps.map((s, i) => {
+        const n = i + 1;
+        const done = n < step;
+        const active = n === step;
+        return (
+          <div key={s} style={{ display: "flex", alignItems: "center", flex: 1 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.25rem", flex: 1 }}>
+              <div style={{
+                width: "1.8rem", height: "1.8rem", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: "0.72rem", fontWeight: 700,
+                background: done ? "var(--primary-color, #475569)" : active ? "color-mix(in srgb, var(--primary-color, #475569) 12%, white)" : "#f1f5f9",
+                color: done ? "#fff" : active ? "var(--primary-color, #475569)" : "#94a3b8",
+                border: active ? "2px solid var(--primary-color, #475569)" : "2px solid transparent",
+              }}>
+                {done ? "v" : n}
+              </div>
+              <span style={{ fontSize: "0.65rem", fontWeight: active ? 700 : 500, color: active ? "var(--primary-color, #475569)" : "#94a3b8" }}>{s}</span>
+            </div>
+            {i < steps.length - 1 && (
+              <div style={{ height: "2px", flex: 1, background: done ? "var(--primary-color, #475569)" : "#e2e8f0", marginBottom: "1rem", marginTop: "0.25rem" }} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ===============================================================================
 // MODAL PRINCIPAL
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
 
 interface Props {
   onClose: () => void;
@@ -242,6 +308,7 @@ interface Props {
   oportunidadId?: string;
   oportunidadNombre?: string;
   campanaId?: string;
+  pageMode?: boolean;
 }
 
 const ENFOQUE_OPTS = [
@@ -250,26 +317,26 @@ const ENFOQUE_OPTS = [
   { value: "fin_curso",     label: "Fin de curso",  icon: <Icons.Star size={14} /> },
   { value: "idiomas",       label: "Idiomas",       icon: <Icons.Book size={14} /> },
   { value: "naturaleza",    label: "Naturaleza",    icon: <Icons.Mountain size={14} /> },
-  { value: "esqui",         label: "Esquí",         icon: <Icons.Mountain size={14} /> },
+  { value: "esqui",         label: "Esqui",         icon: <Icons.Mountain size={14} /> },
   { value: "intercambio",   label: "Intercambio",   icon: <Icons.Viajeros size={14} /> },
 ];
 
 const REGIMEN_OPTS = [
   { value: "sa", label: "Solo alojamiento" },
   { value: "ad", label: "A+D" },
-  { value: "mp", label: "Media pensión" },
-  { value: "pc", label: "Pensión completa" },
+  { value: "mp", label: "Media pension" },
+  { value: "pc", label: "Pension completa" },
 ];
 
 const HORARIO_VUELO_OPTS = [
-  { value: "manana",       label: "Mañana" },
+  { value: "manana",       label: "Manana" },
   { value: "tarde",        label: "Tarde" },
   { value: "noche",        label: "Noche" },
   { value: "indiferente",  label: "Indiferente" },
 ];
 
 const UBICACION_OPTS = [
-  { value: "centrico",   label: "Céntrico" },
+  { value: "centrico",   label: "Centrico" },
   { value: "periferia",  label: "Periferia" },
   { value: "5km",        label: "< 5 km" },
   { value: "10km",       label: "< 10 km" },
@@ -278,11 +345,11 @@ const UBICACION_OPTS = [
 
 const CATEGORIA_OPTS = [
   { value: "",   label: "Sin especificar" },
-  { value: "1",  label: "1 ★" },
-  { value: "2",  label: "2 ★★" },
-  { value: "3",  label: "3 ★★★" },
-  { value: "4",  label: "4 ★★★★" },
-  { value: "5",  label: "5 ★★★★★" },
+  { value: "1",  label: "1 *" },
+  { value: "2",  label: "2 **" },
+  { value: "3",  label: "3 ***" },
+  { value: "4",  label: "4 ****" },
+  { value: "5",  label: "5 *****" },
 ];
 
 const TIPO_ALOJ_OPTS = [
@@ -293,24 +360,24 @@ const TIPO_ALOJ_OPTS = [
 ];
 
 const VISITAS_PLACEHOLDER: Record<string, string> = {
-  cultural:   "Ej: Entradas al Coliseo y Vaticano con guía oficial...",
-  deportivo:  "Ej: Reserva de pabellón 10:00-12:00, partido contra equipo local...",
-  fin_curso:  "Ej: Parque temático, tarde libre en el casco histórico...",
-  idiomas:    "Ej: Actividades integradas con alumnos nativos, excursión el sábado...",
+  cultural:   "Ej: Entradas al Coliseo y Vaticano con guia oficial...",
+  deportivo:  "Ej: Reserva de pabellon 10:00-12:00, partido contra equipo local...",
+  fin_curso:  "Ej: Parque tematico, tarde libre en el casco historico...",
+  idiomas:    "Ej: Actividades integradas con alumnos nativos, excursion el sabado...",
   naturaleza: "Ej: Senderismo guiado, kayak, visita cueva...",
-  esqui:      "Ej: 4 días de forfait, 2h diarias de clases, alquiler de material...",
+  esqui:      "Ej: 4 dias de forfait, 2h diarias de clases, alquiler de material...",
   "":         "Ej: Visitas y actividades deseadas en el destino...",
 };
 
 const emptyContacto = (): ContactoForm => ({ nombre: "", apellidos: "", cargo: "", email: "", telefono: "" });
 
-export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto, oportunidadId: oportunidadIdProp, oportunidadNombre: oportunidadNombreProp, campanaId: campanaIdProp }: Props) {
+export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto, oportunidadId: oportunidadIdProp, oportunidadNombre: oportunidadNombreProp, campanaId: campanaIdProp, pageMode }: Props) {
   const modoEdicion = !!presupuesto;
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ── PASO 1: Prospecto ──────────────────────────────────────────────────────
+  // -- PASO 1: Prospecto ------------------------------------------------------
   const [entidades, setEntidades] = useState<Entidad[]>([]);
   const [entidadQuery, setEntidadQuery] = useState("");
   const [entidadId, setEntidadId] = useState<string | null>(null);
@@ -326,7 +393,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
   const [emailsOrg, setEmailsOrg] = useState<string[]>([""]);
   const [contactos, setContactos] = useState<ContactoForm[]>([emptyContacto()]);
 
-  // ── PASO 2: Viaje ──────────────────────────────────────────────────────────
+  // -- PASO 2: Viaje ----------------------------------------------------------
   const [destinos, setDestinos] = useState<Destino[]>([]);
   const [destinoQuery, setDestinoQuery] = useState("");
   const [destinosSelected, setDestinosSelected] = useState<Destino[]>([]);
@@ -338,7 +405,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
   const [tipoPres, setTipoPres] = useState<TipoPresupuesto | "">("");
   const [plazas, setPlazas] = useState("1");
 
-  // ── Vinculación CRM ────────────────────────────────────────────────────────
+  // -- Vinculacion CRM --------------------------------------------------------
   const origenBloqueado = !!(oportunidadIdProp || campanaIdProp);
   const [campanaId, setCampanaId] = useState<string>(campanaIdProp ?? presupuesto?.campana_id ?? "");
   const [oportunidadId, setOportunidadId] = useState<string>(oportunidadIdProp ?? presupuesto?.oportunidad_id ?? "");
@@ -355,7 +422,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
   const [noches, setNoches] = useState("");
   const [pvp, setPvp] = useState("");
 
-  // ── PASO 3: Preferencias ───────────────────────────────────────────────────
+  // -- PASO 3: Preferencias ---------------------------------------------------
   const [enfoques, setEnfoques] = useState<string[]>([]);
   const [tipoAloj, setTipoAloj] = useState<string[]>(["hotel"]);
   const [categoria, setCategoria] = useState<string[]>(["3"]);
@@ -392,7 +459,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
     }
   }, []);
 
-  // Precarga entidad desde oportunidad cuando se abre desde campaña (sin presupuesto existente)
+  // Precarga entidad desde oportunidad cuando se abre desde campana (sin presupuesto existente)
   useEffect(() => {
     if (!oportunidadIdProp || presupuesto) return;
     fetch(`/api/oportunidades/detalle?id=${oportunidadIdProp}`)
@@ -415,7 +482,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
       }).catch(() => {});
   }, [oportunidadIdProp]);
 
-  // Precarga en modo edición
+  // Precarga en modo edicion
   useEffect(() => {
     if (!presupuesto) return;
     const p = presupuesto;
@@ -483,7 +550,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Cargar oportunidades cuando cambia la campaña seleccionada
+  // Cargar oportunidades cuando cambia la campana seleccionada
   useEffect(() => {
     if (!campanaId || origenBloqueado) return;
     const q = oportunidadQuery.trim();
@@ -493,7 +560,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
     fetch(url).then(r => r.json()).then(j => { if (j?.success) setOportunidades(j.data || []); }).catch(() => {});
   }, [campanaId, oportunidadQuery]);
 
-  // Búsqueda de entidades en servidor con debounce (mínimo 3 caracteres)
+  // Busqueda de entidades en servidor con debounce (minimo 3 caracteres)
   useEffect(() => {
     const q = entidadQuery.trim();
     if (q.length > 0 && q.length < 3) return;
@@ -624,73 +691,58 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
     }
   }
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // --- Render ---------------------------------------------------------------
 
   const STEPS = ["Prospecto", "Viaje", "Preferencias"];
 
-  return (
-    <>
+  function renderContent() {
+    return (
     <div style={{
-      position: "fixed", inset: 0, zIndex: 9999,
-      background: "rgba(15,23,42,0.55)", backdropFilter: "blur(4px)",
-      display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem",
-    }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{
-        background: "#fff", borderRadius: "0.875rem", width: "100%", maxWidth: "620px",
-        boxShadow: "0 20px 48px -8px rgba(0,0,0,0.25)",
-        display: "flex", flexDirection: "column", maxHeight: "92vh", overflow: "hidden",
-      }}>
+      background: pageMode ? "transparent" : "#fff",
+      borderRadius: pageMode ? "0" : "0.875rem",
+      width: "100%",
+      maxWidth: pageMode ? "none" : "620px",
+      boxShadow: pageMode ? "none" : "0 20px 48px -8px rgba(0,0,0,0.25)",
+      display: "flex", flexDirection: "column",
+      maxHeight: pageMode ? "none" : "92vh",
+      overflow: pageMode ? "visible" : "hidden",
+    }}>
 
         {/* Header */}
-        <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #f1f5f9" }}>
+        {!pageMode && <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #f1f5f9" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
               <Icons.Presupuestos size={18} style={{ color: "var(--primary-color, #475569)" }} />
               <span style={{ fontWeight: 700, fontSize: "1rem", color: "#1e293b" }}>{modoEdicion ? "Editar presupuesto" : "Nuevo presupuesto"}</span>
             </div>
-            <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex", padding: "0.2rem" }}>
-              <Icons.Close size={18} />
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+              {modoEdicion && presupuesto?.id && (
+                <ExpedienteActionsToolbar cotizacionId={presupuesto.id} />
+              )}
+              <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex", padding: "0.2rem" }}>
+                <Icons.Close size={18} />
+              </button>
+            </div>
           </div>
           {/* Steps */}
-          <div style={{ display: "flex", gap: 0, width: "100%" }}>
-            {STEPS.map((s, i) => {
-              const n = i + 1;
-              const done = n < step;
-              const active = n === step;
-              return (
-                <div key={s} style={{ display: "flex", alignItems: "center", flex: 1 }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.25rem", flex: 1 }}>
-                    <div style={{
-                      width: "1.8rem", height: "1.8rem", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: "0.72rem", fontWeight: 700,
-                      background: done ? "var(--primary-color, #475569)" : active ? "color-mix(in srgb, var(--primary-color, #475569) 12%, white)" : "#f1f5f9",
-                      color: done ? "#fff" : active ? "var(--primary-color, #475569)" : "#94a3b8",
-                      border: active ? "2px solid var(--primary-color, #475569)" : "2px solid transparent",
-                    }}>
-                      {done ? "✓" : n}
-                    </div>
-                    <span style={{ fontSize: "0.65rem", fontWeight: active ? 700 : 500, color: active ? "var(--primary-color, #475569)" : "#94a3b8" }}>{s}</span>
-                  </div>
-                  {i < STEPS.length - 1 && (
-                    <div style={{ height: "2px", flex: 1, background: done ? "var(--primary-color, #475569)" : "#e2e8f0", marginBottom: "1rem", marginTop: "0.25rem" }} />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+          <StepsBar steps={STEPS} step={step} />
+        </div>}
 
         {/* Body */}
-        <div style={{ overflowY: "auto", flex: 1, padding: "1.5rem", paddingBottom: "2rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+        <div
+          className={pageMode ? styles.formColumnsGrid : undefined}
+          style={pageMode ? undefined : { overflowY: "auto", flex: 1, padding: "1.5rem", paddingBottom: "2rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}
+        >
 
-          {/* ══ PASO 1 ══════════════════════════════════════════════════════ */}
-          {step === 1 && (
+          {/* PASO 1 */}
+          {(pageMode || step === 1) && (
+            <div style={pageMode ? { display: "flex", flexDirection: "column", gap: "1.25rem", background: "#fff", borderRadius: "0.75rem", border: "1px solid #e2e8f0", padding: "1.25rem", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" } : {}}>
+            {pageMode && <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--primary-color, #475569)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.25rem" }}>1. Prospecto</div>}
             <>
-              {/* 1A — Selector de campaña */}
+              {/* 1A - Selector de campa-a */}
               {!origenBloqueado && (
                 <div>
-                  <FL text="Campaña" />
+                  <FL text="Campana" />
                   <select value={campanaId} onChange={e => {
                     setCampanaId(e.target.value);
                     setOportunidadId(""); setOportunidadNombre("");
@@ -698,7 +750,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                     setEntidadId(null); setEntidadNombre(""); setEntidadDetalle(null); setResponsableId(null);
                     setCrearEntidad(false);
                   }} style={inp}>
-                    <option value="">— Sin campaña —</option>
+                    <option value="">- Sin campana -</option>
                     {campanas.map((c: any) => (
                       <option key={c.id} value={c.id}>{c.nombre}</option>
                     ))}
@@ -715,18 +767,18 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                 </div>
               )}
 
-              {/* 1B — Buscar prospecto (solo si no viene vinculado a oportunidad) */}
+              {/* 1B - Buscar prospecto (solo si no viene vinculado a oportunidad) */}
               {origenBloqueado && !entidadId && (
                 <div style={{ textAlign: "center", padding: "1rem", color: "#94a3b8", fontSize: "0.8rem" }}>
-                  Cargando datos del prospecto…
+                  Cargando datos del prospecto...
                 </div>
               )}
               {!origenBloqueado && !crearEntidad && (
                 <>
                   <div>
-                    <FL text={campanaId ? "Buscar prospecto en la campaña" : "Buscar cliente / entidad"} required />
+                    <FL text={campanaId ? "Buscar prospecto en la campana" : "Buscar cliente / entidad"} required />
                     {campanaId ? (
-                      // Buscar dentro de la campaña (oportunidades)
+                      // Buscar dentro de la campana (oportunidades)
                       <AutocompleteInput
                         placeholder="Nombre del colegio, empresa o cliente..."
                         value={entidadNombre}
@@ -792,7 +844,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                         getLabel={e => e.nombre}
                         renderItem={e => {
                           const r = e.roles ?? {};
-                          const tipo = r.prospecto ? "Prospecto" : r.organizacion ? "Organización" : r.cliente ? "Cliente" : r.viajero ? "Viajero" : null;
+                          const tipo = r.prospecto ? "Prospecto" : r.organizacion ? "Organizacion" : r.cliente ? "Cliente" : r.viajero ? "Viajero" : null;
                           return (
                             <>
                               <span style={{ fontWeight: 600, fontSize: "0.82rem" }}>{e.nombre}</span>
@@ -807,14 +859,14 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                     )}
                   </div>
 
-                  {/* Aviso: no encontrado en campaña → buscar en entidades */}
+                  {/* Aviso: no encontrado en campa-a -> buscar en entidades */}
                   {campanaId && prospectoEnCampana === false && !entidadId && (
                     <div style={{ background: "#fffbeb", border: "1.5px solid #fcd34d", borderRadius: "0.6rem", padding: "0.75rem 1rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                       <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "#92400e" }}>
-                        ⚠ No encontrado en esta campaña
+                        ! No encontrado en esta campana
                       </div>
                       <div style={{ fontSize: "0.73rem", color: "#78350f" }}>
-                        El prospecto no tiene oportunidades en esta campaña. Puedes buscarlo en todas las entidades o crear uno nuevo.
+                        El prospecto no tiene oportunidades en esta campana. Puedes buscarlo en todas las entidades o crear uno nuevo.
                       </div>
                       <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
                         <button type="button" onClick={() => { setProspectoEnCampana(null); setCampanaId(""); }}
@@ -838,12 +890,12 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                 const dirTexto = [dir.calle, dir.ciudad, dir.provincia, dir.pais].filter(Boolean).join(", ");
                 const tipoCentro = d.metadatos?.tipo_centro;
                 const roles = d.roles ?? {};
-                const tipoLabel = roles.prospecto ? "Prospecto" : roles.organizacion ? "Organización" : roles.cliente ? "Cliente" : null;
+                const tipoLabel = roles.prospecto ? "Prospecto" : roles.organizacion ? "Organizacion" : roles.cliente ? "Cliente" : null;
 
                 return (
                   <div style={{ border: "1.5px solid color-mix(in srgb, var(--primary-color, #475569) 30%, white)", borderRadius: "0.65rem", overflow: "hidden" }}>
 
-                    {/* ── Cabecera entidad ── */}
+                    {/* -- Cabecera entidad -- */}
                     <div style={{ background: "linear-gradient(135deg,color-mix(in srgb, var(--primary-color, #475569) 12%, white),color-mix(in srgb, var(--primary-color, #475569) 8%, white))", padding: "0.85rem 1rem", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
@@ -871,7 +923,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                       </button>
                     </div>
 
-                    {/* ── Responsables ── */}
+                    {/* -- Responsables -- */}
                     <div style={{ padding: "0.75rem 1rem" }}>
                       <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
                         Responsable del viaje
@@ -922,7 +974,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
 
                       <button type="button" onClick={() => setNuevoResponsable(true)}
                         style={{ ...btnSecondary, fontSize: "0.75rem", marginTop: "0.5rem", padding: "0.3rem 0.7rem", alignSelf: "flex-start" }}>
-                        + Añadir responsable
+                        + Anadir responsable
                       </button>
                     </div>
                   </div>
@@ -936,7 +988,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                   color: crearEntidad ? "var(--primary-color, #475569)" : "#64748b",
                   borderColor: crearEntidad ? "var(--primary-color, #475569)" : "#e2e8f0",
                 }}>
-                  {crearEntidad ? "↩ Buscar existente" : "+ No existe, crear nuevo"}
+                  {crearEntidad ? "<- Buscar existente" : "+ No existe, crear nuevo"}
                 </button>
               )}
 
@@ -947,7 +999,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                   <div>
                     <FL text="Tipo de cliente" required />
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-                      {[{ v: "particular" as TipoEntidad, l: "Particular" }, { v: "organizacion" as TipoEntidad, l: "Organización" }].map(o => (
+                      {[{ v: "particular" as TipoEntidad, l: "Particular" }, { v: "organizacion" as TipoEntidad, l: "Organizacion" }].map(o => (
                         <CardBtn key={o.v} active={tipoEntidad === o.v} onClick={() => setTipoEntidad(o.v)}>
                           {o.l}
                         </CardBtn>
@@ -959,13 +1011,13 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                   <div>
                     <FL text="Nombre" required />
                     <input value={nuevaEntidadNombre} onChange={e => setNuevaEntidadNombre(e.target.value)} style={inp}
-                      placeholder={tipoEntidad === "organizacion" ? "Colegio San Viator" : "Juan García López"} />
+                      placeholder={tipoEntidad === "organizacion" ? "Colegio San Viator" : "Juan Garcia Lopez"} />
                   </div>
 
-                  {/* Emails organización */}
+                  {/* Emails organizaci-n */}
                   {tipoEntidad === "organizacion" && (
                     <div>
-                      <FL text="Emails de la organización" />
+                      <FL text="Emails de la organizacion" />
                       <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
                         {emailsOrg.map((em, i) => (
                           <div key={i} style={{ display: "flex", gap: "0.4rem" }}>
@@ -981,7 +1033,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                         ))}
                         <button type="button" onClick={() => setEmailsOrg(prev => [...prev, ""])}
                           style={{ ...btnSecondary, fontSize: "0.75rem", alignSelf: "flex-start", padding: "0.3rem 0.7rem" }}>
-                          + Añadir email
+                          + Anadir email
                         </button>
                       </div>
                     </div>
@@ -1004,33 +1056,33 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                           )}
                           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem" }}>
                             <div><FL text="Nombre" required /><input value={c.nombre} onChange={e => setContactos(p => p.map((x, j) => j === i ? { ...x, nombre: e.target.value } : x))} style={inp} placeholder="Carlos" /></div>
-                            <div><FL text="Apellidos" /><input value={c.apellidos} onChange={e => setContactos(p => p.map((x, j) => j === i ? { ...x, apellidos: e.target.value } : x))} style={inp} placeholder="García López" /></div>
+                            <div><FL text="Apellidos" /><input value={c.apellidos} onChange={e => setContactos(p => p.map((x, j) => j === i ? { ...x, apellidos: e.target.value } : x))} style={inp} placeholder="Garcia Lopez" /></div>
                           </div>
-                          <div><FL text="Cargo" /><input value={c.cargo} onChange={e => setContactos(p => p.map((x, j) => j === i ? { ...x, cargo: e.target.value } : x))} style={inp} placeholder="Profesor organizador 4º ESO" /></div>
+                          <div><FL text="Cargo" /><input value={c.cargo} onChange={e => setContactos(p => p.map((x, j) => j === i ? { ...x, cargo: e.target.value } : x))} style={inp} placeholder="Profesor organizador 4o ESO" /></div>
                           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem" }}>
                             <div><FL text="Email" /><input value={c.email} onChange={e => setContactos(p => p.map((x, j) => j === i ? { ...x, email: e.target.value } : x))} style={inp} placeholder="carlos@colegio.com" type="email" /></div>
-                            <div><FL text="Teléfono" /><input value={c.telefono} onChange={e => setContactos(p => p.map((x, j) => j === i ? { ...x, telefono: e.target.value } : x))} style={inp} placeholder="600 112 233" /></div>
+                            <div><FL text="Telefono" /><input value={c.telefono} onChange={e => setContactos(p => p.map((x, j) => j === i ? { ...x, telefono: e.target.value } : x))} style={inp} placeholder="600 112 233" /></div>
                           </div>
                         </div>
                       ))}
                       {tipoEntidad === "organizacion" && (
                         <button type="button" onClick={() => setContactos(prev => [...prev, emptyContacto()])}
                           style={{ ...btnSecondary, fontSize: "0.75rem", alignSelf: "flex-start", padding: "0.3rem 0.7rem" }}>
-                          + Añadir otro contacto
+                          + Anadir otro contacto
                         </button>
                       )}
                     </div>
                   </div>
                 </div>
               )}
-              {/* Vinculación CRM — bloque legacy eliminado; ahora gestionado arriba en 1A */}
+              {/* Vinculaci-n CRM - bloque legacy eliminado; ahora gestionado arriba en 1A */}
               {false && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", background: "#fafbff", border: "1px solid #e0e7ff", borderRadius: "0.6rem", padding: "0.9rem 1rem" }}>
-                  <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--primary-color, #475569)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Vinculación CRM <span style={{ fontWeight: 400, color: "#94a3b8" }}>(opcional)</span></div>
+                  <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--primary-color, #475569)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Vinculacion CRM <span style={{ fontWeight: 400, color: "#94a3b8" }}>(opcional)</span></div>
                   <div>
-                    <FL text="Campaña" />
+                    <FL text="Campana" />
                     <select value={campanaId} onChange={e => { setCampanaId(e.target.value); setOportunidadId(""); setOportunidadNombre(""); setOportunidades([]); }} style={inp}>
-                      <option value="">— Sin campaña —</option>
+                      <option value="">- Sin campana -</option>
                       {campanas.map((c: any) => (
                         <option key={c.id} value={c.id}>{c.nombre}</option>
                       ))}
@@ -1087,10 +1139,13 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                 </div>
               )}
             </>
+            </div>
           )}
 
-          {/* ══ PASO 2 ══════════════════════════════════════════════════════ */}
-          {step === 2 && (
+          {/* PASO 2 */}
+          {(pageMode || step === 2) && (
+            <div style={pageMode ? { display: "flex", flexDirection: "column", gap: "1.25rem", background: "#fff", borderRadius: "0.75rem", border: "1px solid #e2e8f0", padding: "1.25rem", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" } : {}}>
+            {pageMode && <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--primary-color, #475569)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.25rem" }}>2. Viaje</div>}
             <>
               {/* Tipo de presupuesto */}
               <div>
@@ -1110,17 +1165,17 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                 </div>
               </div>
 
-              {/* Título + plazas */}
+              {/* T-tulo + plazas */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: "0.75rem" }}>
                 <div>
-                  <FL text="Título del viaje" required />
+                  <FL text="Titulo del viaje" required />
                   <input value={titulo} onChange={e => setTitulo(e.target.value)} style={inp}
-                    placeholder={tipoPres === "grupo" ? "Fin de curso Roma 4º ESO – Colegio X" : "Japón a medida primavera 2026"} maxLength={255} />
+                    placeholder={tipoPres === "grupo" ? "Fin de curso Roma 4o ESO - Colegio X" : "Japon a medida primavera 2026"} maxLength={255} />
                 </div>
                 <div>
                   <FL text="Plazas" required />
                   <input type="number" min={minPlazas} value={plazas} onChange={e => setPlazas(e.target.value)} style={inp} />
-                  {tipoPres === "grupo" && <span style={{ fontSize: "0.65rem", color: "#94a3b8" }}>Mín. {minPlazas}</span>}
+                  {tipoPres === "grupo" && <span style={{ fontSize: "0.65rem", color: "#94a3b8" }}>Min. {minPlazas}</span>}
                 </div>
               </div>
 
@@ -1177,7 +1232,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                     {!searchingNominatim && nominatimResults.length > 0 && (
                       <div style={{ border: "1px solid #e2e8f0", borderRadius: "0.5rem", overflow: "hidden", boxShadow: "0 4px 12px rgba(0,0,0,0.07)" }}>
                         <div style={{ padding: "0.35rem 0.75rem", fontSize: "0.65rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #f1f5f9", background: "#fafafa" }}>
-                          Resultados de OpenStreetMap — se añadirán a tu base de datos
+                          Resultados de OpenStreetMap - se anadiran a tu base de datos
                         </div>
                         {nominatimResults.map((r, i) => (
                           <DI key={i} onClick={async () => {
@@ -1215,16 +1270,16 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
               {/* Noches + PVP */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                 <div>
-                  <FL text="Nº de noches" />
+                  <FL text="No de noches" />
                   <select value={noches} onChange={e => setNoches(e.target.value)} style={inp}>
-                    <option value="">— sin definir —</option>
+                    <option value="">- sin definir -</option>
                     {[2,3,4,5,6,7,8,9,10,11,12,13,14].map(n => (
                       <option key={n} value={String(n)}>{n} noches</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <FL text="Presupuesto máx. por viajero (€)" />
+                  <FL text="Presupuesto max. por viajero (EUR)" />
                   <input type="number" min="0" step="10" value={pvp} onChange={e => setPvp(e.target.value)} style={inp} placeholder="650" />
                 </div>
               </div>
@@ -1236,9 +1291,9 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                   <input type="date" value={fechaSalida} onChange={e => setFechaSalida(e.target.value)} style={{ ...inp, marginBottom: "0.35rem" }} />
                   <select value={margenSalida} onChange={e => setMargenSalida(e.target.value)} style={{ ...inp, fontSize: "0.72rem", color: "#64748b" }}>
                     <option value="0">Fecha exacta</option>
-                    <option value="1">± 1 día</option>
-                    <option value="2">± 2 días</option>
-                    <option value="5">± 5 días</option>
+                    <option value="1">+/- 1 dia</option>
+                    <option value="2">+/- 2 dias</option>
+                    <option value="5">+/- 5 dias</option>
                   </select>
                 </div>
                 <div>
@@ -1246,17 +1301,20 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                   <input type="date" value={fechaRegreso} onChange={e => setFechaRegreso(e.target.value)} style={{ ...inp, marginBottom: "0.35rem" }} />
                   <select value={margenRegreso} onChange={e => setMargenRegreso(e.target.value)} style={{ ...inp, fontSize: "0.72rem", color: "#64748b" }}>
                     <option value="0">Fecha exacta</option>
-                    <option value="1">± 1 día</option>
-                    <option value="2">± 2 días</option>
-                    <option value="5">± 5 días</option>
+                    <option value="1">+/- 1 dia</option>
+                    <option value="2">+/- 2 dias</option>
+                    <option value="5">+/- 5 dias</option>
                   </select>
                 </div>
               </div>
             </>
+            </div>
           )}
 
-          {/* ══ PASO 3 ══════════════════════════════════════════════════════ */}
-          {step === 3 && (
+          {/* PASO 3 */}
+          {(pageMode || step === 3) && (
+            <div style={pageMode ? { display: "flex", flexDirection: "column", gap: "1.25rem", background: "#fff", borderRadius: "0.75rem", border: "1px solid #e2e8f0", padding: "1.25rem", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" } : {}}>
+            {pageMode && <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--primary-color, #475569)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.25rem" }}>3. Preferencias</div>}
             <>
               {/* Enfoque del viaje */}
               <div style={{ background: "#fafbff", border: "1px solid #e0e7ff", borderRadius: "0.6rem", padding: "0.9rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
@@ -1299,7 +1357,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                 </div>
 
                 <div>
-                  <FL text="Categoría" />
+                  <FL text="Categoria" />
                   <MultiChip
                     options={CATEGORIA_OPTS.filter(o => o.value)}
                     selected={categoria}
@@ -1308,7 +1366,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                 </div>
 
                 <div>
-                  <FL text="Régimen de comidas" />
+                  <FL text="Regimen de comidas" />
                   <MultiChip
                     options={REGIMEN_OPTS}
                     selected={regimen}
@@ -1317,7 +1375,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                 </div>
 
                 <div>
-                  <FL text="Ubicación" />
+                  <FL text="Ubicacion" />
                   <MultiChip
                     options={UBICACION_OPTS}
                     selected={[ubicacion]}
@@ -1326,13 +1384,13 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                 </div>
 
                 <div>
-                  <FL text="Preferencia de habitación" />
+                  <FL text="Preferencia de habitacion" />
                   <MultiChip
                     options={[
                       { value: "individual", label: "Individual" },
                       { value: "doble", label: "Doble" },
                       { value: "triple", label: "Triple" },
-                      { value: "cuadruple", label: "Cuádruple+" },
+                      { value: "cuadruple", label: "Cuadruple+" },
                     ]}
                     selected={prefHab}
                     onToggle={v => setPrefHab(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])}
@@ -1346,7 +1404,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                 <Toggle value={vuelo} onChange={setVuelo} label="Requiere vuelo" />
                 {vuelo && (
                   <div style={{ paddingLeft: "2.8rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    <FL text="Tipo de aerolínea" />
+                    <FL text="Tipo de aerolinea" />
                     <ChipSelect
                       options={[
                         { value: "indiferente", label: "Indiferente" },
@@ -1368,48 +1426,48 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
 
               {/* Programa */}
               <div style={{ background: "#fafbff", border: "1px solid #e0e7ff", borderRadius: "0.6rem", padding: "0.9rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--primary-color, #475569)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Programa y calificación</span>
+                <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--primary-color, #475569)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Programa y calificacion</span>
 
                 <Toggle value={conoceDestino} onChange={setConoceDestino} label="El cliente conoce el destino" />
 
                 {(enfoques.includes("fin_curso") || enfoques.includes("idiomas")) && (
-                  <Toggle value={monitores} onChange={setMonitores} label="Requiere monitores acompañantes 24h" />
+                  <Toggle value={monitores} onChange={setMonitores} label="Requiere monitores acompanantes 24h" />
                 )}
 
                 <div>
                   <FL text="Visitas e itinerario deseado" />
                   <textarea value={visitas} onChange={e => setVisitas(e.target.value)} rows={3}
                     style={{ ...inp, resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }}
-                    placeholder={VISITAS_PLACEHOLDER[enfoques[0]] ?? VISITAS_PLACEHOLDER[""]} />
+                    placeholder={VISITAS_PLACEHOLDER[enfoques[0]] ?? VISITAS_PLACEHOLDER[""]}></textarea>
                 </div>
               </div>
 
-              {/* Viaje año pasado */}
+              {/* Viaje a-o pasado */}
               <div style={{ background: "#fafbff", border: "1px solid #e0e7ff", borderRadius: "0.6rem", padding: "0.9rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                 <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--primary-color, #475569)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Historial de viaje</span>
-                <Toggle value={viajaronAnoPasado} onChange={setViajaronAnoPasado} label="¿Viajaron el año pasado?" />
+                <Toggle value={viajaronAnoPasado} onChange={setViajaronAnoPasado} label="Viajaron el ano pasado?" />
                 {viajaronAnoPasado && (
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem", paddingLeft: "2.8rem" }}>
                     <div>
                       <FL text="Destino" />
-                      <input value={viajeAnterior.destino} onChange={e => setViajeAnterior(p => ({ ...p, destino: e.target.value }))} style={inp} placeholder="Ej. París, Roma, Londres…" />
+                      <input value={viajeAnterior.destino} onChange={e => setViajeAnterior(p => ({ ...p, destino: e.target.value }))} style={inp} placeholder="Ej. Paris, Roma, Londres..." />
                     </div>
                     <div>
                       <FL text="Fechas" />
-                      <input value={viajeAnterior.fechas} onChange={e => setViajeAnterior(p => ({ ...p, fechas: e.target.value }))} style={inp} placeholder="Ej. 15–22 marzo 2024" />
+                      <input value={viajeAnterior.fechas} onChange={e => setViajeAnterior(p => ({ ...p, fechas: e.target.value }))} style={inp} placeholder="Ej. 15-22 marzo 2024" />
                     </div>
                     <div>
                       <FL text="Agencia contratada" />
-                      <input value={viajeAnterior.agencia} onChange={e => setViajeAnterior(p => ({ ...p, agencia: e.target.value }))} style={inp} placeholder="Ej. Viajes El Corte Inglés, agencia local…" />
+                      <input value={viajeAnterior.agencia} onChange={e => setViajeAnterior(p => ({ ...p, agencia: e.target.value }))} style={inp} placeholder="Ej. Viajes El Corte Ingles, agencia local..." />
                     </div>
                     <div>
                       <FL text="Excursiones / actividades" />
                       <textarea value={viajeAnterior.excursiones} onChange={e => setViajeAnterior(p => ({ ...p, excursiones: e.target.value }))} rows={2}
                         style={{ ...inp, resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }}
-                        placeholder="Ej. Visita Coliseo, tour en barco, noche flamenca…" />
+                        placeholder="Ej. Visita Coliseo, tour en barco, noche flamenca..."></textarea>
                     </div>
                     <div>
-                      <FL text="Valoración del viaje anterior" />
+                      <FL text="Valoracion del viaje anterior" />
                       <ChipSelect
                         options={[
                           { value: "muy_satisfecho", label: "Muy satisfecho" },
@@ -1425,49 +1483,52 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                 )}
               </div>
             </>
+            </div>
           )}
 
           {error && (
-            <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: "0.5rem", padding: "0.75rem 1rem", fontSize: "0.82rem", color: "#dc2626" }}>
+            <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: "0.5rem", padding: "0.75rem 1rem", fontSize: "0.82rem", color: "#dc2626", ...(pageMode ? { gridColumn: "1 / -1" } : {}) }}>
               {error}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div style={{
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-          padding: "1rem 1.5rem", borderTop: "1px solid #f1f5f9", background: "#fafafa",
-          borderRadius: "0 0 0.875rem 0.875rem",
-        }}>
-          <button type="button" onClick={() => step > 1 ? setStep(s => s - 1) : onClose()} style={btnSecondary}>
-            {step === 1 ? "Cancelar" : "← Atrás"}
-          </button>
-
-          {step < 3 ? (
-            <button type="button"
-              disabled={(step === 1 && !step1Valid) || (step === 2 && !step2Valid)}
-              onClick={() => setStep(s => s + 1)}
-              style={{
-                ...btnPrimary,
-                opacity: (step === 1 && !step1Valid) || (step === 2 && !step2Valid) ? 0.5 : 1,
-                cursor: (step === 1 && !step1Valid) || (step === 2 && !step2Valid) ? "not-allowed" : "pointer",
-              }}>
-              Siguiente →
-            </button>
-          ) : (
-            <button type="button" disabled={saving} onClick={handleSubmit} style={{
-              ...btnPrimary, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer",
-            }}>
-              {saving ? "Guardando..." : <><Check size={14} style={{ marginRight: "0.3rem" }}/>{modoEdicion ? "Guardar cambios" : "Crear presupuesto"}</>}
-            </button>
-          )}
-        </div>
-      </div>
+        <FooterActions
+          step={step}
+          step1Valid={step1Valid}
+          step2Valid={step2Valid}
+          saving={saving}
+          modoEdicion={modoEdicion}
+          pageMode={pageMode}
+          onBack={() => { if (step > 1) setStep(s => s - 1); else onClose(); }}
+          onNext={() => setStep(s => s + 1)}
+          onSubmit={handleSubmit}
+        />
     </div>
+    );
+  }
 
-    {/* ── Modal: Nuevo responsable ── */}
-    {nuevoResponsable && (
+  const innerContent = renderContent();
+
+  return (
+    <>
+      {pageMode ? (
+        <div style={{ width: "100%" }}>
+          {innerContent}
+        </div>
+      ) : (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 9999,
+          background: "rgba(15,23,42,0.55)", backdropFilter: "blur(4px)",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem",
+        }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+          {innerContent}
+        </div>
+      )}
+
+      {/* -- Modal: Nuevo responsable -- */}
+      {nuevoResponsable && (
       <div style={{
         position: "fixed", inset: 0, zIndex: 10000,
         background: "rgba(15,23,42,0.45)", backdropFilter: "blur(2px)",
@@ -1479,7 +1540,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
         }}>
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1rem 1.25rem", borderBottom: "1px solid #f1f5f9" }}>
-            <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "#1e293b" }}>Añadir responsable</span>
+            <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "#1e293b" }}>Anadir responsable</span>
             <button type="button" onClick={() => { setNuevoResponsable(false); setNuevoResp(emptyContacto()); }}
               style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex" }}>
               <Icons.Close size={18} />
@@ -1490,7 +1551,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
           <div style={{ padding: "1.25rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
               <div><FL text="Nombre" required /><input value={nuevoResp.nombre} onChange={e => setNuevoResp(p => ({ ...p, nombre: e.target.value }))} style={inp} placeholder="Carlos" /></div>
-              <div><FL text="Apellidos" /><input value={nuevoResp.apellidos} onChange={e => setNuevoResp(p => ({ ...p, apellidos: e.target.value }))} style={inp} placeholder="García López" /></div>
+              <div><FL text="Apellidos" /><input value={nuevoResp.apellidos} onChange={e => setNuevoResp(p => ({ ...p, apellidos: e.target.value }))} style={inp} placeholder="Garcia Lopez" /></div>
             </div>
             <div><FL text="Cargo" /><input value={nuevoResp.cargo} onChange={e => setNuevoResp(p => ({ ...p, cargo: e.target.value }))} style={inp} placeholder="Profesor organizador" /></div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
@@ -1501,7 +1562,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                   <Icons.Warning size={11} /> Email personal, no el del centro
                 </span>
               </div>
-              <div><FL text="Teléfono" /><input value={nuevoResp.telefono} onChange={e => setNuevoResp(p => ({ ...p, telefono: e.target.value }))} style={inp} placeholder="600 112 233" /></div>
+              <div><FL text="Telefono" /><input value={nuevoResp.telefono} onChange={e => setNuevoResp(p => ({ ...p, telefono: e.target.value }))} style={inp} placeholder="600 112 233" /></div>
             </div>
           </div>
 

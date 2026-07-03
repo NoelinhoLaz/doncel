@@ -32,14 +32,18 @@
 .groupBadge {
   width: 18px;
   height: 18px;
-  border-radius: 4px;
-  background: var(--primary-color, #475569);
-  color: #fff;
-  font-size: 0.6rem;
-  font-weight: 700;
+  background: none;
+  color: #1e293b;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.groupBadge:hover {
+  color: #ef4444;
 }
 
 .tipoPopup {

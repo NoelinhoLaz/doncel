@@ -3,21 +3,25 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Mail, Users, Backpack, Megaphone, Search, ChevronDown, X,
-  Upload, FileText, AlertTriangle, UserRound,
+  Upload, FileText, AlertTriangle, UserRound, StickyNote, Plus,
 } from "lucide-react";
 import { getViajerosByExpediente } from "@/actions/viajeros";
-import { sendExpedienteEmail } from "@/actions/comunicaciones";
+import { sendExpedienteEmail, saveComunicacion, getContactosByEntity } from "@/actions/comunicaciones";
 import { Contacto, FiltroGrupo, WhatsAppIcon, formatBytes } from "./comunicaciones.types";
 
 interface Props {
-  expedienteId: string;
-  pagadores: any[];
+  expedienteId?: string;
+  cotizacionId?: string;
+  propuestaId?: string;
+  presupuestoId?: string;
+  pagadores?: any[];
+  destinatarioInicial?: { nombre: string; email: string };
   onClose: () => void;
   onSent: () => void;
 }
 
-export default function NuevaComunicacionModal({ expedienteId, pagadores, onClose, onSent }: Props) {
-  const [canal, setCanal] = useState<"email" | "whatsapp">("email");
+export default function NuevaComunicacionModal({ expedienteId, cotizacionId, propuestaId, presupuestoId, pagadores = [], destinatarioInicial, onClose, onSent }: Props) {
+  const [canal, setCanal] = useState<"email" | "whatsapp" | "nota">("email");
   const [asunto, setAsunto] = useState("");
   const [cuerpo, setCuerpo] = useState("");
   const [adjuntos, setAdjuntos] = useState<File[]>([]);
@@ -33,6 +37,11 @@ export default function NuevaComunicacionModal({ expedienteId, pagadores, onClos
   const [busqueda, setBusqueda] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Destinatario manual (email/tel libre cuando no hay expediente)
+  const [destManual, setDestManual] = useState("");
+  const [destManualNombre, setDestManualNombre] = useState("");
+  const [destinatariosManuales, setDestinatariosManuales] = useState<Contacto[]>([]);
+
   const pagadoresComoContacto = useMemo<Contacto[]>(() =>
     pagadores
       .map((p) => {
@@ -42,23 +51,36 @@ export default function NuevaComunicacionModal({ expedienteId, pagadores, onClos
       .filter((c, idx, arr) => arr.findIndex((x) => x.key === c.key) === idx),
   [pagadores]);
 
-  // Cargar viajeros al montar
+  // Cargar contactos al montar
   useEffect(() => {
     setLoadingContactos(true);
-    setListaPagadores(pagadoresComoContacto);
-    getViajerosByExpediente(expedienteId)
-      .then((data) => {
+
+    const loadAll = async () => {
+      let pags = pagadoresComoContacto;
+
+      // Si no vienen pagadores por prop, intentar cargarlos desde la entidad vinculada
+      if (pags.length === 0) {
+        const fromEntity = await getContactosByEntity({ expedienteId, cotizacionId, propuestaId, presupuestoId });
+        pags = fromEntity;
+      }
+      setListaPagadores(pags);
+
+      if (expedienteId) {
+        const data = await getViajerosByExpediente(expedienteId).catch(() => []);
         const viajeros: Contacto[] = (data || []).map((v: any) => {
           const ent = v.contabilidad_entidades || {};
           return { key: `v-${v.id}`, rol: "viajero" as const, nombre: ent.nombre || "Sin nombre", email: ent.email || "", telefono: ent.telefono || "" };
         });
         setListaViajeros(viajeros);
-        setSeleccionados(new Set(pagadoresComoContacto.map((c) => c.key)));
-      })
-      .catch(() => setListaViajeros([]))
-      .finally(() => setLoadingContactos(false));
+      }
+
+      setSeleccionados(new Set(pags.map((c) => c.key)));
+      setLoadingContactos(false);
+    };
+
+    loadAll();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expedienteId]);
+  }, [expedienteId, cotizacionId, propuestaId, presupuestoId]);
 
   // Preselección al cambiar canal
   useEffect(() => {
@@ -66,6 +88,21 @@ export default function NuevaComunicacionModal({ expedienteId, pagadores, onClos
     else setSeleccionados(new Set(listaViajeros.map((c) => c.key)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canal]);
+
+  // Pre-cargar destinatario inicial (p.ej. proveedor desde línea de cotización)
+  useEffect(() => {
+    if (destinatarioInicial?.email) {
+      setDestinatariosManuales([{
+        key: `manual-${destinatarioInicial.email}`,
+        rol: "pagador",
+        nombre: destinatarioInicial.nombre || destinatarioInicial.email,
+        email: destinatarioInicial.email,
+        telefono: "",
+      }]);
+      setSeleccionados(new Set());
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Cerrar dropdown al click fuera
   useEffect(() => {
@@ -114,11 +151,26 @@ export default function NuevaComunicacionModal({ expedienteId, pagadores, onClos
     return null;
   }, [seleccionados, listaPagadores, listaViajeros, todosContactos]);
 
-  const accentColor = canal === "whatsapp" ? "#25d366" : "var(--primary-color, #475569)";
-  const accentBg = canal === "whatsapp" ? "color-mix(in srgb, #25d366, transparent 88%)" : "color-mix(in srgb, var(--primary-color, #475569), transparent 88%)";
+  const accentColor = canal === "whatsapp" ? "#25d366" : canal === "nota" ? "#7c3aed" : "var(--primary-color, #475569)";
+  const accentBg = canal === "whatsapp" ? "color-mix(in srgb, #25d366, transparent 88%)" : canal === "nota" ? "#ede9fe" : "color-mix(in srgb, var(--primary-color, #475569), transparent 88%)";
+
+  const todosDestinatarios = useMemo(() => [...contactosSeleccionados, ...destinatariosManuales], [contactosSeleccionados, destinatariosManuales]);
+
+  const addDestManual = () => {
+    const contacto = destManual.trim();
+    if (!contacto) return;
+    const key = `m-${contacto}`;
+    if (destinatariosManuales.find(d => d.key === key)) return;
+    const isEmail = contacto.includes("@");
+    setDestinatariosManuales(prev => [...prev, {
+      key, rol: "pagador", nombre: destManualNombre.trim() || contacto,
+      email: isEmail ? contacto : "", telefono: isEmail ? "" : contacto,
+    }]);
+    setDestManual(""); setDestManualNombre("");
+  };
 
   const handleEnviar = async () => {
-    if (contactosSeleccionados.length === 0 || enviando) return;
+    if (todosDestinatarios.length === 0 || enviando) return;
     setEnviando(true);
     setEnvioError(null);
 
@@ -131,18 +183,35 @@ export default function NuevaComunicacionModal({ expedienteId, pagadores, onClos
       }))
     );
 
-    const res = await sendExpedienteEmail({
-      expedienteId,
-      asunto: asunto || "(Sin asunto)",
+    // Si hay expedienteId y es email, usar el envío real con tracking
+    if (expedienteId && canal === "email") {
+      const res = await sendExpedienteEmail({
+        expedienteId,
+        asunto: asunto || "(Sin asunto)",
+        cuerpo,
+        destinatarios: todosDestinatarios.map((c) => ({ viajero_id: c.key, nombre: c.nombre, email: c.email, telefono: c.telefono, rol: c.rol })),
+        adjuntos: adjuntosB64,
+        appBaseUrl: window.location.origin,
+      });
+      setEnviando(false);
+      if (res.success) { onClose(); onSent(); }
+      else setEnvioError(res.error || "Error desconocido.");
+      return;
+    }
+
+    // Sin expediente o canal nota/whatsapp: guardar como registro
+    const res = await saveComunicacion({
+      expedienteId, cotizacionId, propuestaId, presupuestoId,
+      canal,
+      asunto: canal === "email" ? (asunto || "(Sin asunto)") : undefined,
       cuerpo,
-      destinatarios: contactosSeleccionados.map((c) => ({ viajero_id: c.key, nombre: c.nombre, email: c.email, telefono: c.telefono, rol: c.rol })),
-      adjuntos: adjuntosB64,
-      appBaseUrl: window.location.origin,
+      destinatarios: todosDestinatarios.map(c => ({ nombre: c.nombre, email: c.email, telefono: c.telefono, rol: c.rol })),
+      adjuntos: adjuntosB64.map(a => ({ nombre: a.nombre, tamanio: a.tamanio })),
     });
 
     setEnviando(false);
     if (res.success) { onClose(); onSent(); }
-    else setEnvioError(res.error || "Error desconocido.");
+    else setEnvioError((res as any).error || "Error desconocido.");
   };
 
   const ContactoRow = ({ c }: { c: Contacto }) => {
@@ -204,21 +273,22 @@ export default function NuevaComunicacionModal({ expedienteId, pagadores, onClos
           <div>
             <label style={{ display: "block", fontSize: "0.72rem", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.5rem" }}>Canal</label>
             <div style={{ display: "flex", gap: "0.5rem" }}>
-              {(["email", "whatsapp"] as const).map((c) => {
-                const active = canal === c;
-                const isWa = c === "whatsapp";
-                const col = isWa ? "#25d366" : "var(--primary-color, #475569)";
-                const bg = isWa ? "color-mix(in srgb, #25d366, transparent 88%)" : "color-mix(in srgb, var(--primary-color, #475569), transparent 88%)";
+              {([
+                { id: "email" as const,    Icon: Mail,        label: "Email",    col: "var(--primary-color, #475569)", bg: "color-mix(in srgb, var(--primary-color, #475569), transparent 88%)" },
+                { id: "whatsapp" as const, Icon: null,        label: "WhatsApp", col: "#25d366", bg: "color-mix(in srgb, #25d366, transparent 88%)" },
+                { id: "nota" as const,     Icon: StickyNote,  label: "Nota",     col: "#7c3aed", bg: "#ede9fe" },
+              ]).map(({ id, Icon, label, col, bg }) => {
+                const active = canal === id;
                 return (
-                  <button key={c} onClick={() => setCanal(c)} style={{ display: "flex", alignItems: "center", gap: "0.45rem", padding: "0.45rem 1rem", borderRadius: "8px", border: `1.5px solid ${active ? col : "#e2e8f0"}`, background: active ? bg : "#fff", color: active ? col : "#64748b", fontWeight: active ? "700" : "500", fontSize: "0.82rem", cursor: "pointer", transition: "all 0.15s" }}>
-                    {isWa ? <WhatsAppIcon size={14} /> : <Mail size={14} />}
-                    {isWa ? "WhatsApp" : "Email"}
+                  <button key={id} onClick={() => setCanal(id)} style={{ display: "flex", alignItems: "center", gap: "0.45rem", padding: "0.45rem 1rem", borderRadius: "8px", border: `1.5px solid ${active ? col : "#e2e8f0"}`, background: active ? bg : "#fff", color: active ? col : "#64748b", fontWeight: active ? "700" : "500", fontSize: "0.82rem", cursor: "pointer", transition: "all 0.15s" }}>
+                    {id === "whatsapp" ? <WhatsAppIcon size={14} /> : Icon ? <Icon size={14} /> : null}
+                    {label}
                   </button>
                 );
               })}
             </div>
-            <div style={{ marginTop: "0.5rem", fontSize: "0.72rem", color: "#64748b", background: canal === "whatsapp" ? "#f0fdf4" : "color-mix(in srgb, var(--primary-color, #475569), transparent 93%)", border: `1px solid ${canal === "whatsapp" ? "#bbf7d0" : "color-mix(in srgb, var(--primary-color, #475569), transparent 75%)"}`, borderRadius: "7px", padding: "0.4rem 0.7rem" }}>
-              {canal === "email" ? "Email ideal para contratos y facturas. Se preseleccionan los pagadores." : "WhatsApp ideal para avisos urgentes en ruta. Se preseleccionan los viajeros."}
+            <div style={{ marginTop: "0.5rem", fontSize: "0.72rem", color: "#64748b", background: accentBg, border: `1px solid ${accentColor}22`, borderRadius: "7px", padding: "0.4rem 0.7rem" }}>
+              {canal === "email" ? "Email con tracking de apertura. Se preseleccionan los pagadores." : canal === "whatsapp" ? "WhatsApp ideal para avisos urgentes en ruta. Se preseleccionan los viajeros." : "Nota interna — queda registrada pero no se envía."}
             </div>
           </div>
 
@@ -340,6 +410,51 @@ export default function NuevaComunicacionModal({ expedienteId, pagadores, onClos
             </div>
           </div>
 
+          {/* Destinatarios manuales (cuando no hay expediente o para añadir más) */}
+          {canal !== "nota" && (
+            <div>
+              <label style={{ display: "block", fontSize: "0.72rem", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.5rem" }}>
+                Añadir destinatario
+              </label>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <input
+                  type="text"
+                  placeholder="Nombre (opcional)"
+                  value={destManualNombre}
+                  onChange={e => setDestManualNombre(e.target.value)}
+                  style={{ flex: "0 0 38%", border: "1.5px solid #e2e8f0", borderRadius: "8px", padding: "0.42rem 0.75rem", fontSize: "0.82rem", outline: "none", boxSizing: "border-box" }}
+                />
+                <input
+                  type="text"
+                  placeholder={canal === "whatsapp" ? "Teléfono..." : "Email..."}
+                  value={destManual}
+                  onChange={e => setDestManual(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addDestManual(); } }}
+                  style={{ flex: 1, border: "1.5px solid #e2e8f0", borderRadius: "8px", padding: "0.42rem 0.75rem", fontSize: "0.82rem", outline: "none", boxSizing: "border-box" }}
+                />
+                <button
+                  onClick={addDestManual}
+                  disabled={!destManual.trim()}
+                  style={{ padding: "0.42rem 0.75rem", borderRadius: "8px", border: "none", background: destManual.trim() ? accentColor : "#e2e8f0", color: destManual.trim() ? "#fff" : "#94a3b8", cursor: destManual.trim() ? "pointer" : "default", display: "flex", alignItems: "center" }}
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+              {destinatariosManuales.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem", marginTop: "0.5rem" }}>
+                  {destinatariosManuales.map(d => (
+                    <span key={d.key} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", background: "#f1f5f9", color: "#334155", border: "1px solid #e2e8f0", borderRadius: "20px", padding: "0.18rem 0.5rem 0.18rem 0.55rem", fontSize: "0.73rem", fontWeight: 600 }}>
+                      {d.nombre}
+                      <button onClick={() => setDestinatariosManuales(prev => prev.filter(x => x.key !== d.key))} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#94a3b8", display: "flex", alignItems: "center" }}>
+                        <X size={10} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Asunto */}
           {canal === "email" && (
             <div>
@@ -415,21 +530,25 @@ export default function NuevaComunicacionModal({ expedienteId, pagadores, onClos
         <div style={{ padding: "1rem 1.5rem", borderTop: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.74rem", color: "#94a3b8" }}>
             <UserRound size={13} style={{ flexShrink: 0 }} />
-            {contactosSeleccionados.length === 0
-              ? "Ningún destinatario"
-              : `${contactosSeleccionados.length} destinatario${contactosSeleccionados.length !== 1 ? "s" : ""} · ${canal === "whatsapp" ? contactosSeleccionados.filter((c) => c.telefono).length : contactosSeleccionados.filter((c) => c.email).length} con ${canal === "whatsapp" ? "teléfono" : "email"}${adjuntos.length > 0 ? ` · ${adjuntos.length} adjunto${adjuntos.length !== 1 ? "s" : ""}` : ""}`}
+            {canal === "nota"
+              ? (cuerpo.trim() ? "Lista para guardar" : "Escribe el contenido")
+              : todosDestinatarios.length === 0
+                ? "Ningún destinatario"
+                : `${todosDestinatarios.length} destinatario${todosDestinatarios.length !== 1 ? "s" : ""} · ${canal === "whatsapp" ? todosDestinatarios.filter((c) => c.telefono).length : todosDestinatarios.filter((c) => c.email).length} con ${canal === "whatsapp" ? "teléfono" : "email"}${adjuntos.length > 0 ? ` · ${adjuntos.length} adjunto${adjuntos.length !== 1 ? "s" : ""}` : ""}`}
           </div>
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <button onClick={onClose} style={{ padding: "0.45rem 1rem", borderRadius: "8px", border: "1.5px solid #e2e8f0", background: "#fff", color: "#475569", fontWeight: "600", fontSize: "0.82rem", cursor: "pointer" }}>
               Cancelar
             </button>
             {(() => {
-              const isWa = canal === "whatsapp";
-              const canSend = contactosSeleccionados.length > 0 && cuerpo.trim().length > 0 && !enviando;
+              const canSend = (canal === "nota" || todosDestinatarios.length > 0) && cuerpo.trim().length > 0 && !enviando;
+              const label = enviando ? "Guardando..." : canal === "nota" ? "Guardar nota" : canal === "whatsapp" ? "Enviar WhatsApp" : "Enviar Email";
+              const Icon = canal === "nota" ? StickyNote : canal === "whatsapp" ? null : Mail;
               return (
-                <button disabled={!canSend} onClick={canal === "email" ? handleEnviar : undefined}
+                <button disabled={!canSend} onClick={handleEnviar}
                   style={{ padding: "0.45rem 1.1rem", borderRadius: "8px", border: "none", background: canSend ? accentColor : "#e2e8f0", color: canSend ? "#fff" : "#94a3b8", fontWeight: "600", fontSize: "0.82rem", cursor: canSend ? "pointer" : "not-allowed", display: "flex", alignItems: "center", gap: "0.4rem", transition: "background 0.2s" }}>
-                  {enviando ? <span>Enviando...</span> : <>{isWa ? <WhatsAppIcon size={14} /> : <Mail size={14} />} {isWa ? "Enviar WhatsApp" : "Enviar Email"}</>}
+                  {canal === "whatsapp" ? <WhatsAppIcon size={14} /> : Icon ? <Icon size={14} /> : null}
+                  {label}
                 </button>
               );
             })()}

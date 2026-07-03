@@ -6,7 +6,7 @@ import { Icons } from "@/lib/icons";
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Pagination from "@/app/components/Pagination";
-import NuevoPresupuestoModal from "./NuevoPresupuestoModal";
+import { Sun, Moon, Users } from "lucide-react";
 
 const TIPO_LABELS: Record<string, string> = {
   vacacional: "Vacacional",
@@ -35,8 +35,6 @@ export default function PresupuestosPage() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [showModal, setShowModal] = useState(false);
-  const [presupuestoEditar, setPresupuestoEditar] = useState<any>(null);
   const [cotizando, setCotizando] = useState<string | null>(null);
   const [destinosMap, setDestinosMap] = useState<Record<string, string>>({});
   const [agentesMap, setAgentesMap] = useState<Record<string, string>>({});
@@ -157,7 +155,7 @@ export default function PresupuestosPage() {
             <button
               className={styles.addActionButton}
               title="Nuevo presupuesto"
-              onClick={() => { setPresupuestoEditar(null); setShowModal(true); }}
+              onClick={() => router.push("/presupuestos/nuevo")}
             >
               <Icons.Add size={14} />
             </button>
@@ -179,8 +177,13 @@ export default function PresupuestosPage() {
                   <th>Tipo</th>
                   <th>Destino</th>
                   <th>Salida estimada</th>
-                  <th style={{ textAlign: "right" }}>Noches</th>
-                  <th style={{ textAlign: "right" }}>Plazas</th>
+                  <th style={{ textAlign: "right" }} title="Días / Noches">
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: "2px", justifyContent: "flex-end" }}>
+                      <Sun size={12} />/<Moon size={12} />
+                    </div>
+                  </th>
+                  <th style={{ textAlign: "right" }} title="Plazas"><Users size={13} style={{ display: 'inline' }} /></th>
+                  <th style={{ textAlign: "center" }} title="Cotizaciones"><Icons.Facturacion size={14} style={{ display: 'inline' }} /></th>
                   <th>Estado</th>
                   <th></th>
                 </tr>
@@ -188,7 +191,7 @@ export default function PresupuestosPage() {
               <tbody>
                 {paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={9} style={{ textAlign: "center", color: "#94a3b8", padding: "2.5rem" }}>
+                    <td colSpan={11} style={{ textAlign: "center", color: "#94a3b8", padding: "2.5rem" }}>
                       No hay presupuestos todavía. Crea uno con el botón +.
                     </td>
                   </tr>
@@ -200,7 +203,7 @@ export default function PresupuestosPage() {
                       <tr
                         key={p.id}
                         className={styles.clickableRow}
-                        onClick={() => { setPresupuestoEditar(p); setShowModal(true); }}
+                        onClick={() => router.push(`/presupuestos/nuevo?edit=${p.id}`)}
                         style={{ cursor: "pointer" }}
                       >
                         <td style={{ paddingLeft: "1rem" }}>
@@ -268,15 +271,37 @@ export default function PresupuestosPage() {
                           </span>
                         </td>
                         <td style={{ textAlign: "right" }}>
-                          {p.noches_estimadas
-                            ? <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#1e293b" }}>{p.noches_estimadas}<span style={{ fontSize: "0.68rem", fontWeight: 400, color: "#94a3b8", marginLeft: "0.2rem" }}>n</span></span>
-                            : <span style={{ color: "#94a3b8" }}>—</span>
-                          }
+                          {p.noches_estimadas ? (
+                            <span style={{ fontSize: "0.82rem", fontWeight: 400, color: "#1e293b" }}>
+                              {p.noches_estimadas + 1} / {p.noches_estimadas}
+                            </span>
+                          ) : (
+                            <span style={{ color: "#94a3b8" }}>—</span>
+                          )}
                         </td>
                         <td style={{ textAlign: "right" }}>
-                          <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#1e293b" }}>
+                          <span style={{ fontSize: "0.85rem", fontWeight: 400, color: "#1e293b" }}>
                             {p.plazas_estimadas}
                           </span>
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          {p.cotizaciones_count > 0 ? (
+                            <span 
+                              style={{ 
+                                display: "inline-block", 
+                                padding: "2px 7px", 
+                                background: "color-mix(in srgb, var(--primary-color, #6366f1) 12%, transparent)", 
+                                color: "var(--primary-color, #4f46e5)", 
+                                borderRadius: "12px", 
+                                fontSize: "0.72rem", 
+                                fontWeight: 600 
+                              }}
+                            >
+                              {p.cotizaciones_count}
+                            </span>
+                          ) : (
+                            <span style={{ color: "#cbd5e1" }}>—</span>
+                          )}
                         </td>
                         <td>
                           <span style={{
@@ -322,17 +347,6 @@ export default function PresupuestosPage() {
         )}
       </div>
 
-      {showModal && (
-        <NuevoPresupuestoModal
-          presupuesto={presupuestoEditar ?? undefined}
-          onClose={() => { setShowModal(false); setPresupuestoEditar(null); }}
-          onCreated={(resultado) => {
-            setShowModal(false);
-            setPresupuestoEditar(null);
-            load();
-          }}
-        />
-      )}
     </div>
   );
 }
