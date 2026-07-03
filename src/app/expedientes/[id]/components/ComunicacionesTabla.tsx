@@ -176,8 +176,8 @@ export function FilaComunicacion({ item }: { item: ComunicacionDB }) {
             )}
             {item.canal !== "nota" && (
               esRecibido
-                ? <ArrowDownLeft size={12} title="Recibido" style={{ color: "#7c3aed", flexShrink: 0 }} />
-                : <ArrowUpRight size={12} title="Enviado" style={{ color: "#64748b", flexShrink: 0 }} />
+                ? <ArrowDownLeft size={12} style={{ color: "#7c3aed", flexShrink: 0 }} />
+                : <ArrowUpRight size={12} style={{ color: "#64748b", flexShrink: 0 }} />
             )}
           </div>
         </td>

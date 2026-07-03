@@ -144,7 +144,7 @@ export default function ExpedienteActionsToolbar({
           : initialPresupuestoId
             ? await createNewCotizacionLinkedToPresupuesto(initialPresupuestoId)
             : { success: false, error: "Sin expediente ni presupuesto vinculado" };
-        if (res.success) {
+        if (res.success && res.data) {
           setShowLinkModal(null);
           router.push(`/cotizaciones/nueva?id=${res.data.id}`);
           return;
@@ -154,7 +154,7 @@ export default function ExpedienteActionsToolbar({
       } else if (showLinkModal === "propuesta") {
         if (!expId) return;
         const res = await createNewPropuestaLinked(expId);
-        if (res.success) {
+        if (res.success && res.data) {
           alert(`Se ha creado la propuesta "${res.data.nombre}" y se ha vinculado.`);
         } else {
           throw new Error(res.error);
@@ -164,7 +164,7 @@ export default function ExpedienteActionsToolbar({
         const linkedId = initialCotizacionId || initialPropuestaId;
         if (!linkedId) return;
         const res = await createNewExpedienteLinked(linkedId, type);
-        if (res.success) {
+        if (res.success && res.data) {
           alert(`Se ha creado el expediente "${res.data.numero} - ${res.data.referencia}" y se ha vinculado.`);
         } else {
           throw new Error(res.error);

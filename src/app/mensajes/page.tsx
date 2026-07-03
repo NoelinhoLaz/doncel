@@ -196,7 +196,6 @@ export default function MessagesPage() {
           senderName: email.senderName,
           senderEmail: email.contactEmail || "unknown@example.com",
           attachments: attachmentsPayload,
-          direction: computedDirection,
         });
 
         if (res.success) {

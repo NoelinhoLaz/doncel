@@ -98,7 +98,7 @@ export default function ComunicacionesPage() {
               color: filterCanal === c ? "#fff" : "#64748b",
             }}
           >
-            {c === "todos" ? "Todos" : CANAL_LABELS[c]?.label ?? c}
+            {c === "todos" ? "Todos" : CANAL_LABELS[c] ?? c}
           </button>
         ))}
         <span style={{ marginLeft: "auto", fontSize: "0.78rem", color: "#94a3b8", alignSelf: "center" }}>

@@ -373,7 +373,7 @@ export async function getContactosByEntity(params: {
   if (params.presupuestoId && !entidadId) {
     const { data } = await agencyDb.from("operativa_presupuestos").select("entidad_id, cotizaciones:operativa_cotizaciones(id, contacto)").eq("id", params.presupuestoId).maybeSingle();
     if (data?.entidad_id) entidadId = data.entidad_id;
-    if (!cotizacionId && (data?.cotizaciones as any)?.[0]?.id) cotizacionId = (data.cotizaciones as any)[0].id;
+    if (!cotizacionId && (data as any)?.cotizaciones?.[0]?.id) cotizacionId = (data as any).cotizaciones[0].id;
   }
 
   if (cotizacionId && !entidadId) {

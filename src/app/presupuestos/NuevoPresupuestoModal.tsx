@@ -606,8 +606,8 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
   const minPlazas = tipoPres === "grupo" ? 10 : 1;
 
   // Validaciones por paso
-  const step1Valid = entidadId || (crearEntidad && nuevaEntidadNombre.trim());
-  const step2Valid = titulo.trim() && tipoPres && parseInt(plazas) >= minPlazas;
+  const step1Valid = !!(entidadId || (crearEntidad && nuevaEntidadNombre.trim()));
+  const step2Valid = !!(titulo.trim() && tipoPres && parseInt(plazas) >= minPlazas);
 
   async function handleSubmit() {
     setSaving(true);
