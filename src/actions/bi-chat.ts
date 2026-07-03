@@ -179,22 +179,26 @@ async function tavilySearch(query: string): Promise<string> {
 
 function isWebQuery(text: string): boolean {
   const lower = text.toLowerCase();
-  const isGeo = isGeoProspectingQuery(text);
-  if (isGeo) return false;
-  // Web query if it asks about external info not in the DB
-  return (
-    lower.includes("festivo") || lower.includes("fiesta") ||
-    lower.includes("clima") || lower.includes("tiempo") ||
-    lower.includes("noticia") || lower.includes("hoy es") ||
-    lower.includes("qué día") || lower.includes("cuándo es") ||
-    lower.includes("dirección de") || lower.includes("teléfono de") ||
-    lower.includes("email de") || lower.includes("contacto de") ||
-    lower.includes("valoracion") || lower.includes("valoración") ||
-    lower.includes("reseña") || lower.includes("opinión") ||
-    lower.includes("busca en internet") || lower.includes("busca en la web") ||
-    lower.includes("busca información") || lower.includes("qué es ") ||
-    lower.includes("cómo llegar") || lower.includes("horario de")
+  if (isGeoProspectingQuery(text)) return false;
+
+  // Explicit DB/internal keywords → NOT a web query
+  const isInternalQuery = (
+    lower.includes("campaña") || lower.includes("oportunidad") ||
+    lower.includes("agente") || lower.includes("colegio") ||
+    lower.includes("expediente") || lower.includes("cotizacion") ||
+    lower.includes("cotización") || lower.includes("banco") ||
+    lower.includes("movimiento") || lower.includes("concilia") ||
+    lower.includes("factura") || lower.includes("presupuesto") ||
+    lower.includes("cuántos tenemos") || lower.includes("cuántas tenemos") ||
+    lower.includes("base de datos") || lower.includes("en la bd") ||
+    lower.includes("ranking") || lower.includes("análisis de") ||
+    lower.includes("analisis de") || lower.includes("mis datos") ||
+    lower.includes("nuestros datos") || lower.includes("nuestra agencia")
   );
+  if (isInternalQuery) return false;
+
+  // Everything else that isn't clearly a SQL/DB question → web
+  return true;
 }
 
 // ─── Nominatim geo search ─────────────────────────────────────────────────────
@@ -352,21 +356,20 @@ export async function runBiChat(
   if (isWebQuery(lastUserText)) {
     const webContext = await tavilySearch(lastUserText);
     console.log("[bi-chat] webContext length:", webContext.length, webContext.slice(0, 200));
-    if (webContext) {
-      if (isHybrid) {
-        // Inject web context into the user message so Claude can use it to generate SQL
-        webContextInjection = `\n\n[CONTEXTO WEB RELEVANTE]:\n${webContext}\n\nUsa esta información para construir el SQL que responda la pregunta cruzando con los datos de la BD.`;
-      } else {
-        // Pure web query — answer directly without SQL
-        const webResponse = await anthropic.messages.create({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 1024,
-          system: "Eres un asistente útil. Responde en español usando el contexto web proporcionado. Sé conciso y directo.",
-          messages: [{ role: "user", content: `Contexto web:\n${webContext}\n\nPregunta: ${lastUserText}` }],
-        });
-        const answer = webResponse.content[0].type === "text" ? webResponse.content[0].text : "";
-        return { summary: answer, result: { type: "text", summary: answer } };
-      }
+    if (isHybrid && webContext) {
+      webContextInjection = `\n\n[CONTEXTO WEB RELEVANTE]:\n${webContext}\n\nUsa esta información para construir el SQL que responda la pregunta cruzando con los datos de la BD.`;
+    } else if (!isHybrid) {
+      // Pure web / general question — answer directly without SQL
+      const todayForWeb = new Date().toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+      const contextBlock = webContext ? `Contexto web:\n${webContext}\n\n` : "";
+      const webResponse = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1024,
+        system: `Eres un asistente de una agencia de viajes. Fecha actual: ${todayForWeb}. Responde en español, de forma concisa y útil para un agente de viajes.`,
+        messages: [{ role: "user", content: `${contextBlock}Pregunta: ${lastUserText}` }],
+      });
+      const answer = webResponse.content[0].type === "text" ? webResponse.content[0].text : "";
+      return { summary: answer, result: { type: "text", summary: answer } };
     }
   }
 
