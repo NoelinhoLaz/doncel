@@ -68,6 +68,14 @@ TABLAS PRINCIPALES:
   -- Para filtrar por año escolar: fecha_inicio BETWEEN 'YYYY-09-01' AND 'YYYY+1-07-31'
 - operativa_cotizaciones(id, expediente_id, titulo, estado[borrador|presentada|aceptada|rechazada], plazas, pvp_viajero, fecha_salida DATE, fecha_regreso DATE)
 - operativa_cotizacion_lineas(id, cotizacion_id, descripcion, proveedor[FK→contabilidad_proveedores.id], neto, pvp, plazas, noches, total_neto, total_pvp, opcional BOOL, checked BOOL)
+  -- SEMÁNTICA DE PRECIOS (crítico para no dividir mal):
+  --   neto       = precio neto UNITARIO por plaza (coste por persona) — es el precio por entrada/noche/servicio
+  --   pvp        = precio PVP UNITARIO por plaza (precio de venta por persona)
+  --   plazas     = número de personas/plazas
+  --   noches     = número de noches o unidades (para hoteles); para entradas/actividades suele ser 1
+  --   total_neto = neto × plazas × noches  (calculado, total coste de la línea)
+  --   total_pvp  = pvp × plazas × noches  (calculado, total venta de la línea)
+  -- Para "precio por entrada/persona": usar directamente ocl.neto (no dividir total_neto entre plazas)
   -- contabilidad_proveedores(id, nombre, razon_social, email, telefono)
   -- Para buscar servicios cotizados por nombre de proveedor o descripción de línea:
   --   JOIN operativa_cotizacion_lineas ocl ON ocl.cotizacion_id = oc.id
