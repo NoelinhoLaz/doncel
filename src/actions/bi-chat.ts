@@ -457,6 +457,12 @@ Para filtrar por agente usa su id directamente (más fiable que buscar por nombr
   const rawText = sqlResponse.content[0].type === "text" ? sqlResponse.content[0].text.trim() : "";
   console.log("[bi-chat] Claude raw response:", rawText.slice(0, 800));
 
+  // Helper: detect if a string looks like raw JSON (should never be shown to user)
+  function looksLikeJson(s: string) {
+    const t = s.trim();
+    return (t.startsWith("{") && t.endsWith("}")) || (t.startsWith("[") && t.endsWith("]"));
+  }
+
   // Parse the JSON response from Claude
   let parsed: any;
   try {
@@ -466,16 +472,24 @@ Para filtrar por agente usa su id directamente (más fiable que buscar por nombr
   } catch {
     // Claude returned truncated or non-JSON — log and treat as text
     console.error("[bi-chat] JSON parse failed. Raw response:", rawText.slice(0, 300));
-    return { summary: rawText, result: { type: "text", summary: rawText } };
+    const safeText = looksLikeJson(rawText) ? "Procesando consulta, por favor espera..." : rawText;
+    return { summary: safeText, result: { type: "text", summary: safeText } };
   }
 
   const sql: string = parsed.sql ?? "";
 
+  // Sanitize summary: never expose raw JSON to the user
+  function safeSummary(s: string | undefined): string {
+    if (!s) return "Procesando...";
+    return looksLikeJson(s) ? "Analizando datos, por favor espera..." : s;
+  }
+
   // Step 2: Execute SQL if present — always run SQL even for type:text (metrics/counts)
   if (!sql) {
+    const summary = safeSummary(parsed.summary ?? rawText);
     return {
-      summary: parsed.summary ?? rawText,
-      result: { type: "text", summary: parsed.summary ?? rawText },
+      summary,
+      result: { type: "text", summary },
     };
   }
 

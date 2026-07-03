@@ -298,10 +298,16 @@ export default function BIChatDrawer({ isOpen, onClose, campanaId, campanaNombre
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error ?? "Error");
+      const rawSummary = json.summary ?? json.result?.summary ?? "Sin respuesta";
+      const cleanSummary = (s: string) => {
+        const t = s.trim();
+        if ((t.startsWith("{") && t.endsWith("}")) || (t.startsWith("[") && t.endsWith("]"))) return "";
+        return s;
+      };
       setMessages(prev => [...prev.slice(0, -1), {
         id: Date.now() + "-done",
         role: "assistant",
-        text: json.summary ?? json.result?.summary ?? "Sin respuesta",
+        text: cleanSummary(rawSummary),
         result: json.result,
         extra: json.extra,
       }]);

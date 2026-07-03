@@ -527,10 +527,12 @@ export default function GlobalCopilotoDrawer({ isOpen, onClose }: Props) {
         return;
       }
 
+      const rawSummary = json.summary ?? json.result?.summary ?? "Sin respuesta";
+      const cleanSummary = (s: string) => { const t = s.trim(); return (t.startsWith("{") && t.endsWith("}")) || (t.startsWith("[") && t.endsWith("]")) ? "" : s; };
       setMessages(prev => [...prev.slice(0, -1), {
         id: Date.now() + "-done",
         role: "assistant",
-        text: json.summary ?? json.result?.summary ?? "Sin respuesta",
+        text: cleanSummary(rawSummary),
         result: json.result,
         extra: json.extra,
       }]);
