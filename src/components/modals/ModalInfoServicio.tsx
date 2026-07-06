@@ -213,11 +213,11 @@ export default function ModalInfoServicio({ item, tiposMap, onClose, onSave }: P
       plazas: item?.plazas ?? null,
       cantidad: item?.plazas ?? null,         // alias entradas
       noches: item?.noches ?? null,
-      neto: item?.neto ?? null,
-      precio_persona: item?.neto ?? null,     // alias entradas
-      pvp: item?.pvp ?? null,
-      total_neto: item?.total_neto ?? null,
-      total_pvp: item?.total_pvp ?? null,
+      neto: !item?.neto || Number(item?.neto) === 0 ? "" : item.neto,
+      precio_persona: !item?.neto || Number(item?.neto) === 0 ? "" : item.neto,
+      pvp: !item?.pvp || Number(item?.pvp) === 0 ? "" : item.pvp,
+      total_neto: !item?.total_neto || Number(item?.total_neto) === 0 ? "" : item.total_neto,
+      total_pvp: !item?.total_pvp || Number(item?.total_pvp) === 0 ? "" : item.total_pvp,
     });
   }, [item?.id]);
 

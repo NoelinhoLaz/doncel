@@ -561,7 +561,7 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                         <input
                           type="text"
                           key={it.id + '-neto'}
-                          defaultValue={it.neto ?? ''}
+                          defaultValue={!it.neto || Number(it.neto) === 0 ? '' : it.neto}
                           onBlur={(e) => c.handleItemChange(it.id, 'neto', e.target.value)}
                           style={{ ...fieldStyle, width: '100%', padding: '0.2rem', textAlign: 'right' }}
                         />
@@ -570,7 +570,7 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                         <input
                           type="text"
                           key={it.id + '-pvp'}
-                          defaultValue={it.pvp ?? ''}
+                          defaultValue={!it.pvp || Number(it.pvp) === 0 ? '' : it.pvp}
                           onBlur={(e) => c.handleItemChange(it.id, 'pvp', e.target.value)}
                           style={{ ...fieldStyle, width: '100%', padding: '0.2rem', textAlign: 'right' }}
                         />
