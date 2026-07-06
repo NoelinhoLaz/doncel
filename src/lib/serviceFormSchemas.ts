@@ -739,6 +739,78 @@ const FIJOS_PACKS: SchemaRow[] = [
   }
 ];
 
+const FIJOS_TRASLADOS: SchemaRow[] = [
+  {
+    fila_id: 'row_fijo_descripcion_traslados',
+    fijo: true,
+    columnas: [
+      { ancho: 12, campo: 'descripcion', label: 'Descripción', tipo: 'textarea', origen: 'tabla_nativa', propiedades: { required: false, placeholder: 'Descripción del traslado...', rows_textarea: 2 } }
+    ]
+  },
+  {
+    fila_id: 'row_fijo_tipo_vehiculo',
+    fijo: true,
+    columnas: [
+      { ancho: 6, campo: 'tipo_vehiculo', label: 'Tipo de vehículo', tipo: 'select', origen: 'jsonb_detalles', propiedades: { required: true, opciones: ['Autobús', 'Minibús', 'Furgoneta', 'Vehículo privado', 'Transfer compartido', 'Taxi / VTC', 'Limusina', 'Otro'] } },
+      { ancho: 6, campo: 'num_vehiculos', label: 'Nº de vehículos', tipo: 'number', origen: 'jsonb_detalles', propiedades: { placeholder: '1' } },
+    ]
+  },
+  {
+    fila_id: 'row_fijo_ruta_traslados',
+    fijo: true,
+    columnas: [
+      { ancho: 6, campo: 'origen_traslado', label: 'Punto de origen', tipo: 'text', origen: 'jsonb_detalles', propiedades: { required: true, placeholder: 'Ej: Aeropuerto T4, Hotel Madrid...' } },
+      { ancho: 6, campo: 'destino_traslado', label: 'Punto de destino', tipo: 'text', origen: 'jsonb_detalles', propiedades: { required: true, placeholder: 'Ej: Hotel Asturias, Centro ciudad...' } },
+    ]
+  },
+  {
+    fila_id: 'row_fijo_tipo_trayecto_traslados',
+    fijo: true,
+    columnas: [
+      { ancho: 12, campo: 'tipo_trayecto', label: 'Tipo de trayecto', tipo: 'select', origen: 'jsonb_detalles', propiedades: { opciones: ['Sólo ida', 'Ida y vuelta'], default: 'Sólo ida' } }
+    ]
+  },
+  {
+    fila_id: 'row_fijo_fecha_hora_traslados',
+    fijo: true,
+    columnas: [
+      { ancho: 6, campo: 'fecha_traslado', label: 'Fecha de recogida', tipo: 'date', origen: 'jsonb_detalles', propiedades: { required: false } },
+      { ancho: 6, campo: 'hora_traslado', label: 'Hora de recogida', tipo: 'text', origen: 'jsonb_detalles', propiedades: { placeholder: 'Ej: 09:00' } },
+    ]
+  },
+  {
+    fila_id: 'row_fijo_destino_traslados',
+    fijo: true,
+    columnas: [
+      { ancho: 12, campo: 'destino', label: 'Destino / Zona', tipo: 'db_destination', origen: 'tabla_nativa', propiedades: { required: true } }
+    ]
+  },
+  {
+    fila_id: 'row_fijo_proveedor_traslados',
+    fijo: true,
+    columnas: [
+      { ancho: 12, campo: 'proveedor', label: 'Proveedor', tipo: 'db_select', origen: 'tabla_nativa', propiedades: { required: true } }
+    ]
+  },
+  {
+    fila_id: 'row_fijo_importes_traslados',
+    fijo: true,
+    columnas: [
+      { ancho: 3, campo: 'plazas', label: 'Personas', tipo: 'db_number', origen: 'tabla_nativa', propiedades: { required: true } },
+      { ancho: 3, campo: 'noches', label: 'Trayectos', tipo: 'db_number', origen: 'tabla_nativa', propiedades: { required: true } },
+      { ancho: 3, campo: 'neto', label: 'Precio Coste', tipo: 'number_decimal', origen: 'tabla_nativa', propiedades: { required: true } },
+      { ancho: 3, campo: 'total_neto', label: 'Total', tipo: 'number_readonly', origen: 'tabla_nativa', propiedades: { readonly: true } },
+    ]
+  },
+  {
+    fila_id: 'row_fijo_notas_traslados',
+    fijo: true,
+    columnas: [
+      { ancho: 12, campo: 'notas_traslado', label: 'Notas / Instrucciones', tipo: 'textarea', origen: 'jsonb_detalles', propiedades: { placeholder: 'Número de vuelo para seguimiento, punto exacto de encuentro, contacto del conductor...', rows_textarea: 3 } }
+    ]
+  }
+];
+
 const FIXED_FIELDS_MAP: Record<string, SchemaRow[]> = {
   'Alojamiento': FIJOS_ALOJAMIENTO,
   'Entradas': FIJOS_ENTRADAS,
@@ -765,11 +837,39 @@ const FIXED_FIELDS_MAP: Record<string, SchemaRow[]> = {
   'Trenes': FIJOS_TREN,
   'Packs': FIJOS_PACKS,
   'Pack': FIJOS_PACKS,
+  'Traslados': FIJOS_TRASLADOS,
+  'Traslado': FIJOS_TRASLADOS,
+  'Transfer': FIJOS_TRASLADOS,
+  'Transfers': FIJOS_TRASLADOS,
+  'Autobús': FIJOS_TRASLADOS,
+  'Autobus': FIJOS_TRASLADOS,
+  'Autocares': FIJOS_TRASLADOS,
+  'Autocar': FIJOS_TRASLADOS,
+  'Minibús': FIJOS_TRASLADOS,
+  'Minibus': FIJOS_TRASLADOS,
+  'Furgoneta': FIJOS_TRASLADOS,
 };
+
+function normalize(s: string): string {
+  return s.toLowerCase()
+    .replace(/[áàäâ]/g, "a").replace(/[éèëê]/g, "e").replace(/[íìïî]/g, "i")
+    .replace(/[óòöô]/g, "o").replace(/[úùüû]/g, "u").replace(/ñ/g, "n")
+    .trim();
+}
 
 export function getFixedFields(etiqueta?: string): SchemaRow[] {
   if (!etiqueta) return [];
-  return FIXED_FIELDS_MAP[etiqueta] || [];
+  // Exact match first
+  if (FIXED_FIELDS_MAP[etiqueta]) return FIXED_FIELDS_MAP[etiqueta];
+  // Case-insensitive + accent-insensitive fallback
+  const norm = normalize(etiqueta);
+  for (const key of Object.keys(FIXED_FIELDS_MAP)) {
+    if (normalize(key) === norm) return FIXED_FIELDS_MAP[key];
+  }
+  // Semantic fallback for transport types not explicitly in map
+  const transportKeywords = ["autobus", "autocar", "minibus", "furgoneta", "transfer", "traslado"];
+  if (transportKeywords.some(k => norm.includes(k))) return FIJOS_TRASLADOS;
+  return [];
 }
 
 export function getFullSchema(tipo: { etiqueta?: string; contenido?: any }): SchemaRow[] {

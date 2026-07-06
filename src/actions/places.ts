@@ -219,3 +219,65 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceDetails | n
     return null;
   }
 }
+
+export interface PlaceListItem {
+  placeId: string;
+  displayName: string;
+  formattedAddress: string;
+  lat: number | null;
+  lng: number | null;
+  rating: number | null;
+  userRatingCount: number | null;
+  googleMapsUri: string | null;
+  photo: string | null; // photo resource name for /api/places/photo
+  types: string[];
+  priceLevel: string | null;
+  openNow: boolean | null;
+}
+
+/**
+ * Text search for multiple places (e.g. "restaurantes en Zagreb").
+ * Uses Places API (New) Text Search endpoint.
+ */
+export async function searchPlacesText(query: string, maxResults = 8): Promise<PlaceListItem[]> {
+  if (!query || !isKeyConfigured()) return [];
+  try {
+    const res = await fetch(`${NEW_API_BASE}/places:searchText`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": API_KEY,
+        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.googleMapsUri,places.photos,places.types,places.priceLevel,places.currentOpeningHours",
+      },
+      body: JSON.stringify({
+        textQuery: query,
+        languageCode: "es",
+        maxResultCount: maxResults,
+        rankPreference: "RELEVANCE",
+      }),
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      console.error("Places text search error:", await res.text());
+      return [];
+    }
+    const json = await res.json();
+    return (json.places ?? []).map((p: any) => ({
+      placeId: p.id,
+      displayName: p.displayName?.text ?? p.displayName ?? "",
+      formattedAddress: p.formattedAddress ?? "",
+      lat: p.location?.latitude ?? null,
+      lng: p.location?.longitude ?? null,
+      rating: p.rating ?? null,
+      userRatingCount: p.userRatingCount ?? null,
+      googleMapsUri: p.googleMapsUri ?? null,
+      photo: p.photos?.[0]?.name ?? null,
+      types: p.types ?? [],
+      priceLevel: p.priceLevel ?? null,
+      openNow: p.currentOpeningHours?.openNow ?? null,
+    }));
+  } catch (e: any) {
+    console.error("searchPlacesText error:", e.message);
+    return [];
+  }
+}

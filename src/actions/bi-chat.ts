@@ -67,7 +67,7 @@ TABLAS PRINCIPALES:
   -- pvp_total = importe total del viaje facturado/presupuestado
   -- Para filtrar por año escolar: fecha_inicio BETWEEN 'YYYY-09-01' AND 'YYYY+1-07-31'
 - operativa_cotizaciones(id, expediente_id, titulo, estado[borrador|presentada|aceptada|rechazada], plazas, pvp_viajero, fecha_salida DATE, fecha_regreso DATE)
-- operativa_cotizacion_lineas(id, cotizacion_id, descripcion, proveedor[FK→contabilidad_proveedores.id], neto, pvp, plazas, noches, total_neto, total_pvp, opcional BOOL, checked BOOL)
+- operativa_cotizacion_lineas(id, cotizacion_id, descripcion, proveedor[FK→contabilidad_proveedores.id], destino[FK→maestro_destinos.id], neto, pvp, plazas, noches, total_neto, total_pvp, opcional BOOL, checked BOOL)
   -- SEMÁNTICA DE PRECIOS (crítico para no dividir mal):
   --   neto       = precio neto UNITARIO por plaza (coste por persona) — es el precio por entrada/noche/servicio
   --   pvp        = precio PVP UNITARIO por plaza (precio de venta por persona)
@@ -77,11 +77,26 @@ TABLAS PRINCIPALES:
   --   total_pvp  = pvp × plazas × noches  (calculado, total venta de la línea)
   -- Para "precio por entrada/persona": usar directamente ocl.neto (no dividir total_neto entre plazas)
   -- contabilidad_proveedores(id, nombre, razon_social, email, telefono)
+  -- maestro_destinos(id, nombre, nombre_comercial, locality, admin_area_l1, admin_area_l2, country)
+  --   admin_area_l1 = comunidad autónoma (ej: "Asturias", "Castilla y León")
+  --   admin_area_l2 = provincia
+  --   locality = ciudad/municipio
   -- Para buscar servicios cotizados por nombre de proveedor o descripción de línea:
   --   JOIN operativa_cotizacion_lineas ocl ON ocl.cotizacion_id = oc.id
   --   JOIN contabilidad_proveedores cp ON cp.id = ocl.proveedor
   --   WHERE ocl.descripcion ILIKE '%texto%' OR cp.nombre ILIKE '%texto%' OR cp.razon_social ILIKE '%texto%'
   -- NUNCA buscar servicios cotizados en crm_oportunidades.descripcion — eso son notas comerciales, no líneas de servicio
+  -- Para filtrar líneas por destino geográfico: JOIN maestro_destinos md ON md.id = ocl.destino
+  --   WHERE (md.admin_area_l1 ILIKE '%Asturias%' OR md.nombre ILIKE '%Asturias%' OR md.locality ILIKE '%Asturias%')
+  -- NO existen columnas origen_provincia/destino_provincia/origen/destino_texto en cotizacion_lineas — el destino es SIEMPRE via JOIN a maestro_destinos
+  -- Para "proveedor más rentable en destino X por tipo de servicio":
+  --   SELECT cp.nombre AS proveedor, COUNT(*) AS veces, AVG(ocl.pvp - ocl.neto) AS "margen_medio_€", SUM(ocl.total_pvp - ocl.total_neto) AS "margen_total_€"
+  --   FROM operativa_cotizaciones oc JOIN operativa_cotizacion_lineas ocl ON ocl.cotizacion_id = oc.id
+  --   JOIN contabilidad_proveedores cp ON cp.id = ocl.proveedor
+  --   JOIN maestro_destinos md ON md.id = ocl.destino
+  --   WHERE (md.admin_area_l1 ILIKE '%Asturias%' OR md.nombre ILIKE '%Asturias%')
+  --     AND (ocl.descripcion ILIKE '%traslado%' OR ocl.descripcion ILIKE '%autobus%' OR ocl.descripcion ILIKE '%transporte%' OR ocl.descripcion ILIKE '%bus%')
+  --   GROUP BY cp.nombre ORDER BY "margen_total_€" DESC LIMIT 10
 - facturas_emitidas(id, expediente_id, importe_total, fecha_emision) — facturas reales emitidas
 - contabilidad_movimientos_banco(id, cuenta_bancaria_id[FK→config_cuentas_bancarias.id], fecha_operacion DATE, importe DECIMAL — negativo=salida/pago positivo=entrada/cobro, concepto_limpio, concepto_original, estado[pendiente|propuesto|conciliado|descartado|futuro], match_score DECIMAL 0-100, conciliacion_tipo[automatica|manual], conciliado_at TIMESTAMP, origen[bridge|n43], deleted BOOL)
 - config_cuentas_bancarias(id, banco VARCHAR, iban VARCHAR, oficina_id FK→config_oficinas.id, descripcion VARCHAR, activa BOOL)
@@ -229,7 +244,13 @@ function isWebQuery(text: string, history: ChatTurn[] = []): boolean {
     lower.includes("base de datos") || lower.includes("en la bd") ||
     lower.includes("ranking") || lower.includes("análisis de") ||
     lower.includes("analisis de") || lower.includes("mis datos") ||
-    lower.includes("nuestros datos") || lower.includes("nuestra agencia")
+    lower.includes("nuestros datos") || lower.includes("nuestra agencia") ||
+    lower.includes("proveedor") || lower.includes("proveedores") ||
+    lower.includes("traslado") || lower.includes("traslados") ||
+    lower.includes("autobus") || lower.includes("autobús") ||
+    lower.includes("transporte") || lower.includes("rentable") ||
+    lower.includes("margen") || lower.includes("beneficio") ||
+    lower.includes("lineas") || lower.includes("líneas")
   );
   if (isInternalQuery) return false;
 

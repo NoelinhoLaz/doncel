@@ -1,0 +1,1633 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import {
+  ChevronRight, Heart, TableOfContents, Palette, Video, X, Sparkles,
+  GripVertical, Trash2, Map as MapPinIcon, Route, Footprints, Bus,
+} from "lucide-react";
+import styles from "../../page.module.css";
+import type { Seccion, UbicacionMapa, MapaItem, RutaItem, SegmentoRuta } from "../../types";
+import MediaSelector from "./MediaSelector";
+import TextoEstiloEditor from "./TextoEstiloEditor";
+import HighlightTextarea from "./HighlightTextarea";
+import { UbicacionEditor, UbicacionEditorRuta } from "./UbicacionEditor";
+import MenuEditorContenido from "./MenuEditorContenido";
+import { youtubeId } from "../../utils/video-utils";
+import { calcularSegmento } from "../../utils/routes-api";
+
+export function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onToggleFav, todasSecciones }: { seccion: Seccion; onClose: () => void; onRename: (uid: string, label: string) => void; onUpdate: (uid: string, patch: Partial<Seccion>) => void; isFav: boolean; onToggleFav: () => void; todasSecciones?: Seccion[] }) {
+  const [tab, setTab] = useState<"contenido" | "diseño">("contenido");
+  const [mediaAbierto, setMediaAbierto] = useState<boolean | number | "new" | string>(false);
+  const [expandedDayIdx, setExpandedDayIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    setMediaAbierto(false);
+    setExpandedDayIdx(null);
+  }, [seccion.uid]);
+
+  const updateDia = (dayNum: number, patch: Partial<any>) => {
+    const currentDias = [...(seccion.dias ?? [])];
+    const index = currentDias.findIndex(d => d.dia === dayNum);
+    if (index >= 0) {
+      currentDias[index] = { ...currentDias[index], ...patch };
+    } else {
+      currentDias.push({ dia: dayNum, ...patch });
+    }
+    onUpdate(seccion.uid, { dias: currentDias });
+  };
+
+  const [optimizandoIA, setOptimizandoIA] = useState<string | null>(null);
+  const [mapaAbierto, setMapaAbierto] = useState<string | null>(null);
+  const [ubAbierta, setUbAbierta] = useState<string | null>(null);
+  const [rutaAbierta, setRutaAbierta] = useState<string | null>(null);
+  const [ubRutaAbierta, setUbRutaAbierta] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMapaAbierto((seccion.mapas ?? [])[0]?.uid ?? null);
+    setUbAbierta(null);
+    setRutaAbierta((seccion.rutas ?? [])[0]?.uid ?? null);
+    setUbRutaAbierta(null);
+  }, [seccion.uid]);
+
+  const mejorarConIA = async (campo: "titulo" | "subtitulo") => {
+    const valorActual = seccion[campo] ?? "";
+    if (!valorActual.trim()) return;
+
+    setOptimizandoIA(campo);
+    await new Promise(resolve => setTimeout(resolve, 1200));
+
+    let nuevoValor = valorActual;
+
+    // Analizador de texto inteligente para viajes en español
+    const palabras = valorActual.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").split(/\s+/);
+
+    // Buscar números + "días" o "semanas" o "noches"
+    let duracion = "";
+    const duracionMatch = valorActual.match(/(\d+)\s*(días|dias|noches|semanas|d)/i);
+    if (duracionMatch) {
+      duracion = duracionMatch[0]; // ej: "6 días"
+    }
+
+    // Extraer nombres propios o términos importantes (capitalizados)
+    // O palabras de más de 4 letras que no sean preposiciones/artículos comunes
+    const stopWords = new Set(["para", "como", "pero", "este", "esta", "unos", "unas", "todo", "toda", "desde", "hasta", "entre", "sobre", "viaje", "ruta", "magia", "cumbres", "aventura"]);
+    const terminosClave: string[] = [];
+    palabras.forEach(p => {
+      if (p.length > 3 && !stopWords.has(p.toLowerCase())) {
+        // Si empieza por mayúscula o es una palabra importante
+        if (p[0] === p[0].toUpperCase() || p.toLowerCase() === "portaventura" || p.toLowerCase() === "pirenaicas" || p.toLowerCase() === "pirineos" || p.toLowerCase() === "barcelona" || p.toLowerCase() === "salou") {
+          terminosClave.push(p.replace(/\*\*/g, ""));
+        }
+      }
+    });
+
+    const destino1 = terminosClave[0] ?? "tu destino";
+    const destino2 = terminosClave[1] ?? (terminosClave[0] ? "" : "la aventura");
+
+    if (campo === "titulo") {
+      // Crear títulos de alto impacto inspirados en agencias de viaje premium
+      const plantillas = [
+        `De las cumbres de **${destino1}** a la magia de **${destino2 || "PortAventura"}**${duracion ? ` en ${duracion}` : ""}`,
+        `Aventura exclusiva: Explora **${destino1}** y **${destino2 || "sus secretos"}**`,
+        `Ruta de contraste: Del encanto de **${destino1}** a **${destino2 || "un destino de ensueño"}**`,
+        `El viaje definitivo: **${destino1}** y **${destino2 || "alrededores"}** al descubierto`,
+        `Experiencia única: Descubre **${destino1}** y siente la adrenalina de **${destino2 || "PortAventura"}**`
+      ];
+      // Seleccionamos uno al azar o diferente al actual
+      const filtradas = plantillas.filter(p => p.replace(/\*\*/g, "").toLowerCase() !== valorActual.replace(/\*\*/g, "").toLowerCase());
+      nuevoValor = filtradas[Math.floor(Math.random() * filtradas.length)] ?? plantillas[0];
+    } else {
+      // Subtítulo: Crear un párrafo de alto impacto comercial/emocional
+      const parrafos = [
+        `Un recorrido diseñado con mimo para conectar con la naturaleza de **${destino1}** y disfrutar al máximo de **${destino2 || "PortAventura"}**. Disfruta de alojamientos seleccionados en régimen de media pensión, traslados privados de confort superior y accesos prioritarios para exprimir cada segundo del viaje sin colas ni preocupaciones.`,
+        `Adéntrate en una experiencia irrepetible que combina la serenidad de **${destino1}** con las mejores actividades de **${destino2 || "aventura y diversión"}**. Una escapada perfecta pensada para viajeros exigentes que buscan el equilibrio perfecto entre desconexión, paisajes memorables y momentos inolvidables en privado.`,
+        `Prepara las maletas para una ruta inolvidable que te llevará desde el corazón de **${destino1}** hasta los rincones más mágicos de **${destino2 || "nuestro itinerario"}**. Incluye guías locales certificados en destino, traslados de alta gama y atención personalizada 24/7 para garantizar un viaje totalmente seguro y confortable.`
+      ];
+      const filtrados = parrafos.filter(p => p.toLowerCase() !== valorActual.toLowerCase());
+      nuevoValor = filtrados[Math.floor(Math.random() * filtrados.length)] ?? parrafos[0];
+    }
+
+    onUpdate(seccion.uid, { [campo]: nuevoValor });
+    setOptimizandoIA(null);
+  };
+
+  return (
+    <div className={styles.editorPanel}>
+      <div className={styles.editorHeader}>
+        <button className={styles.editorBack} onClick={onClose}>
+          <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} />
+        </button>
+        <input
+          className={styles.editorTitleInput}
+          value={seccion.label}
+          onChange={e => onRename(seccion.uid, e.target.value)}
+          placeholder="Nombre…"
+        />
+        <button
+          type="button"
+          onClick={onToggleFav}
+          title={isFav ? "Quitar de favoritos" : "Guardar en favoritos"}
+          style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", flexShrink: 0, display: "flex", alignItems: "center", lineHeight: 1 }}
+        >
+          <Heart size={16} fill={isFav ? "#f472b6" : "none"} color={isFav ? "#f472b6" : "#94a3b8"} style={{ transition: "all 0.15s" }} />
+        </button>
+      </div>
+
+      <div className={styles.editorTabs}>
+        <button
+          className={`${styles.editorTab} ${tab === "contenido" ? styles.editorTabActive : ""}`}
+          onClick={() => setTab("contenido")}
+        >
+          <TableOfContents size={13} />
+          Contenido
+        </button>
+        <button
+          className={`${styles.editorTab} ${tab === "diseño" ? styles.editorTabActive : ""}`}
+          onClick={() => setTab("diseño")}
+        >
+          <Palette size={13} />
+          Diseño
+        </button>
+      </div>
+
+      <div className={styles.editorBody}>
+        {tab === "contenido" && seccion.tipo === "portada" && (
+          <>
+            <div className={styles.editorSection}>
+              <label className={styles.editorFieldLabel}>Imágenes (máx. 5)</label>
+              <div className={styles.mediaThumbRow} style={{ flexWrap: "wrap" }}>
+                {(seccion.medias ?? []).filter(Boolean).map((m, i) => {
+                  const ytId = m.tipo === "video" ? youtubeId(m.url) : null;
+                  const thumbBg = m.tipo === "video"
+                    ? (ytId ? `url(https://img.youtube.com/vi/${ytId}/mqdefault.jpg)` : undefined)
+                    : `url(${m.url})`;
+                  return (
+                    <button
+                      key={i}
+                      draggable
+                      onDragStart={e => {
+                        e.dataTransfer.setData("text/plain", i.toString());
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragOver={e => {
+                        e.preventDefault();
+                      }}
+                      onDrop={e => {
+                        e.preventDefault();
+                        const dragIndexStr = e.dataTransfer.getData("text/plain");
+                        if (dragIndexStr !== "") {
+                          const dragIndex = parseInt(dragIndexStr, 10);
+                          if (dragIndex !== i) {
+                            const arr = [...(seccion.medias ?? [])];
+                            const [removed] = arr.splice(dragIndex, 1);
+                            arr.splice(i, 0, removed);
+                            onUpdate(seccion.uid, { medias: arr });
+                            setMediaAbierto(false);
+                          }
+                        }
+                      }}
+                      className={styles.mediaThumb}
+                      style={{ backgroundImage: thumbBg, backgroundColor: m.tipo === "video" && !ytId ? "#1e293b" : undefined, cursor: "grab" }}
+                      onClick={() => setMediaAbierto(mediaAbierto === i ? false : i)}
+                    >
+                      {m.tipo === "video" && !ytId && <Video size={16} style={{ color: "#94a3b8" }} />}
+                      {mediaAbierto === i
+                        ? <span className={styles.mediaThumbOverlay}><X size={16} /></span>
+                        : <span className={styles.mediaThumbOverlay} style={{ background: "rgba(0,0,0,0)" }}>
+                            {m.tipo === "video" && <Video size={11} style={{ color: "white", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.8))", position: "absolute", bottom: 4, left: 4 }} />}
+                            <span className={styles.mediaThumbDel} onClick={e => { e.stopPropagation(); const arr = [...(seccion.medias ?? [])]; arr.splice(i, 1); onUpdate(seccion.uid, { medias: arr }); setMediaAbierto(false); }}>
+                              <X size={10} />
+                            </span>
+                          </span>
+                      }
+                    </button>
+                  );
+                })}
+                {(seccion.medias ?? []).length < 5 && (
+                  <button
+                    className={`${styles.mediaThumbEmpty} ${mediaAbierto === "new" ? styles.mediaThumbEmptyActive : ""}`}
+                    onClick={() => setMediaAbierto(mediaAbierto === "new" ? false : "new")}
+                  >
+                    <span className={styles.mediaThumbPlus}>+</span>
+                  </button>
+                )}
+              </div>
+              {mediaAbierto === "new" && (
+                <MediaSelector
+                  value={undefined}
+                  onChange={m => { if (m) { onUpdate(seccion.uid, { medias: [...(seccion.medias ?? []), m] }); } setMediaAbierto(false); }}
+                />
+              )}
+              {typeof mediaAbierto === "number" && (
+                <MediaSelector
+                  value={seccion.medias?.[mediaAbierto]}
+                  onChange={m => { if (m) { const arr = [...(seccion.medias ?? [])]; arr[mediaAbierto as number] = m; onUpdate(seccion.uid, { medias: arr }); } setMediaAbierto(false); }}
+                />
+              )}
+            </div>
+            <div className={styles.editorSection}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0px" }}>
+                <label className={styles.editorFieldLabel} style={{ margin: 0 }}>Título</label>
+                <button
+                  type="button"
+                  className={`${styles.aiAssistBtn} ${optimizandoIA === "titulo" ? styles.aiAssistBtnLoading : ""}`}
+                  onClick={() => mejorarConIA("titulo")}
+                  disabled={optimizandoIA !== null || !(seccion.titulo?.trim())}
+                  title="Optimizar con IA"
+                >
+                  <Sparkles size={10} className={optimizandoIA === "titulo" ? styles.aiSparkleSpin : ""} />
+                  <span className={styles.aiAssistText}>Generar</span>
+                </button>
+              </div>
+              <HighlightTextarea
+                value={seccion.titulo ?? ""}
+                onChange={e => onUpdate(seccion.uid, { titulo: e.target.value })}
+                placeholder="Título principal…"
+                rows={2}
+              />
+            </div>
+            <div className={styles.editorSection}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0px" }}>
+                <label className={styles.editorFieldLabel} style={{ margin: 0 }}>Subtítulo</label>
+                <button
+                  type="button"
+                  className={`${styles.aiAssistBtn} ${optimizandoIA === "subtitulo" ? styles.aiAssistBtnLoading : ""}`}
+                  onClick={() => mejorarConIA("subtitulo")}
+                  disabled={optimizandoIA !== null || !(seccion.subtitulo?.trim())}
+                  title="Optimizar con IA"
+                >
+                  <Sparkles size={10} className={optimizandoIA === "subtitulo" ? styles.aiSparkleSpin : ""} />
+                  <span className={styles.aiAssistText}>Generar</span>
+                </button>
+              </div>
+              <HighlightTextarea
+                value={seccion.subtitulo ?? ""}
+                onChange={e => onUpdate(seccion.uid, { subtitulo: e.target.value })}
+                placeholder="Subtítulo o descripción…"
+                rows={3}
+              />
+            </div>
+          </>
+        )}
+        {tab === "contenido" && seccion.tipo === "texto-imagenes" && (
+          <>
+            <div className={styles.editorSection}>
+              <label className={styles.editorFieldLabel}>Imágenes (máx. 5)</label>
+              <div className={styles.mediaThumbRow} style={{ flexWrap: "wrap" }}>
+                {(seccion.medias ?? []).filter(Boolean).map((m, i) => {
+                  const ytId = m.tipo === "video" ? youtubeId(m.url) : null;
+                  const thumbBg = m.tipo === "video"
+                    ? (ytId ? `url(https://img.youtube.com/vi/${ytId}/mqdefault.jpg)` : undefined)
+                    : `url(${m.url})`;
+                  return (
+                    <button
+                      key={i}
+                      draggable
+                      onDragStart={e => {
+                        e.dataTransfer.setData("text/plain", i.toString());
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragOver={e => {
+                        e.preventDefault();
+                      }}
+                      onDrop={e => {
+                        e.preventDefault();
+                        const dragIndexStr = e.dataTransfer.getData("text/plain");
+                        if (dragIndexStr !== "") {
+                          const dragIndex = parseInt(dragIndexStr, 10);
+                          if (dragIndex !== i) {
+                            const arr = [...(seccion.medias ?? [])];
+                            const [removed] = arr.splice(dragIndex, 1);
+                            arr.splice(i, 0, removed);
+                            onUpdate(seccion.uid, { medias: arr });
+                            setMediaAbierto(false);
+                          }
+                        }
+                      }}
+                      className={styles.mediaThumb}
+                      style={{ backgroundImage: thumbBg, backgroundColor: m.tipo === "video" && !ytId ? "#1e293b" : undefined, cursor: "grab" }}
+                      onClick={() => setMediaAbierto(mediaAbierto === i ? false : i)}
+                    >
+                      {m.tipo === "video" && !ytId && <Video size={16} style={{ color: "#94a3b8" }} />}
+                      {mediaAbierto === i
+                        ? <span className={styles.mediaThumbOverlay}><X size={16} /></span>
+                        : <span className={styles.mediaThumbOverlay} style={{ background: "rgba(0,0,0,0)" }}>
+                            {m.tipo === "video" && <Video size={11} style={{ color: "white", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.8))", position: "absolute", bottom: 4, left: 4 }} />}
+                            <span className={styles.mediaThumbDel} onClick={e => { e.stopPropagation(); const arr = [...(seccion.medias ?? [])]; arr.splice(i, 1); onUpdate(seccion.uid, { medias: arr }); setMediaAbierto(false); }}>
+                              <X size={10} />
+                            </span>
+                          </span>
+                      }
+                    </button>
+                  );
+                })}
+                {(seccion.medias ?? []).length < 5 && (
+                  <button
+                    className={`${styles.mediaThumbEmpty} ${mediaAbierto === "new" ? styles.mediaThumbEmptyActive : ""}`}
+                    onClick={() => setMediaAbierto(mediaAbierto === "new" ? false : "new")}
+                  >
+                    <span className={styles.mediaThumbPlus}>+</span>
+                  </button>
+                )}
+              </div>
+              {mediaAbierto === "new" && (
+                <MediaSelector
+                  value={undefined}
+                  onChange={m => { if (m) { onUpdate(seccion.uid, { medias: [...(seccion.medias ?? []), m] }); } setMediaAbierto(false); }}
+                />
+              )}
+              {typeof mediaAbierto === "number" && (
+                <MediaSelector
+                  value={seccion.medias?.[mediaAbierto]}
+                  onChange={m => { if (m) { const arr = [...(seccion.medias ?? [])]; arr[mediaAbierto as number] = m; onUpdate(seccion.uid, { medias: arr }); } setMediaAbierto(false); }}
+                />
+              )}
+            </div>
+            <div className={styles.editorSection}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0px" }}>
+                <label className={styles.editorFieldLabel} style={{ margin: 0 }}>Título</label>
+                <button
+                  type="button"
+                  className={`${styles.aiAssistBtn} ${optimizandoIA === "titulo" ? styles.aiAssistBtnLoading : ""}`}
+                  onClick={() => mejorarConIA("titulo")}
+                  disabled={optimizandoIA !== null || !(seccion.titulo?.trim())}
+                  title="Optimizar con IA"
+                >
+                  <Sparkles size={10} className={optimizandoIA === "titulo" ? styles.aiSparkleSpin : ""} />
+                  <span className={styles.aiAssistText}>Generar</span>
+                </button>
+              </div>
+              <HighlightTextarea
+                value={seccion.titulo ?? ""}
+                onChange={e => onUpdate(seccion.uid, { titulo: e.target.value })}
+                placeholder="Título de la sección…"
+                rows={2}
+              />
+            </div>
+            <div className={styles.editorSection}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0px" }}>
+                <label className={styles.editorFieldLabel} style={{ margin: 0 }}>Texto Libre</label>
+                <button
+                  type="button"
+                  className={`${styles.aiAssistBtn} ${optimizandoIA === "subtitulo" ? styles.aiAssistBtnLoading : ""}`}
+                  onClick={() => mejorarConIA("subtitulo")}
+                  disabled={optimizandoIA !== null || !(seccion.subtitulo?.trim())}
+                  title="Optimizar con IA"
+                >
+                  <Sparkles size={10} className={optimizandoIA === "subtitulo" ? styles.aiSparkleSpin : ""} />
+                  <span className={styles.aiAssistText}>Generar</span>
+                </button>
+              </div>
+              <HighlightTextarea
+                value={seccion.subtitulo ?? ""}
+                onChange={e => onUpdate(seccion.uid, { subtitulo: e.target.value })}
+                placeholder="Contenido de la sección…"
+                rows={5}
+              />
+            </div>
+          </>
+        )}
+        {tab === "contenido" && seccion.tipo === "itinerario" && (() => {
+          let daysCount = 5;
+          if (seccion.fechaDesde && seccion.fechaHasta) {
+            const start = new Date(seccion.fechaDesde);
+            const end = new Date(seccion.fechaHasta);
+            if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+              const diffTime = end.getTime() - start.getTime();
+              const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+              daysCount = diffDays > 0 ? diffDays : 1;
+            }
+          }
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
+              <div className={styles.editorSection}>
+                <label className={styles.editorFieldLabel}>Título del itinerario</label>
+                <input
+                  type="text"
+                  placeholder="Ej. Plan de ruta y actividades..."
+                  value={seccion.titulo ?? ""}
+                  onChange={e => onUpdate(seccion.uid, { titulo: e.target.value })}
+                  className={styles.editorInput}
+                  style={{ width: "100%", background: "#ffffff" }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: "12px", width: "100%" }}>
+                <div className={styles.editorSection} style={{ flex: 1 }}>
+                  <label className={styles.editorFieldLabel}>Fecha desde</label>
+                  <input
+                    type="date"
+                    value={seccion.fechaDesde ?? ""}
+                    onChange={e => onUpdate(seccion.uid, { fechaDesde: e.target.value })}
+                    className={styles.editorInput}
+                    style={{ width: "100%" }}
+                  />
+                </div>
+                <div className={styles.editorSection} style={{ flex: 1 }}>
+                  <label className={styles.editorFieldLabel}>Fecha hasta</label>
+                  <input
+                    type="date"
+                    value={seccion.fechaHasta ?? ""}
+                    onChange={e => onUpdate(seccion.uid, { fechaHasta: e.target.value })}
+                    className={styles.editorInput}
+                    style={{ width: "100%" }}
+                  />
+                </div>
+              </div>
+
+              {daysCount > 0 && (() => {
+                const fullDaysArray = Array.from({ length: daysCount }).map((_, idx) => {
+                  const dayNum = idx + 1;
+                  return (seccion.dias ?? []).find(d => d.dia === dayNum) || { dia: dayNum };
+                });
+                return (
+                  <>
+                    <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: "4px" }}>
+                      Días del itinerario
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {fullDaysArray.map((diaData, idx) => {
+                        const dayNum = diaData.dia;
+                        const isOpen = expandedDayIdx === dayNum;
+                        return (
+                          <div
+                            key={dayNum}
+                            draggable
+                            onDragStart={e => {
+                              e.dataTransfer.setData("text/plain", idx.toString());
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            onDragOver={e => {
+                              e.preventDefault();
+                            }}
+                            onDrop={e => {
+                              e.preventDefault();
+                              const dragIdx = parseInt(e.dataTransfer.getData("text/plain"), 10);
+                              if (isNaN(dragIdx) || dragIdx === idx) return;
+                              const newArray = [...fullDaysArray];
+                              const [movedItem] = newArray.splice(dragIdx, 1);
+                              newArray.splice(idx, 0, movedItem);
+                              const updated = newArray.map((item, i) => ({ ...item, dia: i + 1 }));
+                              onUpdate(seccion.uid, { dias: updated });
+                            }}
+                            style={{ border: "1px solid #e2e8f0", borderRadius: "0.5rem", overflow: "hidden", background: "#f8fafc" }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", background: "#ffffff" }}>
+                              <div style={{ cursor: "grab", padding: "10px 0 10px 12px", display: "flex", alignItems: "center", color: "#94a3b8" }}>
+                                <GripVertical size={14} />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setExpandedDayIdx(isOpen ? null : dayNum)}
+                                style={{ flex: 1, padding: "10px 12px 10px 8px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
+                              >
+                                <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#1e293b" }}>
+                                  Día {dayNum}: <span style={{ fontWeight: 400, color: "#64748b", marginLeft: "4px" }}>{diaData.titulo || "Sin título"}</span>
+                                </span>
+                                <ChevronRight size={14} style={{ transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "#94a3b8" }} />
+                              </button>
+                            </div>
+
+                            {isOpen && (
+                              <div style={{ padding: "12px", borderTop: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: "10px", background: "#f8fafc" }}>
+                                <div>
+                                  <label className={styles.editorFieldLabel}>Imágenes del día</label>
+                                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "4px", marginBottom: "8px" }}>
+                                    {(diaData.medias ?? []).map((m, imgIdx) => {
+                                      const thumbBg = `url(${m.url})`;
+                                      const isSelecting = mediaAbierto === `day-${dayNum}-${imgIdx}`;
+                                      return (
+                                        <div
+                                          key={imgIdx}
+                                          style={{
+                                            position: "relative",
+                                            width: "50px",
+                                            height: "50px",
+                                            borderRadius: "4px",
+                                            backgroundImage: thumbBg,
+                                            backgroundSize: "cover",
+                                            backgroundPosition: "center",
+                                            border: "1px solid #cbd5e1",
+                                            cursor: "pointer"
+                                          }}
+                                          onClick={() => setMediaAbierto(isSelecting ? false : `day-${dayNum}-${imgIdx}`)}
+                                        >
+                                          <button
+                                            type="button"
+                                            onClick={e => {
+                                              e.stopPropagation();
+                                              const arr = [...(diaData.medias ?? [])];
+                                              arr.splice(imgIdx, 1);
+                                              updateDia(dayNum, { medias: arr });
+                                              setMediaAbierto(false);
+                                            }}
+                                            style={{
+                                              position: "absolute",
+                                              top: "-4px",
+                                              right: "-4px",
+                                              background: "#ef4444",
+                                              color: "#ffffff",
+                                              border: "none",
+                                              borderRadius: "50%",
+                                              width: "14px",
+                                              height: "14px",
+                                              display: "flex",
+                                              alignItems: "center",
+                                              justifyContent: "center",
+                                              cursor: "pointer",
+                                              fontSize: "8px",
+                                              padding: 0
+                                            }}
+                                          >
+                                            <X size={8} />
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                    {(diaData.medias ?? []).length < 5 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setMediaAbierto(mediaAbierto === `day-${dayNum}-new` ? false : `day-${dayNum}-new`)}
+                                        style={{ width: "50px", height: "50px", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #cbd5e1", borderRadius: "4px", background: "#ffffff", cursor: "pointer" }}
+                                      >
+                                        <span style={{ fontSize: "1.2rem", color: "#64748b" }}>+</span>
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {mediaAbierto === `day-${dayNum}-new` && (
+                                    <div style={{ marginTop: "8px" }}>
+                                      <MediaSelector
+                                        value={undefined}
+                                        onChange={m => {
+                                          if (!m) return;
+                                          const arr = [...(diaData.medias ?? []), m];
+                                          updateDia(dayNum, { medias: arr });
+                                          setMediaAbierto(false);
+                                        }}
+                                      />
+                                    </div>
+                                  )}
+
+                                  {typeof mediaAbierto === "string" && mediaAbierto.startsWith(`day-${dayNum}-`) && !mediaAbierto.endsWith("-new") && (() => {
+                                    const parts = mediaAbierto.split("-");
+                                    const imgIdx = parseInt(parts[parts.length - 1] ?? "", 10);
+                                    if (isNaN(imgIdx)) return null;
+                                    return (
+                                      <div style={{ marginTop: "8px" }}>
+                                        <MediaSelector
+                                          value={diaData.medias?.[imgIdx]}
+                                          onChange={m => {
+                                            if (!m) return;
+                                            const arr = [...(diaData.medias ?? [])];
+                                            arr[imgIdx] = m;
+                                            updateDia(dayNum, { medias: arr });
+                                            setMediaAbierto(false);
+                                          }}
+                                        />
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+
+                                <div>
+                                  <label className={styles.editorFieldLabel}>Título</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Título del día..."
+                                    value={diaData.titulo ?? ""}
+                                    onChange={e => updateDia(dayNum, { titulo: e.target.value })}
+                                    className={styles.editorInput}
+                                    style={{ width: "100%", background: "#ffffff" }}
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className={styles.editorFieldLabel}>Descripción</label>
+                                  <textarea
+                                    placeholder="Descripción del día..."
+                                    value={diaData.desc ?? ""}
+                                    onChange={e => updateDia(dayNum, { desc: e.target.value })}
+                                    className={styles.editorInput}
+                                    rows={3}
+                                    style={{ width: "100%", background: "#ffffff", resize: "vertical" }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          );
+        })()}
+        {tab === "contenido" && seccion.tipo === "texto-columnas" && (() => {
+          const colCount = seccion.layout === "2-cols" ? 2 : seccion.layout === "4-cols" ? 4 : 3;
+          const cols = Array.from({ length: colCount }).map((_, idx) => {
+            return (seccion.columnas ?? [])[idx] || { titulo: `Columna ${idx + 1}`, texto: "" };
+          });
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
+              <div className={styles.editorSection}>
+                <label className={styles.editorFieldLabel}>Título de la sección</label>
+                <input
+                  type="text"
+                  placeholder="Ej. Qué ofrecemos..."
+                  value={seccion.titulo ?? ""}
+                  onChange={e => onUpdate(seccion.uid, { titulo: e.target.value })}
+                  className={styles.editorInput}
+                  style={{ width: "100%", background: "#ffffff" }}
+                />
+              </div>
+              {cols.map((col, idx) => (
+                <div key={idx} className={styles.editorSection} style={{ borderTop: "1px solid #f1f5f9", paddingTop: "12px" }}>
+                  <label className={styles.editorFieldLabel} style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold" }}>
+                    <span>Columna {idx + 1}</span>
+                  </label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "6px" }}>
+                    <input
+                      type="text"
+                      placeholder="Título de la columna"
+                      value={col.titulo ?? ""}
+                      onChange={e => {
+                        const nextCols = [...(seccion.columnas ?? [])];
+                        while (nextCols.length <= idx) nextCols.push({ titulo: "", texto: "" });
+                        nextCols[idx] = { ...nextCols[idx], titulo: e.target.value };
+                        onUpdate(seccion.uid, { columnas: nextCols });
+                      }}
+                      className={styles.editorInput}
+                      style={{ width: "100%", background: "#ffffff" }}
+                    />
+                    <textarea
+                      placeholder="Contenido (puedes usar .- para viñetas y ** para negrita)"
+                      value={col.texto ?? ""}
+                      onChange={e => {
+                        const nextCols = [...(seccion.columnas ?? [])];
+                        while (nextCols.length <= idx) nextCols.push({ titulo: "", texto: "" });
+                        nextCols[idx] = { ...nextCols[idx], texto: e.target.value };
+                        onUpdate(seccion.uid, { columnas: nextCols });
+                      }}
+                      className={styles.editorInput}
+                      style={{ width: "100%", minHeight: "80px", fontFamily: "inherit", resize: "vertical" }}
+                      rows={3}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+        {tab === "contenido" && seccion.tipo === "mapa" && (() => {
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
+              <div className={styles.editorSection}>
+                <label className={styles.editorFieldLabel}>Título del mapa</label>
+                <input
+                  type="text"
+                  placeholder="Ej. Mapa de destinos..."
+                  value={seccion.titulo ?? ""}
+                  onChange={e => onUpdate(seccion.uid, { titulo: e.target.value })}
+                  className={styles.editorInput}
+                  style={{ width: "100%", background: "#ffffff" }}
+                />
+              </div>
+              <>
+                {(seccion.mapas ?? []).map((mapaItem, mIdx) => {
+                      const isMapaOpen = mapaAbierto === mapaItem.uid;
+                      return (
+                        <div key={mapaItem.uid} className={styles.mapaEditorBloque}>
+                          {/* Cabecera del mapa — colapsable */}
+                          <div
+                            style={{ display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}
+                            onClick={() => setMapaAbierto(isMapaOpen ? null : mapaItem.uid)}
+                          >
+                            <ChevronRight size={14} style={{ color: "#94a3b8", transform: isMapaOpen ? "rotate(90deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }} />
+                            <input
+                              type="text"
+                              placeholder={`Mapa ${mIdx + 1}`}
+                              value={mapaItem.titulo ?? ""}
+                              onChange={e => {
+                                e.stopPropagation();
+                                const updatedMapas = (seccion.mapas ?? []).map(m =>
+                                  m.uid === mapaItem.uid ? { ...m, titulo: e.target.value } : m
+                                );
+                                onUpdate(seccion.uid, { mapas: updatedMapas });
+                              }}
+                              onClick={e => e.stopPropagation()}
+                              className={styles.editorInput}
+                              style={{ flex: 1, background: "#ffffff" }}
+                            />
+                            <button
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation();
+                                const updatedMapas = (seccion.mapas ?? []).filter(m => m.uid !== mapaItem.uid);
+                                onUpdate(seccion.uid, { mapas: updatedMapas });
+                              }}
+                              style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "4px", flexShrink: 0 }}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+
+                          {/* Cuerpo colapsable del mapa */}
+                          {isMapaOpen && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", paddingLeft: "1rem" }}>
+                              {(mapaItem.ubicaciones ?? []).map((ub, uIdx) => {
+                                const isUbOpen = ubAbierta === ub.uid;
+                                return (
+                                  <div key={ub.uid} className={styles.ubicacionCard}>
+                                    {/* Cabecera ubicación — colapsable */}
+                                    <div
+                                      style={{ display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}
+                                      onClick={() => setUbAbierta(isUbOpen ? null : ub.uid)}
+                                    >
+                                      <ChevronRight size={12} style={{ color: "#94a3b8", transform: isUbOpen ? "rotate(90deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }} />
+                                      <span style={{ flex: 1, fontSize: "0.78rem", fontWeight: 600, color: ub.nombre ? "#1e293b" : "#94a3b8" }}>
+                                        {ub.nombre ?? `Ubicación ${uIdx + 1}`}
+                                      </span>
+                                      {ub.direccion && !isUbOpen && (
+                                        <span style={{ fontSize: "0.65rem", color: "#94a3b8", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ub.direccion}</span>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={e => {
+                                          e.stopPropagation();
+                                          const updatedMapas = (seccion.mapas ?? []).map(m => {
+                                            if (m.uid !== mapaItem.uid) return m;
+                                            return { ...m, ubicaciones: (m.ubicaciones ?? []).filter(u => u.uid !== ub.uid) };
+                                          });
+                                          onUpdate(seccion.uid, { mapas: updatedMapas });
+                                        }}
+                                        style={{ background: "none", border: "none", cursor: "pointer", color: "#cbd5e1", padding: "2px", flexShrink: 0 }}
+                                      >
+                                        <Trash2 size={11} />
+                                      </button>
+                                    </div>
+
+                                    {/* Cuerpo colapsable de la ubicación */}
+                                    {isUbOpen && (
+                                      <UbicacionEditor
+                                        ub={ub}
+                                        mapaUid={mapaItem.uid}
+                                        seccion={seccion}
+                                        onUpdate={onUpdate}
+                                      />
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newUb: UbicacionMapa = { uid: crypto.randomUUID() };
+                                  const updatedMapas = (seccion.mapas ?? []).map(m => {
+                                    if (m.uid !== mapaItem.uid) return m;
+                                    return { ...m, ubicaciones: [...(m.ubicaciones ?? []), newUb] };
+                                  });
+                                  onUpdate(seccion.uid, { mapas: updatedMapas });
+                                  setUbAbierta(newUb.uid);
+                                }}
+                                className={styles.previewBtn}
+                                style={{ fontSize: "0.72rem", padding: "4px 10px", borderRadius: "0.4rem" }}
+                              >
+                                + Añadir ubicación
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newMapa: MapaItem = { uid: crypto.randomUUID(), ubicaciones: [] };
+                        onUpdate(seccion.uid, { mapas: [...(seccion.mapas ?? []), newMapa] });
+                        setMapaAbierto(newMapa.uid);
+                      }}
+                      className={styles.previewBtn}
+                      style={{ fontSize: "0.75rem", padding: "6px 12px", borderRadius: "0.4rem" }}
+                    >
+                      + Añadir mapa
+                    </button>
+              </>
+            </div>
+          );
+        })()}
+        {tab === "contenido" && seccion.tipo === "ruta" && (() => {
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
+              <div className={styles.editorSection}>
+                <label className={styles.editorFieldLabel}>Título de la ruta</label>
+                <input
+                  type="text"
+                  placeholder="Ej. Ruta por los Alpes..."
+                  value={seccion.titulo ?? ""}
+                  onChange={e => onUpdate(seccion.uid, { titulo: e.target.value })}
+                  className={styles.editorInput}
+                  style={{ width: "100%", background: "#ffffff" }}
+                />
+              </div>
+              <>
+                {(seccion.rutas ?? []).map((rutaItem, rIdx) => {
+                  const isRutaOpen = rutaAbierta === rutaItem.uid;
+                  return (
+                    <div key={rutaItem.uid} className={styles.mapaEditorBloque}>
+                      <div
+                        style={{ display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}
+                        onClick={() => setRutaAbierta(isRutaOpen ? null : rutaItem.uid)}
+                      >
+                        <ChevronRight size={14} style={{ color: "#94a3b8", transform: isRutaOpen ? "rotate(90deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }} />
+                        <input
+                          type="text"
+                          placeholder={`Ruta ${rIdx + 1}`}
+                          value={rutaItem.titulo ?? ""}
+                          onChange={e => {
+                            e.stopPropagation();
+                            const updatedRutas = (seccion.rutas ?? []).map(r =>
+                              r.uid === rutaItem.uid ? { ...r, titulo: e.target.value } : r
+                            );
+                            onUpdate(seccion.uid, { rutas: updatedRutas });
+                          }}
+                          onClick={e => e.stopPropagation()}
+                          className={styles.editorInput}
+                          style={{ flex: 1, background: "#ffffff" }}
+                        />
+                        <button
+                          type="button"
+                          onClick={e => {
+                            e.stopPropagation();
+                            const updatedRutas = (seccion.rutas ?? []).filter(r => r.uid !== rutaItem.uid);
+                            onUpdate(seccion.uid, { rutas: updatedRutas });
+                          }}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "4px", flexShrink: 0 }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                      {isRutaOpen && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", paddingLeft: "1rem" }}>
+                          {(rutaItem.ubicaciones ?? []).map((ub, uIdx) => {
+                            const isUbOpen = ubRutaAbierta === ub.uid;
+                            const seg = (rutaItem.segmentos ?? [])[uIdx - 1];
+                            return (
+                              <React.Fragment key={ub.uid}>
+                                {uIdx > 0 && (
+                                  <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 0 4px 0" }}>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const newModo: "foot-walking" | "driving-car" = "foot-walking";
+                                        const segs = [...(rutaItem.segmentos ?? [])];
+                                        segs[uIdx - 1] = { ...segs[uIdx - 1], uid: segs[uIdx - 1]?.uid ?? crypto.randomUUID(), modo: newModo, polyline: undefined };
+                                        const updatedRutas = (seccion.rutas ?? []).map(r => r.uid === rutaItem.uid ? { ...r, segmentos: segs } : r);
+                                        onUpdate(seccion.uid, { rutas: updatedRutas });
+                                        const prev = (rutaItem.ubicaciones ?? [])[uIdx - 1];
+                                        const curr = ub;
+                                        await calcularSegmento(seccion.uid, rutaItem.uid, uIdx - 1, newModo, prev, curr, { ...seccion, rutas: updatedRutas }, onUpdate);
+                                      }}
+                                      style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: "0.4rem", border: `1px solid ${seg?.modo === "foot-walking" ? "#22c55e" : "#e2e8f0"}`, background: seg?.modo === "foot-walking" ? "#f0fdf4" : "#ffffff", cursor: "pointer", fontSize: "0.72rem", color: seg?.modo === "foot-walking" ? "#15803d" : "#94a3b8" }}
+                                      title="A pie"
+                                    >
+                                      <Footprints size={12} />
+                                      <span>A pie</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const newModo: "foot-walking" | "driving-car" = "driving-car";
+                                        const segs = [...(rutaItem.segmentos ?? [])];
+                                        segs[uIdx - 1] = { ...segs[uIdx - 1], uid: segs[uIdx - 1]?.uid ?? crypto.randomUUID(), modo: newModo, polyline: undefined };
+                                        const updatedRutas = (seccion.rutas ?? []).map(r => r.uid === rutaItem.uid ? { ...r, segmentos: segs } : r);
+                                        onUpdate(seccion.uid, { rutas: updatedRutas });
+                                        const prev = (rutaItem.ubicaciones ?? [])[uIdx - 1];
+                                        const curr = ub;
+                                        await calcularSegmento(seccion.uid, rutaItem.uid, uIdx - 1, newModo, prev, curr, { ...seccion, rutas: updatedRutas }, onUpdate);
+                                      }}
+                                      style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: "0.4rem", border: `1px solid ${(!seg?.modo || seg?.modo === "driving-car") ? "#3b82f6" : "#e2e8f0"}`, background: (!seg?.modo || seg?.modo === "driving-car") ? "#eff6ff" : "#ffffff", cursor: "pointer", fontSize: "0.72rem", color: (!seg?.modo || seg?.modo === "driving-car") ? "#1d4ed8" : "#94a3b8" }}
+                                      title="En bus"
+                                    >
+                                      <Bus size={12} />
+                                      <span>Bus</span>
+                                    </button>
+                                    {!seg?.polyline && seg?.modo && (
+                                      <span style={{ fontSize: "0.65rem", color: "#94a3b8" }}>Calculando…</span>
+                                    )}
+                                  </div>
+                                )}
+                                <div className={styles.ubicacionCard}>
+                                  <div
+                                    style={{ display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}
+                                    onClick={() => setUbRutaAbierta(isUbOpen ? null : ub.uid)}
+                                  >
+                                    <ChevronRight size={12} style={{ color: "#94a3b8", transform: isUbOpen ? "rotate(90deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }} />
+                                    <span style={{ flex: 1, fontSize: "0.78rem", fontWeight: 600, color: ub.nombre ? "#1e293b" : "#94a3b8" }}>
+                                      {ub.nombre ?? `Destino ${uIdx + 1}`}
+                                    </span>
+                                    {ub.direccion && !isUbOpen && (
+                                      <span style={{ fontSize: "0.65rem", color: "#94a3b8", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ub.direccion}</span>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        const updatedRutas = (seccion.rutas ?? []).map(r => {
+                                          if (r.uid !== rutaItem.uid) return r;
+                                          const newUbs = (r.ubicaciones ?? []).filter(u => u.uid !== ub.uid);
+                                          const newSegs = (r.segmentos ?? []).filter((_, i) => i !== uIdx && i !== uIdx - 1);
+                                          return { ...r, ubicaciones: newUbs, segmentos: newSegs };
+                                        });
+                                        onUpdate(seccion.uid, { rutas: updatedRutas });
+                                      }}
+                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#cbd5e1", padding: "2px", flexShrink: 0 }}
+                                    >
+                                      <Trash2 size={11} />
+                                    </button>
+                                  </div>
+                                  {isUbOpen && (
+                                    <UbicacionEditorRuta
+                                      ub={ub}
+                                      rutaUid={rutaItem.uid}
+                                      seccion={seccion}
+                                      onUpdate={onUpdate}
+                                    />
+                                  )}
+                                </div>
+                              </React.Fragment>
+                            );
+                          })}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const newUb: UbicacionMapa = { uid: crypto.randomUUID() };
+                              const existingUbs = rutaItem.ubicaciones ?? [];
+                              const updatedRutas = (seccion.rutas ?? []).map(r => {
+                                if (r.uid !== rutaItem.uid) return r;
+                                const newSegs: SegmentoRuta[] = [...(r.segmentos ?? [])];
+                                if (existingUbs.length > 0) {
+                                  newSegs[existingUbs.length - 1] = { uid: crypto.randomUUID(), modo: "driving-car" };
+                                }
+                                return { ...r, ubicaciones: [...existingUbs, newUb], segmentos: newSegs };
+                              });
+                              onUpdate(seccion.uid, { rutas: updatedRutas });
+                              setUbRutaAbierta(newUb.uid);
+                            }}
+                            className={styles.previewBtn}
+                            style={{ fontSize: "0.72rem", padding: "4px 10px", borderRadius: "0.4rem" }}
+                          >
+                            + Añadir destino
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newRuta: RutaItem = { uid: crypto.randomUUID(), ubicaciones: [], segmentos: [] };
+                    onUpdate(seccion.uid, { rutas: [...(seccion.rutas ?? []), newRuta] });
+                    setRutaAbierta(newRuta.uid);
+                  }}
+                  className={styles.previewBtn}
+                  style={{ fontSize: "0.75rem", padding: "6px 12px", borderRadius: "0.4rem" }}
+                >
+                  + Añadir ruta
+                </button>
+              </>
+            </div>
+          );
+        })()}
+        {tab === "contenido" && seccion.tipo === "menu" && (
+          <MenuEditorContenido seccion={seccion} onUpdate={onUpdate} todasSecciones={todasSecciones} />
+        )}
+        {tab === "contenido" && seccion.tipo !== "portada" && seccion.tipo !== "texto-imagenes" && seccion.tipo !== "itinerario" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && (
+          <p className={styles.editorEmpty}>Opciones de contenido próximamente.</p>
+        )}
+        {tab === "diseño" && (
+          <>
+            {seccion.tipo === "texto-imagenes" && (
+              <>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Layout</label>
+                  <div className={styles.layoutPicker}>
+                    <button
+                      className={`${styles.layoutOption} ${(seccion.layout ?? "texto-img") === "texto-img" ? styles.layoutOptionActive : ""}`}
+                      onClick={() => onUpdate(seccion.uid, { layout: "texto-img" })}
+                      title="Texto izquierda, imagen derecha"
+                    >
+                      <div className={styles.layoutPreview}>
+                        <div className={styles.lpText}><div className={styles.lpLine} /></div>
+                        <div className={styles.lpImg} />
+                      </div>
+                      <span className={styles.layoutLabel}>Texto · Img</span>
+                    </button>
+                    <button
+                      className={`${styles.layoutOption} ${seccion.layout === "img-texto" ? styles.layoutOptionActive : ""}`}
+                      onClick={() => onUpdate(seccion.uid, { layout: "img-texto" })}
+                      title="Imagen izquierda, texto derecha"
+                    >
+                      <div className={styles.layoutPreview}>
+                        <div className={styles.lpImg} />
+                        <div className={styles.lpText}><div className={styles.lpLine} /></div>
+                      </div>
+                      <span className={styles.layoutLabel}>Img · Texto</span>
+                    </button>
+                  </div>
+                </div>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Ancho de sección</label>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {[
+                      { id: "900px", label: "Pequeño" },
+                      { id: "1200px", label: "Mediano" },
+                      { id: "completo", label: "Ancho completo" },
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className={`${styles.previewBtn} ${(seccion.anchoMax ?? "completo") === opt.id ? styles.saveBtn : ""}`}
+                        style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.anchoMax ?? "completo") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.anchoMax ?? "completo") === opt.id ? "#ffffff" : "#475569" }}
+                        onClick={() => onUpdate(seccion.uid, { anchoMax: opt.id })}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Color de fondo</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label className={styles.colorPickerBtn} style={{ background: seccion.colorFondo ?? "#ffffff", width: 34, height: 34, borderRadius: "0.5rem" }}>
+                      <input type="color" value={seccion.colorFondo ?? "#ffffff"} onChange={e => onUpdate(seccion.uid, { colorFondo: e.target.value })} />
+                    </label>
+                    <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondo ?? "#ffffff"}</span>
+                    {seccion.colorFondo && (
+                      <button onClick={() => onUpdate(seccion.uid, { colorFondo: undefined })} style={{ fontSize: "0.75rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Restablecer</button>
+                    )}
+                  </div>
+                </div>
+                <TextoEstiloEditor
+                  label="Título"
+                  value={seccion.estiloTitulo}
+                  onChange={v => onUpdate(seccion.uid, { estiloTitulo: v })}
+                />
+                <TextoEstiloEditor
+                  label="Texto Libre"
+                  value={seccion.estiloSubtitulo}
+                  onChange={v => onUpdate(seccion.uid, { estiloSubtitulo: v })}
+                />
+              </>
+            )}
+            {seccion.tipo === "texto-columnas" && (
+              <>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Layout</label>
+                  <div className={styles.layoutPicker}>
+                    {[
+                      {
+                        id: "2-cols",
+                        label: "2 Columnas",
+                        preview: (
+                          <div className={styles.layoutPreview} style={{ gap: 4, padding: "6px" }}>
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+                              <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
+                              <div style={{ width: "80%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
+                              <div style={{ width: "60%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
+                            </div>
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+                              <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
+                              <div style={{ width: "80%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
+                              <div style={{ width: "60%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
+                            </div>
+                          </div>
+                        )
+                      },
+                      {
+                        id: "3-cols",
+                        label: "3 Columnas",
+                        preview: (
+                          <div className={styles.layoutPreview} style={{ gap: 3, padding: "6px" }}>
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+                              <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
+                              <div style={{ width: "70%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
+                            </div>
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+                              <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
+                              <div style={{ width: "70%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
+                            </div>
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+                              <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
+                              <div style={{ width: "70%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
+                            </div>
+                          </div>
+                        )
+                      },
+                      {
+                        id: "4-cols",
+                        label: "4 Columnas",
+                        preview: (
+                          <div className={styles.layoutPreview} style={{ gap: 2, padding: "6px" }}>
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+                              <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
+                              <div style={{ width: "60%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
+                            </div>
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+                              <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
+                              <div style={{ width: "60%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
+                            </div>
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+                              <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
+                              <div style={{ width: "60%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
+                            </div>
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+                              <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
+                              <div style={{ width: "60%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
+                            </div>
+                          </div>
+                        )
+                      },
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className={`${styles.layoutOption} ${(seccion.layout ?? "3-cols") === opt.id ? styles.layoutOptionActive : ""}`}
+                        onClick={() => onUpdate(seccion.uid, { layout: opt.id })}
+                      >
+                        {opt.preview}
+                        <span className={styles.layoutLabel}>{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Ancho de sección</label>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {[
+                      { id: "900px", label: "Pequeño" },
+                      { id: "1200px", label: "Mediano" },
+                      { id: "completo", label: "Ancho completo" },
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className={`${styles.previewBtn} ${(seccion.anchoMax ?? "1200px") === opt.id ? styles.saveBtn : ""}`}
+                        style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.anchoMax ?? "1200px") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.anchoMax ?? "1200px") === opt.id ? "#ffffff" : "#475569" }}
+                        onClick={() => onUpdate(seccion.uid, { anchoMax: opt.id })}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Color de fondo</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label className={styles.colorPickerBtn} style={{ background: seccion.colorFondo ?? "#ffffff", width: 34, height: 34, borderRadius: "0.5rem" }}>
+                      <input type="color" value={seccion.colorFondo ?? "#ffffff"} onChange={e => onUpdate(seccion.uid, { colorFondo: e.target.value })} />
+                    </label>
+                    <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondo ?? "#ffffff"}</span>
+                    {seccion.colorFondo && (
+                      <button onClick={() => onUpdate(seccion.uid, { colorFondo: undefined })} style={{ fontSize: "0.75rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Restablecer</button>
+                    )}
+                  </div>
+                </div>
+                <TextoEstiloEditor
+                  label="Título de la sección"
+                  value={seccion.estiloTitulo}
+                  onChange={v => onUpdate(seccion.uid, { estiloTitulo: v })}
+                />
+                <TextoEstiloEditor
+                  label="Título de columnas"
+                  value={seccion.estiloTituloDia}
+                  onChange={v => onUpdate(seccion.uid, { estiloTituloDia: v })}
+                />
+                <TextoEstiloEditor
+                  label="Texto de columnas"
+                  value={seccion.estiloDescDia}
+                  onChange={v => onUpdate(seccion.uid, { estiloDescDia: v })}
+                />
+              </>
+            )}
+            {seccion.tipo === "itinerario" && (
+              <>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Layout</label>
+                  <div className={styles.layoutPicker}>
+                    <button
+                      className={`${styles.layoutOption} ${(seccion.layout ?? "vertical") === "vertical" ? styles.layoutOptionActive : ""}`}
+                      onClick={() => onUpdate(seccion.uid, { layout: "vertical" })}
+                      title="Vertical Alternado"
+                    >
+                      <div className={styles.layoutPreview} style={{ flexDirection: "column", gap: 3, padding: 4 }}>
+                        <div style={{ display: "flex", gap: 3, width: "100%", height: 8 }}>
+                          <div className={styles.lpText} style={{ flex: 1 }}><div className={styles.lpLine} style={{ height: 3, background: "#cbd5e1" }} /></div>
+                          <div className={styles.lpImg} style={{ width: 12, height: "100%", background: "#cbd5e1" }} />
+                        </div>
+                        <div style={{ display: "flex", gap: 3, width: "100%", height: 8 }}>
+                          <div className={styles.lpImg} style={{ width: 12, height: "100%", background: "#cbd5e1" }} />
+                          <div className={styles.lpText} style={{ flex: 1 }}><div className={styles.lpLine} style={{ height: 3, background: "#cbd5e1" }} /></div>
+                        </div>
+                      </div>
+                      <span className={styles.layoutLabel}>Vertical</span>
+                    </button>
+                    <button
+                      className={`${styles.layoutOption} ${seccion.layout === "acordeon" ? styles.layoutOptionActive : ""}`}
+                      onClick={() => onUpdate(seccion.uid, { layout: "acordeon" })}
+                      title="Acordeón Horizontal"
+                    >
+                      <div className={styles.layoutPreview} style={{ gap: 2, padding: "4px 6px" }}>
+                        <div style={{ flex: 2, background: "#6366f1", borderRadius: 2 }} />
+                        <div style={{ flex: 1, background: "#cbd5e1", borderRadius: 2 }} />
+                        <div style={{ flex: 1, background: "#cbd5e1", borderRadius: 2 }} />
+                        <div style={{ flex: 1, background: "#cbd5e1", borderRadius: 2 }} />
+                      </div>
+                      <span className={styles.layoutLabel}>Acordeón</span>
+                    </button>
+                  </div>
+                </div>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Ancho de sección</label>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {[
+                      { id: "900px", label: "Pequeño" },
+                      { id: "1200px", label: "Mediano" },
+                      { id: "completo", label: "Ancho completo" },
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className={`${styles.previewBtn} ${(seccion.anchoMax ?? "completo") === opt.id ? styles.saveBtn : ""}`}
+                        style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.anchoMax ?? "completo") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.anchoMax ?? "completo") === opt.id ? "#ffffff" : "#475569" }}
+                        onClick={() => onUpdate(seccion.uid, { anchoMax: opt.id })}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Color de fondo</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label className={styles.colorPickerBtn} style={{ background: seccion.colorFondo ?? "#ffffff", width: 34, height: 34, borderRadius: "0.5rem" }}>
+                      <input type="color" value={seccion.colorFondo ?? "#ffffff"} onChange={e => onUpdate(seccion.uid, { colorFondo: e.target.value })} />
+                    </label>
+                    <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondo ?? "#ffffff"}</span>
+                    {seccion.colorFondo && (
+                      <button onClick={() => onUpdate(seccion.uid, { colorFondo: undefined })} style={{ fontSize: "0.75rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Restablecer</button>
+                    )}
+                  </div>
+                </div>
+                <TextoEstiloEditor
+                  label="Título del itinerario"
+                  value={seccion.estiloTitulo}
+                  onChange={v => onUpdate(seccion.uid, { estiloTitulo: v })}
+                />
+                <TextoEstiloEditor
+                  label="Título de día"
+                  value={seccion.estiloTituloDia}
+                  onChange={v => onUpdate(seccion.uid, { estiloTituloDia: v })}
+                />
+                <TextoEstiloEditor
+                  label="Texto de día"
+                  value={seccion.estiloDescDia}
+                  onChange={v => onUpdate(seccion.uid, { estiloDescDia: v })}
+                />
+              </>
+            )}
+            {seccion.tipo === "portada" && (
+              <div className={styles.editorSection}>
+                <label className={styles.editorFieldLabel}>Layout</label>
+                <div className={styles.layoutPicker}>
+                  {[
+                    { id: "slide",    label: "Slide",    preview: (
+                      <div className={styles.layoutPreview} style={{ position: "relative", background: "#e2e8f0", borderRadius: 3 }}>
+                        <div style={{ position: "absolute", left: 4, top: "50%", transform: "translateY(-50%)", fontSize: 10, color: "#94a3b8" }}>‹</div>
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3, padding: "6px 12px", justifyContent: "center" }}>
+                          <div className={styles.lpLine} style={{ width: "60%", background: "rgba(255,255,255,0.7)" }} />
+                          <div className={styles.lpLine} style={{ width: "40%", background: "rgba(255,255,255,0.5)" }} />
+                        </div>
+                        <div style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", fontSize: 10, color: "#94a3b8" }}>›</div>
+                      </div>
+                    )},
+                    { id: "wave",     label: "Wave",     preview: (
+                      <div className={styles.layoutPreview} style={{ background: "#f8fafc", borderRadius: 3, overflow: "hidden", position: "relative" }}>
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3, padding: "6px 6px", justifyContent: "center", zIndex: 1 }}>
+                          <div className={styles.lpLine} style={{ width: "70%" }} />
+                          <div className={styles.lpLine} style={{ width: "50%" }} />
+                        </div>
+                        <svg viewBox="0 0 60 36" style={{ position: "absolute", right: 0, top: 0, height: "100%", width: "45%" }} preserveAspectRatio="none">
+                          <path d="M15,0 Q0,18 15,36 L60,36 L60,0 Z" fill="#e2e8f0" />
+                        </svg>
+                      </div>
+                    )},
+                    { id: "polaroid", label: "Polaroid",  preview: (
+                      <div className={styles.layoutPreview} style={{ background: "#f8fafc", borderRadius: 3, overflow: "hidden", gap: 4 }}>
+                        <div style={{ flex: 1, position: "relative", height: "100%" }}>
+                          {[{r:"-8deg",l:"0px",t:"2px"},{r:"5deg",l:"8px",t:"6px"},{r:"-3deg",l:"4px",t:"12px"}].map((s,i)=>(
+                            <div key={i} style={{ position:"absolute", left:s.l, top:s.t, width:16, height:20, background:"#fff", border:"1px solid #e2e8f0", borderRadius:1, transform:`rotate(${s.r})`, boxShadow:"0 1px 3px rgba(0,0,0,0.1)", zIndex:i }}>
+                              <div style={{ margin:2, height:12, background:"#e2e8f0", borderRadius:1 }} />
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3, padding: "6px 4px", justifyContent: "center" }}>
+                          <div className={styles.lpLine} style={{ width: "80%" }} />
+                          <div className={styles.lpLine} style={{ width: "60%" }} />
+                        </div>
+                      </div>
+                    )},
+                    { id: "pills",    label: "Pills",    preview: (
+                      <div className={styles.layoutPreview} style={{ background: "#f8fafc", borderRadius: 3, gap: 6, padding: "4px 6px" }}>
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3, justifyContent: "center" }}>
+                          <div className={styles.lpLine} style={{ width: "80%" }} />
+                          <div className={styles.lpLine} style={{ width: "60%" }} />
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "row", gap: 3, alignItems: "center", height: "100%" }}>
+                          {[{ h: "70%", w: 8 }, { h: "100%", w: 8 }, { h: "70%", w: 8 }].map((s, i) => (
+                            <div key={i} style={{ width: s.w, height: s.h, background: "#e2e8f0", borderRadius: 20 }} />
+                          ))}
+                        </div>
+                      </div>
+                    )},
+                  ].map(({ id, label, preview }) => (
+                    <button
+                      key={id}
+                      className={`${styles.layoutOption} ${(seccion.layout ?? "slide") === id ? styles.layoutOptionActive : ""}`}
+                      onClick={() => onUpdate(seccion.uid, { layout: id })}
+                    >
+                      {preview}
+                      <span className={styles.layoutLabel}>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {seccion.tipo === "portada" && ["wave", "polaroid"].includes(seccion.layout ?? "slide") && (
+              <div className={styles.editorSection}>
+                <label className={styles.editorFieldLabel}>Color de fondo</label>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <label className={styles.colorPickerBtn} style={{ background: seccion.colorFondo ?? "#ffffff", width: 34, height: 34, borderRadius: "0.5rem" }}>
+                    <input type="color" value={seccion.colorFondo ?? "#ffffff"} onChange={e => onUpdate(seccion.uid, { colorFondo: e.target.value })} />
+                  </label>
+                  <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondo ?? "#ffffff"}</span>
+                  {seccion.colorFondo && (
+                    <button onClick={() => onUpdate(seccion.uid, { colorFondo: undefined })} style={{ fontSize: "0.75rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Restablecer</button>
+                  )}
+                </div>
+              </div>
+            )}
+            {seccion.tipo === "portada" && (
+              <>
+                <TextoEstiloEditor
+                  label="Título"
+                  value={seccion.estiloTitulo}
+                  onChange={v => onUpdate(seccion.uid, { estiloTitulo: v })}
+                />
+                <TextoEstiloEditor
+                  label="Subtítulo"
+                  value={seccion.estiloSubtitulo}
+                  onChange={v => onUpdate(seccion.uid, { estiloSubtitulo: v })}
+                />
+              </>
+            )}
+            {seccion.tipo === "mapa" && (
+              <>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Layout</label>
+                  <div className={styles.layoutPicker}>
+                    <button
+                      className={`${styles.layoutOption} ${(seccion.layout ?? "mapa") === "mapa" ? styles.layoutOptionActive : ""}`}
+                      onClick={() => onUpdate(seccion.uid, { layout: "mapa" })}
+                      title="Solo mapa"
+                    >
+                      <div className={styles.layoutPreview} style={{ background: "#e8f0fe", borderRadius: 3, position: "relative" }}>
+                        <MapPinIcon size={14} color="#6366f1" style={{ margin: "auto" }} />
+                      </div>
+                      <span className={styles.layoutLabel}>Solo mapa</span>
+                    </button>
+                    <button
+                      className={`${styles.layoutOption} ${seccion.layout === "mapa-listado" ? styles.layoutOptionActive : ""}`}
+                      onClick={() => onUpdate(seccion.uid, { layout: "mapa-listado" })}
+                      title="Mapa + listado"
+                    >
+                      <div className={styles.layoutPreview} style={{ background: "#f8fafc", borderRadius: 3, gap: 4, padding: "4px 6px" }}>
+                        <div style={{ flex: 1, background: "#e8f0fe", borderRadius: 2 }} />
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3, justifyContent: "center" }}>
+                          <div className={styles.lpLine} style={{ width: "80%" }} />
+                          <div className={styles.lpLine} style={{ width: "60%" }} />
+                          <div className={styles.lpLine} style={{ width: "70%" }} />
+                        </div>
+                      </div>
+                      <span className={styles.layoutLabel}>Mapa · Listado</span>
+                    </button>
+                  </div>
+                </div>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Ancho de sección</label>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {[
+                      { id: "900px", label: "Pequeño" },
+                      { id: "1200px", label: "Mediano" },
+                      { id: "completo", label: "Ancho completo" },
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className={`${styles.previewBtn} ${(seccion.anchoMax ?? "completo") === opt.id ? styles.saveBtn : ""}`}
+                        style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.anchoMax ?? "completo") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.anchoMax ?? "completo") === opt.id ? "#ffffff" : "#475569" }}
+                        onClick={() => onUpdate(seccion.uid, { anchoMax: opt.id })}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Color de fondo</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label className={styles.colorPickerBtn} style={{ background: seccion.colorFondo ?? "#ffffff", width: 34, height: 34, borderRadius: "0.5rem" }}>
+                      <input type="color" value={seccion.colorFondo ?? "#ffffff"} onChange={e => onUpdate(seccion.uid, { colorFondo: e.target.value })} />
+                    </label>
+                    <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondo ?? "#ffffff"}</span>
+                    {seccion.colorFondo && (
+                      <button onClick={() => onUpdate(seccion.uid, { colorFondo: undefined })} style={{ fontSize: "0.75rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Restablecer</button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+            {seccion.tipo === "ruta" && (
+              <>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Layout</label>
+                  <div className={styles.layoutPicker}>
+                    <button
+                      className={`${styles.layoutOption} ${(seccion.layout ?? "mapa") === "mapa" ? styles.layoutOptionActive : ""}`}
+                      onClick={() => onUpdate(seccion.uid, { layout: "mapa" })}
+                      title="Solo mapa"
+                    >
+                      <div className={styles.layoutPreview} style={{ background: "#e8f0fe", borderRadius: 3, position: "relative" }}>
+                        <Route size={14} color="#6366f1" style={{ margin: "auto" }} />
+                      </div>
+                      <span className={styles.layoutLabel}>Solo mapa</span>
+                    </button>
+                    <button
+                      className={`${styles.layoutOption} ${seccion.layout === "mapa-listado" ? styles.layoutOptionActive : ""}`}
+                      onClick={() => onUpdate(seccion.uid, { layout: "mapa-listado" })}
+                      title="Mapa + listado"
+                    >
+                      <div className={styles.layoutPreview} style={{ background: "#f8fafc", borderRadius: 3, gap: 4, padding: "4px 6px" }}>
+                        <div style={{ flex: 1, background: "#e8f0fe", borderRadius: 2 }} />
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3, justifyContent: "center" }}>
+                          <div className={styles.lpLine} style={{ width: "80%" }} />
+                          <div className={styles.lpLine} style={{ width: "60%" }} />
+                          <div className={styles.lpLine} style={{ width: "70%" }} />
+                        </div>
+                      </div>
+                      <span className={styles.layoutLabel}>Mapa · Listado</span>
+                    </button>
+                  </div>
+                </div>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Ancho de sección</label>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {[
+                      { id: "900px", label: "Pequeño" },
+                      { id: "1200px", label: "Mediano" },
+                      { id: "completo", label: "Ancho completo" },
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className={`${styles.previewBtn} ${(seccion.anchoMax ?? "completo") === opt.id ? styles.saveBtn : ""}`}
+                        style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.anchoMax ?? "completo") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.anchoMax ?? "completo") === opt.id ? "#ffffff" : "#475569" }}
+                        onClick={() => onUpdate(seccion.uid, { anchoMax: opt.id })}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Color de fondo</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label className={styles.colorPickerBtn} style={{ background: seccion.colorFondo ?? "#ffffff", width: 34, height: 34, borderRadius: "0.5rem" }}>
+                      <input type="color" value={seccion.colorFondo ?? "#ffffff"} onChange={e => onUpdate(seccion.uid, { colorFondo: e.target.value })} />
+                    </label>
+                    <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondo ?? "#ffffff"}</span>
+                    {seccion.colorFondo && (
+                      <button onClick={() => onUpdate(seccion.uid, { colorFondo: undefined })} style={{ fontSize: "0.75rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Restablecer</button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+            {seccion.tipo === "menu" && (
+              <>
+                <div className={styles.editorSection}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}>
+                    <input
+                      type="checkbox"
+                      checked={seccion.menuFijo ?? false}
+                      onChange={e => onUpdate(seccion.uid, { menuFijo: e.target.checked })}
+                      style={{ width: 15, height: 15, accentColor: "var(--primary-color,#475569)", cursor: "pointer" }}
+                    />
+                    <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#1e293b" }}>Menú fijo (sticky)</span>
+                  </label>
+                  <p style={{ fontSize: "0.7rem", color: "#94a3b8", margin: "0.25rem 0 0 23px" }}>El menú permanece visible al hacer scroll</p>
+                </div>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Color de fondo del menú</label>
+                  {(() => {
+                    // Parsear el color actual para separar hex y alpha
+                    const raw = seccion.menuColorFondo ?? "rgba(255,255,255,0.95)";
+                    const rgbaMatch = raw.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+                    let hexVal = "#ffffff";
+                    let alphaVal = 0.95;
+                    if (rgbaMatch) {
+                      const r = parseInt(rgbaMatch[1]), g = parseInt(rgbaMatch[2]), b = parseInt(rgbaMatch[3]);
+                      hexVal = "#" + [r, g, b].map(v => v.toString(16).padStart(2, "0")).join("");
+                      alphaVal = rgbaMatch[4] !== undefined ? parseFloat(rgbaMatch[4]) : 1;
+                    } else if (raw.startsWith("#")) {
+                      hexVal = raw.slice(0, 7);
+                      alphaVal = 1;
+                    }
+                    const hexToRgba = (hex: string, a: number) => {
+                      const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+                      return `rgba(${r},${g},${b},${a})`;
+                    };
+                    return (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <label style={{ width: 34, height: 34, borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: hexVal, flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
+                            <input type="color" value={hexVal}
+                              onChange={e => onUpdate(seccion.uid, { menuColorFondo: hexToRgba(e.target.value, alphaVal) })}
+                              style={{ opacity: 0, position: "absolute" }} />
+                          </label>
+                          <div style={{ flex: 1, height: 34, borderRadius: "0.5rem", border: "1px solid #e2e8f0", overflow: "hidden",
+                            background: `linear-gradient(to right, rgba(0,0,0,0), ${hexVal})` }}>
+                            <input type="range" min={0} max={1} step={0.01} value={alphaVal}
+                              onChange={e => onUpdate(seccion.uid, { menuColorFondo: hexToRgba(hexVal, parseFloat(e.target.value)) })}
+                              style={{ width: "100%", height: "100%", cursor: "pointer", accentColor: hexVal }} />
+                          </div>
+                          <span style={{ fontSize: "0.75rem", color: "#64748b", fontFamily: "monospace", minWidth: 32, textAlign: "right" }}>
+                            {Math.round(alphaVal * 100)}%
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: "0.7rem", color: "#94a3b8", fontFamily: "monospace", flex: 1 }}>{raw}</span>
+                          {seccion.menuColorFondo && (
+                            <button onClick={() => onUpdate(seccion.uid, { menuColorFondo: undefined })}
+                              style={{ fontSize: "0.73rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}>
+                              Restablecer
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Color del texto</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 34, height: 34, borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: seccion.menuColorTexto ?? "#1e293b", flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
+                      <input type="color" value={seccion.menuColorTexto ?? "#1e293b"} onChange={e => onUpdate(seccion.uid, { menuColorTexto: e.target.value })} style={{ opacity: 0, position: "absolute" }} />
+                    </label>
+                    <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.menuColorTexto ?? "#1e293b"}</span>
+                    {seccion.menuColorTexto && (
+                      <button onClick={() => onUpdate(seccion.uid, { menuColorTexto: undefined })}
+                        style={{ fontSize: "0.73rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                        Restablecer
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className={styles.editorSection}>
+                  <label className={styles.editorFieldLabel}>Color del botón</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ width: 34, height: 34, borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: seccion.menuColorBoton ?? "var(--primary-color,#475569)", flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
+                      <input type="color" value={seccion.menuColorBoton ?? "#475569"} onChange={e => onUpdate(seccion.uid, { menuColorBoton: e.target.value })} style={{ opacity: 0, position: "absolute" }} />
+                    </label>
+                    <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.menuColorBoton ?? "color principal"}</span>
+                    {seccion.menuColorBoton && (
+                      <button onClick={() => onUpdate(seccion.uid, { menuColorBoton: undefined })}
+                        style={{ fontSize: "0.73rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                        Restablecer
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+            {seccion.tipo !== "texto-imagenes" && seccion.tipo !== "portada" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "itinerario" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && (
+              <p className={styles.editorEmpty}>Opciones de diseño próximamente.</p>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -17,6 +17,9 @@ export function computeLineTotals(line: any): { total_neto: number; total_pvp: n
 
 export function getTipoSchema(item: any, tiposMap: Record<string, any>): any[] {
   const tipo = item?.config_tipos_servicios || tiposMap[item?.tipo];
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[getTipoSchema] etiqueta:', tipo?.etiqueta, '| tipo_id:', tipo?.id);
+  }
   const schema = tipo?.contenido;
   let customRows: any[] = [];
   if (Array.isArray(schema)) {

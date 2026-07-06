@@ -3,6 +3,7 @@ import { getAgencyDbClient } from "@/lib/agencyDb";
 import { runBiChat } from "@/actions/bi-chat";
 import type { ChatTurn } from "@/actions/bi-chat";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
+import { searchPlacesText } from "@/actions/places";
 
 async function getAgenciaId(): Promise<string> {
   const adminSupabase = await createAdminServerClient();
@@ -133,6 +134,21 @@ async function tavilySearch(query: string): Promise<string> {
   } catch { return ""; }
 }
 
+const PLACES_LIST_KEYWORDS = [
+  "listado de", "lista de", "dame restaurantes", "restaurantes en", "hoteles en", "actividades en",
+  "bares en", "museos en", "lugares en", "sitios en", "qué restaurantes", "que restaurantes",
+  "qué hoteles", "que hoteles", "mejores restaurantes", "mejores hoteles", "mejores lugares",
+  "mejores sitios", "ordenados por", "ordenado por", "por valoraciones", "por precio",
+  "busca restaurantes", "busca hoteles", "busca lugares", "busca actividades",
+  "sitúalos en un mapa", "situalos en un mapa", "ponlos en un mapa", "muéstralos en un mapa",
+  "muéstramelos en el mapa", "en el mapa", "ubícalos", "ubicalos",
+];
+
+function isPlacesListQuery(text: string): boolean {
+  const lower = text.toLowerCase();
+  return PLACES_LIST_KEYWORDS.some(k => lower.includes(k));
+}
+
 function isWebQueryCotizacion(text: string): boolean {
   const lower = text.toLowerCase();
   return (
@@ -146,7 +162,7 @@ function isWebQueryCotizacion(text: string): boolean {
     lower.includes("temporada") || lower.includes("cuándo ir") || lower.includes("cuando ir") ||
     lower.includes("qué tal es") || lower.includes("que tal es") ||
     lower.includes("cómo es el hotel") || lower.includes("como es el hotel") ||
-    lower.includes("problemas") && (lower.includes("hotel") || lower.includes("proveedor"))
+    (lower.includes("problemas") && (lower.includes("hotel") || lower.includes("proveedor")))
   );
 }
 
@@ -190,6 +206,32 @@ REGLAS SQL:
 ${cotizacionContext}`;
 
   const lastMsg = history.filter(m => m.role === "user").at(-1)?.content ?? "";
+
+  // ── Places list branch: multi-place search via Google Places ────────────
+  const MAP_FOLLOWUP = ["en el mapa", "sitúalo", "situalos", "sitúalos", "ponlos en", "ubícalos", "ubicalos", "muéstralos", "muéstramelos"];
+  const isMapFollowup = MAP_FOLLOWUP.some(k => lastMsg.toLowerCase().includes(k));
+  let placesQuery = isPlacesListQuery(lastMsg) ? lastMsg : null;
+  if (!placesQuery && isMapFollowup) {
+    // Try to find the previous user message that was a places query
+    const prevUserMsgs = history.filter(m => m.role === "user").slice(0, -1).reverse();
+    for (const m of prevUserMsgs) {
+      if (isPlacesListQuery(m.content)) { placesQuery = m.content; break; }
+    }
+  }
+  if (placesQuery) {
+    const places = await searchPlacesText(placesQuery, 8);
+    if (places.length > 0) {
+      const first = places.find(p => p.lat != null && p.lng != null);
+      const centerLat = first?.lat ?? null;
+      const centerLng = first?.lng ?? null;
+      const summary = `${places.length} lugar${places.length !== 1 ? "es" : ""} encontrado${places.length !== 1 ? "s" : ""}.`;
+      return {
+        summary,
+        result: { type: "places_list", subject: placesQuery, places, centerLat, centerLng, summary },
+        source: "web",
+      };
+    }
+  }
 
   // ── Web search branch: answer directly from Tavily, no SQL needed ─────────
   if (isWebQueryCotizacion(lastMsg)) {

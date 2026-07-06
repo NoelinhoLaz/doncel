@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAnthropicClient } from "@/lib/anthropic";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
-import { searchPlaces, getPlaceDetails } from "@/actions/places";
+import { searchPlaces, getPlaceDetails, searchPlacesText } from "@/actions/places";
 
 interface ChatTurn { role: "user" | "assistant"; content: string; }
 
@@ -31,14 +31,22 @@ async function tavilySearch(query: string): Promise<string> {
 }
 
 // Detect query type
-function detectQueryType(text: string): "photos" | "place" | "web" | "general" {
+function detectQueryType(text: string): "photos" | "place" | "places_list" | "web" | "general" {
   const lower = text.toLowerCase();
   const photoKeywords = ["foto", "fotos", "imagen", "imágenes", "imagenes", "photo", "photos", "muéstrame fotos", "pon fotos"];
   const placeKeywords = ["información del hotel", "info del hotel", "datos del hotel", "ficha del", "dónde está", "dirección de", "ubicación de", "teléfono de", "reseñas de", "valoración de", "opinión de"];
+  const listKeywords = [
+    "listado de", "lista de", "dame restaurantes", "restaurantes en", "hoteles en", "actividades en",
+    "bares en", "museos en", "lugares en", "sitios en", "qué restaurantes", "qué hoteles",
+    "mejores restaurantes", "mejores hoteles", "mejores lugares", "mejores sitios",
+    "ordenados por", "ordenado por", "por valoraciones", "por precio",
+    "busca restaurantes", "busca hoteles", "busca lugares",
+  ];
   const webKeywords = ["reseña", "valoración", "opinión", "temporada", "cuándo ir", "qué ver", "atracciones", "gastronomía", "mejor época", "clima"];
 
   if (photoKeywords.some(k => lower.includes(k))) return "photos";
   if (placeKeywords.some(k => lower.includes(k))) return "place";
+  if (listKeywords.some(k => lower.includes(k))) return "places_list";
   if (webKeywords.some(k => lower.includes(k))) return "web";
   return "general";
 }
@@ -159,6 +167,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const propuestaContext = propuestaId ? await buildPropuestaContext(propuestaId) : "";
 
     const lastMsg: string = history.filter((m: ChatTurn) => m.role === "user").at(-1)?.content ?? "";
+
+    // Detect map followup ("sitúalos en un mapa") → re-run previous places_list query
+    const MAP_FOLLOWUP = ["en el mapa", "sitúalo", "situalos", "sitúalos", "ponlos en", "ubícalos", "ubicalos", "muéstralos", "muéstramelos"];
+    const isMapFollowup = MAP_FOLLOWUP.some(k => lastMsg.toLowerCase().includes(k));
+    if (isMapFollowup) {
+      const prevUserMsgs = (history as ChatTurn[]).filter(m => m.role === "user").slice(0, -1).reverse();
+      const LIST_KW = ["listado de","lista de","restaurantes en","hoteles en","mejores restaurantes","mejores hoteles","busca restaurantes","busca hoteles"];
+      for (const m of prevUserMsgs) {
+        if (LIST_KW.some(k => m.content.toLowerCase().includes(k))) {
+          const places = await searchPlacesText(m.content, 8);
+          if (places.length > 0) {
+            const first = places.find((p: any) => p.lat != null);
+            return NextResponse.json({ success: true, summary: `${places.length} lugares en el mapa.`, result: { type: "places_list", subject: m.content, places, centerLat: first?.lat ?? null, centerLng: first?.lng ?? null, summary: "" } });
+          }
+          break;
+        }
+      }
+    }
+
     const qtype = detectQueryType(lastMsg);
     const subject = extractSubject(lastMsg);
     const count = extractCount(lastMsg);
@@ -203,6 +230,30 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           summary: `${photos.length} fotos de ${subject}`,
         },
       });
+    }
+
+    // ── Places list (text search) ─────────────────────────────────────────────
+    if (qtype === "places_list") {
+      const places = await searchPlacesText(lastMsg, 8);
+      if (places.length > 0) {
+        // Build a center point for the map from the first result with coords
+        const first = places.find(p => p.lat != null && p.lng != null);
+        const centerLat = first?.lat ?? null;
+        const centerLng = first?.lng ?? null;
+        return NextResponse.json({
+          success: true,
+          summary: `${places.length} resultado${places.length !== 1 ? "s" : ""} encontrado${places.length !== 1 ? "s" : ""} para "${subject}"`,
+          result: {
+            type: "places_list",
+            subject,
+            places,
+            centerLat,
+            centerLng,
+            summary: `${places.length} lugares encontrados`,
+          },
+        });
+      }
+      // Fall through to web/general if no results
     }
 
     // ── Place details via Google Places ──────────────────────────────────────

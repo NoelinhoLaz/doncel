@@ -300,11 +300,12 @@ export default function BIChatDrawer({ isOpen, onClose, campanaId, campanaNombre
         if (m.role === "user") return { role: m.role, content: m.text };
         // For assistant: combine text + result summary + table rows preview so the model remembers what it said
         let content = m.text || "";
-        if (m.result) {
-          if (m.result.summary && !content.includes(m.result.summary)) content += (content ? "\n" : "") + m.result.summary;
-          if (m.result.type === "table" && m.result.columns && m.result.rows?.length) {
-            const preview = m.result.rows.slice(0, 5).map((r: any[]) => m.result.columns!.map((c: string, i: number) => `${c}: ${r[i]}`).join(", ")).join("\n");
-            content += `\nResultados (${m.result.rows.length} filas):\n${preview}`;
+        const result = m.result;
+        if (result) {
+          if (result.summary && !content.includes(result.summary)) content += (content ? "\n" : "") + result.summary;
+          if (result.type === "table" && result.columns && result.rows?.length) {
+            const preview = result.rows.slice(0, 5).map((r: any[]) => result.columns!.map((c: string, i: number) => `${c}: ${r[i]}`).join(", ")).join("\n");
+            content += `\nResultados (${result.rows.length} filas):\n${preview}`;
           }
         }
         return { role: m.role, content: content || "..." };

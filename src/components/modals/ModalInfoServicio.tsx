@@ -36,6 +36,9 @@ function buildDescription(etiqueta: string, formValues: Record<string, any>, fal
   } else if (etiquetaLower === 'tren' || etiquetaLower === 'trenes') {
     const route = (formValues.origen_tren && formValues.destino_tren) ? `${formValues.origen_tren}-${formValues.destino_tren}` : (formValues.origen_tren || formValues.destino_tren || null);
     parts = [formValues.compania_tren, formValues.numero_tren, route].filter(Boolean);
+  } else if (['traslados', 'traslado', 'transfer', 'transfers'].includes(etiquetaLower)) {
+    const route = (formValues.origen_traslado && formValues.destino_traslado) ? `${formValues.origen_traslado} → ${formValues.destino_traslado}` : (formValues.origen_traslado || formValues.destino_traslado || null);
+    parts = [formValues.tipo_vehiculo, route, formValues.tipo_trayecto].filter(Boolean);
   } else if (etiquetaLower === 'packs' || etiquetaLower === 'pack') {
     const monitor = formValues.monitor_24h === 'Sí' ? 'Monitor 24h' : null;
     const acomp = formValues.acompanamiento === 'Sí' ? 'Acompañamiento' : null;

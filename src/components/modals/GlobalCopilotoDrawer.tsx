@@ -16,7 +16,24 @@ type AIResult = TableResult | ChartResult | TextResult;
 interface PhotoItem { id: string; thumb: string; full: string; alt: string; author: string; authorUrl: string; }
 interface PhotoResult { type: "photos"; subject: string; photos: PhotoItem[]; summary: string; }
 interface PlaceResult { type: "place"; displayName: string; formattedAddress: string; lat: number | null; lng: number | null; googleMapsUri: string | null; photos: { name: string; widthPx: number; heightPx: number }[]; country: string | null; locality: string | null; adminAreaL1: string | null; summary: string; }
-type AnyResult = AIResult | PhotoResult | PlaceResult;
+
+interface PlaceListItem {
+  placeId: string;
+  displayName: string;
+  formattedAddress: string;
+  lat: number | null;
+  lng: number | null;
+  rating: number | null;
+  userRatingCount: number | null;
+  googleMapsUri: string | null;
+  photo: string | null;
+  types: string[];
+  priceLevel: string | null;
+  openNow: boolean | null;
+}
+interface PlacesListResult { type: "places_list"; subject: string; places: PlaceListItem[]; centerLat: number | null; centerLng: number | null; summary: string; }
+
+type AnyResult = AIResult | PhotoResult | PlaceResult | PlacesListResult;
 
 interface Message {
   id: string;
@@ -307,6 +324,108 @@ function PlaceCard({ result, baseUrl }: { result: PlaceResult; baseUrl: string }
   );
 }
 
+// ─── Places list card (multi-result + map) ────────────────────────────────────
+
+const PRICE_LABELS: Record<string, string> = {
+  PRICE_LEVEL_FREE: "Gratis",
+  PRICE_LEVEL_INEXPENSIVE: "€",
+  PRICE_LEVEL_MODERATE: "€€",
+  PRICE_LEVEL_EXPENSIVE: "€€€",
+  PRICE_LEVEL_VERY_EXPENSIVE: "€€€€",
+};
+
+function PlacesListCard({ result, baseUrl }: { result: PlacesListResult; baseUrl: string }) {
+  const [selected, setSelected] = useState<PlaceListItem | null>(null);
+
+  const mapLat = selected?.lat ?? result.centerLat;
+  const mapLng = selected?.lng ?? result.centerLng;
+
+  const sorted = [...result.places].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+
+  // Build OpenStreetMap marker URL (no API key needed)
+  const osmSrc = mapLat != null && mapLng != null
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${mapLng - 0.02},${mapLat - 0.015},${mapLng + 0.02},${mapLat + 0.015}&layer=mapnik&marker=${mapLat},${mapLng}`
+    : null;
+
+  return (
+    <div style={{ marginTop: "10px" }}>
+      {/* Map */}
+      {osmSrc && (
+        <div style={{ borderRadius: "10px", overflow: "hidden", border: "1px solid #e2e8f0", marginBottom: "10px", height: "180px", background: "#f1f5f9" }}>
+          <iframe
+            title="mapa"
+            width="100%"
+            height="180"
+            style={{ border: 0, display: "block" }}
+            loading="lazy"
+            src={osmSrc}
+          />
+        </div>
+      )}
+
+      {/* List */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        {sorted.map((place, i) => {
+          const stars = place.rating ? Math.round(place.rating) : 0;
+          const isSelected = selected?.placeId === place.placeId;
+          return (
+            <button
+              key={place.placeId}
+              onClick={() => setSelected(isSelected ? null : place)}
+              style={{
+                display: "flex", gap: "10px", alignItems: "flex-start", textAlign: "left",
+                background: isSelected ? "color-mix(in srgb, var(--primary-color,#4f46e5) 6%, white)" : "#fff",
+                border: `1px solid ${isSelected ? "var(--primary-color,#4f46e5)" : "#e2e8f0"}`,
+                borderRadius: "10px", padding: "8px 10px", cursor: "pointer", width: "100%",
+              }}
+            >
+              {/* Rank */}
+              <span style={{ flexShrink: 0, width: "20px", height: "20px", borderRadius: "50%", background: i < 3 ? "var(--primary-color,#4f46e5)" : "#e2e8f0", color: i < 3 ? "#fff" : "#64748b", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.65rem", fontWeight: 700, marginTop: "1px" }}>
+                {i + 1}
+              </span>
+              {/* Thumbnail */}
+              {place.photo && (
+                <img
+                  src={`${baseUrl}/api/places/photo?name=${encodeURIComponent(place.photo)}&idx=0`}
+                  alt={place.displayName}
+                  style={{ width: "48px", height: "48px", objectFit: "cover", borderRadius: "8px", flexShrink: 0, background: "#f1f5f9" }}
+                  loading="lazy"
+                />
+              )}
+              {/* Info */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontWeight: 600, color: "#1e293b", margin: "0 0 2px", fontSize: "0.8rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{place.displayName}</p>
+                <p style={{ color: "#64748b", margin: "0 0 3px", fontSize: "0.68rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{place.formattedAddress}</p>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                  {place.rating != null && (
+                    <span style={{ display: "flex", alignItems: "center", gap: "2px", fontSize: "0.68rem" }}>
+                      <span style={{ color: "#f59e0b" }}>{"★".repeat(stars)}{"☆".repeat(5 - stars)}</span>
+                      <span style={{ color: "#0f172a", fontWeight: 700 }}>{place.rating.toFixed(1)}</span>
+                      {place.userRatingCount != null && <span style={{ color: "#94a3b8" }}>({place.userRatingCount.toLocaleString("es-ES")})</span>}
+                    </span>
+                  )}
+                  {place.priceLevel && PRICE_LABELS[place.priceLevel] && (
+                    <span style={{ fontSize: "0.65rem", color: "#475569", background: "#f1f5f9", borderRadius: "99px", padding: "1px 6px" }}>{PRICE_LABELS[place.priceLevel]}</span>
+                  )}
+                  {place.openNow != null && (
+                    <span style={{ fontSize: "0.65rem", color: place.openNow ? "#16a34a" : "#dc2626", fontWeight: 600 }}>{place.openNow ? "Abierto" : "Cerrado"}</span>
+                  )}
+                  {place.googleMapsUri && (
+                    <a href={place.googleMapsUri} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: "0.63rem", color: "var(--primary-color,#4f46e5)", textDecoration: "none", marginLeft: "auto" }}>
+                      Ver en Maps ↗
+                    </a>
+                  )}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <p style={{ fontSize: "0.58rem", color: "#cbd5e1", marginTop: "6px" }}>Resultados de Google Places · Pulsa un resultado para centrar el mapa</p>
+    </div>
+  );
+}
+
 // ─── Result block ─────────────────────────────────────────────────────────────
 
 function ResultBlock({ result }: { result: AIResult }) {
@@ -386,6 +505,7 @@ function Bubble({ msg, baseUrl }: { msg: Message; baseUrl: string }) {
   const renderResult = (result: AnyResult) => {
     if (result.type === "photos") return <PhotoGrid result={result as PhotoResult} />;
     if (result.type === "place") return <PlaceCard result={result as PlaceResult} baseUrl={baseUrl} />;
+    if (result.type === "places_list") return <PlacesListCard result={result as PlacesListResult} baseUrl={baseUrl} />;
     return <ResultBlock result={result as AIResult} />;
   };
 
