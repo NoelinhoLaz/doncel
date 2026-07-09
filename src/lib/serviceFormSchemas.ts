@@ -32,10 +32,11 @@ const FIJOS_ALOJAMIENTO: SchemaRow[] = [
     fila_id: 'row_fijo_tipo_categoria',
     fijo: true,
     columnas: [
-      { ancho: 3, campo: 'tipo_hab', label: 'Tipo', tipo: 'select', origen: 'jsonb_detalles', propiedades: { required: true, opciones: ['Habitación', 'Suite', 'Estudio', 'Apartamento', 'Bungalow', 'Villa'] } },
-      { ancho: 3, campo: 'categoria', label: 'Categoría', tipo: 'select', origen: 'jsonb_detalles', propiedades: { opciones: ['1*', '2*', '3*', '4*', '5*', 'GL'] } },
-      { ancho: 3, campo: 'regimen', label: 'Régimen', tipo: 'select', origen: 'jsonb_detalles', propiedades: { opciones: ['SA', 'AD', 'MP', 'PC', 'TI'] } },
-      { ancho: 3, campo: 'uso', label: 'Uso', tipo: 'select', origen: 'jsonb_detalles', propiedades: { opciones: ['Individual', 'Doble', 'Triple', 'Cuádruple', 'Familiar'] } },
+      { ancho: 4, campo: 'tipo_alojamiento', label: 'Tipo Alojamiento', tipo: 'select', origen: 'jsonb_detalles', propiedades: { opciones: ['Hotel', 'Hostal', 'Camping', 'Hostel', 'Apartamento', 'Otros'] } },
+      { ancho: 2, campo: 'tipo_hab', label: 'Tipo Hab.', tipo: 'select', origen: 'jsonb_detalles', propiedades: { required: true, opciones: ['Habitación', 'Suite', 'Estudio', 'Apartamento', 'Bungalow', 'Villa'] } },
+      { ancho: 2, campo: 'categoria', label: 'Categoría', tipo: 'select', origen: 'jsonb_detalles', propiedades: { opciones: ['1*', '2*', '3*', '4*', '5*', 'GL'] } },
+      { ancho: 2, campo: 'regimen', label: 'Régimen', tipo: 'select', origen: 'jsonb_detalles', propiedades: { opciones: ['SA', 'AD', 'MP', 'PC', 'TI'] } },
+      { ancho: 2, campo: 'uso', label: 'Uso', tipo: 'select', origen: 'jsonb_detalles', propiedades: { opciones: ['Individual', 'Doble', 'Triple', 'Cuádruple', 'Familiar', 'Múltiple'] } },
     ]
   },
   {

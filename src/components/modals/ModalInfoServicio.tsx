@@ -49,7 +49,7 @@ function buildDescription(etiqueta: string, formValues: Record<string, any>, fal
     const incl = formValues.incluye ? `Incluye: ${formValues.incluye}` : null;
     parts = [monitor, acomp, ratio, ambito, idioma, incl].filter(Boolean);
   } else {
-    parts = [formValues.nombre_alojamiento, formValues.uso, formValues.regimen].filter(Boolean);
+    parts = [formValues.nombre_alojamiento, formValues.tipo_alojamiento, formValues.uso, formValues.regimen].filter(Boolean);
   }
   return parts.length > 0 ? parts.map((p: string) => p.toUpperCase()).join(' - ') : (fallback || '').toUpperCase();
 }
