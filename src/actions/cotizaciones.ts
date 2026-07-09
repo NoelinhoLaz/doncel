@@ -210,11 +210,26 @@ export async function getCotizacionWithLineas(cotizacionId: string) {
 
     const { data: lineas, error: err2 } = await agencyDb
       .from("operativa_cotizacion_lineas")
-      .select("*, maestro_destinos(id, nombre, nombre_comercial, lat, lng, admin_area_l2, admin_area_l1), config_tipos_servicios(id, etiqueta, icono, contenido), contabilidad_proveedores!proveedor(id, nombre, razon_social, email)")
+      .select("*, maestro_destinos(id, nombre, nombre_comercial, lat, lng, admin_area_l2, admin_area_l1), config_tipos_servicios(id, etiqueta, icono, contenido, idx), contabilidad_proveedores!proveedor(id, nombre, razon_social, email)")
       .eq("cotizacion_id", cotizacionId)
       .order("created_at", { ascending: true });
 
     if (err2) throw err2;
+
+    if (lineas) {
+      lineas.sort((a: any, b: any) => {
+        const idxA = a.config_tipos_servicios?.idx ?? 999;
+        const idxB = b.config_tipos_servicios?.idx ?? 999;
+        if (idxA !== idxB) return idxA - idxB;
+        
+        const etiqA = a.config_tipos_servicios?.etiqueta || '';
+        const etiqB = b.config_tipos_servicios?.etiqueta || '';
+        const cmp = etiqA.localeCompare(etiqB);
+        if (cmp !== 0) return cmp;
+
+        return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+      });
+    }
 
     return { ...cotizacion, operativa_cotizacion_lineas: lineas || [] };
   } catch (error: any) {
@@ -319,7 +334,7 @@ export async function createCotizacionLinea(payload: {
     const { data, error } = await agencyDb
       .from("operativa_cotizacion_lineas")
       .insert([insertObj])
-      .select("*, maestro_destinos(id, nombre, nombre_comercial, lat, lng, admin_area_l2, admin_area_l1), config_tipos_servicios(id, etiqueta, icono, contenido), contabilidad_proveedores!proveedor(id, nombre, razon_social, email)")
+      .select("*, maestro_destinos(id, nombre, nombre_comercial, lat, lng, admin_area_l2, admin_area_l1), config_tipos_servicios(id, etiqueta, icono, contenido, idx), contabilidad_proveedores!proveedor(id, nombre, razon_social, email)")
       .single();
 
     if (error) throw error;
@@ -370,7 +385,7 @@ export async function updateCotizacionLinea(id: string, payload: {
       .from("operativa_cotizacion_lineas")
       .update(updatePayload)
       .eq("id", id)
-      .select("*, maestro_destinos(id, nombre, nombre_comercial, lat, lng, admin_area_l2, admin_area_l1), config_tipos_servicios(id, etiqueta, icono, contenido), contabilidad_proveedores!proveedor(id, nombre, razon_social, email)")
+      .select("*, maestro_destinos(id, nombre, nombre_comercial, lat, lng, admin_area_l2, admin_area_l1), config_tipos_servicios(id, etiqueta, icono, contenido, idx), contabilidad_proveedores!proveedor(id, nombre, razon_social, email)")
       .single();
 
     if (error) throw error;
@@ -522,17 +537,38 @@ export async function deleteCotizacion(cotizacionId: string) {
 export async function duplicateCotizacion(cotizacionId: string) {
   try {
     const agencyDb = await getAgencyDbClient();
+    let user = null;
+    try {
+      const adminSupabase = await createAdminServerClient();
+      const { data: { user: u } } = await adminSupabase.auth.getUser();
+      user = u;
+    } catch {}
 
     const { data: orig, error: e1 } = await agencyDb
       .from("operativa_cotizaciones")
-      .select("titulo, expediente_id, pvp_viajero, plazas, free")
+      .select("titulo, expediente_id, pvp_viajero, plazas, free, contacto, fecha_salida, fecha_regreso, destinos, suplementos, presupuesto_id, agente_id")
       .eq("id", cotizacionId)
       .single();
     if (e1) throw e1;
 
+    const agenteId = user?.id || orig.agente_id || null;
+
     const { data: newCot, error: e2 } = await agencyDb
       .from("operativa_cotizaciones")
-      .insert([{ titulo: `${orig.titulo || 'Cotización'} (copia)`, expediente_id: orig.expediente_id || null, pvp_viajero: orig.pvp_viajero, plazas: orig.plazas, free: orig.free }])
+      .insert([{
+        titulo: `${orig.titulo || 'Cotización'} (copia)`,
+        expediente_id: orig.expediente_id || null,
+        pvp_viajero: orig.pvp_viajero,
+        plazas: orig.plazas,
+        free: orig.free,
+        contacto: orig.contacto || null,
+        fecha_salida: orig.fecha_salida || null,
+        fecha_regreso: orig.fecha_regreso || null,
+        destinos: orig.destinos || [],
+        suplementos: orig.suplementos || null,
+        presupuesto_id: orig.presupuesto_id || null,
+        agente_id: agenteId,
+      }])
       .select()
       .single();
     if (e2) throw e2;

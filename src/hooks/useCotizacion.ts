@@ -159,6 +159,9 @@ export function useCotizacion(
     setItems(prev => prev.map(it => {
       if (it.id !== id) return it;
       const updated = { ...it, [field]: value };
+      if (field === 'tipo') {
+        updated.config_tipos_servicios = tiposMap[value] || null;
+      }
       if (['plazas', 'noches', 'neto', 'pvp'].includes(field)) Object.assign(updated, computeLineTotals(updated));
       return updated;
     }));
@@ -233,7 +236,8 @@ export function useCotizacion(
   };
 
   const handleDuplicateItem = (item: any) => {
-    const newItem = { ...item, id: `new-${Date.now()}`, grupo_alternativa_id: null };
+    const tempId = `new-${Date.now()}`;
+    const newItem = { ...item, id: tempId, grupo_alternativa_id: null };
     setItems(prev => {
       const idx = prev.findIndex(it => it.id === item.id);
       if (idx === -1) return [newItem, ...prev];
@@ -241,6 +245,14 @@ export function useCotizacion(
       updated.splice(idx + 1, 0, newItem);
       return updated;
     });
+    if (cotizacionId) {
+      const serverPayload: any = { ...newItem };
+      delete serverPayload.id;
+      delete serverPayload.config_tipos_servicios;
+      delete serverPayload.maestro_destinos;
+      delete serverPayload.contabilidad_proveedores;
+      createLineaOnServer(tempId, serverPayload);
+    }
   };
 
   const handleCreateAlternative = (item: any) => {
