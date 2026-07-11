@@ -90,6 +90,15 @@ export interface Seccion {
   menuColorTexto?: string;
   menuColorBoton?: string;
   menuFijo?: boolean;
+  pvp?: string;
+  condiciones?: string;
+  otrasConsideraciones?: string;
+  estiloPvp?: TextoEstilo;
+  estiloCondiciones?: TextoEstilo;
+  estiloOtrasConsideraciones?: TextoEstilo;
+  formularioCampos?: { uid: string; key: string; label: string; lineas: number; activo: boolean }[];
+  formularioEmail?: string;
+  formularioBoton?: string;
 }
 
 export type SeccionFavorita = Seccion & { favId: string; savedAt: number };

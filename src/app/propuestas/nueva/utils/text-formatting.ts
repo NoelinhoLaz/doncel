@@ -1,5 +1,7 @@
 import React from "react";
 import type { TextoEstilo } from "../types";
+import { FUENTE_FAMILY } from "../constants";
+import { estiloTextoCSS } from "./style-utils";
 
 // Variables que se sustituyen en el previsualizador
 export const VARIABLES_PROPUESTA: Record<string, string> = {
@@ -65,8 +67,14 @@ function parsearInline(
   texto: string,
   colorDestacado: string | undefined,
   grosorDestacado: string | undefined,
+  tipo: string,
   keyPrefix: string
 ): React.ReactNode[] {
+  const color = (colorDestacado && colorDestacado !== "#ffffff" && colorDestacado !== "#1e293b" && colorDestacado !== "#64748b" && colorDestacado !== "#334155")
+    ? colorDestacado
+    : `var(--momo-color-destacado-${tipo})`;
+  const grosor = grosorDestacado || "bold";
+
   const partes = texto.split(/(\*\*.*?\*\*)/g);
   return partes.flatMap((p, i) => {
     if (p.startsWith("**") && p.endsWith("**")) {
@@ -76,13 +84,16 @@ function parsearInline(
           "strong",
           {
             key: `${keyPrefix}-b-${i}`,
-            style: { color: colorDestacado ?? "#6366f1", fontWeight: grosorDestacado ?? "bold" },
+            style: {
+              color: color,
+              fontWeight: grosor as any
+            },
           },
-          ...parsearInlineLinks(inner, colorDestacado, `${keyPrefix}-b-${i}`)
+          ...parsearInlineLinks(inner, color, `${keyPrefix}-b-${i}`)
         ),
       ];
     }
-    return parsearInlineLinks(p, colorDestacado, `${keyPrefix}-${i}`);
+    return parsearInlineLinks(p, color, `${keyPrefix}-${i}`);
   });
 }
 
@@ -90,10 +101,16 @@ export function parseFormattedText(
   texto: string,
   colorDestacado?: string,
   grosorDestacado?: string,
-  estilo?: TextoEstilo
+  estilo?: TextoEstilo,
+  defaultTipo?: "titulo" | "subtitulo" | "parrafo" | "negrita"
 ): React.ReactNode {
   if (!texto) return null;
-  const color = colorDestacado ?? estilo?.colorDestacado ?? undefined;
+
+  const tipo = defaultTipo ?? "parrafo";
+  const localColor = colorDestacado ?? estilo?.colorDestacado;
+  const color = (localColor && localColor !== "#ffffff" && localColor !== "#1e293b" && localColor !== "#64748b" && localColor !== "#334155")
+    ? localColor
+    : `var(--momo-color-destacado-${tipo})`;
   const grosor = grosorDestacado ?? estilo?.grosorDestacado ?? "bold";
 
   const textoConVariables = sustituirVariables(texto);
@@ -103,7 +120,9 @@ export function parseFormattedText(
     const esVineta = trimmed.startsWith(".-");
     const contenido = esVineta ? trimmed.slice(2).trim() : linea;
 
-    const lineContent = parsearInline(contenido, color, grosor, `l${index}`);
+    const lineContent = parsearInline(contenido, color, grosor, tipo, `l${index}`);
+
+    const baseParagraphStyle = estiloTextoCSS(estilo, tipo);
 
     if (esVineta) {
       return React.createElement(
@@ -113,6 +132,7 @@ export function parseFormattedText(
           style: {
             display: "flex", gap: "8px", alignItems: "flex-start",
             paddingLeft: "8px", marginTop: "4px", marginBottom: "4px", textAlign: "left" as const,
+            ...baseParagraphStyle
           },
         },
         React.createElement("span", { style: { color: color ?? "#6366f1", fontWeight: "bold" } }, "•"),
@@ -122,7 +142,14 @@ export function parseFormattedText(
 
     return React.createElement(
       "span",
-      { key: index, style: { display: "block", minHeight: linea === "" ? "0.75em" : undefined } },
+      {
+        key: index,
+        style: {
+          display: "block",
+          minHeight: linea === "" ? "0.75em" : undefined,
+          ...baseParagraphStyle
+        }
+      },
       ...lineContent
     );
   });

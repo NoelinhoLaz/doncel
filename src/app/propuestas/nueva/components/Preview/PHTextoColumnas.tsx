@@ -57,7 +57,7 @@ export default function PHTextoColumnas({
       <Ph>
         <div className={styles.phTextoColumnas} style={{ maxWidth: customMaxWidth }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo) }}>{titulo}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
@@ -65,12 +65,12 @@ export default function PHTextoColumnas({
             {displayCols.map((c, i) => (
               <div key={i} className={styles.phColumnaCard}>
                 {c.titulo ? (
-                  <h4 className={styles.phColumnaTitulo} style={estiloTextoCSS(estiloTituloDia)}>{c.titulo}</h4>
+                  <h4 className={styles.phColumnaTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{c.titulo}</h4>
                 ) : (
                   <div style={{ width: "60%", height: "12px", borderRadius: "6px", background: "#cbd5e1" }} />
                 )}
                 {c.texto ? (
-                  <p className={styles.phColumnaTexto} style={estiloTextoCSS(estiloDescDia)}>{renderTextWithBold(c.texto, estiloDescDia)}</p>
+                  <p className={styles.phColumnaTexto} style={estiloTextoCSS(estiloDescDia, "parrafo")}>{renderTextWithBold(c.texto, estiloDescDia)}</p>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     <div style={{ width: "90%", height: "8px", borderRadius: "4px", background: "#e2e8f0" }} />

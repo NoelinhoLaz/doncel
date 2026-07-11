@@ -12,8 +12,8 @@ import { estiloTextoCSS } from "../../utils/style-utils";
 import { Bar, Title } from "./PHPlaceholders";
 import { parseFormattedText } from "../../utils/text-formatting";
 
-const renderConDestacado = (texto: string, colorDestacado?: string, grosorDestacado?: string) =>
-  parseFormattedText(texto, colorDestacado, grosorDestacado);
+const renderConDestacado = (texto: string, colorDestacado?: string, grosorDestacado?: string, defaultTipo?: "titulo" | "subtitulo" | "parrafo" | "negrita") =>
+  parseFormattedText(texto, colorDestacado, grosorDestacado, undefined, defaultTipo);
 
 function PortadaTexto({ titulo, subtitulo, estiloTitulo, estiloSubtitulo, wrapStyle }: {
   titulo?: string; subtitulo?: string;
@@ -23,13 +23,13 @@ function PortadaTexto({ titulo, subtitulo, estiloTitulo, estiloSubtitulo, wrapSt
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", ...wrapStyle }}>
       {titulo
-        ? <p className={styles.phPortadaTitulo} style={{ whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloTitulo) }}>
-            {renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado)}
+        ? <p className={styles.phPortadaTitulo} style={{ whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloTitulo, "titulo") }}>
+            {renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo")}
           </p>
         : <Title w="55%" />}
       {subtitulo
-        ? <p className={styles.phPortadaSubtitulo} style={{ whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloSubtitulo) }}>
-            {renderConDestacado(subtitulo, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado)}
+        ? <p className={styles.phPortadaSubtitulo} style={{ whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloSubtitulo, "subtitulo") }}>
+            {renderConDestacado(subtitulo, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado, "subtitulo")}
           </p>
         : <><Bar w="40%" /><Bar w="30%" /></>}
     </div>

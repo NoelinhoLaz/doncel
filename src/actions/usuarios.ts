@@ -244,7 +244,7 @@ export async function getCurrentUsuario() {
     const adminServiceSupabase = createAdminServiceClient();
     const { data: usuario, error: usuarioError } = await adminServiceSupabase
       .from("usuarios")
-      .select("id, nombre, apellidos, email, rol")
+      .select("id, nombre, apellidos, email, rol, telefono, avatar_url")
       .eq("auth_user_id", user.id)
       .single();
 

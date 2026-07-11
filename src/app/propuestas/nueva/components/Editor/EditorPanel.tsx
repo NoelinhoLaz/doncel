@@ -11,6 +11,8 @@ import EditorItinerario from "./EditorItinerario";
 import EditorTextoColumnas from "./EditorTextoColumnas";
 import EditorMapa from "./EditorMapa";
 import EditorRuta from "./EditorRuta";
+import EditorPrecio from "./EditorPrecio";
+import EditorFormulario from "./EditorFormulario";
 import DisenioPanel from "./DisenioPanel";
 import { GuiaFormato } from "./GuiaFormato";
 
@@ -198,7 +200,13 @@ export function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onTog
         {tab === "contenido" && seccion.tipo === "menu" && (
           <MenuEditorContenido seccion={seccion} onUpdate={onUpdate} todasSecciones={todasSecciones} />
         )}
-        {tab === "contenido" && seccion.tipo !== "portada" && seccion.tipo !== "texto-imagenes" && seccion.tipo !== "itinerario" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && (
+        {tab === "contenido" && seccion.tipo === "precio" && (
+          <EditorPrecio seccion={seccion} onUpdate={onUpdate} />
+        )}
+        {tab === "contenido" && seccion.tipo === "formulario" && (
+          <EditorFormulario seccion={seccion} onUpdate={onUpdate} />
+        )}
+        {tab === "contenido" && seccion.tipo !== "portada" && seccion.tipo !== "texto-imagenes" && seccion.tipo !== "itinerario" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && seccion.tipo !== "precio" && seccion.tipo !== "formulario" && (
           <p className={styles.editorEmpty}>Opciones de contenido próximamente.</p>
         )}
         {tab === "diseño" && (

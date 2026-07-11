@@ -94,7 +94,47 @@ export async function getPropuesta(id: string) {
     const landing = Array.isArray(data.landings)
       ? (data.landings.find((l: any) => l.is_active) ?? data.landings[0] ?? null)
       : null;
-    return { ...data, landing, landings: undefined };
+
+    let agente: any = null;
+    if (data.cotizacion_id) {
+      const { data: cot } = await agencyDb
+        .from("operativa_cotizaciones")
+        .select("agente_id")
+        .eq("id", data.cotizacion_id)
+        .maybeSingle();
+      if (cot?.agente_id) {
+        const { data: usr } = await agencyDb
+          .from("usuarios")
+          .select("id, nombre, apellidos, email, telefono, avatar_url")
+          .or(`id.eq.${cot.agente_id},auth_user_id.eq.${cot.agente_id}`)
+          .maybeSingle();
+        if (usr) {
+          agente = usr;
+        }
+      }
+    }
+
+    if (!agente) {
+      try {
+        const { createAdminServerClient } = await import("@/lib/supabaseServer");
+        const adminSupabase = await createAdminServerClient();
+        const { data: { user } } = await adminSupabase.auth.getUser();
+        if (user) {
+          const { data: usr } = await agencyDb
+            .from("usuarios")
+            .select("id, nombre, apellidos, email, telefono, avatar_url")
+            .eq("auth_user_id", user.id)
+            .maybeSingle();
+          if (usr) {
+            agente = usr;
+          }
+        }
+      } catch (e) {
+        console.error("Error fetching current agent fallback in getPropuesta:", e);
+      }
+    }
+
+    return { ...data, landing, landings: undefined, agente };
   } catch (e: any) {
     console.error("getPropuesta:", e?.message);
     return null;

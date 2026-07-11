@@ -92,97 +92,104 @@ export default function LoginPage() {
   if (forgotMode) {
     return (
       <main className={styles.container}>
-        <section className={styles.card}>
-          <h1 className={styles.title}>Recuperar contraseña</h1>
-          {forgotSent ? (
-            <div style={{ textAlign: "center", display: "grid", gap: "1rem" }}>
-              <p style={{ color: "#15803d", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "0.5rem", padding: "0.75rem", fontSize: "0.875rem" }}>
-                Te hemos enviado un email con el enlace para restablecer tu contraseña.
-              </p>
-              <button className={styles.secondaryButton} onClick={() => { setForgotMode(false); setForgotSent(false); }}>
-                Volver al inicio de sesión
-              </button>
-            </div>
-          ) : (
-            <form className={styles.form} onSubmit={handleForgot}>
-              {forgotError && <p className={styles.error}>{forgotError}</p>}
-              <label className={styles.label} htmlFor="forgot-email">Email</label>
-              <input
-                id="forgot-email"
-                type="email"
-                placeholder="admin@agencia.com"
-                className={styles.input}
-                autoComplete="email"
-                value={forgotEmail}
-                onChange={(e) => setForgotEmail(e.target.value)}
-                required
-              />
-              <button type="submit" className={styles.button} disabled={forgotLoading}>
-                {forgotLoading ? "Enviando..." : "Enviar enlace"}
-              </button>
-              <button type="button" className={styles.secondaryButton} onClick={() => setForgotMode(false)}>
-                Volver al inicio de sesión
-              </button>
-            </form>
-          )}
+        <section className={styles.leftColumn}>
+          <div className={styles.formBox}>
+            <img src="/logo_alivia.png" alt="Alivia" className={styles.logo} />
+            <h1 className={styles.title}>Recuperar contraseña</h1>
+            {forgotSent ? (
+              <div style={{ textAlign: "center", display: "grid", gap: "1rem" }}>
+                <p style={{ color: "#fca5a5", background: "rgba(220, 38, 38, 0.2)", border: "1px solid rgba(220, 38, 38, 0.3)", borderRadius: "8px", padding: "0.75rem", fontSize: "0.875rem" }}>
+                  Te hemos enviado un email con el enlace para restablecer tu contraseña.
+                </p>
+                <button className={styles.secondaryButton} onClick={() => { setForgotMode(false); setForgotSent(false); }}>
+                  Volver al inicio de sesión
+                </button>
+              </div>
+            ) : (
+              <form className={styles.form} onSubmit={handleForgot}>
+                {forgotError && <p className={styles.error}>{forgotError}</p>}
+                <label className={styles.label} htmlFor="forgot-email">Email</label>
+                <input
+                  id="forgot-email"
+                  type="email"
+                  placeholder="admin@agencia.com"
+                  className={styles.input}
+                  autoComplete="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  required
+                />
+                <button type="submit" className={styles.button} disabled={forgotLoading}>
+                  {forgotLoading ? "Enviando..." : "Enviar enlace"}
+                </button>
+                <button type="button" className={styles.secondaryButton} onClick={() => setForgotMode(false)}>
+                  Volver al inicio de sesión
+                </button>
+              </form>
+            )}
+          </div>
         </section>
+        <section className={styles.rightColumn} />
       </main>
     );
   }
 
   return (
     <main className={styles.container}>
-      <section className={styles.card}>
-        <h1 className={styles.title}>Iniciar sesión</h1>
-        <form className={styles.form} onSubmit={handleSubmit}>
-          {error && <p className={styles.error}>{error}</p>}
-          <label className={styles.label} htmlFor="email">
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            placeholder="admin@agencia.com"
-            className={styles.input}
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-
-          <label className={styles.label} htmlFor="password">
-            Contraseña
-          </label>
-          <div className={styles.passwordWrapper}>
+      <section className={styles.leftColumn}>
+        <div className={styles.formBox}>
+          <img src="/logo_alivia.png" alt="Alivia" className={styles.logo} />
+          <form className={styles.form} onSubmit={handleSubmit}>
+            {error && <p className={styles.error}>{error}</p>}
+            <label className={styles.label} htmlFor="email">
+              Email
+            </label>
             <input
-              id="password"
-              name="password"
-              type={showPassword ? "text" : "password"}
-              placeholder="••••••••"
+              id="email"
+              name="email"
+              type="email"
+              placeholder="admin@agencia.com"
               className={styles.input}
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
             />
-            <button
-              type="button"
-              className={styles.eyeButton}
-              onClick={() => setShowPassword(!showPassword)}
-            >
-              {showPassword ? <Icons.EyeOff size={20} /> : <Icons.Eye size={20} />}
-            </button>
-          </div>
 
-          <button type="submit" className={styles.button} disabled={loading}>
-            {loading ? "Entrando..." : "Entrar"}
-          </button>
-          <button type="button" className={styles.secondaryButton} onClick={() => setForgotMode(true)}>
-            ¿Olvidaste tu contraseña?
-          </button>
-        </form>
+            <label className={styles.label} htmlFor="password">
+              Contraseña
+            </label>
+            <div className={styles.passwordWrapper}>
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                className={styles.input}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className={styles.eyeButton}
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <Icons.EyeOff size={20} /> : <Icons.Eye size={20} />}
+              </button>
+            </div>
+
+            <button type="submit" className={styles.button} disabled={loading}>
+              {loading ? "Entrando..." : "Entrar"}
+            </button>
+            <button type="button" className={styles.secondaryButton} onClick={() => setForgotMode(true)}>
+              ¿Olvidaste tu contraseña?
+            </button>
+          </form>
+        </div>
       </section>
+      <section className={styles.rightColumn} />
     </main>
   );
 }

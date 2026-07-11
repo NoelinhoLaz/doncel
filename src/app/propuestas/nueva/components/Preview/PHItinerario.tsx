@@ -158,7 +158,7 @@ export default function PHItinerario({ mobile, layout, colorFondo, fechaDesde, f
         <Ph>
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%", maxWidth: customMaxWidth, margin: "0 auto" }}>
             {titulo ? (
-              <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo) }}>{titulo}</h3>
+              <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
             ) : (
               <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
             )}
@@ -192,7 +192,7 @@ export default function PHItinerario({ mobile, layout, colorFondo, fechaDesde, f
                         </div>
                         {/* Vertical text / line representing vertical text/title placeholder */}
                         {diaData.titulo ? (
-                          <span className={styles.phAcordeonTitleV} style={{ fontSize: "1.1rem", color: "#ffffff", whiteSpace: "nowrap", marginTop: "auto", ...estiloTextoCSS(estiloTituloDia) }}>{diaData.titulo}</span>
+                          <span className={styles.phAcordeonTitleV} style={{ fontSize: "1.1rem", color: "#ffffff", whiteSpace: "nowrap", marginTop: "auto", ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{diaData.titulo}</span>
                         ) : (
                           <div style={{ width: "6px", height: "100px", borderRadius: "3px", background: "rgba(255, 255, 255, 0.2)", marginTop: "auto" }} />
                         )}
@@ -210,14 +210,14 @@ export default function PHItinerario({ mobile, layout, colorFondo, fechaDesde, f
                         <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
                           {/* Title or white skeleton line */}
                           {diaData.titulo ? (
-                            <h4 style={{ fontSize: "1.15rem", fontWeight: 800, color: "#ffffff", margin: 0, textShadow: "0 2px 4px rgba(0,0,0,0.4)", ...estiloTextoCSS(estiloTituloDia) }}>{diaData.titulo}</h4>
+                            <h4 style={{ fontSize: "1.15rem", fontWeight: 800, color: "#ffffff", margin: 0, textShadow: "0 2px 4px rgba(0,0,0,0.4)", ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{diaData.titulo}</h4>
                           ) : (
                             <div style={{ width: "50%", height: "14px", borderRadius: "7px", background: "#ffffff", marginTop: "4px" }} />
                           )}
                           {/* Description or skeleton lines inside scrollable container */}
                           <div className={styles.phAcordeonScroll} style={{ overflowY: "auto", maxHeight: "300px", paddingRight: "4px" }}>
                             {diaData.desc ? (
-                              <p style={{ fontSize: "0.82rem", color: "rgba(255, 255, 255, 0.95)", margin: 0, textShadow: "0 1px 2px rgba(0,0,0,0.4)", lineHeight: 1.4, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia) }}>{renderTextWithBold(diaData.desc, estiloDescDia)}</p>
+                              <p style={{ fontSize: "0.82rem", color: "rgba(255, 255, 255, 0.95)", margin: 0, textShadow: "0 1px 2px rgba(0,0,0,0.4)", lineHeight: 1.4, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{renderTextWithBold(diaData.desc, estiloDescDia)}</p>
                             ) : (
                               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                                 <div style={{ width: "85%", height: "8px", borderRadius: "4px", background: "rgba(255, 255, 255, 0.7)" }} />
@@ -244,7 +244,7 @@ export default function PHItinerario({ mobile, layout, colorFondo, fechaDesde, f
       <Ph>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", maxWidth: customMaxWidth, margin: "0 auto" }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo) }}>{titulo}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
@@ -262,12 +262,12 @@ export default function PHItinerario({ mobile, layout, colorFondo, fechaDesde, f
                     <div style={{ width: "35px", height: "8px", borderRadius: "4px", background: "#e2e8f0" }} />
                   </div>
                   {diaData.titulo ? (
-                    <h4 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTituloDia) }}>{diaData.titulo}</h4>
+                    <h4 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{diaData.titulo}</h4>
                   ) : (
                     <Title w="60%" />
                   )}
                   {diaData.desc ? (
-                    <p style={{ fontSize: "0.82rem", color: "#64748b", lineHeight: 1.5, margin: 0, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia) }}>{renderTextWithBold(diaData.desc, estiloDescDia)}</p>
+                    <p style={{ fontSize: "0.82rem", color: "#64748b", lineHeight: 1.5, margin: 0, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{renderTextWithBold(diaData.desc, estiloDescDia)}</p>
                   ) : (
                     <>
                       <Bar w="95%" />

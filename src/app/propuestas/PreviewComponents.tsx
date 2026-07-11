@@ -60,6 +60,15 @@ export interface Seccion {
   menuColorTexto?: string;
   menuColorBoton?: string;
   menuFijo?: boolean;
+  pvp?: string;
+  condiciones?: string;
+  otrasConsideraciones?: string;
+  estiloPvp?: TextoEstilo;
+  estiloCondiciones?: TextoEstilo;
+  estiloOtrasConsideraciones?: TextoEstilo;
+  formularioCampos?: { uid: string; key: string; label: string; lineas: number; activo: boolean }[];
+  formularioEmail?: string;
+  formularioBoton?: string;
 }
 
 export type Dispositivo = "desktop" | "tablet" | "mobile";
@@ -108,21 +117,97 @@ const FUENTE_FAMILY: Record<string, string> = {
   "Serif":         "Georgia, serif",
 };
 
-export function estiloTextoCSS(e?: TextoEstilo): React.CSSProperties {
-  if (!e) return {};
-  const tamanoNum = e.tamano ? parseInt(e.tamano) : 0;
+export function estiloTextoCSS(e?: TextoEstilo, defaultTipo?: "titulo" | "subtitulo" | "parrafo" | "negrita"): React.CSSProperties {
+  if (!defaultTipo) return {};
+
+  const fuente = `var(--momo-font-${defaultTipo})`;
+  const tamano = `var(--momo-size-${defaultTipo})`;
+  const grosor = `var(--momo-weight-${defaultTipo})`;
+  const color = `var(--momo-color-${defaultTipo})`;
+  const alineacionH = e?.alineacionH;
+
   return {
-    ...(e.fuente      ? { fontFamily: FUENTE_FAMILY[e.fuente] ?? e.fuente } : {}),
-    ...(e.tamano      ? { fontSize: e.tamano.endsWith("px") && tamanoNum > 0 ? `min(${e.tamano}, calc(${tamanoNum / 1920} * 100cqw))` : e.tamano }   : {}),
-    ...(e.grosor      ? { fontWeight: e.grosor } : {}),
-    ...(e.alineacionH ? { textAlign: e.alineacionH as React.CSSProperties["textAlign"] } : {}),
-    ...(e.color       ? { color: e.color }       : {}),
+    fontFamily: fuente,
+    fontSize: tamano,
+    fontWeight: grosor as any,
+    color: color,
+    ...(alineacionH ? { textAlign: alineacionH as React.CSSProperties["textAlign"] } : {}),
   };
 }
 
-export function renderConDestacado(texto: string, colorDestacado?: string, grosorDestacado?: string): React.ReactNode {
+export function getResponsiveSize(size?: string) {
+  if (!size) return undefined;
+  const num = parseInt(size);
+  if (size.endsWith("px") && num > 0) {
+    return `min(${size}, calc(${num / 1920} * 100cqw))`;
+  }
+  return size;
+}
+
+export const DEFAULT_ESTILOS_GLOBALES = {
+  titulo: { fuente: "Raleway", grosor: "800", tamano: "32px", color: "#1e293b", colorDestacado: "#6366f1" },
+  subtitulo: { fuente: "Montserrat", grosor: "400", tamano: "16px", color: "#64748b", colorDestacado: "#6366f1" },
+  parrafo: { fuente: "Montserrat", grosor: "400", tamano: "14px", color: "#334155", colorDestacado: "#6366f1" },
+};
+
+export function getStyleVars(estilosGlobales: any) {
+  const styles = {
+    titulo: { ...DEFAULT_ESTILOS_GLOBALES.titulo, ...estilosGlobales?.titulo },
+    subtitulo: { ...DEFAULT_ESTILOS_GLOBALES.subtitulo, ...estilosGlobales?.subtitulo },
+    parrafo: { ...DEFAULT_ESTILOS_GLOBALES.parrafo, ...estilosGlobales?.parrafo },
+  };
+  return {
+    "--momo-font-titulo": styles.titulo.fuente ? (FUENTE_FAMILY[styles.titulo.fuente] ?? styles.titulo.fuente) : undefined,
+    "--momo-size-titulo": getResponsiveSize(styles.titulo.tamano),
+    "--momo-weight-titulo": styles.titulo.grosor,
+    "--momo-color-titulo": styles.titulo.color,
+    "--momo-color-destacado-titulo": styles.titulo.colorDestacado,
+
+    "--momo-font-subtitulo": styles.subtitulo.fuente ? (FUENTE_FAMILY[styles.subtitulo.fuente] ?? styles.subtitulo.fuente) : undefined,
+    "--momo-size-subtitulo": getResponsiveSize(styles.subtitulo.tamano),
+    "--momo-weight-subtitulo": styles.subtitulo.grosor,
+    "--momo-color-subtitulo": styles.subtitulo.color,
+    "--momo-color-destacado-subtitulo": styles.subtitulo.colorDestacado,
+
+    "--momo-font-parrafo": styles.parrafo.fuente ? (FUENTE_FAMILY[styles.parrafo.fuente] ?? styles.parrafo.fuente) : undefined,
+    "--momo-size-parrafo": getResponsiveSize(styles.parrafo.tamano),
+    "--momo-weight-parrafo": styles.parrafo.grosor,
+    "--momo-color-parrafo": styles.parrafo.color,
+    "--momo-color-destacado-parrafo": styles.parrafo.colorDestacado,
+  } as React.CSSProperties;
+}
+
+export const VARIABLES_PROPUESTA: Record<string, string> = {
+  "[Nombre_Cliente]": "María",
+  "[Apellidos_Cliente]": "García López",
+  "[Nombre_Responsable]": "Carlos Martínez",
+  "[Fecha_Salida]": "15 de agosto de 2025",
+  "[Fecha_Vuelta]": "25 de agosto de 2025",
+  "[Destino]": "París",
+  "[Num_Viajeros]": "2",
+  "[Num_Noches]": "10",
+  "[Precio_Total]": "3.200 €",
+  "[Precio_Por_Persona]": "1.600 €",
+};
+
+export function sustituirVariables(texto: string): string {
+  if (!texto) return "";
+  return Object.entries(VARIABLES_PROPUESTA).reduce(
+    (t, [key, val]) => t.replaceAll(key, val),
+    texto
+  );
+}
+
+export function renderConDestacado(texto: string, colorDestacado?: string, grosorDestacado?: string, defaultTipo?: "titulo" | "subtitulo" | "parrafo" | "negrita"): React.ReactNode {
   if (!texto) return null;
-  const lineas = texto.split("\n");
+  const tipo = defaultTipo ?? "parrafo";
+  const color = (colorDestacado && colorDestacado !== "#ffffff" && colorDestacado !== "#1e293b" && colorDestacado !== "#64748b" && colorDestacado !== "#334155") 
+    ? colorDestacado 
+    : `var(--momo-color-destacado-${tipo})`;
+  const grosor = grosorDestacado || "bold";
+
+  const textoConVariables = sustituirVariables(texto);
+  const lineas = textoConVariables.split("\n");
   return lineas.map((linea, index) => {
     const trimmed = linea.trim();
     const esVineta = trimmed.startsWith(".-");
@@ -131,20 +216,20 @@ export function renderConDestacado(texto: string, colorDestacado?: string, groso
     const partes = contenidoLinea.split(/(\*\*.*?\*\*)/g);
     const lineContent = partes.map((p, i) =>
       p.startsWith("**") && p.endsWith("**")
-        ? <strong key={i} style={{ color: colorDestacado ?? "#6366f1", fontWeight: grosorDestacado ?? "bold" }}>{p.slice(2, -2)}</strong>
+        ? <strong key={i} style={{ color: color, fontWeight: grosor as any }}>{p.slice(2, -2)}</strong>
         : p
     );
 
     if (esVineta) {
       return (
-        <span key={index} style={{ display: "flex", gap: "8px", alignItems: "flex-start", paddingLeft: "8px", marginTop: "4px", marginBottom: "4px", textAlign: "left" }}>
-          <span style={{ color: colorDestacado ?? "#6366f1", fontWeight: "bold" }}>•</span>
+        <span key={index} style={{ display: "flex", gap: "8px", alignItems: "flex-start", paddingLeft: "8px", marginTop: "4px", marginBottom: "4px", textAlign: "left", ...estiloTextoCSS(undefined, tipo) }}>
+          <span style={{ color: color, fontWeight: "bold" }}>•</span>
           <span style={{ flex: 1 }}>{lineContent}</span>
         </span>
       );
     } else {
       return (
-        <span key={index} style={{ display: "block", minHeight: linea === "" ? "0.75em" : undefined }}>
+        <span key={index} style={{ display: "block", minHeight: linea === "" ? "0.75em" : undefined, ...estiloTextoCSS(undefined, tipo) }}>
           {lineContent}
         </span>
       );
@@ -173,13 +258,13 @@ export function PortadaTexto({ titulo, subtitulo, estiloTitulo, estiloSubtitulo,
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", ...wrapStyle }}>
       {titulo
-        ? <p className={styles.phPortadaTitulo} style={{ whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloTitulo) }}>
-            {renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado)}
+        ? <p className={styles.phPortadaTitulo} style={{ whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloTitulo, "titulo") }}>
+            {renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo")}
           </p>
         : <Title w="55%" />}
       {subtitulo
-        ? <p className={styles.phPortadaSubtitulo} style={{ whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloSubtitulo) }}>
-            {renderConDestacado(subtitulo, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado)}
+        ? <p className={styles.phPortadaSubtitulo} style={{ whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloSubtitulo, "subtitulo") }}>
+            {renderConDestacado(subtitulo, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado, "subtitulo")}
           </p>
         : <><Bar w="40%" /><Bar w="30%" /></>}
     </div>
@@ -520,15 +605,15 @@ export function PHTextoImagenes({
   const texto = (
     <div className={styles.phTexto} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       {titulo ? (
-        <h3 className={styles.phPortadaTitulo} style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloTitulo) }}>
-          {renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado)}
+        <h3 className={styles.phPortadaTitulo} style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloTitulo, "titulo") }}>
+          {renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo")}
         </h3>
       ) : (
         <Title w="65%" />
       )}
       {subtitulo ? (
-        <p className={styles.phPortadaSubtitulo} style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloSubtitulo) }}>
-          {renderConDestacado(subtitulo, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado)}
+        <p className={styles.phPortadaSubtitulo} style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloSubtitulo, "parrafo") }}>
+          {renderConDestacado(subtitulo, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado, "parrafo")}
         </p>
       ) : (
         <><Bar w="100%" /><Bar w="92%" /><Bar w="88%" /><Bar w="95%" /><Bar w="78%" /><Bar w="83%" /><Bar w="60%" /></>
@@ -688,9 +773,16 @@ export function PHItinerarioMediaCarousel({ medias, showArrows, autoplay = true 
   );
 }
 
-export function renderTextWithBold(text?: string, estilo?: TextoEstilo) {
+export function renderTextWithBold(text?: string, estilo?: TextoEstilo, defaultTipo?: "titulo" | "subtitulo" | "parrafo" | "negrita") {
   if (!text) return null;
-  const lineas = text.split("\n");
+  const tipo = defaultTipo ?? "parrafo";
+  const color = (estilo?.colorDestacado && estilo.colorDestacado !== "#ffffff" && estilo.colorDestacado !== "#1e293b" && estilo.colorDestacado !== "#64748b" && estilo.colorDestacado !== "#334155")
+    ? estilo.colorDestacado
+    : `var(--momo-color-destacado-${tipo})`;
+  const grosor = estilo?.grosorDestacado || "bold";
+
+  const textoConVariables = sustituirVariables(text);
+  const lineas = textoConVariables.split("\n");
   return lineas.map((linea, index) => {
     const trimmed = linea.trim();
     const esVineta = trimmed.startsWith(".-");
@@ -699,21 +791,21 @@ export function renderTextWithBold(text?: string, estilo?: TextoEstilo) {
     const parts = contenidoLinea.split("**");
     const lineContent = parts.map((part, i) => {
       if (i % 2 === 1) {
-        return <strong key={i} style={{ color: estilo?.colorDestacado ?? undefined, fontWeight: estilo?.grosorDestacado ?? "800" }}>{part}</strong>;
+        return <strong key={i} style={{ color: color, fontWeight: grosor as any }}>{part}</strong>;
       }
       return part;
     });
 
     if (esVineta) {
       return (
-        <span key={index} style={{ display: "flex", gap: "8px", alignItems: "flex-start", paddingLeft: "8px", marginTop: "4px", marginBottom: "4px", textAlign: "left" }}>
-          <span style={{ color: estilo?.colorDestacado ?? undefined, fontWeight: "bold" }}>•</span>
+        <span key={index} style={{ display: "flex", gap: "8px", alignItems: "flex-start", paddingLeft: "8px", marginTop: "4px", marginBottom: "4px", textAlign: "left", ...estiloTextoCSS(estilo, tipo) }}>
+          <span style={{ color: color, fontWeight: "bold" }}>•</span>
           <span style={{ flex: 1 }}>{lineContent}</span>
         </span>
       );
     } else {
       return (
-        <span key={index} style={{ display: "block", minHeight: linea === "" ? "0.75em" : undefined }}>
+        <span key={index} style={{ display: "block", minHeight: linea === "" ? "0.75em" : undefined, ...estiloTextoCSS(estilo, tipo) }}>
           {lineContent}
         </span>
       );
@@ -789,7 +881,7 @@ export function PHItinerario({ mobile, layout, colorFondo, fechaDesde, fechaHast
                           {d.dia}
                         </div>
                         {diaData.titulo ? (
-                          <span className={styles.phAcordeonTitleV} style={{ fontSize: "1.1rem", color: "#ffffff", whiteSpace: "nowrap", marginTop: "auto", ...estiloTextoCSS(estiloTituloDia) }}>{diaData.titulo}</span>
+                          <span className={styles.phAcordeonTitleV} style={{ fontSize: "1.1rem", color: "#ffffff", whiteSpace: "nowrap", marginTop: "auto", ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{diaData.titulo}</span>
                         ) : (
                           <div style={{ width: "6px", height: "100px", borderRadius: "3px", background: "rgba(255, 255, 255, 0.2)", marginTop: "auto" }} />
                         )}
@@ -804,13 +896,13 @@ export function PHItinerario({ mobile, layout, colorFondo, fechaDesde, fechaHast
 
                         <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
                           {diaData.titulo ? (
-                            <h4 style={{ fontSize: "1.15rem", fontWeight: 800, color: "#ffffff", margin: 0, textShadow: "0 2px 4px rgba(0,0,0,0.4)", ...estiloTextoCSS(estiloTituloDia) }}>{diaData.titulo}</h4>
+                            <h4 style={{ fontSize: "1.15rem", fontWeight: 800, color: "#ffffff", margin: 0, textShadow: "0 2px 4px rgba(0,0,0,0.4)", ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{diaData.titulo}</h4>
                           ) : (
                             <div style={{ width: "50%", height: "14px", borderRadius: "7px", background: "#ffffff", marginTop: "4px" }} />
                           )}
                           <div className={styles.phAcordeonScroll} style={{ overflowY: "auto", maxHeight: "300px", paddingRight: "4px" }}>
                             {diaData.desc ? (
-                              <p style={{ fontSize: "0.82rem", color: "rgba(255, 255, 255, 0.95)", margin: 0, textShadow: "0 1px 2px rgba(0,0,0,0.4)", lineHeight: 1.4, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia) }}>{renderTextWithBold(diaData.desc, estiloDescDia)}</p>
+                              <p style={{ fontSize: "0.82rem", color: "rgba(255, 255, 255, 0.95)", margin: 0, textShadow: "0 1px 2px rgba(0,0,0,0.4)", lineHeight: 1.4, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{renderTextWithBold(diaData.desc, estiloDescDia)}</p>
                             ) : (
                               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                                 <div style={{ width: "85%", height: "8px", borderRadius: "4px", background: "rgba(255, 255, 255, 0.7)" }} />
@@ -837,7 +929,7 @@ export function PHItinerario({ mobile, layout, colorFondo, fechaDesde, fechaHast
       <Ph>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", maxWidth: customMaxWidth, margin: "0 auto" }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo) }}>{titulo}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
@@ -855,12 +947,12 @@ export function PHItinerario({ mobile, layout, colorFondo, fechaDesde, fechaHast
                     <div style={{ width: "35px", height: "8px", borderRadius: "4px", background: "#e2e8f0" }} />
                   </div>
                   {diaData.titulo ? (
-                    <h4 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTituloDia) }}>{diaData.titulo}</h4>
+                    <h4 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{diaData.titulo}</h4>
                   ) : (
                     <Title w="60%" />
                   )}
                   {diaData.desc ? (
-                    <p style={{ fontSize: "0.82rem", color: "#64748b", lineHeight: 1.5, margin: 0, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia) }}>{renderTextWithBold(diaData.desc, estiloDescDia)}</p>
+                    <p style={{ fontSize: "0.82rem", color: "#64748b", lineHeight: 1.5, margin: 0, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{renderTextWithBold(diaData.desc, estiloDescDia)}</p>
                   ) : (
                     <>
                       <Bar w="95%" />
@@ -1149,33 +1241,396 @@ export function PHRuta({ titulo, rutas, layout, anchoMax, colorFondo }: {
   );
 }
 
-export function PHPrecio({ mobile, tablet }: { mobile?: boolean; tablet?: boolean }) {
-  const cols = mobile ? 1 : tablet ? 2 : 3;
+export function PHPrecio({
+  mobile,
+  tablet,
+  seccion,
+}: {
+  mobile?: boolean;
+  tablet?: boolean;
+  seccion?: Seccion;
+}) {
+  if (!seccion) return null;
+
+  const layout = seccion.layout ?? "destacado-grande";
+  const pvp = seccion.pvp || "";
+  const condiciones = seccion.condiciones || "";
+
+  const stylePvp = estiloTextoCSS(seccion.estiloPvp, "titulo");
+  const styleCondiciones = estiloTextoCSS(seccion.estiloCondiciones, "parrafo");
+
+  const maxWidth = seccion.anchoMax === "900px" ? "900px" : seccion.anchoMax === "1200px" ? "1200px" : "100%";
+  const containerStyle: React.CSSProperties = {
+    maxWidth,
+    margin: "0 auto",
+    padding: "3rem 1.5rem",
+    background: seccion.colorFondo || "transparent",
+    borderRadius: "1rem",
+    width: "100%",
+  };
+
+  const formattedPvp = renderConDestacado(pvp, seccion.estiloPvp?.colorDestacado, seccion.estiloPvp?.grosorDestacado, "titulo");
+  const formattedCondiciones = renderConDestacado(condiciones, seccion.estiloCondiciones?.colorDestacado, seccion.estiloCondiciones?.grosorDestacado, "parrafo");
+
+  if (layout === "card-premium") {
+    return (
+      <Ph>
+        <div style={containerStyle}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: mobile ? "1fr" : "1fr 1.5fr",
+            gap: "2.5rem",
+            background: "#ffffff",
+            borderRadius: "1.25rem",
+            padding: "2.5rem",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.04)",
+            border: "1px solid #f1f5f9"
+          }}>
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              background: "linear-gradient(135deg, #f5f3ff 0%, #edd8ff 100%)",
+              borderRadius: "1rem",
+              padding: "2rem",
+              textAlign: "center",
+              border: "1px dashed #c084fc"
+            }}>
+              <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>Precio Final</span>
+              <h2 style={{ margin: 0, fontSize: "2.2rem", fontWeight: 900, color: "#1e1b4b", ...stylePvp }}>
+                {formattedPvp}
+              </h2>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+              {condiciones && (
+                <div>
+                  <h4 style={{ fontSize: "1rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.5rem", borderBottom: "2px solid #e2e8f0", paddingBottom: "0.25rem" }}>Condiciones de Reserva</h4>
+                  <p style={{ margin: 0, fontSize: "0.95rem", color: "#475569", whiteSpace: "pre-wrap", ...styleCondiciones }}>
+                    {formattedCondiciones}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </Ph>
+    );
+  }
+
+  if (layout === "split-horizontal") {
+    return (
+      <Ph>
+        <div style={containerStyle}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
+            <div style={{
+              display: "flex",
+              flexDirection: mobile ? "column" : "row",
+              justifyContent: "space-between",
+              alignItems: mobile ? "stretch" : "center",
+              background: "#1e1b4b",
+              borderRadius: "1rem",
+              padding: "2rem",
+              color: "#ffffff",
+              boxShadow: "0 10px 25px rgba(30, 27, 75, 0.15)"
+            }}>
+              <div>
+                <span style={{ fontSize: "0.9rem", color: "#a5b4fc", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>Presupuesto Estimado</span>
+                <h3 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 700 }}>Total Servicios Cotizados</h3>
+              </div>
+              <div style={{
+                textAlign: mobile ? "left" : "right",
+                marginTop: mobile ? "1rem" : 0,
+                borderTop: mobile ? "1px solid rgba(255,255,255,0.1)" : "none",
+                paddingTop: mobile ? "1rem" : 0
+              }}>
+                <h2 style={{ margin: 0, fontSize: "2.4rem", fontWeight: 900, color: "#fbbf24", ...stylePvp }}>
+                  {formattedPvp}
+                </h2>
+              </div>
+            </div>
+            {condiciones && (
+              <div style={{ background: "#ffffff", padding: "1.75rem", borderRadius: "1rem", border: "1px solid #f1f5f9", boxShadow: "0 4px 12px rgba(0,0,0,0.02)" }}>
+                <h4 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.75rem" }}>Condiciones de Reserva</h4>
+                <p style={{ margin: 0, fontSize: "0.95rem", color: "#475569", whiteSpace: "pre-wrap", ...styleCondiciones }}>
+                  {formattedCondiciones}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </Ph>
+    );
+  }
+
   return (
     <Ph>
-      <div className={styles.phPrecioRow} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
-        {Array.from({ length: cols }).map((_, n) => (
-          <div key={n} className={styles.phPrecioCard}>
-            <Bar w="60%" /><Bar w="40%" /><Bar w="80%" /><Bar w="80%" /><Bar w="80%" />
-            <div className={styles.phPrecioBtn} />
+      <div style={containerStyle}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: "2.5rem" }}>
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            padding: "1rem"
+          }}>
+            <span style={{ fontSize: "0.95rem", color: "#6366f1", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.5rem" }}>Valor Total de la Propuesta</span>
+            <h1 style={{ margin: 0, fontSize: "3rem", fontWeight: 900, color: "#1e293b", ...stylePvp }}>
+              {formattedPvp}
+            </h1>
+            <div style={{ width: "80px", height: "4px", background: "#8b5cf6", borderRadius: "2px", marginTop: "1.5rem" }} />
           </div>
-        ))}
+          {condiciones && (
+            <div style={{ width: "100%", textAlign: "left", background: "#ffffff", padding: "2rem", borderRadius: "1rem", border: "1px solid #f1f5f9" }}>
+              <h4 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.75rem", borderLeft: "4px solid #8b5cf6", paddingLeft: "0.75rem" }}>Condiciones de Reserva</h4>
+              <p style={{ margin: 0, fontSize: "0.95rem", color: "#475569", whiteSpace: "pre-wrap", ...styleCondiciones }}>
+                {formattedCondiciones}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </Ph>
   );
 }
 
-export function PHFormulario({ mobile }: { mobile?: boolean }) {
+export function PHFormulario({
+  mobile,
+  seccion,
+  agente,
+}: {
+  mobile?: boolean;
+  seccion?: Seccion;
+  agente?: any;
+}) {
+  const [enviado, setEnviado] = React.useState(false);
+  const [formData, setFormData] = React.useState<Record<string, string>>({});
+
+  if (!seccion) return null;
+
+  const layout = seccion.layout ?? "solo-form";
+  const campos = seccion.formularioCampos ?? [
+    { uid: "nombre", key: "nombre", label: "Nombre", lineas: 1, activo: true },
+    { uid: "email", key: "email", label: "Email", lineas: 1, activo: true },
+    { uid: "observaciones", key: "observaciones", label: "Observaciones", lineas: 10, activo: true },
+  ];
+  const activeFields = (campos as any[]).filter((c: any) => c.activo);
+  const emailDestino = seccion.formularioEmail || agente?.email || "";
+  const botonLabel = seccion.formularioBoton || "Enviar";
+
+  const handleInputChange = (key: string, val: string) => {
+    setFormData(prev => ({ ...prev, [key]: val }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setEnviado(true);
+  };
+
+  const maxWidth = seccion.anchoMax === "900px" ? "900px" : seccion.anchoMax === "1200px" ? "1200px" : "800px";
+  const containerStyle: React.CSSProperties = {
+    maxWidth,
+    margin: "0 auto",
+    padding: "3rem 1.5rem",
+    background: seccion.colorFondo || "transparent",
+    borderRadius: "1rem",
+    width: "100%",
+  };
+
+  const agentCard = (
+    <div style={{
+      background: "#ffffff",
+      padding: "2rem",
+      borderRadius: "1.25rem",
+      boxShadow: "0 10px 25px rgba(0,0,0,0.03)",
+      border: "1px solid #f1f5f9",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      textAlign: "center",
+      height: "fit-content",
+      gap: "1.25rem"
+    }}>
+      {agente?.avatar_url ? (
+        <img
+          src={agente.avatar_url}
+          alt={`${agente.nombre} ${agente.apellidos || ""}`}
+          style={{ width: "80px", height: "80px", borderRadius: "50%", objectFit: "cover", border: "3px solid #fbbf24" }}
+        />
+      ) : (
+        <div style={{
+          width: "80px",
+          height: "80px",
+          borderRadius: "50%",
+          background: "#1e1b4b",
+          color: "#ffffff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "1.75rem",
+          fontWeight: 800,
+          border: "3px solid #fbbf24"
+        }}>
+          {((agente?.nombre?.[0] || "") + (agente?.apellidos?.[0] || "")).toUpperCase() || "A"}
+        </div>
+      )}
+      <div>
+        <h3 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 700, color: "#1e293b" }}>
+          {agente?.nombre ? `${agente.nombre} ${agente.apellidos || ""}`.trim() : "Tu Asesor de Viajes"}
+        </h3>
+        <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.85rem", color: "#64748b" }}>Agente de Viajes</p>
+      </div>
+
+      <div style={{ width: "100%", height: "1px", background: "#e2e8f0" }} />
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", textAlign: "left", fontSize: "0.88rem" }}>
+        {agente?.email && (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 600 }}>Email</span>
+            <a href={`mailto:${agente.email}`} style={{ color: "#475569", fontWeight: 500, textDecoration: "none" }}>{agente.email}</a>
+          </div>
+        )}
+        {agente?.telefono && (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 600 }}>Teléfono</span>
+            <a href={`tel:${agente.telefono}`} style={{ color: "#475569", fontWeight: 500, textDecoration: "none" }}>{agente.telefono}</a>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const formView = enviado ? (
+    <div style={{
+      background: "#ffffff",
+      padding: "3rem 2rem",
+      borderRadius: "1.25rem",
+      boxShadow: "0 10px 25px rgba(0,0,0,0.03)",
+      border: "1px solid #f1f5f9",
+      textAlign: "center",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: "1rem"
+    }}>
+      <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "center", color: "#22c55e" }}>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" style={{ width: "28px", height: "28px", margin: "auto" }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+        </svg>
+      </div>
+      <div>
+        <h3 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 800, color: "#1e293b" }}>¡Mensaje enviado!</h3>
+        <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.95rem", color: "#64748b", lineHeight: 1.5 }}>
+          Tu solicitud ha sido enviada con éxito. Nos pondremos en contacto contigo en breve.
+        </p>
+      </div>
+      {emailDestino && (
+        <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>
+          Mensaje enviado a: {emailDestino}
+        </span>
+      )}
+    </div>
+  ) : (
+    <form onSubmit={handleSubmit} style={{
+      background: "#ffffff",
+      padding: "2.5rem",
+      borderRadius: "1.25rem",
+      boxShadow: "0 10px 25px rgba(0,0,0,0.03)",
+      border: "1px solid #f1f5f9",
+      display: "flex",
+      flexDirection: "column",
+      gap: "1.5rem"
+    }}>
+      <div>
+        <h3 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800, color: "#1e293b" }}>¿Tienes alguna duda o quieres confirmar?</h3>
+        <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.88rem", color: "#64748b" }}>Rellena el formulario y te responderemos de inmediato.</p>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+        {activeFields.map((campo: any) => (
+          <div key={campo.uid} style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+            <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#475569" }}>
+              {campo.label}
+            </label>
+            {campo.lineas === 1 ? (
+              <input
+                type={campo.key === "email" ? "email" : "text"}
+                required
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #cbd5e1",
+                  fontSize: "0.92rem",
+                  outline: "none",
+                  transition: "all 0.2s"
+                }}
+                value={formData[campo.key] ?? ""}
+                onChange={e => handleInputChange(campo.key, e.target.value)}
+                onFocus={e => { e.target.style.borderColor = "#fbbf24"; e.target.style.boxShadow = "0 0 0 3px rgba(251, 191, 36, 0.2)"; }}
+                onBlur={e => { e.target.style.borderColor = "#cbd5e1"; e.target.style.boxShadow = "none"; }}
+              />
+            ) : (
+              <textarea
+                rows={campo.lineas}
+                required
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #cbd5e1",
+                  fontSize: "0.92rem",
+                  outline: "none",
+                  transition: "all 0.2s"
+                }}
+                value={formData[campo.key] ?? ""}
+                onChange={e => handleInputChange(campo.key, e.target.value)}
+                onFocus={e => { e.target.style.borderColor = "#fbbf24"; e.target.style.boxShadow = "0 0 0 3px rgba(251, 191, 36, 0.2)"; }}
+                onBlur={e => { e.target.style.borderColor = "#cbd5e1"; e.target.style.boxShadow = "none"; }}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+
+      <button
+        type="submit"
+        style={{
+          width: "100%",
+          padding: "0.85rem",
+          borderRadius: "0.5rem",
+          background: "var(--primary-color, #1e1b4b)",
+          color: "#ffffff",
+          fontWeight: 700,
+          border: "none",
+          cursor: "pointer",
+          transition: "opacity 0.2s",
+          fontSize: "0.95rem"
+        }}
+        onMouseEnter={e => { e.currentTarget.style.opacity = "0.9"; }}
+        onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
+      >
+        {botonLabel}
+      </button>
+    </form>
+  );
+
   return (
     <Ph>
-      <div className={styles.phFormulario}>
-        {mobile
-          ? <><Bloque h="28px" /><Bloque h="28px" /></>
-          : <div className={styles.phFormRow}><Bloque h="28px" /><Bloque h="28px" /></div>
-        }
-        <Bloque h="28px" />
-        <Bloque h="52px" />
-        <div className={styles.phFormBtn} />
+      <div style={containerStyle}>
+        {layout === "form-contacto" ? (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: mobile ? "1fr" : "1fr 1.8fr",
+            gap: "2.5rem"
+          }}>
+            {agentCard}
+            {formView}
+          </div>
+        ) : (
+          <div style={{ maxWidth: "600px", margin: "0 auto" }}>
+            {formView}
+          </div>
+        )}
       </div>
     </Ph>
   );
@@ -1241,7 +1696,7 @@ export function PHTextoColumnas({
       <Ph>
         <div className={styles.phTextoColumnas} style={{ maxWidth: customMaxWidth }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo) }}>{titulo}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
@@ -1249,12 +1704,12 @@ export function PHTextoColumnas({
             {displayCols.map((c, i) => (
               <div key={i} className={styles.phColumnaCard}>
                 {c.titulo ? (
-                  <h4 className={styles.phColumnaTitulo} style={estiloTextoCSS(estiloTituloDia)}>{c.titulo}</h4>
+                  <h4 className={styles.phColumnaTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{c.titulo}</h4>
                 ) : (
                   <div style={{ width: "60%", height: "12px", borderRadius: "6px", background: "#cbd5e1" }} />
                 )}
                 {c.texto ? (
-                  <p className={styles.phColumnaTexto} style={estiloTextoCSS(estiloDescDia)}>{renderTextWithBold(c.texto, estiloDescDia)}</p>
+                  <p className={styles.phColumnaTexto} style={estiloTextoCSS(estiloDescDia, "parrafo")}>{renderTextWithBold(c.texto, estiloDescDia)}</p>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     <div style={{ width: "90%", height: "8px", borderRadius: "4px", background: "#e2e8f0" }} />
@@ -1271,7 +1726,7 @@ export function PHTextoColumnas({
   );
 }
 
-export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dispositivo, allSecciones?: Seccion[]) {
+export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dispositivo, allSecciones?: Seccion[], agente?: any) {
   const mobile = dispositivo === "mobile";
   const tablet = dispositivo === "tablet";
   switch (s.tipo) {
@@ -1282,8 +1737,8 @@ export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dis
     case "itinerario":     return <PHItinerario key={s.uid} mobile={mobile} layout={s.layout} colorFondo={s.colorFondo} fechaDesde={s.fechaDesde} fechaHasta={s.fechaHasta} dias={s.dias} titulo={s.titulo} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} anchoMax={s.anchoMax} />;
     case "mapa":           return <PHMapa key={s.uid} titulo={s.titulo} mapas={s.mapas} layout={s.layout} anchoMax={s.anchoMax} colorFondo={s.colorFondo} />;
     case "ruta":           return <PHRuta key={s.uid} titulo={s.titulo} rutas={s.rutas} layout={s.layout} anchoMax={s.anchoMax} colorFondo={s.colorFondo} />;
-    case "precio":         return <PHPrecio key={s.uid} mobile={mobile} tablet={tablet} />;
-    case "formulario":     return <PHFormulario key={s.uid} mobile={mobile} />;
+    case "precio":         return <PHPrecio key={s.uid} mobile={mobile} tablet={tablet} seccion={s} />;
+    case "formulario":     return <PHFormulario key={s.uid} mobile={mobile} seccion={s} agente={agente} />;
     case "footer":         return <PHFooter key={s.uid} mobile={mobile} />;
     default: return <Ph key={s.uid}><span className={styles.phLabel}>{s.label}</span></Ph>;
   }

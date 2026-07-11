@@ -13,6 +13,8 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
   // Reconstruct secciones merging editor_content (contenido) + design_tokens (diseño)
   const editorContent: any[] = Array.isArray(landing?.editor_content) ? landing.editor_content : [];
   const designTokens: any[] = Array.isArray(landing?.design_tokens) ? landing.design_tokens : [];
+  const globalToken = designTokens.find((d: any) => d.uid === "global");
+  const initialEstilosGlobales = globalToken?.estilosGlobales ?? null;
 
   const designMap = new Map(designTokens.map((d: any) => [d.uid, d]));
 
@@ -47,6 +49,15 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
       menuColorTexto: d.menuColorTexto,
       menuColorBoton: d.menuColorBoton,
       menuFijo: d.menuFijo,
+      // Precio fields
+      pvp: s.pvp,
+      condiciones: s.condiciones,
+      estiloPvp: d.estiloPvp,
+      estiloCondiciones: d.estiloCondiciones,
+      // Formulario fields
+      formularioCampos: s.formularioCampos,
+      formularioEmail: s.formularioEmail,
+      formularioBoton: s.formularioBoton,
     };
   });
 
@@ -56,6 +67,8 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
       initialSecciones={initialSecciones}
       initialContactoId={propuesta.contacto_id}
       initialContactoNombre={(propuesta as any).contabilidad_entidades?.nombre || null}
+      initialEstilosGlobales={initialEstilosGlobales}
+      initialAgente={(propuesta as any).agente || null}
     />
   );
 }

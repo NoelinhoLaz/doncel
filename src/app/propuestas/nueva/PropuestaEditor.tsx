@@ -2,14 +2,15 @@
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
-  GripVertical, Eye, EyeOff, Trash2, ChevronRight, Heart, ExternalLink,
+  GripVertical, Eye, EyeOff, Trash2, ChevronRight, Heart, ExternalLink, Palette, X,
 } from "lucide-react";
 import styles from "./page.module.css";
 import type { Seccion, SeccionFavorita, Dispositivo } from "./types";
-import { DISPOSITIVOS, OPCIONES_SECCION } from "./constants";
+import { DISPOSITIVOS, OPCIONES_SECCION, FUENTES, TAMANIOS, GROSORES } from "./constants";
 import { useFavoritos } from "./hooks/useFavoritos";
 import { EditorPanel } from "./components/Editor/EditorPanel";
 import { renderSeccion } from "./utils/section-render";
+import { getStyleVars } from "./utils/style-utils";
 import { guardarPropuesta, getDatosRealesPropuesta } from "@/actions/propuestas";
 import { buscarEntidades } from "@/actions/entidades";
 import ExpedienteActionsToolbar from "@/app/components/ExpedienteActionsToolbar";
@@ -20,14 +21,29 @@ export function PropuestaEditor({
   initialCotizacionId,
   initialContactoId,
   initialContactoNombre,
+  initialEstilosGlobales,
+  initialAgente,
 }: {
   initialPropuestaId?: string;
   initialSecciones?: Seccion[];
   initialCotizacionId?: string | null;
   initialContactoId?: string | null;
   initialContactoNombre?: string | null;
+  initialEstilosGlobales?: any;
+  initialAgente?: any;
 } = {}) {
   const [secciones, setSecciones] = useState<Seccion[]>(initialSecciones ?? []);
+  const [agente, setAgente] = useState<any>(initialAgente ?? null);
+
+  useEffect(() => {
+    if (!agente) {
+      import("@/actions/usuarios").then(({ getCurrentUsuario }) => {
+        getCurrentUsuario().then(res => {
+          if (res) setAgente(res);
+        });
+      });
+    }
+  }, [agente]);
   const [dispositivo, setDispositivo] = useState<Dispositivo>("desktop");
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [confirmarBorrar, setConfirmarBorrar] = useState<string | null>(null);
@@ -42,6 +58,12 @@ export function PropuestaEditor({
   const [searchQuery, setSearchQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [buscando, setBuscando] = useState(false);
+  const [activeTab, setActiveTab] = useState<"contenido" | "diseño">("contenido");
+  const [estilosGlobales, setEstilosGlobales] = useState<any>(initialEstilosGlobales ?? {
+    titulo: { fuente: "Raleway", grosor: "800", tamano: "32px", color: "#1e293b", colorDestacado: "#6366f1" },
+    subtitulo: { fuente: "Montserrat", grosor: "400", tamano: "16px", color: "#64748b", colorDestacado: "#6366f1" },
+    parrafo: { fuente: "Montserrat", grosor: "400", tamano: "14px", color: "#334155", colorDestacado: "#6366f1" },
+  });
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { favs, toggleFav, isFav } = useFavoritos();
 
@@ -54,6 +76,12 @@ export function PropuestaEditor({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      (window as any).momoGlobalStyles = estilosGlobales;
+    }
+  }, [estilosGlobales]);
 
   useEffect(() => {
     if (searchQuery.trim().length < 3) {
@@ -101,6 +129,9 @@ export function PropuestaEditor({
     setGuardando(true);
     setGuardadoOk(false);
 
+    // Save to local storage as well for previewing
+    localStorage.setItem("momo_preview_estilos_globales", JSON.stringify(estilosGlobales));
+
     const editorContent = secciones.map(s => ({
       uid: s.uid, tipo: s.tipo, label: s.label, oculta: s.oculta,
       titulo: s.titulo, subtitulo: s.subtitulo, medias: s.medias,
@@ -114,19 +145,32 @@ export function PropuestaEditor({
       menuLogo: s.menuLogo,
       menuItems: s.menuItems,
       menuBoton: s.menuBoton,
+      // Precio fields
+      pvp: s.pvp,
+      condiciones: s.condiciones,
+      // Formulario fields
+      formularioCampos: s.formularioCampos,
+      formularioEmail: s.formularioEmail,
+      formularioBoton: s.formularioBoton,
     }));
-    const designTokens = secciones.map(s => ({
-      uid: s.uid, layout: s.layout,
-      estiloTitulo: s.estiloTitulo, estiloSubtitulo: s.estiloSubtitulo,
-      estiloTituloDia: s.estiloTituloDia, estiloDescDia: s.estiloDescDia,
-      colorFondo: s.colorFondo,
-      anchoMax: s.anchoMax,
-      // Diseño del menú
-      menuColorFondo: s.menuColorFondo,
-      menuColorTexto: s.menuColorTexto,
-      menuColorBoton: s.menuColorBoton,
-      menuFijo: s.menuFijo,
-    }));
+    const designTokens = [
+      { uid: "global", estilosGlobales },
+      ...secciones.map(s => ({
+        uid: s.uid, layout: s.layout,
+        estiloTitulo: s.estiloTitulo, estiloSubtitulo: s.estiloSubtitulo,
+        estiloTituloDia: s.estiloTituloDia, estiloDescDia: s.estiloDescDia,
+        colorFondo: s.colorFondo,
+        anchoMax: s.anchoMax,
+        // Diseño del menú
+        menuColorFondo: s.menuColorFondo,
+        menuColorTexto: s.menuColorTexto,
+        menuColorBoton: s.menuColorBoton,
+        menuFijo: s.menuFijo,
+        // Precio styling
+        estiloPvp: s.estiloPvp,
+        estiloCondiciones: s.estiloCondiciones,
+      }))
+    ];
 
     try {
       const result = await guardarPropuesta({
@@ -145,7 +189,7 @@ export function PropuestaEditor({
     } finally {
       setGuardando(false);
     }
-  }, [secciones, propuestaId, contactoId]);
+  }, [secciones, propuestaId, contactoId, estilosGlobales]);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const toggleOcultar = (uid: string) => {
@@ -181,8 +225,8 @@ export function PropuestaEditor({
     const añadirSeccion = (tipo: string, label: string) => {
     const base: Seccion = { uid: `${tipo}-${Date.now()}`, tipo, label };
     if (tipo === "portada") {
-      base.estiloTitulo    = { fuente: "Raleway",    grosor: "400", tamano: "40px", color: "#ffffff", colorDestacado: "#ffffff", grosorDestacado: "700" };
-      base.estiloSubtitulo = { fuente: "Montserrat", grosor: "300", color: "#ffffff", colorDestacado: "#ffffff", grosorDestacado: "700" };
+      base.estiloTitulo    = { fuente: "Raleway",    grosor: "400", tamano: "40px", color: "#ffffff", grosorDestacado: "700" };
+      base.estiloSubtitulo = { fuente: "Montserrat", grosor: "300", color: "#ffffff", grosorDestacado: "700" };
       base.layout = "slide";
     }
     if (tipo === "itinerario") {
@@ -201,6 +245,23 @@ export function PropuestaEditor({
         { titulo: "Relax", texto: ".- Alojamientos con encanto.\n.- Zonas de spa y bienestar.\n.- Tiempo libre para desconectar." }
       ];
       base.estiloTitulo = { fuente: "Raleway", grosor: "800", tamano: "22px", color: "#1e293b" };
+    }
+    if (tipo === "precio") {
+      base.layout = "destacado-grande";
+      base.pvp = "1.600 € / persona";
+      base.condiciones = "- Pago del 30% al confirmar la reserva.\n- Pago del 70% restante 30 días antes de la salida.";
+      base.estiloPvp = { fuente: "Raleway", grosor: "800", tamano: "48px", color: "#1e293b" };
+      base.estiloCondiciones = { fuente: "Montserrat", grosor: "400", tamano: "14px", color: "#475569" };
+    }
+    if (tipo === "formulario") {
+      base.layout = "solo-form";
+      base.formularioEmail = agente?.email || "";
+      base.formularioBoton = "Enviar";
+      base.formularioCampos = [
+        { uid: "nombre", key: "nombre", label: "Nombre", lineas: 1, activo: true },
+        { uid: "email", key: "email", label: "Email", lineas: 1, activo: true },
+        { uid: "observaciones", key: "observaciones", label: "Observaciones", lineas: 10, activo: true }
+      ];
     }
     setSecciones(prev => [...prev, base]);
     setMenuAbierto(false);
@@ -246,7 +307,7 @@ export function PropuestaEditor({
   return (
     <div className={styles.container}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem" }}>
-        <h1 className={styles.title} style={{ margin: 0 }}>Creador de propuestas</h1>
+        <h1 className={styles.title} style={{ margin: 0 }}>{contactoNombre || "Creador de propuestas"}</h1>
         {propuestaId && <ExpedienteActionsToolbar propuestaId={propuestaId} />}
       </div>
 
@@ -274,186 +335,230 @@ export function PropuestaEditor({
 
               {/* Vista lista */}
               <div className={`${styles.panelView} ${editorSeccion ? styles.panelViewHidden : ""}`}>
-                <div ref={dropdownRef} style={{ marginBottom: "1rem", borderBottom: "1px solid #f1f5f9", paddingBottom: "0.75rem", position: "relative" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: "0.35rem" }}>
-                    Contacto Vinculado
-                  </label>
-                  
-                  {(() => {
-                    const selectedContactoName = contactoNombre || (contactoId ? contactos.find(c => c.id === contactoId)?.nombre : null);
-                    if (selectedContactoName) {
-                      return (
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.4rem 0.6rem", backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "0.375rem" }}>
-                          <span style={{ fontSize: "0.85rem", color: "#334155", fontWeight: 500 }}>
-                            👤 {selectedContactoName}
-                          </span>
+                <div style={{ display: "flex", borderBottom: "1px solid #e2e8f0", marginBottom: "1rem" }}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("contenido")}
+                    style={{
+                      flex: 1,
+                      padding: "0.5rem",
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      border: "none",
+                      background: "none",
+                      borderBottom: activeTab === "contenido" ? "2px solid #1e293b" : "2px solid transparent",
+                      color: activeTab === "contenido" ? "#1e293b" : "#94a3b8",
+                      cursor: "pointer",
+                      textAlign: "center"
+                    }}
+                  >
+                    Contenido
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("diseño")}
+                    style={{
+                      flex: 1,
+                      padding: "0.5rem",
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      border: "none",
+                      background: "none",
+                      borderBottom: activeTab === "diseño" ? "2px solid #1e293b" : "2px solid transparent",
+                      color: activeTab === "diseño" ? "#1e293b" : "#94a3b8",
+                      cursor: "pointer",
+                      textAlign: "center"
+                    }}
+                  >
+                    Diseño
+                  </button>
+                </div>
+
+                {activeTab === "contenido" ? (
+                  <ul className={styles.seccionesList}>
+                    {secciones.map((s, i) => (
+                      <li
+                        key={s.uid}
+                        className={`${styles.seccionItem} ${s.oculta ? styles.seccionOculta : ""}`}
+                        draggable
+                        onDragStart={() => onDragStart(i)}
+                        onDragEnter={() => onDragEnter(i)}
+                        onDragEnd={onDragEnd}
+                        onDragOver={e => e.preventDefault()}
+                        onClick={() => scrollToSeccion(s.uid)}
+                      >
+                        <GripVertical size={13} className={styles.gripIcon} />
+                        <span className={styles.seccionLabel}>{s.label}</span>
+                        <div className={styles.seccionActions}>
                           <button
-                            type="button"
-                            onClick={() => {
-                              setContactoId(null);
-                              setContactoNombre(null);
-                              setSearchQuery("");
-                              setShowDropdown(true);
-                            }}
-                            style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600 }}
+                            className={styles.seccionActionBtn}
+                            title={s.oculta ? "Mostrar" : "Ocultar"}
+                            onClick={e => { e.stopPropagation(); toggleOcultar(s.uid); }}
                           >
-                            Cambiar
+                            {s.oculta ? <EyeOff size={13} /> : <Eye size={13} />}
+                          </button>
+                          <button
+                            className={`${styles.seccionActionBtn} ${styles.seccionActionBtnDelete}`}
+                            title="Eliminar"
+                            onClick={e => { e.stopPropagation(); setConfirmarBorrar(s.uid); }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                          <button
+                            className={styles.seccionActionBtn}
+                            title="Editar"
+                            onClick={e => { e.stopPropagation(); setEditorUid(s.uid); }}
+                          >
+                            <ChevronRight size={13} />
                           </button>
                         </div>
-                      );
-                    }
-                    return (
-                      <div>
-                        <input
-                          type="text"
-                          placeholder="Buscar contacto..."
-                          value={searchQuery}
-                          onChange={e => {
-                            setSearchQuery(e.target.value);
-                            setShowDropdown(true);
-                          }}
-                          onFocus={() => setShowDropdown(true)}
-                          style={{
-                            width: "100%",
-                            padding: "0.4rem 0.6rem",
-                            fontSize: "0.85rem",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "0.375rem",
-                            backgroundColor: "#ffffff",
-                            color: "#334155",
-                            outline: "none",
-                            fontFamily: "inherit"
-                          }}
-                        />
-                        
-                        {searchQuery.trim().length > 0 && searchQuery.trim().length < 3 && (
-                          <div style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: "0.25rem" }}>
-                            Escribe al menos 3 letras para buscar...
-                          </div>
-                        )}
-
-                        {showDropdown && searchQuery.trim().length >= 3 && (
-                          <div style={{
-                            position: "absolute",
-                            top: "100%",
-                            left: 0,
-                            right: 0,
-                            backgroundColor: "#ffffff",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "0.375rem",
-                            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-                            zIndex: 50,
-                            maxHeight: "150px",
-                            overflowY: "auto",
-                            marginTop: "0.25rem"
-                          }}>
-                            {buscando ? (
-                              <div style={{ padding: "0.5rem 0.75rem", fontSize: "0.8rem", color: "#94a3b8" }}>Buscando...</div>
-                            ) : contactos.length === 0 ? (
-                              <div style={{ padding: "0.5rem 0.75rem", fontSize: "0.8rem", color: "#94a3b8" }}>Sin resultados</div>
-                            ) : (
-                              contactos.map(c => (
-                                <div
-                                  key={c.id}
-                                  onClick={() => {
-                                    setContactoId(c.id);
-                                    setContactoNombre(c.nombre);
-                                    setShowDropdown(false);
-                                  }}
-                                  style={{
-                                    padding: "0.5rem 0.75rem",
-                                    fontSize: "0.8rem",
-                                    color: "#334155",
-                                    cursor: "pointer",
-                                    borderBottom: "1px solid #f1f5f9"
-                                  }}
-                                  onMouseEnter={e => e.currentTarget.style.backgroundColor = "#f8fafc"}
-                                  onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
-                                >
-                                  {c.nombre}
-                                </div>
-                              ))
+                      </li>
+                    ))}
+                    <li style={{ listStyle: "none", marginTop: "0.25rem" }}>
+                      <div className={styles.addWrapper} ref={menuRef}>
+                        <button className={styles.addButton} onClick={() => setMenuAbierto(v => !v)}>
+                          + Añadir sección
+                        </button>
+                        {menuAbierto && (
+                          <div className={styles.seccionMenu}>
+                            <p className={styles.menuLabel}>Selecciona un tipo</p>
+                            {OPCIONES_SECCION.map(({ id, label, Icon }) => (
+                              <button key={id} className={styles.menuItem} onClick={() => añadirSeccion(id, label)}>
+                                <Icon size={15} className={styles.menuItemIcon} />
+                                {label}
+                              </button>
+                            ))}
+                            {favs.length > 0 && (
+                              <>
+                                <p className={styles.menuLabel} style={{ marginTop: "0.5rem", borderTop: "1px solid #f1f5f9", paddingTop: "0.5rem" }}>
+                                  <Heart size={11} fill="#f472b6" color="#f472b6" style={{ verticalAlign: "middle", marginRight: 4 }} />
+                                  Favoritas
+                                </p>
+                                {favs.map(fav => (
+                                  <button key={fav.favId} className={styles.menuItem} onClick={() => añadirDesdeFav(fav)}>
+                                    <Heart size={13} fill="#f472b6" color="#f472b6" className={styles.menuItemIcon} />
+                                    {fav.label}
+                                  </button>
+                                ))}
+                              </>
                             )}
                           </div>
                         )}
                       </div>
-                    );
-                  })()}
-                </div>
-
-                <span className={styles.sectionesTitle}>SECCIONES</span>
-                <ul className={styles.seccionesList}>
-                  {secciones.map((s, i) => (
-                    <li
-                      key={s.uid}
-                      className={`${styles.seccionItem} ${s.oculta ? styles.seccionOculta : ""}`}
-                      draggable
-                      onDragStart={() => onDragStart(i)}
-                      onDragEnter={() => onDragEnter(i)}
-                      onDragEnd={onDragEnd}
-                      onDragOver={e => e.preventDefault()}
-                      onClick={() => scrollToSeccion(s.uid)}
-                    >
-                      <GripVertical size={13} className={styles.gripIcon} />
-                      <span className={styles.seccionLabel}>{s.label}</span>
-                      <div className={styles.seccionActions}>
-                        <button
-                          className={styles.seccionActionBtn}
-                          title={s.oculta ? "Mostrar" : "Ocultar"}
-                          onClick={e => { e.stopPropagation(); toggleOcultar(s.uid); }}
-                        >
-                          {s.oculta ? <EyeOff size={13} /> : <Eye size={13} />}
-                        </button>
-                        <button
-                          className={`${styles.seccionActionBtn} ${styles.seccionActionBtnDelete}`}
-                          title="Eliminar"
-                          onClick={e => { e.stopPropagation(); setConfirmarBorrar(s.uid); }}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                        <button
-                          className={styles.seccionActionBtn}
-                          title="Editar"
-                          onClick={e => { e.stopPropagation(); setEditorUid(s.uid); }}
-                        >
-                          <ChevronRight size={13} />
-                        </button>
-                      </div>
                     </li>
-                  ))}
-                  <li style={{ listStyle: "none", marginTop: "0.25rem" }}>
-                    <div className={styles.addWrapper} ref={menuRef}>
-                      <button className={styles.addButton} onClick={() => setMenuAbierto(v => !v)}>
-                        + Añadir sección
-                      </button>
-                      {menuAbierto && (
-                        <div className={styles.seccionMenu}>
-                          <p className={styles.menuLabel}>Selecciona un tipo</p>
-                          {OPCIONES_SECCION.map(({ id, label, Icon }) => (
-                            <button key={id} className={styles.menuItem} onClick={() => añadirSeccion(id, label)}>
-                              <Icon size={15} className={styles.menuItemIcon} />
-                              {label}
-                            </button>
-                          ))}
-                          {favs.length > 0 && (
-                            <>
-                              <p className={styles.menuLabel} style={{ marginTop: "0.5rem", borderTop: "1px solid #f1f5f9", paddingTop: "0.5rem" }}>
-                                <Heart size={11} fill="#f472b6" color="#f472b6" style={{ verticalAlign: "middle", marginRight: 4 }} />
-                                Favoritas
-                              </p>
-                              {favs.map(fav => (
-                                <button key={fav.favId} className={styles.menuItem} onClick={() => añadirDesdeFav(fav)}>
-                                  <Heart size={13} fill="#f472b6" color="#f472b6" className={styles.menuItemIcon} />
-                                  {fav.label}
-                                </button>
-                              ))}
-                            </>
-                          )}
+                  </ul>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxHeight: "calc(100vh - 200px)", overflowY: "auto", paddingRight: "4px" }}>
+                    {/* Text categories */}
+                    {[
+                      { key: "titulo", label: "Título" },
+                      { key: "subtitulo", label: "Subtítulo" },
+                      { key: "parrafo", label: "Párrafo" }
+                    ].map(({ key, label }) => {
+                      const item = estilosGlobales[key] || {};
+                      const updateField = (field: string, val: string) => {
+                        setEstilosGlobales((prev: any) => ({
+                          ...prev,
+                          [key]: {
+                            ...prev[key],
+                            [field]: val
+                          }
+                        }));
+                      };
+                      return (
+                        <div key={key} style={{ padding: "0.75rem", border: "1px solid #e2e8f0", borderRadius: "0.5rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                          <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
+                          
+                          {/* Selectores en la misma fila */}
+                          <div style={{ display: "grid", gridTemplateColumns: "1.8fr 1fr 1fr", gap: "0.35rem" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                              <label style={{ fontSize: "0.68rem", fontWeight: 500, color: "#64748b" }}>Tipografía</label>
+                              <select
+                                value={item.fuente ?? "Raleway"}
+                                onChange={e => updateField("fuente", e.target.value)}
+                                style={{ width: "100%", padding: "0.05rem 0.25rem", fontSize: "0.72rem", lineHeight: 1, border: "1px solid #cbd5e1", borderRadius: "0.375rem", background: "#ffffff" }}
+                              >
+                                {FUENTES.map(f => <option key={f} value={f}>{f}</option>)}
+                              </select>
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                              <label style={{ fontSize: "0.68rem", fontWeight: 500, color: "#64748b" }}>Tamaño</label>
+                              <select
+                                value={item.tamano ?? "16px"}
+                                onChange={e => updateField("tamano", e.target.value)}
+                                style={{ width: "100%", padding: "0.05rem 0.25rem", fontSize: "0.72rem", lineHeight: 1, border: "1px solid #cbd5e1", borderRadius: "0.375rem", background: "#ffffff" }}
+                              >
+                                {TAMANIOS.map(t => <option key={t} value={t}>{t}</option>)}
+                              </select>
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                              <label style={{ fontSize: "0.68rem", fontWeight: 500, color: "#64748b" }}>Grosor</label>
+                              <select
+                                value={item.grosor ?? "400"}
+                                onChange={e => updateField("grosor", e.target.value)}
+                                style={{ width: "100%", padding: "0.05rem 0.25rem", fontSize: "0.72rem", lineHeight: 1, border: "1px solid #cbd5e1", borderRadius: "0.375rem", background: "#ffffff" }}
+                              >
+                                {GROSORES.map(g => (
+                                  <option key={g} value={g}>
+                                    {g === "300" ? "L" : g === "400" ? "R" : g === "500" ? "M" : g === "600" ? "SB" : g === "700" ? "B" : "EB"}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Colores (Texto y Destacado) */}
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem", marginTop: "4px" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                              <label style={{ fontSize: "0.68rem", fontWeight: 500, color: "#64748b" }}>Color texto</label>
+                              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                                <label className={styles.colorPickerBtn} style={{ background: item.color ?? "#1e293b", width: 22, height: 22, borderRadius: "0.375rem" }}>
+                                  <input type="color" value={item.color ?? "#1e293b"} onChange={e => updateField("color", e.target.value)} />
+                                </label>
+                                <span style={{ fontSize: "0.65rem", color: "#94a3b8", fontFamily: "monospace" }}>{item.color ?? "#1e293b"}</span>
+                              </div>
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                              <label style={{ fontSize: "0.68rem", fontWeight: 500, color: "#64748b" }}>Color dest.</label>
+                              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                                <label className={styles.colorPickerBtn} style={{ background: item.colorDestacado ?? "#6366f1", width: 22, height: 22, borderRadius: "0.375rem" }}>
+                                  <input type="color" value={item.colorDestacado ?? "#6366f1"} onChange={e => updateField("colorDestacado", e.target.value)} />
+                                </label>
+                                <span style={{ fontSize: "0.65rem", color: "#94a3b8", fontFamily: "monospace" }}>{item.colorDestacado ?? "#6366f1"}</span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  </li>
-                </ul>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEstilosGlobales({
+                          titulo: { fuente: "Raleway", grosor: "800", tamano: "32px", color: "#1e293b", colorDestacado: "#6366f1" },
+                          subtitulo: { fuente: "Montserrat", grosor: "400", tamano: "16px", color: "#64748b", colorDestacado: "#6366f1" },
+                          parrafo: { fuente: "Montserrat", grosor: "400", tamano: "14px", color: "#334155", colorDestacado: "#6366f1" },
+                        });
+                      }}
+                      style={{
+                        width: "100%",
+                        padding: "0.5rem",
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "0.375rem",
+                        background: "#ffffff",
+                        fontSize: "0.8rem",
+                        fontWeight: 600,
+                        color: "#64748b",
+                        cursor: "pointer",
+                        marginTop: "0.5rem",
+                        textAlign: "center"
+                      }}
+                    >
+                      Restablecer Estilos
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Vista editor */}
@@ -496,6 +601,7 @@ export function PropuestaEditor({
               title="Previsualizar en nueva pestaña"
               onClick={() => {
                 localStorage.setItem("momo_preview_secciones", JSON.stringify(secciones));
+                localStorage.setItem("momo_preview_estilos_globales", JSON.stringify(estilosGlobales));
                 window.open(`/propuestas/${propuestaId || "nueva"}/preview`, "_blank");
               }}
             >
@@ -516,7 +622,7 @@ export function PropuestaEditor({
           <div className={styles.canvasWrapper}>
             <div
               className={`${styles.canvas} ${dispositivo === "tablet" ? styles.canvasTablet : ""} ${dispositivo === "mobile" ? styles.canvasMobile : ""}`}
-              style={{ width: current.width, height: current.height }}
+              style={{ width: current.width, height: current.height, ...getStyleVars(estilosGlobales) }}
             >
               {secciones.length === 0 ? (
                 <p className={styles.emptyHint}>Añade una sección para empezar a construir tu propuesta.</p>
@@ -527,14 +633,14 @@ export function PropuestaEditor({
                   <>
                     {menuFijo && (
                       <div style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 100 }}>
-                        {renderSeccion(menuFijo, current.height, dispositivo, secciones)}
+                        {renderSeccion(menuFijo, current.height, dispositivo, secciones, agente)}
                       </div>
                     )}
                     <div className={styles.canvasContent} ref={canvasContentRef}>
                       {seccionesVisibles.map(s => (
                         <div key={s.uid} ref={el => { seccionRefs.current[s.uid] = el; }}
                           style={s.tipo === "menu" && s.menuFijo ? { visibility: "hidden" } : undefined}>
-                          {renderSeccion(s, current.height, dispositivo, secciones)}
+                          {renderSeccion(s, current.height, dispositivo, secciones, agente)}
                         </div>
                       ))}
                     </div>
@@ -545,6 +651,7 @@ export function PropuestaEditor({
           </div>
         </div>
       </div>
+
 
       {/* Modal confirmación borrar */}
     </div>

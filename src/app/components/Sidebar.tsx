@@ -17,6 +17,7 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
   const [presupSubOpen, setPresupSubOpen] = useState(false);
   const [bancoSubOpen, setBancoSubOpen] = useState(false);
   const [contactosSubOpen, setContactosSubOpen] = useState(false);
+  const [hoveredCopiloto, setHoveredCopiloto] = useState(false);
   const expTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const presupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bancoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -271,17 +272,27 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
       >
         <Icons.Mensajes size={20} strokeWidth={isActive("/mensajes") ? 3 : 2} />
       </button>
+
+      <button
+        onClick={onOpenCopiloto}
+        title="Copilot AI"
+        className={styles.menuItem}
+        onMouseEnter={() => { closeAllOthers(null); setHoveredCopiloto(true); }}
+        onMouseLeave={() => setHoveredCopiloto(false)}
+      >
+        <img 
+          src="/alivia_icon_on.png" 
+          alt="Alivia" 
+          style={{ 
+            width: 20, 
+            height: 20, 
+            transition: "transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)", 
+            transform: hoveredCopiloto ? "scale(1.2) rotate(8deg)" : "scale(1)" 
+          }} 
+        />
+      </button>
  
       <div className={styles.settingsWrapper}>
-        <button
-          onClick={onOpenCopiloto}
-          title="Copilot AI"
-          className={styles.menuItem}
-          style={{ color: "var(--primary-color, #4f46e5)", marginBottom: "0.5rem" }}
-          onMouseEnter={() => closeAllOthers(null)}
-        >
-          <Sparkles size={20} />
-        </button>
         <button
           className={`${styles.menuItem} ${isActive("/settings") ? styles.active : ""}`}
           onClick={() => router.push("/settings")}

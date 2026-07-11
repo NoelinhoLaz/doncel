@@ -628,7 +628,178 @@ export default function DisenioPanel({
           </div>
         </>
       )}
-      {seccion.tipo !== "texto-imagenes" && seccion.tipo !== "portada" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "itinerario" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && (
+      {seccion.tipo === "precio" && (
+        <>
+          <div className={styles.editorSection}>
+            <label className={styles.editorFieldLabel}>Layout</label>
+            <div className={styles.layoutPicker}>
+              {[
+                {
+                  id: "destacado-grande",
+                  label: "Destacado Grande",
+                  preview: (
+                    <div className={styles.layoutPreview} style={{ flexDirection: "column", gap: 3, padding: 6, alignItems: "center", justifyContent: "center" }}>
+                      <div style={{ width: "50%", height: 6, background: "#8b5cf6", borderRadius: 2 }} />
+                      <div style={{ width: "80%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
+                      <div style={{ width: "70%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
+                    </div>
+                  )
+                },
+                {
+                  id: "card-premium",
+                  label: "Card Premium",
+                  preview: (
+                    <div className={styles.layoutPreview} style={{ gap: 4, padding: "6px", alignItems: "center" }}>
+                      <div style={{ width: "40%", height: 16, background: "#fbbf24", borderRadius: 3 }} />
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+                        <div style={{ width: "100%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
+                        <div style={{ width: "80%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
+                      </div>
+                    </div>
+                  )
+                },
+                {
+                  id: "split-horizontal",
+                  label: "Split Horizontal",
+                  preview: (
+                    <div className={styles.layoutPreview} style={{ flexDirection: "column", gap: 3, padding: 6 }}>
+                      <div style={{ width: "90%", height: 8, background: "#6366f1", borderRadius: 2 }} />
+                      <div style={{ display: "flex", gap: 3, width: "100%" }}>
+                        <div style={{ flex: 1, height: 8, background: "#cbd5e1", borderRadius: 2 }} />
+                        <div style={{ flex: 1, height: 8, background: "#cbd5e1", borderRadius: 2 }} />
+                      </div>
+                    </div>
+                  )
+                },
+              ].map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className={`${styles.layoutOption} ${(seccion.layout ?? "destacado-grande") === opt.id ? styles.layoutOptionActive : ""}`}
+                  onClick={() => onUpdate(seccion.uid, { layout: opt.id })}
+                >
+                  {opt.preview}
+                  <span className={styles.layoutLabel}>{opt.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className={styles.editorSection}>
+            <label className={styles.editorFieldLabel}>Ancho de sección</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[
+                { id: "900px", label: "Pequeño" },
+                { id: "1200px", label: "Mediano" },
+                { id: "completo", label: "Ancho completo" },
+              ].map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className={`${styles.previewBtn} ${(seccion.anchoMax ?? "1200px") === opt.id ? styles.saveBtn : ""}`}
+                  style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.anchoMax ?? "1200px") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.anchoMax ?? "1200px") === opt.id ? "#ffffff" : "#475569" }}
+                  onClick={() => onUpdate(seccion.uid, { anchoMax: opt.id })}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className={styles.editorSection}>
+            <label className={styles.editorFieldLabel}>Color de fondo</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <label className={styles.colorPickerBtn} style={{ background: seccion.colorFondo ?? "#ffffff", width: 34, height: 34, borderRadius: "0.5rem" }}>
+                <input type="color" value={seccion.colorFondo ?? "#ffffff"} onChange={e => onUpdate(seccion.uid, { colorFondo: e.target.value })} />
+              </label>
+              <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondo ?? "#ffffff"}</span>
+              {seccion.colorFondo && (
+                <button onClick={() => onUpdate(seccion.uid, { colorFondo: undefined })} style={{ fontSize: "0.75rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Restablecer</button>
+              )}
+            </div>
+          </div>
+          <TextoEstiloEditor
+            label="Estilo PVP"
+            value={seccion.estiloPvp}
+            onChange={v => onUpdate(seccion.uid, { estiloPvp: v })}
+          />
+          <TextoEstiloEditor
+            label="Estilo Condiciones"
+            value={seccion.estiloCondiciones}
+            onChange={v => onUpdate(seccion.uid, { estiloCondiciones: v })}
+          />
+        </>
+      )}
+      {seccion.tipo === "formulario" && (
+        <>
+          <div className={styles.editorSection}>
+            <label className={styles.editorFieldLabel}>Layout</label>
+            <div className={styles.layoutPicker}>
+              <button
+                className={`${styles.layoutOption} ${(seccion.layout ?? "solo-form") === "solo-form" ? styles.layoutOptionActive : ""}`}
+                onClick={() => onUpdate(seccion.uid, { layout: "solo-form" })}
+                title="Solo Formulario"
+              >
+                <div className={styles.layoutPreview} style={{ flexDirection: "column", gap: 3, padding: 6 }}>
+                  <div style={{ width: "100%", height: 6, background: "#cbd5e1", borderRadius: 1 }} />
+                  <div style={{ width: "100%", height: 6, background: "#cbd5e1", borderRadius: 1 }} />
+                  <div style={{ width: "40%", height: 8, background: "#6366f1", borderRadius: 2 }} />
+                </div>
+                <span className={styles.layoutLabel}>Solo Form</span>
+              </button>
+              <button
+                className={`${styles.layoutOption} ${seccion.layout === "form-contacto" ? styles.layoutOptionActive : ""}`}
+                onClick={() => onUpdate(seccion.uid, { layout: "form-contacto" })}
+                title="Formulario + Contacto Agente"
+              >
+                <div className={styles.layoutPreview} style={{ gap: 4, padding: 6 }}>
+                  <div style={{ width: "30%", height: "100%", background: "#e2e8f0", borderRadius: 2, display: "flex", flexDirection: "column", gap: 2, padding: 2 }}>
+                    <div style={{ width: 6, height: 6, background: "#cbd5e1", borderRadius: "50%" }} />
+                    <div style={{ width: "100%", height: 2, background: "#cbd5e1" }} />
+                  </div>
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+                    <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 1 }} />
+                    <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 1 }} />
+                    <div style={{ width: "50%", height: 6, background: "#6366f1", borderRadius: 2 }} />
+                  </div>
+                </div>
+                <span className={styles.layoutLabel}>Form + Contacto</span>
+              </button>
+            </div>
+          </div>
+          <div className={styles.editorSection}>
+            <label className={styles.editorFieldLabel}>Ancho de sección</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[
+                { id: "900px", label: "Pequeño" },
+                { id: "1200px", label: "Mediano" },
+                { id: "completo", label: "Ancho completo" },
+              ].map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className={`${styles.previewBtn} ${(seccion.anchoMax ?? "1200px") === opt.id ? styles.saveBtn : ""}`}
+                  style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.anchoMax ?? "1200px") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.anchoMax ?? "1200px") === opt.id ? "#ffffff" : "#475569" }}
+                  onClick={() => onUpdate(seccion.uid, { anchoMax: opt.id })}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className={styles.editorSection}>
+            <label className={styles.editorFieldLabel}>Color de fondo</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <label className={styles.colorPickerBtn} style={{ background: seccion.colorFondo ?? "#ffffff", width: 34, height: 34, borderRadius: "0.5rem" }}>
+                <input type="color" value={seccion.colorFondo ?? "#ffffff"} onChange={e => onUpdate(seccion.uid, { colorFondo: e.target.value })} />
+              </label>
+              <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondo ?? "#ffffff"}</span>
+              {seccion.colorFondo && (
+                <button onClick={() => onUpdate(seccion.uid, { colorFondo: undefined })} style={{ fontSize: "0.75rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Restablecer</button>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+      {seccion.tipo !== "texto-imagenes" && seccion.tipo !== "portada" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "itinerario" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && seccion.tipo !== "precio" && seccion.tipo !== "formulario" && (
         <p className={styles.editorEmpty}>Opciones de diseño próximamente.</p>
       )}
     </>
