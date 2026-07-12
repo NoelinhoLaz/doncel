@@ -1606,7 +1606,7 @@ function WidgetContacto({ onSubmit }: { onSubmit: (email: string, telefono: stri
         disabled={!valido}
         onClick={() => onSubmit(email.trim(), telefono)}
       >
-        <Send size={14} /> Enviar
+        {email.trim() === "" && telefono.trim() === "" ? "Saltar" : <><Send size={14} /> Enviar</>}
       </button>
     </div>
   );
