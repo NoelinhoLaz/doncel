@@ -9,6 +9,34 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 export async function getExpedienteServicios(expedienteId: string) {
   try {
     const agencyDb = await getAgencyDbClient();
+    
+    // Fetch travelers to count selections for optional services
+    const { data: viajeros } = await agencyDb
+      .from("operativa_viajeros_expedientes")
+      .select("extras")
+      .eq("expediente_id", expedienteId);
+
+    const countsMap = new Map<string, number>();
+    for (const v of (viajeros || [])) {
+      let extrasList = [];
+      if (Array.isArray(v.extras)) {
+        extrasList = v.extras;
+      } else if (typeof v.extras === "string") {
+        try {
+          extrasList = JSON.parse(v.extras);
+        } catch {
+          extrasList = [];
+        }
+      }
+      if (Array.isArray(extrasList)) {
+        for (const extra of extrasList) {
+          if (extra?.id) {
+            countsMap.set(extra.id, (countsMap.get(extra.id) || 0) + 1);
+          }
+        }
+      }
+    }
+
     const { data, error } = await agencyDb
       .from("operativa_expedientes_servicios")
       .select("*, lineas:operativa_expediente_servicio_lineas(*)")
@@ -78,7 +106,7 @@ export async function getExpedienteServicios(expedienteId: string) {
         }
       }
 
-      return { ...s, abonado: abonoMap.get(s.id) || 0, pagos: movsVinculados };
+      return { ...s, abonado: abonoMap.get(s.id) || 0, pagos: movsVinculados, viajeros_count: countsMap.get(s.id) || 0 };
     });
 
     return result;
@@ -239,8 +267,17 @@ export async function deleteExpedienteServicio(id: string, expedienteId: string)
       .eq("expediente_id", expedienteId);
 
     const isSelectedByTravelers = (viajeros || []).some((v: any) => {
-      const extrasList = Array.isArray(v.extras) ? v.extras : [];
-      return extrasList.some((extra: any) => extra?.id === id);
+      let extrasList = [];
+      if (Array.isArray(v.extras)) {
+        extrasList = v.extras;
+      } else if (typeof v.extras === "string") {
+        try {
+          extrasList = JSON.parse(v.extras);
+        } catch {
+          extrasList = [];
+        }
+      }
+      return Array.isArray(extrasList) && extrasList.some((extra: any) => extra?.id === id);
     });
 
     if (isSelectedByTravelers) {
