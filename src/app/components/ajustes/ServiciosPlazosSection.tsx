@@ -141,8 +141,23 @@ export default function ServiciosPlazosSection({ serviciosList, serviciosLoaded,
                       onChange={(e) => onToggleOpcional(item.id, e.target.checked)}
                       style={{ width: "14px", height: "14px", flexShrink: 0, cursor: "pointer", accentColor: "var(--primary-color, #475569)" }}
                     />
-                    <span className={s.inpSm} style={{ flex: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#0f172a" }}>
-                      {item.descripcion}
+                    <span className={s.inpSm} style={{
+                      flex: 2,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "0.4rem",
+                      color: "#0f172a",
+                      overflow: "hidden"
+                    }}>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                        {item.descripcion}
+                      </span>
+                      {!!(item.lineas && item.lineas.some((l: any) => l.cotizacion_linea_id)) && (
+                        <span title="Vinculado a cotización" style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+                          <LucideIcons.Link size={12} style={{ color: "#2563eb" }} />
+                        </span>
+                      )}
                     </span>
                     <span className={s.inpSm} style={{ flex: 0.7, textAlign: "right", color: "#475569", minWidth: "55px" }}>
                       {parseFloat(item.pvp) > 0 ? `${parseFloat(item.pvp).toFixed(2)} €` : "Gratis"}
