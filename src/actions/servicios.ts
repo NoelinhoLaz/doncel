@@ -357,3 +357,79 @@ export async function getAllServicios() {
     return [];
   }
 }
+
+export async function getOptionalServicesFromLinkedQuote(expedienteId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    
+    // Find the linked cotizaciones for this expediente
+    const { data: cotizaciones, error: cotError } = await agencyDb
+      .from("operativa_cotizaciones")
+      .select("id, titulo")
+      .eq("expediente_id", expedienteId);
+
+    if (cotError) throw cotError;
+    if (!cotizaciones || cotizaciones.length === 0) return [];
+
+    const cotIds = cotizaciones.map((c: any) => c.id);
+
+    // Get optional lines from those cotizaciones
+    const { data: lineas, error: lineasError } = await agencyDb
+      .from("operativa_cotizacion_lineas")
+      .select("id, descripcion, pvp, neto, tipo, proveedor, plazas, cotizacion_id")
+      .in("cotizacion_id", cotIds)
+      .eq("opcional", true);
+
+    if (lineasError) throw lineasError;
+
+    // Map each line with its cotización title
+    const cotsMap = new Map(cotizaciones.map((c: any) => [c.id, c.titulo]));
+    return (lineas || []).map((l: any) => ({
+      ...l,
+      cotizacion_titulo: cotsMap.get(l.cotizacion_id) || "Cotización",
+    }));
+
+  } catch (error: any) {
+    console.error("Failed to get optional services from linked quote:", error.message);
+    return [];
+  }
+}
+
+export async function importOptionalServicesToExpediente(expedienteId: string, lineIds: string[]) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    
+    // Fetch the lines to import
+    const { data: lineas, error: lineasError } = await agencyDb
+      .from("operativa_cotizacion_lineas")
+      .select("id, descripcion, pvp, neto, tipo, proveedor, plazas")
+      .in("id", lineIds);
+
+    if (lineasError) throw lineasError;
+    if (!lineas || lineas.length === 0) return { success: false, error: "No lines found to import" };
+
+    const servicesToInsert = lineas.map((line: any) => ({
+      expediente_id: expedienteId,
+      tipo: line.tipo,
+      proveedor: line.proveedor ? String(line.proveedor) : null,
+      descripcion: line.descripcion,
+      neto: Number(line.neto || 0),
+      pvp: Number(line.pvp || 0),
+      plazas: Number(line.plazas || 1),
+      total: Number(line.pvp || 0) * Number(line.plazas || 1),
+      opcional: true,
+    }));
+
+    const { error: insertError } = await agencyDb
+      .from("operativa_expedientes_servicios")
+      .insert(servicesToInsert);
+
+    if (insertError) throw insertError;
+
+    revalidatePath(`/expedientes/${expedienteId}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to import optional services:", error.message);
+    return { success: false, error: error.message };
+  }
+}

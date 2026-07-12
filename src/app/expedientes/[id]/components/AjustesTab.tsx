@@ -10,6 +10,7 @@ import InfoExpedienteSection from "@/app/components/ajustes/InfoExpedienteSectio
 import ServiciosPlazosSection from "@/app/components/ajustes/ServiciosPlazosSection";
 import ComunicacionesSection from "@/app/components/ajustes/ComunicacionesSection";
 import ServicioFormModal from "@/components/modals/ServicioFormModal";
+import ImportarServiciosModal from "@/components/modals/ImportarServiciosModal";
 import styles from "../page.module.css";
 
 const DEFAULT_TYPES = [
@@ -33,6 +34,7 @@ interface AjustesTabProps {
 export default function AjustesTab({ expedienteId, expediente }: AjustesTabProps) {
   const a = useAjustes(expedienteId, expediente);
   const [modalOpen, setModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [serviceTypes, setServiceTypes] = useState<any[]>(DEFAULT_TYPES);
 
   useEffect(() => {
@@ -94,6 +96,7 @@ export default function AjustesTab({ expedienteId, expediente }: AjustesTabProps
         serviciosLoaded={a.serviciosLoaded}
         onToggleOpcional={a.handleToggleOpcional}
         onAbrirModal={() => setModalOpen(true)}
+        onAbrirImportarModal={() => setImportModalOpen(true)}
         plazosList={a.plazosList}
         setPlazosList={a.setPlazosList}
         cancelacionesList={a.cancelacionesList}
@@ -116,6 +119,13 @@ export default function AjustesTab({ expedienteId, expediente }: AjustesTabProps
         editServiceId={null}
         serviceData={null}
         serviceTypes={serviceTypes}
+        onSuccess={handleServicioCreado}
+      />
+
+      <ImportarServiciosModal
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        expedienteId={expedienteId}
         onSuccess={handleServicioCreado}
       />
     </div>

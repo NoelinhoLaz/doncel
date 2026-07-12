@@ -1,5 +1,4 @@
-"use client";
-
+import { useState } from "react";
 import * as LucideIcons from "lucide-react";
 import { Plus, Trash2 } from "lucide-react";
 import SafeDateInput from "./SafeDateInput";
@@ -11,6 +10,7 @@ interface Props {
   serviciosLoaded: boolean;
   onToggleOpcional: (id: string, opcional: boolean) => void;
   onAbrirModal: () => void;
+  onAbrirImportarModal: () => void;
   plazosList: any[];
   setPlazosList: (v: any[]) => void;
   cancelacionesList: any[];
@@ -35,7 +35,9 @@ function EmptyState({ icon, title, text }: { icon: React.ReactNode; title: strin
   );
 }
 
-export default function ServiciosPlazosSection({ serviciosList, serviciosLoaded, onToggleOpcional, onAbrirModal, plazosList, setPlazosList, cancelacionesList, setCancelacionesList, plazosValid, plazosSum, targetAmount, formaPago }: Props) {
+export default function ServiciosPlazosSection({ serviciosList, serviciosLoaded, onToggleOpcional, onAbrirModal, onAbrirImportarModal, plazosList, setPlazosList, cancelacionesList, setCancelacionesList, plazosValid, plazosSum, targetAmount, formaPago }: Props) {
+  const [showDropdown, setShowDropdown] = useState(false);
+
   return (
     <div style={{ padding: "0 1.5rem 1.5rem 1.5rem", borderTop: "1px solid #e2e8f0", marginTop: "1.5rem", paddingTop: "1.5rem" }}>
       <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#1e293b", margin: "0 0 1.25rem 0", display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -47,14 +49,82 @@ export default function ServiciosPlazosSection({ serviciosList, serviciosLoaded,
 
         {/* Columna 0: Servicios opcionales */}
         <div className={s.columnCard}>
-          <div className={tabStyles.listHeaderTop} style={{ borderBottom: "1px solid #e2e8f0" }}>
+          <div className={tabStyles.listHeaderTop} style={{ borderBottom: "1px solid #e2e8f0", overflow: "visible" }}>
             <div className={tabStyles.listTitleWrapper}>
               <LucideIcons.Package size={16} className={tabStyles.titleIcon} />
               <h3 className={tabStyles.listTitle} style={{ fontSize: "0.9rem", fontWeight: 600 }}>Servicios opcionales</h3>
             </div>
-            <button className={tabStyles.addActionButton} title="Añadir servicio opcional"
-              onClick={onAbrirModal}
-            ><Plus size={18} /></button>
+            <div style={{ position: "relative" }}>
+              <button className={tabStyles.addActionButton} title="Añadir servicio opcional"
+                onClick={() => setShowDropdown(!showDropdown)}
+              ><Plus size={18} /></button>
+              
+              {showDropdown && (
+                <div style={{
+                  position: "absolute",
+                  right: 0,
+                  top: "110%",
+                  zIndex: 50,
+                  width: "180px",
+                  background: "#ffffff",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "8px",
+                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)",
+                  padding: "0.4rem 0",
+                  display: "flex",
+                  flexDirection: "column"
+                }}>
+                  <button
+                    onClick={() => {
+                      setShowDropdown(false);
+                      onAbrirModal();
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: "0.6rem 1rem",
+                      textAlign: "left",
+                      fontSize: "0.8rem",
+                      fontWeight: 500,
+                      color: "#334155",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem"
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#f1f5f9"}
+                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                  >
+                    <LucideIcons.Plus size={14} />
+                    Añadir manual
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDropdown(false);
+                      onAbrirImportarModal();
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: "0.6rem 1rem",
+                      textAlign: "left",
+                      fontSize: "0.8rem",
+                      fontWeight: 500,
+                      color: "#334155",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem"
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#f1f5f9"}
+                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                  >
+                    <LucideIcons.Download size={14} />
+                    Importar de cotización
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           <div style={{ padding: "1.25rem" }}>
             {!serviciosLoaded ? (
