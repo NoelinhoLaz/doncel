@@ -182,7 +182,26 @@ export default function TablaServicios({ s, onOpenMatchModal, onEnviarValoracion
                           <span style={{ display: "inline-flex", padding: "0.2rem 0.5rem", borderRadius: "0.25rem", backgroundColor: "#f0fdf4", color: "#16a34a", fontSize: "0.75rem", fontWeight: 600 }}>GENERAL</span>
                         )}
                       </td>
-                      <td>
+                      <td style={{ position: "relative" }}>
+                        {!!(ser.lineas && ser.lineas.some((l: any) => l.cotizacion_linea_id)) && (
+                          <span style={{
+                            position: "absolute",
+                            top: "4px",
+                            right: "8px",
+                            color: "#2563eb",
+                            backgroundColor: "#dbeafe",
+                            padding: "0.1rem 0.25rem",
+                            borderRadius: "4px",
+                            fontSize: "0.55rem",
+                            fontWeight: 700,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.15rem"
+                          }} title="Vinculado a cotización">
+                            <LucideIcons.Link size={8} />
+                            Link
+                          </span>
+                        )}
                         <div style={{ display: "flex", flexDirection: "column" }}>
                           <span style={{ fontWeight: 600, color: "#0f172a" }}>{ser.pvp.toLocaleString("es-ES", { minimumFractionDigits: 2 })} € <span style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: "normal" }}>PVP</span></span>
                           <span style={{ fontSize: "0.75rem", color: "#64748b" }}>{ser.neto.toLocaleString("es-ES", { minimumFractionDigits: 2 })} € <span style={{ fontSize: "0.7rem" }}>Neto</span></span>
