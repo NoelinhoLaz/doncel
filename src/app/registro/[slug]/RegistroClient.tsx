@@ -184,6 +184,7 @@ function ChatRegistro({
   const [metodoPago, setMetodoPago] = useState("");
   const [esMenor, setEsMenor] = useState(false);
   const [tipoDoc, setTipoDoc] = useState<"dni" | "pasaporte">("dni");
+  const [viajeroOcr, setViajeroOcr] = useState(false);
 
   // Historial de pasos para el botón de volver
   // Cada entrada: { widgetIdx: número de mensajes al entrar, label: nombre del paso }
@@ -255,6 +256,7 @@ function ChatRegistro({
       return;
     }
     setIniciado(true);
+    setViajeroOcr(false);
     if (modo === "ocr") {
       await addBotMessage("Haz una foto al DNI o pasaporte del viajero. Intenta que esté bien iluminado y sin reflejos para obtener mejores resultados.");
       await addWidget({ type: "ocr" });
@@ -272,6 +274,7 @@ function ChatRegistro({
   // ── Handlers de cada paso ─────────────────────────────────────────────────
 
   async function handleElegirManual() {
+    setViajeroOcr(false);
     collapseLastWidget("Prefiero escribir los datos paso a paso");
     pushPaso("Bienvenida");
     await addBotMessage(<>¡De acuerdo, vamos paso a paso! Vamos a empezar con los <strong>datos de la persona que va a viajar</strong>. ¿Cuál es el nombre y apellidos del viajero, tal y como aparecen en su documentación oficial?</>);
@@ -292,6 +295,7 @@ function ChatRegistro({
   }
 
   async function handleOcrConfirm(datos: OcrDatos) {
+    setViajeroOcr(true);
     collapseLastWidget(`${datos.nombre} ${datos.apellidos}`);
     pushPaso("Confirmación OCR");
     const edad = calcularEdad(datos.fechaNacimiento);
@@ -398,8 +402,13 @@ function ChatRegistro({
     collapseLastWidget([email, telefono].filter(Boolean).join(" · ") || "Sin datos de contacto");
     pushPaso("Contacto");
     setViajero((v) => ({ ...v, email, telefono }));
-    await addBotMessage(<>Por normativa estricta del Ministerio del Interior (Real Decreto 933/2021), estamos obligados a registrar el sexo y el número de soporte de todos los pasajeros. Para empezar, ¿qué sexo figura oficialmente en el documento de identidad de <strong>{viajero.nombre}</strong>?</>);
-    await addWidget({ type: "sexo" });
+    if (viajeroOcr) {
+      await addBotMessage(<>¿Tiene <strong>{viajero.nombre}</strong> alguna alergia médica, intolerancia alimentaria o dieta especial que debamos reportar a los hoteles, restaurantes y aerolíneas?</>);
+      await addWidget({ type: "alergias" });
+    } else {
+      await addBotMessage(<>Por normativa estricta del Ministerio del Interior (Real Decreto 933/2021), estamos obligados a registrar el sexo y el número de soporte de todos los pasajeros. Para empezar, ¿qué sexo figura oficialmente en el documento de identidad de <strong>{viajero.nombre}</strong>?</>);
+      await addWidget({ type: "sexo" });
+    }
   }
 
   async function handleSexo(sexo: "M" | "F") {
@@ -495,6 +504,7 @@ function ChatRegistro({
   }
 
   async function handleInicioViajero(modo: "ocr" | "manual") {
+    setViajeroOcr(false);
     if (modo === "ocr") {
       collapseLastWidget("Adjuntar foto del documento");
       await addBotMessage("Haz una foto al DNI o pasaporte del viajero. Intenta que esté bien iluminado y sin reflejos para obtener mejores resultados.");
@@ -511,6 +521,7 @@ function ChatRegistro({
       collapseLastWidget("Sí, añadir otro viajero");
       pushPaso(`Viajero ${viajeros.length + 1}`);
       setViajero({ ...VIAJERO_VACIO });
+      setViajeroOcr(false);
       setEsMenor(false);
       setTipoDoc("dni");
       await addBotMessage(<>¿Cómo quieres introducir los datos del siguiente viajero?</>);
@@ -693,7 +704,16 @@ function ChatRegistro({
       case "ocr":
         return <WidgetOcr domain={domain} onDone={handleOcrDone} />;
       case "ocr_confirm":
-        return <WidgetOcrConfirm datos={widget.datos} onConfirm={handleOcrConfirm} onManual={() => { handleNombre(`${widget.datos.nombre} ${widget.datos.apellidos}`.trim() || "Manual"); }} />;
+        return (
+          <WidgetOcrConfirm
+            datos={widget.datos}
+            onConfirm={handleOcrConfirm}
+            onManual={() => {
+              setViajeroOcr(false);
+              handleNombre(`${widget.datos.nombre} ${widget.datos.apellidos}`.trim() || "Manual");
+            }}
+          />
+        );
       case "nombre":
         return <WidgetNombre onSubmit={handleNombre} />;
       case "tipo_doc":
