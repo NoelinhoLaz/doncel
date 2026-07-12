@@ -557,7 +557,7 @@ export async function createOportunidad(payload: {
 }) {
   const currentUser = await getCurrentUsuario();
   if (currentUser && currentUser.oficina_id) {
-    if (currentUser.parametros?.permisos_oportunidades?.crear === false) {
+    if (currentUser.parametros?.permisos_radar_oportunidades?.crear === false) {
       throw new Error("No tienes permisos para crear oportunidades en este tenant.");
     }
   }
@@ -590,7 +590,7 @@ export async function updateOportunidad(id: string, payload: Partial<{
 }>) {
   const currentUser = await getCurrentUsuario();
   if (currentUser && currentUser.oficina_id) {
-    if (currentUser.parametros?.permisos_oportunidades?.editar === false) {
+    if (currentUser.parametros?.permisos_radar_oportunidades?.editar === false) {
       throw new Error("No tienes permisos para editar oportunidades en este tenant.");
     }
   }
@@ -611,7 +611,7 @@ export async function updateOportunidad(id: string, payload: Partial<{
 export async function deleteOportunidad(id: string) {
   const currentUser = await getCurrentUsuario();
   if (currentUser && currentUser.oficina_id) {
-    if (currentUser.parametros?.permisos_oportunidades?.borrar === false) {
+    if (currentUser.parametros?.permisos_radar_oportunidades?.borrar === false) {
       throw new Error("No tienes permisos para borrar oportunidades en este tenant.");
     }
   }
