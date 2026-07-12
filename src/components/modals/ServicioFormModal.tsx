@@ -171,6 +171,7 @@ export default function ServicioFormModal({
               total={form.total} setTotal={form.setTotal} setTotalEdited={form.setTotalEdited}
               formLoading={form.formLoading}
               onBack={() => form.setShowForm(false)}
+              isLinked={!!(serviceData?.lineas && serviceData.lineas.some((l: any) => l.cotizacion_linea_id))}
             />
           )}
         </form>

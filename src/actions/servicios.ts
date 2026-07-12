@@ -277,6 +277,44 @@ export async function updateExpedienteServicio(id: string, payload: {
       .single();
 
     if (error) throw error;
+
+    // Check if linked to cotización
+    const { data: linkRow } = await agencyDb
+      .from("operativa_expediente_servicio_lineas")
+      .select("cotizacion_linea_id")
+      .eq("servicio_id", id)
+      .not("cotizacion_linea_id", "is", null)
+      .maybeSingle();
+
+    if (linkRow && linkRow.cotizacion_linea_id) {
+      const { updateCotizacionLinea } = await import("@/actions/cotizaciones");
+      
+      const pvpVal = payload.pvp !== undefined ? payload.pvp : data.pvp;
+      const netoVal = payload.neto !== undefined ? payload.neto : data.neto;
+      const plazasVal = payload.plazas !== undefined ? payload.plazas : data.plazas;
+
+      await updateCotizacionLinea(linkRow.cotizacion_linea_id, {
+        descripcion: payload.descripcion,
+        pvp: pvpVal,
+        neto: netoVal,
+        total_pvp: pvpVal * plazasVal,
+        total_neto: netoVal * plazasVal,
+        tipo: payload.tipo,
+        proveedor: payload.proveedor ? String(payload.proveedor) : undefined,
+      });
+
+      // Update intermediate line
+      await agencyDb
+        .from("operativa_expediente_servicio_lineas")
+        .update({
+          descripcion: payload.descripcion,
+          pvp: pvpVal,
+          neto: netoVal,
+          tipo: payload.tipo,
+        })
+        .eq("servicio_id", id);
+    }
+
     if (data?.expediente_id) revalidatePath(`/expedientes/${data.expediente_id}`);
     return { success: true, data };
   } catch (error: any) {

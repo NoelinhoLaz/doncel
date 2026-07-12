@@ -20,6 +20,7 @@ interface Props {
   setTotalEdited: (v: boolean) => void;
   formLoading: boolean;
   onBack: () => void;
+  isLinked?: boolean;
 }
 
 export default function ServicioDetalleForm({
@@ -36,6 +37,7 @@ export default function ServicioDetalleForm({
   total, setTotal, setTotalEdited,
   formLoading,
   onBack,
+  isLinked,
 }: Props) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
@@ -113,13 +115,49 @@ export default function ServicioDetalleForm({
       {/* Precios */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-          <label style={{ fontSize: "0.75rem", fontWeight: "600", color: "#475569", textTransform: "uppercase" }}>Precio Neto (€) *</label>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <label style={{ fontSize: "0.75rem", fontWeight: "600", color: "#475569", textTransform: "uppercase" }}>Precio Neto (€) *</label>
+            {isLinked && (
+              <span style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.2rem",
+                fontSize: "0.6rem",
+                color: "#2563eb",
+                backgroundColor: "#dbeafe",
+                padding: "0.08rem 0.35rem",
+                borderRadius: "9999px",
+                fontWeight: 600
+              }} title="Vinculado a la cotización original">
+                <LucideIcons.Link size={8} />
+                Link
+              </span>
+            )}
+          </div>
           <input type="number" step="0.01" placeholder="0.00" value={neto} onChange={(e) => setNeto(e.target.value)}
             style={{ padding: "0.5rem 0.75rem", borderRadius: "0.375rem", border: "1px solid #cbd5e1", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff", color: "#0f172a" }}
             required min="0" />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-          <label style={{ fontSize: "0.75rem", fontWeight: "600", color: "#475569", textTransform: "uppercase" }}>Precio PVP (€) *</label>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <label style={{ fontSize: "0.75rem", fontWeight: "600", color: "#475569", textTransform: "uppercase" }}>Precio PVP (€) *</label>
+            {isLinked && (
+              <span style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.2rem",
+                fontSize: "0.6rem",
+                color: "#2563eb",
+                backgroundColor: "#dbeafe",
+                padding: "0.08rem 0.35rem",
+                borderRadius: "9999px",
+                fontWeight: 600
+              }} title="Vinculado a la cotización original">
+                <LucideIcons.Link size={8} />
+                Link
+              </span>
+            )}
+          </div>
           <input type="number" step="0.01" placeholder="0.00" value={pvp} onChange={(e) => setPvp(e.target.value)}
             style={{ padding: "0.5rem 0.75rem", borderRadius: "0.375rem", border: "1px solid #cbd5e1", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff", color: "#0f172a" }}
             required min="0" />
