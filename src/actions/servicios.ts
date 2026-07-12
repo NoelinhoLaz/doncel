@@ -231,6 +231,22 @@ export async function createGroupedExpedienteServicio(payload: {
 export async function deleteExpedienteServicio(id: string, expedienteId: string) {
   try {
     const agencyDb = await getAgencyDbClient();
+
+    // Check if any travelers have selected this service in their extras
+    const { data: viajeros } = await agencyDb
+      .from("operativa_viajeros_expedientes")
+      .select("extras")
+      .eq("expediente_id", expedienteId);
+
+    const isSelectedByTravelers = (viajeros || []).some((v: any) => {
+      const extrasList = Array.isArray(v.extras) ? v.extras : [];
+      return extrasList.some((extra: any) => extra?.id === id);
+    });
+
+    if (isSelectedByTravelers) {
+      throw new Error("No se puede eliminar este servicio porque ya ha sido seleccionado por uno o más viajeros.");
+    }
+
     const { error } = await agencyDb
       .from("operativa_expedientes_servicios")
       .delete()
@@ -458,11 +474,35 @@ export async function importOptionalServicesToExpediente(expedienteId: string, l
       opcional: true,
     }));
 
-    const { error: insertError } = await agencyDb
+    const { data: insertedServices, error: insertError } = await agencyDb
       .from("operativa_expedientes_servicios")
-      .insert(servicesToInsert);
+      .insert(servicesToInsert)
+      .select();
 
     if (insertError) throw insertError;
+
+    if (insertedServices && insertedServices.length > 0) {
+      // Map the inserted services back to their original quote line IDs
+      const lineasToInsert = insertedServices.map((service: any, index: number) => {
+        const originalLine = lineas[index];
+        return {
+          servicio_id: service.id,
+          cotizacion_linea_id: originalLine.id,
+          tipo: originalLine.tipo,
+          descripcion: originalLine.descripcion,
+          neto: Number(originalLine.neto || 0),
+          pvp: Number(originalLine.pvp || 0),
+        };
+      });
+
+      const { error: lineasInsertError } = await agencyDb
+        .from("operativa_expediente_servicio_lineas")
+        .insert(lineasToInsert);
+
+      if (lineasInsertError) {
+        console.error("Error creating intermediate link lines:", lineasInsertError.message);
+      }
+    }
 
     revalidatePath(`/expedientes/${expedienteId}`);
     return { success: true };

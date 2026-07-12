@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { updateExpediente } from "@/actions/expedientes";
-import { getExpedienteServicios, toggleServicioOpcional } from "@/actions/servicios";
+import { getExpedienteServicios, toggleServicioOpcional, deleteExpedienteServicio } from "@/actions/servicios";
 import { initForm, hasFormChanges, getPlazosSum, getTargetAmount, isPlazosSumValid } from "@/lib/utils/ajustes";
 
 const DEFAULT_COMUNICACIONES = [
@@ -61,6 +61,17 @@ export function useAjustes(expedienteId: string, expediente: any) {
     await toggleServicioOpcional(id, opcional);
   }
 
+  async function handleDeleteServicio(id: string) {
+    if (!confirm("¿Estás seguro de que deseas eliminar este servicio opcional?")) return;
+    try {
+      await deleteExpedienteServicio(id, expedienteId);
+      const data = await getExpedienteServicios(expedienteId);
+      setServiciosList((data || []).filter((s: any) => s.opcional === true));
+    } catch (err: any) {
+      alert(err.message || "Error al eliminar el servicio");
+    }
+  }
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -110,7 +121,7 @@ export function useAjustes(expedienteId: string, expediente: any) {
     form, setField, saving, handleSave, hasChanges,
     plazosList, setPlazosList,
     cancelacionesList, setCancelacionesList,
-    serviciosList, setServiciosList, serviciosLoaded, handleToggleOpcional,
+    serviciosList, setServiciosList, serviciosLoaded, handleToggleOpcional, handleDeleteServicio,
     formasPagoAceptadas, setFormasPagoAceptadas,
     comunicacionesList, setComunicacionesList,
     plazosSum: getPlazosSum(plazosList),

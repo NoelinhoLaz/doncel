@@ -11,6 +11,7 @@ interface Props {
   onToggleOpcional: (id: string, opcional: boolean) => void;
   onAbrirModal: () => void;
   onAbrirImportarModal: () => void;
+  onDeleteServicio: (id: string) => void;
   plazosList: any[];
   setPlazosList: (v: any[]) => void;
   cancelacionesList: any[];
@@ -35,7 +36,7 @@ function EmptyState({ icon, title, text }: { icon: React.ReactNode; title: strin
   );
 }
 
-export default function ServiciosPlazosSection({ serviciosList, serviciosLoaded, onToggleOpcional, onAbrirModal, onAbrirImportarModal, plazosList, setPlazosList, cancelacionesList, setCancelacionesList, plazosValid, plazosSum, targetAmount, formaPago }: Props) {
+export default function ServiciosPlazosSection({ serviciosList, serviciosLoaded, onToggleOpcional, onAbrirModal, onAbrirImportarModal, onDeleteServicio, plazosList, setPlazosList, cancelacionesList, setCancelacionesList, plazosValid, plazosSum, targetAmount, formaPago }: Props) {
   const [showDropdown, setShowDropdown] = useState(false);
 
   return (
@@ -162,6 +163,9 @@ export default function ServiciosPlazosSection({ serviciosList, serviciosLoaded,
                     <span className={s.inpSm} style={{ flex: 0.7, textAlign: "right", color: "#475569", minWidth: "55px" }}>
                       {parseFloat(item.pvp) > 0 ? `${parseFloat(item.pvp).toFixed(2)} €` : "Gratis"}
                     </span>
+                    <button onClick={() => onDeleteServicio(item.id)} className={s.deleteBtn} style={{ padding: "0.25rem" }} title="Eliminar servicio opcional">
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 ))}
               </div>

@@ -97,6 +97,7 @@ export default function AjustesTab({ expedienteId, expediente }: AjustesTabProps
         onToggleOpcional={a.handleToggleOpcional}
         onAbrirModal={() => setModalOpen(true)}
         onAbrirImportarModal={() => setImportModalOpen(true)}
+        onDeleteServicio={a.handleDeleteServicio}
         plazosList={a.plazosList}
         setPlazosList={a.setPlazosList}
         cancelacionesList={a.cancelacionesList}
