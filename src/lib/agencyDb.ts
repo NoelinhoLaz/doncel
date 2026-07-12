@@ -7,13 +7,44 @@ import { cache } from "react";
 export async function getAgencyDbClientByDomain(dominio: string) {
   const adminServiceSupabase = createAdminServiceClient();
 
-  const { data: agencia, error } = await adminServiceSupabase
+  // 1. Try to search by dominio (exact match)
+  let { data: agencia, error } = await adminServiceSupabase
     .from("agencias")
-    .select("id, supabase_url, supabase_service_role_key_enc, iv, auth_tag")
+    .select("id, supabase_url, supabase_service_role_key_enc, iv, auth_tag, subdomain, dominio")
     .eq("dominio", dominio)
-    .single();
+    .maybeSingle();
 
-  if (error || !agencia) return null;
+  // 2. If not found, try to search by subdomain (e.g. doncel.vercel.app -> doncel)
+  if (!agencia) {
+    const parts = dominio.split(".");
+    if (parts.length > 1) {
+      const potentialSubdomain = parts[0];
+      const { data: subAgencia } = await adminServiceSupabase
+        .from("agencias")
+        .select("id, supabase_url, supabase_service_role_key_enc, iv, auth_tag, subdomain, dominio")
+        .eq("subdomain", potentialSubdomain)
+        .maybeSingle();
+
+      if (subAgencia) {
+        agencia = subAgencia;
+      }
+    }
+  }
+
+  // 3. Fallback: if dominio matches subdomain directly (e.g. in local dev)
+  if (!agencia) {
+    const { data: subAgencia } = await adminServiceSupabase
+      .from("agencias")
+      .select("id, supabase_url, supabase_service_role_key_enc, iv, auth_tag, subdomain, dominio")
+      .eq("subdomain", dominio)
+      .maybeSingle();
+
+    if (subAgencia) {
+      agencia = subAgencia;
+    }
+  }
+
+  if (!agencia) return null;
   if (!agencia.supabase_service_role_key_enc || !agencia.iv || !agencia.auth_tag) return null;
 
   const serviceRoleKey = decrypt(
