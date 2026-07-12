@@ -21,6 +21,17 @@ interface Agencia {
   direccion_central: string | null;
   color_corporativo: string | null;
   logo_url: string | null;
+  subtenants_count?: number;
+  agentes_count?: number;
+  cuota_mensual?: number;
+  active_modules?: {
+    radar_activo: boolean;
+    studio_activo: boolean;
+    core_activo: boolean;
+    pulse_activo: boolean;
+    ledger_tax_activo: boolean;
+  };
+  tipo?: string;
 }
 
 interface NuevaAgenciaForm {
@@ -36,6 +47,11 @@ interface NuevaAgenciaForm {
   direccion_central: string;
   color_corporativo: string;
   plan_tipo: string;
+  radar_activo: boolean;
+  studio_activo: boolean;
+  core_activo: boolean;
+  pulse_activo: boolean;
+  ledger_tax_activo: boolean;
 }
 
 const FORM_EMPTY: NuevaAgenciaForm = {
@@ -51,6 +67,11 @@ const FORM_EMPTY: NuevaAgenciaForm = {
   direccion_central: "",
   color_corporativo: "#475569",
   plan_tipo: "Basic",
+  radar_activo: true,
+  studio_activo: true,
+  core_activo: true,
+  pulse_activo: false,
+  ledger_tax_activo: false,
 };
 
 export default function AdministracionPage() {
@@ -238,6 +259,11 @@ export default function AdministracionPage() {
         direccion_central: form.direccion_central || null,
         color_corporativo: form.color_corporativo || null,
         plan_tipo: form.plan_tipo,
+        radar_activo: form.radar_activo,
+        studio_activo: form.studio_activo,
+        core_activo: form.core_activo,
+        pulse_activo: form.pulse_activo,
+        ledger_tax_activo: form.ledger_tax_activo,
       };
 
       if (form.supabase_url) {
@@ -324,7 +350,7 @@ export default function AdministracionPage() {
     <div className={listStyles.container}>
       {/* HEADER */}
       <header className={listStyles.header} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <h1 className={listStyles.title}>Administración de Agencias</h1>
+        <h1 className={listStyles.title}>Administración de tenants</h1>
 
         {/* LOGIN / LOGOUT */}
         <div className={styles.loginArea}>
@@ -437,20 +463,24 @@ export default function AdministracionPage() {
                   <th>Agencia</th>
                   <th>CIF / NIF</th>
                   <th>Contacto</th>
-                  <th>Plan</th>
+                  <th style={{ textAlign: "center" }}>Agencias</th>
+                  <th style={{ textAlign: "center" }}>Agentes</th>
+                  <th>Módulos</th>
+                  <th>Tipo</th>
+                  <th>Cuota</th>
                   <th style={{ textAlign: "right" }}>Estado</th>
                 </tr>
               </thead>
               <tbody>
                 {dataLoading ? (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: "center", color: "#64748b", padding: "2rem" }}>
+                    <td colSpan={9} style={{ textAlign: "center", color: "#64748b", padding: "2rem" }}>
                       Cargando agencias...
                     </td>
                   </tr>
                 ) : filteredAgencias.length === 0 ? (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: "center", color: "#64748b", padding: "2rem" }}>
+                    <td colSpan={9} style={{ textAlign: "center", color: "#64748b", padding: "2rem" }}>
                       {searchQuery ? "No se encontraron agencias que coincidan." : "No hay agencias registradas. Pulsa + para añadir la primera."}
                     </td>
                   </tr>
@@ -473,10 +503,42 @@ export default function AdministracionPage() {
                         <div style={{ fontSize: "0.8rem", color: "#334155" }}>{agencia.email_general || "-"}</div>
                         <div style={{ fontSize: "0.7rem", color: "#94a3b8" }}>{agencia.telefono_general || ""}</div>
                       </td>
+                      <td style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: "0.85rem", color: "#1e293b" }}>
+                          <strong>{agencia.subtenants_count ?? 0}</strong>
+                        </div>
+                      </td>
+                      <td style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: "0.85rem", color: "#1e293b" }}>
+                          <strong>{agencia.agentes_count ?? 0}</strong>
+                        </div>
+                      </td>
                       <td>
-                        <span className={`${styles.statusTag} ${agencia.plan_tipo === "Premium" || agencia.plan_tipo === "Enterprise" ? styles.statusPremium : styles.statusBasic}`}>
-                          {agencia.plan_tipo || "Basic"}
+                        <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                          <span title="RADAR (CRM)" style={{ opacity: agencia.active_modules?.radar_activo ? 1 : 0.25, color: agencia.active_modules?.radar_activo ? "#3189F4" : "#64748b" }}>
+                            <Icons.Target size={16} strokeWidth={2.8} />
+                          </span>
+                          <span title="STUDIO (Propuestas)" style={{ opacity: agencia.active_modules?.studio_activo ? 1 : 0.25, color: agencia.active_modules?.studio_activo ? "#41CDD7" : "#64748b" }}>
+                            <Icons.Presupuestos size={16} strokeWidth={2.8} />
+                          </span>
+                          <span title="CORE (Expedientes)" style={{ opacity: agencia.active_modules?.core_activo ? 1 : 0.25, color: agencia.active_modules?.core_activo ? "#6F38E6" : "#64748b" }}>
+                            <Icons.Expedientes size={16} strokeWidth={2.8} />
+                          </span>
+                          <span title="PULSE (Fidelización)" style={{ opacity: agencia.active_modules?.pulse_activo ? 1 : 0.25, color: agencia.active_modules?.pulse_activo ? "#F62976" : "#64748b" }}>
+                            <Icons.Heart size={16} strokeWidth={2.8} />
+                          </span>
+                          <span title="AUDIT (Contabilidad)" style={{ opacity: agencia.active_modules?.ledger_tax_activo ? 1 : 0.25, color: agencia.active_modules?.ledger_tax_activo ? "#FFE04D" : "#64748b" }}>
+                            <Icons.Euro size={16} strokeWidth={2.8} />
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`${styles.statusTag} ${agencia.tipo === "Growth" ? styles.statusPremium : styles.statusBasic}`}>
+                          {agencia.tipo || "Starter"}
                         </span>
+                      </td>
+                      <td style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.85rem" }}>
+                        {agencia.cuota_mensual !== undefined ? `${agencia.cuota_mensual.toFixed(2)} €` : "-"}
                       </td>
                       <td style={{ textAlign: "right" }}>
                         <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", alignItems: "center" }}>
@@ -498,6 +560,11 @@ export default function AdministracionPage() {
                                 direccion_central: agencia.direccion_central || "",
                                 color_corporativo: agencia.color_corporativo || "#475569",
                                 plan_tipo: agencia.plan_tipo || "Basic",
+                                radar_activo: agencia.active_modules?.radar_activo ?? true,
+                                studio_activo: agencia.active_modules?.studio_activo ?? true,
+                                core_activo: agencia.active_modules?.core_activo ?? true,
+                                pulse_activo: agencia.active_modules?.pulse_activo ?? false,
+                                ledger_tax_activo: agencia.active_modules?.ledger_tax_activo ?? false,
                               });
                               setShowModal(true);
                             }}
@@ -606,6 +673,33 @@ export default function AdministracionPage() {
                         <option value="Premium">Premium</option>
                         <option value="Enterprise">Enterprise</option>
                       </select>
+                    </div>
+                    <div className={styles.formGroup} style={{ gridColumn: "span 2", marginTop: "1rem" }}>
+                      <label className={styles.formLabel} style={{ fontWeight: 600, borderBottom: "1px solid #e2e8f0", paddingBottom: "0.25rem", marginBottom: "0.5rem" }}>
+                        Módulos Suscritos (Capa 1)
+                      </label>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", marginTop: "0.5rem" }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.85rem", cursor: "pointer" }}>
+                          <input type="checkbox" checked={form.radar_activo} onChange={(e) => setForm(f => ({ ...f, radar_activo: e.target.checked }))} />
+                          RADAR (CRM)
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.85rem", cursor: "pointer" }}>
+                          <input type="checkbox" checked={form.studio_activo} onChange={(e) => setForm(f => ({ ...f, studio_activo: e.target.checked }))} />
+                          STUDIO (Propuestas)
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.85rem", cursor: "pointer" }}>
+                          <input type="checkbox" checked={form.core_activo} onChange={(e) => setForm(f => ({ ...f, core_activo: e.target.checked }))} />
+                          CORE (Expedientes)
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.85rem", cursor: "pointer" }}>
+                          <input type="checkbox" checked={form.pulse_activo} onChange={(e) => setForm(f => ({ ...f, pulse_activo: e.target.checked }))} />
+                          PULSE (Fidelización)
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.85rem", cursor: "pointer" }}>
+                          <input type="checkbox" checked={form.ledger_tax_activo} onChange={(e) => setForm(f => ({ ...f, ledger_tax_activo: e.target.checked }))} />
+                          AUDIT (Contabilidad)
+                        </label>
+                      </div>
                     </div>
                   </div>
                   {saveError && <div className={styles.formError}>{saveError}</div>}

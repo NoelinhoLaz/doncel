@@ -1,6 +1,7 @@
 "use server";
 
 import { getAgencyDbClient } from "@/lib/agencyDb";
+import { getCurrentUsuario } from "@/actions/usuarios";
 
 export async function getTopProveedores() {
   try {
@@ -98,6 +99,14 @@ export async function createProveedor(payload: {
   observaciones?: string;
 }) {
   try {
+    const currentUser = await getCurrentUsuario();
+    if (currentUser && currentUser.oficina_id) {
+      const allowed = currentUser.parametros?.permisos_studio_proveedores?.crear;
+      if (allowed === false) {
+        throw new Error("No tienes permisos para crear proveedores en este tenant.");
+      }
+    }
+
     const agencyDb = await getAgencyDbClient();
     const newId = payload.id || Math.random().toString(36).substring(2, 11).toUpperCase();
 

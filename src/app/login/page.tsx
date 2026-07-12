@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { Icons } from "@/lib/icons";
 import styles from "./page.module.css";
@@ -23,6 +23,25 @@ export default function LoginPage() {
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotError, setForgotError] = useState<string | null>(null);
   const [forgotLoading, setForgotLoading] = useState(false);
+  const [branding, setBranding] = useState<any>(null);
+
+  useEffect(() => {
+    async function loadBranding() {
+      try {
+        const host = window.location.host;
+        const res = await fetch(`/api/administracion/branding?host=${encodeURIComponent(host)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            setBranding(data.branding);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading tenant branding:", err);
+      }
+    }
+    loadBranding();
+  }, []);
 
   const handleForgot = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -57,10 +76,14 @@ export default function LoginPage() {
       }
       setLoading(false);
     } else {
-      // Login exitoso, verificar rol y agencia_id consultando nuestra API interna (evita problemas de RLS y bundler)
+      // Login exitoso, verificar rol y agencia_id consultando nuestra API interna usando token Bearer
       let usuario = null;
       try {
-        const res = await fetch(`/api/perfil?authUserId=${data.user.id}`);
+        const res = await fetch(`/api/perfil?authUserId=${data.user.id}`, {
+          headers: {
+            Authorization: `Bearer ${data.session?.access_token}`,
+          },
+        });
         if (res.ok) {
           const resData = await res.json();
           usuario = resData.usuario;
@@ -89,12 +112,17 @@ export default function LoginPage() {
     }
   };
 
+  const styleVars = {
+    "--primary-color": branding?.color_corporativo || "#8b5cf6",
+    "--secondary-color": branding?.color_secundario || "#7c3aed",
+  } as React.CSSProperties;
+
   if (forgotMode) {
     return (
-      <main className={styles.container}>
+      <main className={styles.container} style={styleVars}>
         <section className={styles.leftColumn}>
           <div className={styles.formBox}>
-            <img src="/logo_alivia.png" alt="Alivia" className={styles.logo} />
+            <img src={branding?.logo_url || "/logo_alivia.png"} alt={branding?.nombre_comercial || "Alivia"} className={styles.logo} />
             <h1 className={styles.title}>Recuperar contraseña</h1>
             {forgotSent ? (
               <div style={{ textAlign: "center", display: "grid", gap: "1rem" }}>
@@ -135,10 +163,10 @@ export default function LoginPage() {
   }
 
   return (
-    <main className={styles.container}>
+    <main className={styles.container} style={styleVars}>
       <section className={styles.leftColumn}>
         <div className={styles.formBox}>
-          <img src="/logo_alivia.png" alt="Alivia" className={styles.logo} />
+          <img src={branding?.logo_url || "/logo_alivia.png"} alt={branding?.nombre_comercial || "Alivia"} className={styles.logo} />
           <form className={styles.form} onSubmit={handleSubmit}>
             {error && <p className={styles.error}>{error}</p>}
             <label className={styles.label} htmlFor="email">

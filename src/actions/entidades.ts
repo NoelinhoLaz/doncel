@@ -1,6 +1,7 @@
 "use server";
 
 import { getAgencyDbClient } from "@/lib/agencyDb";
+import { getCurrentUsuario } from "@/actions/usuarios";
 
 export async function getEntidades() {
   try {
@@ -24,6 +25,14 @@ export async function getEntidades() {
 
 export async function createEntidad(nombre: string) {
   try {
+    const currentUser = await getCurrentUsuario();
+    if (currentUser && currentUser.oficina_id) {
+      const allowed = currentUser.parametros?.permisos_studio_clientes?.crear;
+      if (allowed === false) {
+        throw new Error("No tienes permisos para registrar clientes en este tenant.");
+      }
+    }
+
     const agencyDb = await getAgencyDbClient();
     const { data, error } = await agencyDb
       .from("contabilidad_entidades")
@@ -53,6 +62,14 @@ export async function createEntidadCompleta(payload: {
   };
 }) {
   try {
+    const currentUser = await getCurrentUsuario();
+    if (currentUser && currentUser.oficina_id) {
+      const allowed = currentUser.parametros?.permisos_studio_clientes?.crear;
+      if (allowed === false) {
+        throw new Error("No tienes permisos para registrar clientes en este tenant.");
+      }
+    }
+
     const agencyDb = await getAgencyDbClient();
     const { data, error } = await agencyDb
       .from("contabilidad_entidades")

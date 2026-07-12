@@ -3,11 +3,18 @@ import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabas
 
 export async function GET(request: NextRequest) {
   try {
-    const sessionClient = await createAdminServerClient();
-    const { data: { user }, error: authError } = await sessionClient.auth.getUser();
+    const authHeader = request.headers.get("Authorization") || "";
+    const token = authHeader.split(" ")[1];
+
+    if (!token) {
+      return NextResponse.json({ error: "No autorizado (Falta token)" }, { status: 401 });
+    }
+
+    const adminServiceSupabase = createAdminServiceClient();
+    const { data: { user }, error: authError } = await adminServiceSupabase.auth.getUser(token);
 
     if (authError || !user) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+      return NextResponse.json({ error: "No autorizado (Token inválido)" }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -21,7 +28,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
-    const adminServiceSupabase = createAdminServiceClient();
     const { data: usuario, error: usuarioError } = await adminServiceSupabase
       .from("usuarios")
       .select("id, nombre, apellidos, email, rol, agencia_id")

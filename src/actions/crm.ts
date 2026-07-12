@@ -3,6 +3,7 @@
 import { getAgencyDbClient } from "@/lib/agencyDb";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { revalidatePath } from "next/cache";
+import { getCurrentUsuario } from "@/actions/usuarios";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -554,6 +555,13 @@ export async function createOportunidad(payload: {
   fecha_cierre_est?: string;
   origen?: string;
 }) {
+  const currentUser = await getCurrentUsuario();
+  if (currentUser && currentUser.oficina_id) {
+    if (currentUser.parametros?.permisos_oportunidades?.crear === false) {
+      throw new Error("No tienes permisos para crear oportunidades en este tenant.");
+    }
+  }
+
   const { usuarioId, rol } = await getCurrentAgente();
   const agencyDb = await getAgencyDbClient();
 
@@ -580,6 +588,13 @@ export async function updateOportunidad(id: string, payload: Partial<{
   prioridad: number | null;
   fecha_cierre_est: string;
 }>) {
+  const currentUser = await getCurrentUsuario();
+  if (currentUser && currentUser.oficina_id) {
+    if (currentUser.parametros?.permisos_oportunidades?.editar === false) {
+      throw new Error("No tienes permisos para editar oportunidades en este tenant.");
+    }
+  }
+
   const { usuarioId, rol } = await getCurrentAgente();
   const agencyDb = await getAgencyDbClient();
 
@@ -594,6 +609,13 @@ export async function updateOportunidad(id: string, payload: Partial<{
 }
 
 export async function deleteOportunidad(id: string) {
+  const currentUser = await getCurrentUsuario();
+  if (currentUser && currentUser.oficina_id) {
+    if (currentUser.parametros?.permisos_oportunidades?.borrar === false) {
+      throw new Error("No tienes permisos para borrar oportunidades en este tenant.");
+    }
+  }
+
   const { usuarioId, rol } = await getCurrentAgente();
   const agencyDb = await getAgencyDbClient();
   let query = agencyDb.from("crm_oportunidades").delete().eq("id", id);

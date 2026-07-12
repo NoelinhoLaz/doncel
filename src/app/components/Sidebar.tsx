@@ -4,7 +4,8 @@ import styles from "./MenuPrincipal.module.css";
 import { useRouter, usePathname } from "next/navigation";
 import { Icons } from "@/lib/icons";
 import { Sparkles } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { getCurrentUsuario } from "@/actions/usuarios";
 
 interface Props {
   onOpenCopiloto?: () => void;
@@ -13,6 +14,7 @@ interface Props {
 export default function MenuPrincipal({ onOpenCopiloto }: Props) {
   const router = useRouter();
   const pathname = usePathname();
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [expSubOpen, setExpSubOpen] = useState(false);
   const [presupSubOpen, setPresupSubOpen] = useState(false);
   const [bancoSubOpen, setBancoSubOpen] = useState(false);
@@ -22,6 +24,34 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
   const presupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bancoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contactosTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    async function loadUser() {
+      const u = await getCurrentUsuario();
+      setCurrentUser(u);
+    }
+    loadUser();
+  }, []);
+
+  const isBranchUser = !!(
+    currentUser &&
+    currentUser.oficina_id &&
+    currentUser.rol !== "SuperAdmin" &&
+    currentUser.rol !== "Admin" &&
+    currentUser.rol !== "Owner"
+  );
+
+  const showRadar = currentUser
+    ? currentUser.modulos?.radar_activo && !currentUser.modulos?.ocultar_crm
+    : true;
+
+  const showLedger = currentUser
+    ? currentUser.modulos?.ledger_tax_activo &&
+      !currentUser.modulos?.ocultar_contabilidad &&
+      !isBranchUser
+    : true;
+
+  const showCotizaciones = currentUser ? !isBranchUser : true;
 
   const closeAllOthers = (exceptSetter: ((v: boolean) => void) | null) => {
     const submenus = [
@@ -71,14 +101,16 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
         <Icons.Home size={20} strokeWidth={isActive("/dashboard") ? 3 : 2} />
       </button>
  
-      <button
-        className={`${styles.menuItem} ${isActive("/campanas") || isActive("/oportunidades") ? styles.active : ""}`}
-        title="Campañas"
-        onClick={() => router.push("/campanas")}
-        onMouseEnter={() => closeAllOthers(null)}
-      >
-        <Icons.Target size={20} strokeWidth={isActive("/campanas") || isActive("/oportunidades") ? 3 : 2} />
-      </button>
+      {showRadar && (
+        <button
+          className={`${styles.menuItem} ${isActive("/campanas") || isActive("/oportunidades") ? styles.active : ""}`}
+          title="Campañas"
+          onClick={() => router.push("/campanas")}
+          onMouseEnter={() => closeAllOthers(null)}
+        >
+          <Icons.Target size={20} strokeWidth={isActive("/campanas") || isActive("/oportunidades") ? 3 : 2} />
+        </button>
+      )}
 
       <div
         className={styles.menuItemWrapper}
@@ -108,13 +140,15 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
               <Icons.Viajeros size={14} className={styles.submenuIcon} />
               <span>Viajeros</span>
             </button>
-            <button
-              className={styles.submenuItem}
-              onClick={() => { setContactosSubOpen(false); router.push("/contactos/proveedores"); }}
-            >
-              <Icons.Building size={14} className={styles.submenuIcon} />
-              <span>Proveedores</span>
-            </button>
+            {!isBranchUser && (
+              <button
+                className={styles.submenuItem}
+                onClick={() => { setContactosSubOpen(false); router.push("/contactos/proveedores"); }}
+              >
+                <Icons.Building size={14} className={styles.submenuIcon} />
+                <span>Proveedores</span>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -140,13 +174,15 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
               <Icons.Document size={14} className={styles.submenuIcon} />
               <span>Solicitudes</span>
             </button>
-            <button
-              className={styles.submenuItem}
-              onClick={() => { setPresupSubOpen(false); router.push("/cotizaciones"); }}
-            >
-              <Icons.Facturacion size={14} className={styles.submenuIcon} />
-              <span>Cotizaciones</span>
-            </button>
+            {showCotizaciones && (
+              <button
+                className={styles.submenuItem}
+                onClick={() => { setPresupSubOpen(false); router.push("/cotizaciones"); }}
+              >
+                <Icons.Facturacion size={14} className={styles.submenuIcon} />
+                <span>Cotizaciones</span>
+              </button>
+            )}
             <button
               className={styles.submenuItem}
               onClick={() => { setPresupSubOpen(false); router.push("/propuestas"); }}
@@ -196,73 +232,75 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
         )}
       </div>
 
-      <div
-        className={styles.menuItemWrapper}
-        {...makeHover(setBancoSubOpen, bancoTimer)}
-      >
-        <button 
-          className={`${styles.menuItem} ${isActive("/cobros") || isActive("/banco") ? styles.active : ""}`} 
-          onClick={() => router.push("/cobros")} 
-          title="Contabilidad"
+      {showLedger && (
+        <div
+          className={styles.menuItemWrapper}
+          {...makeHover(setBancoSubOpen, bancoTimer)}
         >
-          <Icons.Euro size={20} strokeWidth={isActive("/cobros") || isActive("/banco") ? 3 : 2} />
-        </button>
+          <button 
+            className={`${styles.menuItem} ${isActive("/cobros") || isActive("/banco") ? styles.active : ""}`} 
+            onClick={() => router.push("/cobros")} 
+            title="Contabilidad"
+          >
+            <Icons.Euro size={20} strokeWidth={isActive("/cobros") || isActive("/banco") ? 3 : 2} />
+          </button>
  
-        {bancoSubOpen && (
-          <div className={styles.submenuFlyout}>
-            <button 
-              className={styles.submenuItem}
-              onClick={() => {
-                setBancoSubOpen(false);
-                router.push("/banco/cierre-caja");
-              }}
-            >
-              <Icons.Logs size={14} className={styles.submenuIcon} />
-              <span>Cierre de caja</span>
-            </button>
-            <button 
-              className={styles.submenuItem}
-              onClick={() => {
-                setBancoSubOpen(false);
-                router.push("/banco");
-              }}
-            >
-              <Icons.Landmark size={14} className={styles.submenuIcon} />
-              <span>Movimientos banco</span>
-            </button>
-            <button 
-              className={styles.submenuItem}
-              onClick={() => {
-                setBancoSubOpen(false);
-                router.push("/banco/diario");
-              }}
-            >
-              <Icons.Logs size={14} className={styles.submenuIcon} />
-              <span>Libro Diario</span>
-            </button>
-            <button 
-              className={styles.submenuItem}
-              onClick={() => {
-                setBancoSubOpen(false);
-                router.push("/banco/balance");
-              }}
-            >
-              <Icons.Balance size={14} className={styles.submenuIcon} />
-              <span>Balance sumas/saldos</span>
-            </button>
-            <button 
-              className={styles.submenuItem}
-              onClick={() => {
-                setBancoSubOpen(false);
-                router.push("/banco/iva");
-              }}
-            >
-              <Icons.Iva size={14} className={styles.submenuIcon} />
-              <span>Libro de IVA</span>
-            </button>
-          </div>
-        )}
-      </div>
+          {bancoSubOpen && (
+            <div className={styles.submenuFlyout}>
+              <button 
+                className={styles.submenuItem}
+                onClick={() => {
+                  setBancoSubOpen(false);
+                  router.push("/banco/cierre-caja");
+                }}
+              >
+                <Icons.Logs size={14} className={styles.submenuIcon} />
+                <span>Cierre de caja</span>
+              </button>
+              <button 
+                className={styles.submenuItem}
+                onClick={() => {
+                  setBancoSubOpen(false);
+                  router.push("/banco");
+                }}
+              >
+                <Icons.Landmark size={14} className={styles.submenuIcon} />
+                <span>Movimientos banco</span>
+              </button>
+              <button 
+                className={styles.submenuItem}
+                onClick={() => {
+                  setBancoSubOpen(false);
+                  router.push("/banco/diario");
+                }}
+              >
+                <Icons.Logs size={14} className={styles.submenuIcon} />
+                <span>Libro Diario</span>
+              </button>
+              <button 
+                className={styles.submenuItem}
+                onClick={() => {
+                  setBancoSubOpen(false);
+                  router.push("/banco/balance");
+                }}
+              >
+                <Icons.Balance size={14} className={styles.submenuIcon} />
+                <span>Balance sumas/saldos</span>
+              </button>
+              <button 
+                className={styles.submenuItem}
+                onClick={() => {
+                  setBancoSubOpen(false);
+                  router.push("/banco/iva");
+                }}
+              >
+                <Icons.Iva size={14} className={styles.submenuIcon} />
+                <span>Libro de IVA</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
  
       <button 
         className={`${styles.menuItem} ${isActive("/mensajes") ? styles.active : ""}`} 

@@ -4,10 +4,10 @@ import styles from "./page.module.css";
 import { useState, useEffect } from "react";
 import { Icons } from "@/lib/icons";
 import { getOficinas } from "@/actions/oficinas";
-import { getAgencyUsuarios } from "@/actions/usuarios";
+import { getAgencyUsuarios, getCurrentUsuario } from "@/actions/usuarios";
 import { getCuentasBancarias, updateCuentaBancaria } from "@/actions/cuentasBancarias";
 import { getCuentasContables } from "@/actions/libroDiario";
-import { getCurrentAgencyDetails, updateAgencyColor, updateAgencyLogo, updateAgencySecondaryColor } from "@/actions/agencias";
+import { getCurrentAgencyDetails, updateAgencyColor, updateAgencyLogo, updateAgencySecondaryColor, getTenantParameters, updateTenantParameters } from "@/actions/agencias";
 import { getTiposServicios, deleteTipoServicio } from "@/actions/tiposServicios";
 import { obtenerApiKeys } from "@/actions/apikeys";
 import * as LucideIcons from "lucide-react";
@@ -21,6 +21,7 @@ import ModalApiKey from "@/components/modals/ModalApiKey";
 
 const SECTIONS = [
   { id: "personalizar",   label: "Personalizar",      icon: <Icons.Settings size={16} /> },
+  { id: "permisos",       label: "Permisos Agentes",   icon: <LucideIcons.Lock size={16} /> },
   { id: "usuarios",       label: "Usuarios",           icon: <Icons.Viajeros size={16} /> },
   { id: "oficinas",       label: "Oficinas",           icon: <Icons.Servicios size={16} /> },
   { id: "cuentas",        label: "Cuentas Tesorería",  icon: <Icons.Cobros size={16} /> },
@@ -37,6 +38,15 @@ export default function SettingsPage() {
   const [secondaryColor, setSecondaryColor] = useState("#22c55e");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any | null>(null);
+
+  // ── Permisos Agentes ────────────────────────────────────────
+  const [alcanceVistaAgentes, setAlcanceVistaAgentes] = useState("subtenant");
+  const [permisosRadarOportunidades, setPermisosRadarOportunidades] = useState({ crear: true, editar: true, borrar: false });
+  const [permisosStudioProveedores, setPermisosStudioProveedores] = useState({ crear: true, editar: true, borrar: true });
+  const [permisosStudioClientes, setPermisosStudioClientes] = useState({ crear: true, editar: true, borrar: false });
+  const [permisosCoreExpedientes, setPermisosCoreExpedientes] = useState({ crear: true, editar: true, borrar: false });
+  const [savingParams, setSavingParams] = useState(false);
 
   // ── Lists ────────────────────────────────────────────────────
   const [oficinas, setOficinas] = useState<any[]>([]);
@@ -90,17 +100,57 @@ export default function SettingsPage() {
           }
           if (details.logo_url) setLogoUrl(details.logo_url);
         }
+        const params = await getTenantParameters();
+        if (params) {
+          if (params.alcance_vista_agentes) setAlcanceVistaAgentes(params.alcance_vista_agentes);
+          if (params.permisos_radar_oportunidades) setPermisosRadarOportunidades(params.permisos_radar_oportunidades);
+          if (params.permisos_studio_proveedores) setPermisosStudioProveedores(params.permisos_studio_proveedores);
+          if (params.permisos_studio_clientes) setPermisosStudioClientes(params.permisos_studio_clientes);
+          if (params.permisos_core_expedientes) setPermisosCoreExpedientes(params.permisos_core_expedientes);
+        }
+
+        const u = await getCurrentUsuario();
+        setCurrentUser(u);
       } catch (err: any) {
-        console.warn("Error al cargar la configuración de la agencia:", err?.message || err);
+        console.warn("Error al cargar la configuración de la agencia o el usuario:", err?.message || err);
       }
     }
     loadConfig();
   }, []);
 
+  const saveParameters = async () => {
+    try {
+      setSavingParams(true);
+      await updateTenantParameters({
+        alcance_vista_agentes: alcanceVistaAgentes,
+        permisos_radar_oportunidades: permisosRadarOportunidades,
+        permisos_studio_proveedores: permisosStudioProveedores,
+        permisos_studio_clientes: permisosStudioClientes,
+        permisos_core_expedientes: permisosCoreExpedientes,
+      });
+      alert("Ajustes de permisos guardados con éxito.");
+    } catch (err: any) {
+      console.error(err);
+      alert("Error al guardar permisos: " + err.message);
+    } finally {
+      setSavingParams(false);
+    }
+  };
+
   useEffect(() => {
     document.documentElement.style.setProperty("--header-bg", headerColor);
     document.documentElement.style.setProperty("--primary-color", headerColor);
   }, [headerColor]);
+
+  useEffect(() => {
+    if (currentUser) {
+      if (currentUser.rol === "SubAdmin") {
+        setActiveSection("usuarios");
+      } else if (currentUser.rol === "Agente") {
+        setActiveSection("tiposServicios");
+      }
+    }
+  }, [currentUser]);
 
   // ── Data fetchers ────────────────────────────────────────────
   async function fetchOficinas() {
@@ -144,6 +194,18 @@ export default function SettingsPage() {
     else if (activeSection === "cuentas") { fetchCuentas(); fetchOficinas(); }
     else if (activeSection === "tiposServicios") { fetchTiposServicios(); }
     else if (activeSection === "apikeys") { fetchApiKeys(); }
+    else if (activeSection === "permisos") {
+      // Load current parameters on entry
+      getTenantParameters().then(params => {
+        if (params) {
+          if (params.alcance_vista_agentes) setAlcanceVistaAgentes(params.alcance_vista_agentes);
+          if (params.permisos_radar_oportunidades) setPermisosRadarOportunidades(params.permisos_radar_oportunidades);
+          if (params.permisos_studio_proveedores) setPermisosStudioProveedores(params.permisos_studio_proveedores);
+          if (params.permisos_studio_clientes) setPermisosStudioClientes(params.permisos_studio_clientes);
+          if (params.permisos_core_expedientes) setPermisosCoreExpedientes(params.permisos_core_expedientes);
+        }
+      }).catch(console.error);
+    }
   }, [activeSection]);
 
   // ── Color / logo handlers ────────────────────────────────────
@@ -570,6 +632,138 @@ export default function SettingsPage() {
     </div>
   );
 
+  const renderPermisos = () => (
+    <div className={styles.tableContainer} style={{ padding: "1.5rem", display: "grid", gap: "1.5rem" }}>
+      <div className={styles.listHeaderTop}>
+        <div className={styles.listTitleWrapper}>
+          <LucideIcons.Lock size={18} className={styles.titleIcon} />
+          <h2 className={styles.listTitle}>Permisos y Alcance de Vista de Agentes</h2>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: "1.2rem", background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.08)", borderRadius: "8px", padding: "1.2rem" }}>
+        <div>
+          <label style={{ fontWeight: 600, fontSize: "0.95rem", display: "block", marginBottom: "0.4rem", color: "#e2e8f0" }}>
+            Alcance de Visibilidad de Datos
+          </label>
+          <p style={{ color: "#94a3b8", fontSize: "0.8rem", marginBottom: "0.75rem" }}>
+            Define qué expedientes, presupuestos y oportunidades pueden visualizar los agentes en sus listados correspondientes.
+          </p>
+          <select
+            value={alcanceVistaAgentes}
+            onChange={e => setAlcanceVistaAgentes(e.target.value)}
+            style={{ width: "100%", padding: "0.75rem", borderRadius: "8px", border: "1px solid rgba(255, 255, 255, 0.15)", backgroundColor: "#1e293b", color: "#f8fafc", outline: "none" }}
+          >
+            <option value="propio">Propio (Solo sus propios registros creados)</option>
+            <option value="subtenant">Agencia/Sucursal (Registros de su propia oficina asignada)</option>
+            <option value="tenant">Global (Registros de todo el tenant / todas las oficinas)</option>
+          </select>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1rem" }}>
+        {/* Radar/Oportunidades */}
+        <div style={{ background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.08)", borderRadius: "8px", padding: "1rem" }}>
+          <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "#3189F4", marginBottom: "0.8rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", backgroundColor: "#3189F4" }} />
+            Oportunidades (RADAR)
+          </h3>
+          <div style={{ display: "grid", gap: "0.6rem" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.825rem", cursor: "pointer", color: "#cbd5e1" }}>
+              <input type="checkbox" checked={permisosRadarOportunidades.crear} onChange={e => setPermisosRadarOportunidades(p => ({ ...p, crear: e.target.checked }))} />
+              Permitir crear oportunidades
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.825rem", cursor: "pointer", color: "#cbd5e1" }}>
+              <input type="checkbox" checked={permisosRadarOportunidades.editar} onChange={e => setPermisosRadarOportunidades(p => ({ ...p, editar: e.target.checked }))} />
+              Permitir editar oportunidades
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.825rem", cursor: "pointer", color: "#cbd5e1" }}>
+              <input type="checkbox" checked={permisosRadarOportunidades.borrar} onChange={e => setPermisosRadarOportunidades(p => ({ ...p, borrar: e.target.checked }))} />
+              Permitir eliminar oportunidades
+            </label>
+          </div>
+        </div>
+
+        {/* Proveedores */}
+        <div style={{ background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.08)", borderRadius: "8px", padding: "1rem" }}>
+          <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "#41CDD7", marginBottom: "0.8rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", backgroundColor: "#41CDD7" }} />
+            Proveedores (STUDIO)
+          </h3>
+          <div style={{ display: "grid", gap: "0.6rem" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.825rem", cursor: "pointer", color: "#cbd5e1" }}>
+              <input type="checkbox" checked={permisosStudioProveedores.crear} onChange={e => setPermisosStudioProveedores(p => ({ ...p, crear: e.target.checked }))} />
+              Permitir crear proveedores
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.825rem", cursor: "pointer", color: "#cbd5e1" }}>
+              <input type="checkbox" checked={permisosStudioProveedores.editar} onChange={e => setPermisosStudioProveedores(p => ({ ...p, editar: e.target.checked }))} />
+              Permitir editar proveedores
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.825rem", cursor: "pointer", color: "#cbd5e1" }}>
+              <input type="checkbox" checked={permisosStudioProveedores.borrar} onChange={e => setPermisosStudioProveedores(p => ({ ...p, borrar: e.target.checked }))} />
+              Permitir eliminar proveedores
+            </label>
+          </div>
+        </div>
+
+        {/* Clientes */}
+        <div style={{ background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.08)", borderRadius: "8px", padding: "1rem" }}>
+          <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "#6F38E6", marginBottom: "0.8rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", backgroundColor: "#6F38E6" }} />
+            Clientes (STUDIO)
+          </h3>
+          <div style={{ display: "grid", gap: "0.6rem" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.825rem", cursor: "pointer", color: "#cbd5e1" }}>
+              <input type="checkbox" checked={permisosStudioClientes.crear} onChange={e => setPermisosStudioClientes(p => ({ ...p, crear: e.target.checked }))} />
+              Permitir crear clientes
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.825rem", cursor: "pointer", color: "#cbd5e1" }}>
+              <input type="checkbox" checked={permisosStudioClientes.editar} onChange={e => setPermisosStudioClientes(p => ({ ...p, editar: e.target.checked }))} />
+              Permitir editar clientes
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.825rem", cursor: "pointer", color: "#cbd5e1" }}>
+              <input type="checkbox" checked={permisosStudioClientes.borrar} onChange={e => setPermisosStudioClientes(p => ({ ...p, borrar: e.target.checked }))} />
+              Permitir eliminar clientes
+            </label>
+          </div>
+        </div>
+
+        {/* Expedientes */}
+        <div style={{ background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.08)", borderRadius: "8px", padding: "1rem" }}>
+          <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "#FFE04D", marginBottom: "0.8rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", backgroundColor: "#FFE04D" }} />
+            Expedientes (CORE)
+          </h3>
+          <div style={{ display: "grid", gap: "0.6rem" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.825rem", cursor: "pointer", color: "#cbd5e1" }}>
+              <input type="checkbox" checked={permisosCoreExpedientes.crear} onChange={e => setPermisosCoreExpedientes(p => ({ ...p, crear: e.target.checked }))} />
+              Permitir crear expedientes
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.825rem", cursor: "pointer", color: "#cbd5e1" }}>
+              <input type="checkbox" checked={permisosCoreExpedientes.editar} onChange={e => setPermisosCoreExpedientes(p => ({ ...p, editar: e.target.checked }))} />
+              Permitir editar expedientes
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.825rem", cursor: "pointer", color: "#cbd5e1" }}>
+              <input type="checkbox" checked={permisosCoreExpedientes.borrar} onChange={e => setPermisosCoreExpedientes(p => ({ ...p, borrar: e.target.checked }))} />
+              Permitir eliminar expedientes
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1rem" }}>
+        <button
+          className={styles.addActionButton}
+          onClick={saveParameters}
+          disabled={savingParams}
+          style={{ padding: "0.75rem 2rem", fontSize: "0.9rem", borderRadius: "8px", fontWeight: 600 }}
+        >
+          {savingParams ? "Guardando..." : "Guardar Cambios"}
+        </button>
+      </div>
+    </div>
+  );
+
   const renderContent = () => {
     switch (activeSection) {
       case "personalizar":   return renderPersonalizar();
@@ -578,9 +772,21 @@ export default function SettingsPage() {
       case "cuentas":        return renderCuentas();
       case "tiposServicios": return renderTiposServicios();
       case "apikeys":        return renderApiKeys();
+      case "permisos":       return renderPermisos();
       default:               return null;
     }
   };
+
+  const visibleSections = SECTIONS.filter(section => {
+    if (!currentUser) return true;
+    if (currentUser.rol === "Agente") {
+      return section.id === "tiposServicios";
+    }
+    if (currentUser.rol === "SubAdmin") {
+      return section.id === "usuarios";
+    }
+    return true;
+  });
 
   return (
     <div className={styles.container}>
@@ -594,7 +800,7 @@ export default function SettingsPage() {
             <span className={styles.sidebarTitle}>MENÚ</span>
           </div>
           <nav className={styles.nav}>
-            {SECTIONS.map(section => (
+            {visibleSections.map(section => (
               <button
                 key={section.id}
                 className={`${styles.navItem} ${activeSection === section.id ? styles.active : ""}`}
@@ -633,6 +839,7 @@ export default function SettingsPage() {
         oficinas={oficinas}
         cuentasBancarias={cuentasBancarias}
         onSuccess={fetchUsuarios}
+        currentUser={currentUser}
       />
 
       <ModalTipoServicio

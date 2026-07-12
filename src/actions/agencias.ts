@@ -2,6 +2,7 @@
 
 import { encrypt } from "@/lib/encryption";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
+import { getAgencyDbClient } from "@/lib/agencyDb";
 
 export async function encryptAgencySecrets(
   serviceRoleKey: string,
@@ -231,5 +232,57 @@ export async function updateAgencySecondaryColor(color: string) {
   } catch (error: any) {
     console.error("Failed to update agency secondary color:", error);
     throw new Error(error.message || "Failed to update agency secondary color");
+  }
+}
+
+export async function getTenantParameters() {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { data, error } = await agencyDb
+      .from("config_parametros_tenant")
+      .select("*")
+      .limit(1)
+      .maybeSingle();
+      
+    if (error) throw error;
+    return data;
+  } catch (error: any) {
+    console.error("Failed to get tenant parameters:", error);
+    throw new Error(error.message || "Failed to get tenant parameters");
+  }
+}
+
+export async function updateTenantParameters(payload: any) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    
+    // Check if a row exists
+    const { data: existing } = await agencyDb
+      .from("config_parametros_tenant")
+      .select("id")
+      .limit(1)
+      .maybeSingle();
+
+    let query;
+    if (existing) {
+      query = agencyDb
+        .from("config_parametros_tenant")
+        .update(payload)
+        .eq("id", existing.id);
+    } else {
+      query = agencyDb
+        .from("config_parametros_tenant")
+        .insert(payload);
+    }
+
+    const { error } = await query;
+    if (error) throw error;
+
+    revalidatePath("/", "layout");
+    revalidatePath("/settings");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to update tenant parameters:", error);
+    throw new Error(error.message || "Failed to update tenant parameters");
   }
 }

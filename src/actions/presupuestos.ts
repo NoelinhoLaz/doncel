@@ -2,6 +2,7 @@
 
 import { getAgencyDbClient } from "@/lib/agencyDb";
 import { getCurrentAgentePublic } from "@/actions/crm";
+import { getCurrentUsuario } from "@/actions/usuarios";
 
 export type TipoPresupuesto = "vacacional" | "P2P" | "grupo";
 export type EstadoPresupuesto = "borrador" | "pendiente_cotizar" | "cotizando" | "cotizado" | "descartado";
@@ -194,15 +195,28 @@ export async function createPresupuesto(input: CreatePresupuestoInput) {
 export async function getPresupuestos(filters?: { oportunidad_id?: string }) {
   try {
     const agencyDb = await getAgencyDbClient();
+    const currentUser = await getCurrentUsuario();
 
     let q = agencyDb
       .from("operativa_presupuestos")
-      .select("*")
-      .order("created_at", { ascending: false });
+      .select("*");
+
+    if (currentUser) {
+      if (currentUser.rol === "Agente") {
+        const scope = currentUser.parametros?.alcance_vista_agentes || "subtenant";
+        if (scope === "propio") {
+          q = q.eq("agente_id", currentUser.id);
+        } else if (scope === "subtenant" && currentUser.oficina_id) {
+          q = q.eq("oficina_id", currentUser.oficina_id);
+        }
+      } else if (currentUser.rol === "SubAdmin" && currentUser.oficina_id) {
+        q = q.eq("oficina_id", currentUser.oficina_id);
+      }
+    }
 
     if (filters?.oportunidad_id) q = (q as any).eq("oportunidad_id", filters.oportunidad_id);
 
-    const { data: presupuestos, error } = await q;
+    const { data: presupuestos, error } = await q.order("created_at", { ascending: false });
 
     if (error) throw error;
     if (!presupuestos?.length) return [];

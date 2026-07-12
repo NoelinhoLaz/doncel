@@ -12,6 +12,7 @@ interface Props {
   oficinas: any[];
   cuentasBancarias: any[];
   onSuccess: () => void;
+  currentUser?: any | null;
 }
 
 const FORM_DEFAULT = {
@@ -25,7 +26,7 @@ const FORM_DEFAULT = {
 };
 
 export default function ModalUsuario({
-  isOpen, onClose, editingUsuario, oficinas, cuentasBancarias, onSuccess
+  isOpen, onClose, editingUsuario, oficinas, cuentasBancarias, onSuccess, currentUser
 }: Props) {
   const [form, setForm] = useState(FORM_DEFAULT);
   const [saving, setSaving] = useState(false);
@@ -43,9 +44,14 @@ export default function ModalUsuario({
         cuentas_bancarias: editingUsuario.cuentas_bancarias || [],
       });
     } else {
-      setForm({ ...FORM_DEFAULT, oficina: oficinas[0]?.id || "" });
+      const defaultOficina = currentUser?.rol === "SubAdmin" ? (currentUser.oficina_id || "") : (oficinas[0]?.id || "");
+      setForm({
+        ...FORM_DEFAULT,
+        oficina: defaultOficina,
+        rol: "Agente",
+      });
     }
-  }, [isOpen, editingUsuario]);
+  }, [isOpen, editingUsuario, currentUser, oficinas]);
 
   if (!isOpen) return null;
 
@@ -151,8 +157,15 @@ export default function ModalUsuario({
                   onChange={e => setForm({ ...form, rol: e.target.value })}
                   required
                 >
-                  <option value="Agente">Agente</option>
-                  <option value="Administrador">Administrador</option>
+                  {currentUser?.rol === "SubAdmin" ? (
+                    <option value="Agente">Agente</option>
+                  ) : (
+                    <>
+                      <option value="Agente">Agente</option>
+                      <option value="SubAdmin">SubAdmin</option>
+                      <option value="Admin">Admin</option>
+                    </>
+                  )}
                 </select>
               </div>
               <div className={styles.formGroupFull}>
@@ -161,11 +174,20 @@ export default function ModalUsuario({
                   className={styles.formInput}
                   value={form.oficina}
                   onChange={e => setForm({ ...form, oficina: e.target.value })}
+                  disabled={currentUser?.rol === "SubAdmin"}
                 >
-                  <option value="">Sin Oficina</option>
-                  {oficinas.map(of => (
-                    <option key={of.id} value={of.id}>{of.nombre}</option>
-                  ))}
+                  {currentUser?.rol === "SubAdmin" ? (
+                    oficinas.filter(of => of.id === currentUser.oficina_id).map(of => (
+                      <option key={of.id} value={of.id}>{of.nombre}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="">Sin Oficina</option>
+                      {oficinas.map(of => (
+                        <option key={of.id} value={of.id}>{of.nombre}</option>
+                      ))}
+                    </>
+                  )}
                 </select>
               </div>
             </div>

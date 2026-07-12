@@ -20,7 +20,7 @@ export async function getAgencyUsuarios() {
     // 2. Obtener el agencia_id del usuario actual usando el Service Role client
     const { data: usuario, error: usuarioError } = await adminServiceSupabase
       .from("usuarios")
-      .select("agencia_id")
+      .select("id, agencia_id, rol")
       .eq("auth_user_id", user.id)
       .single();
 
@@ -63,7 +63,7 @@ export async function getAgencyUsuarios() {
     }
 
     // 5. Fusionar datos
-    const mergedUsuarios = usuarios.map((u: any) => {
+    let mergedUsuarios = usuarios.map((u: any) => {
       const config = configs.find((c: any) => c.usuario_id === u.id);
       return {
         ...u,
@@ -71,6 +71,17 @@ export async function getAgencyUsuarios() {
         cuentas_bancarias: config?.cuentas_bancarias || []
       };
     });
+
+    if (usuario && usuario.rol === "SubAdmin") {
+      const currentConfig = configs.find((c: any) => c.usuario_id === usuario.id);
+      const subtenantId = currentConfig?.oficina;
+      if (subtenantId) {
+        mergedUsuarios = mergedUsuarios.filter((u: any) => u.oficina === subtenantId);
+      } else {
+        // If SubAdmin has no office, they can only see themselves
+        mergedUsuarios = mergedUsuarios.filter((u: any) => u.id === usuario.id);
+      }
+    }
 
     return mergedUsuarios;
   } catch (error: any) {
@@ -255,6 +266,27 @@ export async function getCurrentUsuario() {
 
     // 3. Obtener la configuración de oficina en Agency DB
     let oficina_id = null;
+    let modulos = {
+      radar_activo: true,
+      studio_activo: true,
+      core_activo: true,
+      pulse_activo: false,
+      ledger_tax_activo: false,
+      ocultar_crm: false,
+      ocultar_contabilidad: false
+    };
+    let parametros = {
+      tipo_tenant: "agencia",
+      compartir_datos_oficinas: false,
+      alcance_vista_agentes: "subtenant",
+      permisos_radar_oportunidades: { crear: true, editar: true, borrar: false },
+      permisos_studio_proveedores: { crear: true, editar: true, borrar: true },
+      permisos_studio_clientes: { crear: true, editar: true, borrar: false },
+      permisos_core_expedientes: { crear: true, editar: true, borrar: false },
+      permisos_core_pasajeros: { crear: true, editar: true, borrar: false },
+      permisos_pulse_campanas: { crear: true, editar: true, borrar: false }
+    };
+
     try {
       const agencyDb = await getAgencyDbClient();
       const { data: config } = await agencyDb
@@ -266,13 +298,33 @@ export async function getCurrentUsuario() {
       if (config && config.oficina) {
         oficina_id = config.oficina;
       }
+
+      const { data: modData } = await agencyDb
+        .from("config_modulos_tenant")
+        .select("*")
+        .limit(1)
+        .maybeSingle();
+      if (modData) {
+        modulos = { ...modulos, ...modData };
+      }
+
+      const { data: paramData } = await agencyDb
+        .from("config_parametros_tenant")
+        .select("*")
+        .limit(1)
+        .maybeSingle();
+      if (paramData) {
+        parametros = { ...parametros, ...paramData };
+      }
     } catch (dbErr) {
-      console.warn("Could not load config_usuarios for current user:", dbErr);
+      console.warn("Could not load config_usuarios or tenant configs for current user:", dbErr);
     }
 
     return {
       ...usuario,
-      oficina_id
+      oficina_id,
+      modulos,
+      parametros
     };
   } catch (error) {
     console.error("Error in getCurrentUsuario:", error);
@@ -621,6 +673,26 @@ export async function clearDriveConfiguration() {
   } catch (err: any) {
     console.error("Error clearing Drive configuration:", err);
     return { success: false, error: err.message || "Failed to clear Drive configuration" };
+  }
+}
+
+export async function getUsuarioByAuthId(authUserId: string) {
+  try {
+    const adminServiceSupabase = createAdminServiceClient();
+    const { data: usuario, error: usuarioError } = await adminServiceSupabase
+      .from("usuarios")
+      .select("id, nombre, apellidos, email, rol, agencia_id")
+      .eq("auth_user_id", authUserId)
+      .maybeSingle();
+
+    if (usuarioError || !usuario) {
+      console.error("Error in getUsuarioByAuthId:", usuarioError);
+      return null;
+    }
+    return usuario;
+  } catch (err) {
+    console.error("Error in getUsuarioByAuthId action:", err);
+    return null;
   }
 }
 

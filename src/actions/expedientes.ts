@@ -4,7 +4,7 @@ import { getAgencyDbClient } from "@/lib/agencyDb";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { revalidatePath } from "next/cache";
 import { google } from "googleapis";
-import { getCurrentUserDriveConfig } from "@/actions/usuarios";
+import { getCurrentUserDriveConfig, getCurrentUsuario } from "@/actions/usuarios";
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -311,10 +311,26 @@ export async function getExpedientesMapa(): Promise<MapaDestino[]> {
 export async function getExpedientes() {
   try {
     const agencyDb = await getAgencyDbClient();
-    const { data, error } = await agencyDb
+    const currentUser = await getCurrentUsuario();
+
+    let queryBuilder = agencyDb
       .from("operativa_expedientes")
-      .select("*, config_oficinas(nombre), maestro_destinos(nombre, lat, lng), contabilidad_entidades(nombre), operativa_viajeros_expedientes(id, estado), operativa_pagadores_expedientes(importe_total, importe_abonado)")
-      .order("created_at", { ascending: false });
+      .select("*, config_oficinas(nombre), maestro_destinos(nombre, lat, lng), contabilidad_entidades(nombre), operativa_viajeros_expedientes(id, estado), operativa_pagadores_expedientes(importe_total, importe_abonado)");
+
+    if (currentUser) {
+      if (currentUser.rol === "Agente") {
+        const scope = currentUser.parametros?.alcance_vista_agentes || "subtenant";
+        if (scope === "propio") {
+          queryBuilder = queryBuilder.eq("agente_id", currentUser.id);
+        } else if (scope === "subtenant" && currentUser.oficina_id) {
+          queryBuilder = queryBuilder.eq("oficina_id", currentUser.oficina_id);
+        }
+      } else if (currentUser.rol === "SubAdmin" && currentUser.oficina_id) {
+        queryBuilder = queryBuilder.eq("oficina_id", currentUser.oficina_id);
+      }
+    }
+
+    const { data, error } = await queryBuilder.order("created_at", { ascending: false });
 
     if (error) {
       console.error("Error fetching expedientes:", error);
