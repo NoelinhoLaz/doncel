@@ -11,6 +11,11 @@ import ServicioFormModal from "@/components/modals/ServicioFormModal";
 import ModalEnviarValoracion from "@/components/modals/ModalEnviarValoracion";
 import ExportViajerosModal from "@/components/modals/ExportViajerosModal";
 
+import TablaServiciosOpcionales from "@/app/components/servicios/TablaServiciosOpcionales";
+import TablaServiciosNoOpcionales from "@/app/components/servicios/TablaServiciosNoOpcionales";
+import ImportarServiciosModal from "@/components/modals/ImportarServiciosModal";
+import ImportarServiciosNoOpcionalesModal from "@/components/modals/ImportarServiciosNoOpcionalesModal";
+
 interface ServiciosTabProps {
   onOpenMatchModal?: () => void;
   expedienteId: string;
@@ -21,6 +26,8 @@ export default function ServiciosTab({ expedienteId, onOpenMatchModal }: Servici
   const [valoracionOpen, setValoracionOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [selectedExportService, setSelectedExportService] = useState<any | null>(null);
+  const [isImportarOpcionalesOpen, setIsImportarOpcionalesOpen] = useState(false);
+  const [isImportarNoOpcionalesOpen, setIsImportarNoOpcionalesOpen] = useState(false);
 
   const handleOpenExport = (ser: any) => {
     setSelectedExportService(ser);
@@ -40,6 +47,39 @@ export default function ServiciosTab({ expedienteId, onOpenMatchModal }: Servici
         onOpenMatchModal={onOpenMatchModal} 
         onEnviarValoracion={() => setValoracionOpen(true)} 
         onExportClick={handleOpenExport}
+      />
+
+      <TablaServiciosNoOpcionales
+        serviciosList={s.nonOptionalServicios}
+        expedienteId={expedienteId}
+        onDeleteServicio={s.handleDelete}
+        onUpdateImporte={s.handleUpdateImporte}
+        onAbrirManual={s.openAddService}
+        onAbrirImportar={() => setIsImportarNoOpcionalesOpen(true)}
+      />
+
+      <TablaServiciosOpcionales
+        serviciosList={s.optionalServicios}
+        expedienteId={expedienteId}
+        onToggleOpcional={s.handleToggleOpcional}
+        onDeleteServicio={s.handleDelete}
+        onUpdateImporte={s.handleUpdateImporte}
+        onAbrirManual={s.openAddService}
+        onAbrirImportar={() => setIsImportarOpcionalesOpen(true)}
+      />
+
+      <ImportarServiciosNoOpcionalesModal
+        isOpen={isImportarNoOpcionalesOpen}
+        onClose={() => setIsImportarNoOpcionalesOpen(false)}
+        expedienteId={expedienteId}
+        onSuccess={s.loadServicios}
+      />
+
+      <ImportarServiciosModal
+        isOpen={isImportarOpcionalesOpen}
+        onClose={() => setIsImportarOpcionalesOpen(false)}
+        expedienteId={expedienteId}
+        onSuccess={s.loadServicios}
       />
 
       <ImportarCotizacionModal

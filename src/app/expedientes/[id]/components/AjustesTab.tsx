@@ -1,16 +1,10 @@
 "use client";
 
 import * as LucideIcons from "lucide-react";
-import { useState, useEffect } from "react";
-import { Icons } from "@/lib/icons";
 import { useAjustes } from "@/hooks/useAjustes";
-import { getExpedienteServicios } from "@/actions/servicios";
-import { getTiposServicios } from "@/actions/tiposServicios";
 import InfoExpedienteSection from "@/app/components/ajustes/InfoExpedienteSection";
 import ServiciosPlazosSection from "@/app/components/ajustes/ServiciosPlazosSection";
 import ComunicacionesSection from "@/app/components/ajustes/ComunicacionesSection";
-import ServicioFormModal from "@/components/modals/ServicioFormModal";
-import ImportarServiciosModal from "@/components/modals/ImportarServiciosModal";
 import styles from "../page.module.css";
 
 const DEFAULT_TYPES = [
@@ -33,31 +27,12 @@ interface AjustesTabProps {
 
 export default function AjustesTab({ expedienteId, expediente }: AjustesTabProps) {
   const a = useAjustes(expedienteId, expediente);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [importModalOpen, setImportModalOpen] = useState(false);
-  const [serviceTypes, setServiceTypes] = useState<any[]>(DEFAULT_TYPES);
-
-  useEffect(() => {
-    getTiposServicios()
-      .then((types) => {
-        if (types?.length) {
-          setServiceTypes(types.map((t: any, i: number) => ({ id: t.id, label: t.etiqueta, icono: t.icono, ...TYPE_COLORS[i % TYPE_COLORS.length] })));
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  async function handleServicioCreado() {
-    const data = await getExpedienteServicios(expedienteId);
-    a.setServiciosList((data || []).filter((s: any) => s.opcional === true));
-    setModalOpen(false);
-  }
 
   return (
     <div className={styles.tabContainer}>
       <div className={styles.listHeaderTop} style={{ marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div className={styles.listTitleWrapper}>
-          <Icons.Settings size={18} className={styles.titleIcon} />
+          <LucideIcons.Settings size={18} className={styles.titleIcon} />
           <h2 className={styles.listTitle}>Ajustes del expediente</h2>
         </div>
         <button
@@ -92,12 +67,6 @@ export default function AjustesTab({ expedienteId, expediente }: AjustesTabProps
       />
 
       <ServiciosPlazosSection
-        serviciosList={a.serviciosList}
-        serviciosLoaded={a.serviciosLoaded}
-        onToggleOpcional={a.handleToggleOpcional}
-        onAbrirModal={() => setModalOpen(true)}
-        onAbrirImportarModal={() => setImportModalOpen(true)}
-        onDeleteServicio={a.handleDeleteServicio}
         plazosList={a.plazosList}
         setPlazosList={a.setPlazosList}
         cancelacionesList={a.cancelacionesList}
@@ -111,23 +80,6 @@ export default function AjustesTab({ expedienteId, expediente }: AjustesTabProps
       <ComunicacionesSection
         comunicacionesList={a.comunicacionesList}
         setComunicacionesList={a.setComunicacionesList}
-      />
-
-      <ServicioFormModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        expedienteId={expedienteId}
-        editServiceId={null}
-        serviceData={null}
-        serviceTypes={serviceTypes}
-        onSuccess={handleServicioCreado}
-      />
-
-      <ImportarServiciosModal
-        isOpen={importModalOpen}
-        onClose={() => setImportModalOpen(false)}
-        expedienteId={expedienteId}
-        onSuccess={handleServicioCreado}
       />
     </div>
   );

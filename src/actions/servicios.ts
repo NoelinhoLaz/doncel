@@ -48,6 +48,21 @@ export async function getExpedienteServicios(expedienteId: string) {
     const servicios = data || [];
     const servicioIds = servicios.map((s: any) => s.id).filter(Boolean);
 
+    // Resolve provider names if they are stored as UUID strings
+    const providerIds = [...new Set(servicios.map((s: any) => s.proveedor).filter((p: any) => p && UUID_REGEX.test(p)))];
+    const providerMap = new Map<string, string>();
+    if (providerIds.length > 0) {
+      const { data: provs } = await agencyDb
+        .from("contabilidad_proveedores")
+        .select("id, nombre, razon_social")
+        .in("id", providerIds);
+      if (provs) {
+        provs.forEach((p: any) => {
+          providerMap.set(p.id, p.nombre || p.razon_social || p.id);
+        });
+      }
+    }
+
     const abonoMap = new Map<string, number>();
     if (servicioIds.length > 0) {
       const { data: abonos } = await agencyDb
@@ -77,6 +92,10 @@ export async function getExpedienteServicios(expedienteId: string) {
     }
 
     const result = servicios.map((s: any) => {
+      let resolvedProveedor = s.proveedor;
+      if (resolvedProveedor && UUID_REGEX.test(resolvedProveedor) && providerMap.has(resolvedProveedor)) {
+        resolvedProveedor = providerMap.get(resolvedProveedor);
+      }
       const docId = s.documento_id;
       const seen = new Set<string>();
       const movsVinculados: any[] = [];
@@ -106,7 +125,7 @@ export async function getExpedienteServicios(expedienteId: string) {
         }
       }
 
-      return { ...s, abonado: abonoMap.get(s.id) || 0, pagos: movsVinculados, viajeros_count: countsMap.get(s.id) || 0 };
+      return { ...s, proveedor: resolvedProveedor, abonado: abonoMap.get(s.id) || 0, pagos: movsVinculados, viajeros_count: countsMap.get(s.id) || 0 };
     });
 
     return result;
@@ -499,17 +518,37 @@ export async function importOptionalServicesToExpediente(expedienteId: string, l
     if (lineasError) throw lineasError;
     if (!lineas || lineas.length === 0) return { success: false, error: "No lines found to import" };
 
-    const servicesToInsert = lineas.map((line: any) => ({
-      expediente_id: expedienteId,
-      tipo: line.tipo,
-      proveedor: line.proveedor ? String(line.proveedor) : null,
-      descripcion: line.descripcion,
-      neto: Number(line.neto || 0),
-      pvp: Number(line.pvp || 0),
-      plazas: Number(line.plazas || 1),
-      total: Number(line.pvp || 0) * Number(line.plazas || 1),
-      opcional: true,
-    }));
+    const providerIds = [...new Set(lineas.map(l => l.proveedor).filter(p => p && UUID_REGEX.test(p)))];
+    const providerMap = new Map<string, string>();
+    if (providerIds.length > 0) {
+      const { data: provs } = await agencyDb
+        .from("contabilidad_proveedores")
+        .select("id, nombre, razon_social")
+        .in("id", providerIds);
+      if (provs) {
+        provs.forEach(p => {
+          providerMap.set(p.id, p.nombre || p.razon_social || p.id);
+        });
+      }
+    }
+
+    const servicesToInsert = lineas.map((line: any) => {
+      let resolvedProveedor = line.proveedor ? String(line.proveedor) : null;
+      if (resolvedProveedor && providerMap.has(resolvedProveedor)) {
+        resolvedProveedor = providerMap.get(resolvedProveedor)!;
+      }
+      return {
+        expediente_id: expedienteId,
+        tipo: line.tipo,
+        proveedor: resolvedProveedor,
+        descripcion: line.descripcion,
+        neto: Number(line.neto || 0),
+        pvp: Number(line.pvp || 0),
+        plazas: Number(line.plazas || 1),
+        total: Number(line.pvp || 0) * Number(line.plazas || 1),
+        opcional: true,
+      };
+    });
 
     const { data: insertedServices, error: insertError } = await agencyDb
       .from("operativa_expedientes_servicios")
@@ -545,6 +584,191 @@ export async function importOptionalServicesToExpediente(expedienteId: string, l
     return { success: true };
   } catch (error: any) {
     console.error("Failed to import optional services:", error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/** Update neto/pvp on an expediente service, syncing to cotización linea if linked.
+ *  Returns error object (not throw) if the service has travelers already assigned. */
+export async function updateExpedienteServicioImportes(
+  id: string,
+  payload: { neto?: number; pvp?: number },
+  expedienteId: string
+) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+
+    // Block if travelers are assigned to this service
+    const { data: viajeros } = await agencyDb
+      .from("operativa_viajeros_expedientes")
+      .select("extras")
+      .eq("expediente_id", expedienteId);
+
+    const isSelectedByTravelers = (viajeros || []).some((v: any) => {
+      let extrasList: any[] = [];
+      if (Array.isArray(v.extras)) extrasList = v.extras;
+      else if (typeof v.extras === "string") {
+        try { extrasList = JSON.parse(v.extras); } catch { extrasList = []; }
+      }
+      return Array.isArray(extrasList) && extrasList.some((e: any) => e?.id === id);
+    });
+
+    if (isSelectedByTravelers) {
+      return { success: false, error: "No se puede modificar el importe porque hay viajeros vinculados a este servicio." };
+    }
+
+    const updateFields: any = {};
+    if (payload.neto !== undefined) updateFields.neto = payload.neto;
+    if (payload.pvp !== undefined) updateFields.pvp = payload.pvp;
+
+    const { data: updated, error: updErr } = await agencyDb
+      .from("operativa_expedientes_servicios")
+      .update(updateFields)
+      .eq("id", id)
+      .select("*, lineas:operativa_expediente_servicio_lineas(*)")
+      .single();
+
+    if (updErr) throw updErr;
+
+    // Sync to cotización linea if linked
+    const linkRow = (updated?.lineas || []).find((l: any) => l.cotizacion_linea_id);
+    if (linkRow?.cotizacion_linea_id) {
+      const { updateCotizacionLinea } = await import("@/actions/cotizaciones");
+      const pvpVal = payload.pvp ?? updated.pvp;
+      const netoVal = payload.neto ?? updated.neto;
+      const plazasVal = updated.plazas || 1;
+      await updateCotizacionLinea(linkRow.cotizacion_linea_id, {
+        pvp: pvpVal,
+        neto: netoVal,
+        total_pvp: pvpVal * plazasVal,
+        total_neto: netoVal * plazasVal,
+      });
+      await agencyDb
+        .from("operativa_expediente_servicio_lineas")
+        .update({ pvp: pvpVal, neto: netoVal })
+        .eq("servicio_id", id);
+    }
+
+    revalidatePath(`/expedientes/${expedienteId}`);
+    return { success: true, data: updated };
+  } catch (error: any) {
+    console.error("Failed to update expediente servicio importes:", error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/** Get non-optional lines from the cotización linked to this expediente */
+export async function getNonOptionalServicesFromLinkedQuote(expedienteId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+
+    const { data: cotizaciones, error: cotError } = await agencyDb
+      .from("operativa_cotizaciones")
+      .select("id, titulo")
+      .eq("expediente_id", expedienteId);
+
+    if (cotError) throw cotError;
+    if (!cotizaciones || cotizaciones.length === 0) return [];
+
+    const cotIds = cotizaciones.map((c: any) => c.id);
+
+    const { data: lineas, error: lineasError } = await agencyDb
+      .from("operativa_cotizacion_lineas")
+      .select("id, descripcion, pvp, neto, tipo, proveedor, plazas, cotizacion_id")
+      .in("cotizacion_id", cotIds)
+      .eq("opcional", false);
+
+    if (lineasError) throw lineasError;
+
+    const cotsMap = new Map(cotizaciones.map((c: any) => [c.id, c.titulo]));
+    return (lineas || []).map((l: any) => ({
+      ...l,
+      cotizacion_titulo: cotsMap.get(l.cotizacion_id) || "Cotización",
+    }));
+  } catch (error: any) {
+    console.error("Failed to get non-optional services from linked quote:", error.message);
+    return [];
+  }
+}
+
+/** Import non-optional cotización lines as expediente services (opcional=false) */
+export async function importNonOptionalServicesToExpediente(expedienteId: string, lineIds: string[]) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+
+    const { data: lineas, error: lineasError } = await agencyDb
+      .from("operativa_cotizacion_lineas")
+      .select("id, descripcion, pvp, neto, tipo, proveedor, plazas")
+      .in("id", lineIds);
+
+    if (lineasError) throw lineasError;
+    if (!lineas || lineas.length === 0) return { success: false, error: "No lines found to import" };
+
+    const providerIds = [...new Set(lineas.map(l => l.proveedor).filter(p => p && UUID_REGEX.test(p)))];
+    const providerMap = new Map<string, string>();
+    if (providerIds.length > 0) {
+      const { data: provs } = await agencyDb
+        .from("contabilidad_proveedores")
+        .select("id, nombre, razon_social")
+        .in("id", providerIds);
+      if (provs) {
+        provs.forEach(p => {
+          providerMap.set(p.id, p.nombre || p.razon_social || p.id);
+        });
+      }
+    }
+
+    const servicesToInsert = lineas.map((line: any) => {
+      let resolvedProveedor = line.proveedor ? String(line.proveedor) : null;
+      if (resolvedProveedor && providerMap.has(resolvedProveedor)) {
+        resolvedProveedor = providerMap.get(resolvedProveedor)!;
+      }
+      return {
+        expediente_id: expedienteId,
+        tipo: line.tipo,
+        proveedor: resolvedProveedor,
+        descripcion: line.descripcion,
+        neto: Number(line.neto || 0),
+        pvp: Number(line.pvp || 0),
+        plazas: Number(line.plazas || 1),
+        total: Number(line.pvp || 0) * Number(line.plazas || 1),
+        opcional: false,
+      };
+    });
+
+    const { data: insertedServices, error: insertError } = await agencyDb
+      .from("operativa_expedientes_servicios")
+      .insert(servicesToInsert)
+      .select();
+
+    if (insertError) throw insertError;
+
+    if (insertedServices && insertedServices.length > 0) {
+      const lineasToInsert = insertedServices.map((service: any, index: number) => {
+        const originalLine = lineas[index];
+        return {
+          servicio_id: service.id,
+          cotizacion_linea_id: originalLine.id,
+          tipo: originalLine.tipo,
+          descripcion: originalLine.descripcion,
+          neto: Number(originalLine.neto || 0),
+          pvp: Number(originalLine.pvp || 0),
+        };
+      });
+
+      const { error: lineasInsertError } = await agencyDb
+        .from("operativa_expediente_servicio_lineas")
+        .insert(lineasToInsert);
+
+      if (lineasInsertError) {
+        console.error("Error creating intermediate link lines:", lineasInsertError.message);
+      }
+    }
+
+    revalidatePath(`/expedientes/${expedienteId}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to import non-optional services:", error.message);
     return { success: false, error: error.message };
   }
 }

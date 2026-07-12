@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { FolderPlus } from "lucide-react";
 import * as LucideIcons from "lucide-react";
-import { getExpedienteServicios, deleteExpedienteServicio } from "@/actions/servicios";
+import { getExpedienteServicios, deleteExpedienteServicio, toggleServicioOpcional, updateExpedienteServicioImportes } from "@/actions/servicios";
 import { getTiposServicios } from "@/actions/tiposServicios";
 import { getMatchesPendientesPorExpediente } from "@/actions/banco";
 import { calculateKpis, calculateCategoryCosts, serviceHasMatch } from "@/lib/utils/servicios";
@@ -105,6 +105,8 @@ export function useServicios(expedienteId: string) {
   const getTypeIconComponent = (typeId: string) => (LucideIcons as any)[getTypeInfo(typeId).icono] || FolderPlus;
 
   const visibleServicios = useMemo(() => servicios.filter(s => !s.opcional), [servicios]);
+  const optionalServicios = useMemo(() => servicios.filter(s => s.opcional), [servicios]);
+  const nonOptionalServicios = useMemo(() => servicios.filter(s => !s.opcional), [servicios]);
   const hasOptionalOnly = visibleServicios.length === 0 && servicios.length > 0;
   const kpis = useMemo(() => calculateKpis(servicios), [servicios]);
 
@@ -135,8 +137,21 @@ export function useServicios(expedienteId: string) {
     [matchesPendientes]
   );
 
-  return {
-    servicios, loading, serviceTypes, matchesPendientes, visibleServicios, hasOptionalOnly,
+    const handleToggleOpcional = async (id: string, opcional: boolean) => {
+      await toggleServicioOpcional(id, opcional);
+      loadServicios();
+    };
+
+    const handleUpdateImporte = async (id: string, neto: number | undefined, pvp: number | undefined) => {
+      const res = await updateExpedienteServicioImportes(id, { neto, pvp }, expedienteId);
+      if (!res.success) {
+        alert(res.error || "Error al actualizar el importe");
+      }
+      await loadServicios();
+    };
+
+    return {
+    servicios, loading, serviceTypes, matchesPendientes, visibleServicios, optionalServicios, nonOptionalServicios, hasOptionalOnly,
     isServiceFormOpen, isImportCotizacionOpen, isImportPdfOpen, isMatchBancarioOpen,
     editServiceId, editServiceData, selectedMatch,
     showAddMenu, setShowAddMenu,
@@ -147,7 +162,7 @@ export function useServicios(expedienteId: string) {
     kpis, categoriesToRender, filteredData, paginatedData,
     getTypeInfo, getTypeIconComponent, getMatch, pendingMatchCount,
     loadServicios, loadMatches,
-    handleDelete, openAddService, openEditService, closeServiceForm,
+    handleDelete, handleToggleOpcional, handleUpdateImporte, openAddService, openEditService, closeServiceForm,
     openImportCotizacion: () => setIsImportCotizacionOpen(true),
     closeImportCotizacion: () => setIsImportCotizacionOpen(false),
     openImportPdf: () => setIsImportPdfOpen(true),

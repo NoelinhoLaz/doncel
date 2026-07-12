@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Info, Layers, Unlink, Copy, Trash2, ClipboardPaste, Mail } from "lucide-react";
+import { Info, Layers, Unlink, Copy, Trash2, ClipboardPaste, Mail, Link as LinkIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 const NuevaComunicacionModal = dynamic(() => import("@/app/expedientes/[id]/components/NuevaComunicacionModal"), { ssr: false });
@@ -557,13 +557,36 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                           style={{ ...fieldStyle, width: '100%', padding: '0.2rem', textAlign: 'right' }}
                         />
                       </td>
-                      <td style={{ textAlign: 'right' }}>
+                      <td style={{ textAlign: 'right', position: 'relative' }}>
+                        {it.is_linked && (
+                          <span 
+                            title="Vinculado a servicio de expediente" 
+                            style={{ 
+                              position: 'absolute', 
+                              left: '6px', 
+                              top: '50%', 
+                              transform: 'translateY(-50%)', 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              zIndex: 10,
+                              pointerEvents: 'none'
+                            }}
+                          >
+                            <LinkIcon size={11} style={{ color: '#2563eb' }} />
+                          </span>
+                        )}
                         <input
                           type="text"
                           key={it.id + '-neto'}
                           defaultValue={!it.neto || Number(it.neto) === 0 ? '' : it.neto}
                           onBlur={(e) => c.handleItemChange(it.id, 'neto', e.target.value)}
-                          style={{ ...fieldStyle, width: '100%', padding: '0.2rem', textAlign: 'right' }}
+                          style={{ 
+                            ...fieldStyle, 
+                            width: '100%', 
+                            padding: '0.2rem', 
+                            paddingLeft: it.is_linked ? '1.25rem' : '0.2rem', 
+                            textAlign: 'right' 
+                          }}
                         />
                       </td>
                       <td style={{ textAlign: 'right' }}>

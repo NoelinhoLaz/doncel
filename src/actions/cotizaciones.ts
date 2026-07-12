@@ -216,8 +216,29 @@ export async function getCotizacionWithLineas(cotizacionId: string) {
 
     if (err2) throw err2;
 
-    if (lineas) {
-      lineas.sort((a: any, b: any) => {
+    const lineIds = (lineas || []).map((l: any) => l.id);
+    const linkedLineIds = new Set<string>();
+    if (lineIds.length > 0) {
+      const { data: linkedLines } = await agencyDb
+        .from("operativa_expediente_servicio_lineas")
+        .select("cotizacion_linea_id")
+        .in("cotizacion_linea_id", lineIds);
+      if (linkedLines) {
+        linkedLines.forEach((row: any) => {
+          if (row.cotizacion_linea_id) {
+            linkedLineIds.add(row.cotizacion_linea_id);
+          }
+        });
+      }
+    }
+
+    const annotatedLineas = (lineas || []).map((l: any) => ({
+      ...l,
+      is_linked: linkedLineIds.has(l.id)
+    }));
+
+    if (annotatedLineas) {
+      annotatedLineas.sort((a: any, b: any) => {
         const idxA = a.config_tipos_servicios?.idx ?? 999;
         const idxB = b.config_tipos_servicios?.idx ?? 999;
         if (idxA !== idxB) return idxA - idxB;
@@ -231,7 +252,7 @@ export async function getCotizacionWithLineas(cotizacionId: string) {
       });
     }
 
-    return { ...cotizacion, operativa_cotizacion_lineas: lineas || [] };
+    return { ...cotizacion, operativa_cotizacion_lineas: annotatedLineas || [] };
   } catch (error: any) {
     console.error("Failed to load cotizacion with lineas:", error.message);
     return null;
@@ -402,6 +423,60 @@ export async function updateCotizacionLinea(id: string, payload: {
         recalcularMetrica(agencyDb, linea.cotizacion_id, destinoId);
       }
     }
+
+    // Propagate neto/pvp back to linked expediente service (bidirectional sync)
+    if (payload.neto !== undefined || payload.pvp !== undefined) {
+      const { data: linkRow } = await agencyDb
+        .from("operativa_expediente_servicio_lineas")
+        .select("servicio_id, operativa_expedientes_servicios!servicio_id(id, expediente_id)")
+        .eq("cotizacion_linea_id", id)
+        .maybeSingle();
+
+      if (linkRow?.servicio_id) {
+        const servicio = (linkRow as any).operativa_expedientes_servicios;
+        const expId = servicio?.expediente_id;
+
+        // Check for travelers before propagating
+        let blocked = false;
+        if (expId) {
+          const { data: viajeros } = await agencyDb
+            .from("operativa_viajeros_expedientes")
+            .select("extras")
+            .eq("expediente_id", expId);
+
+          blocked = (viajeros || []).some((v: any) => {
+            let extrasList: any[] = [];
+            if (Array.isArray(v.extras)) extrasList = v.extras;
+            else if (typeof v.extras === "string") {
+              try { extrasList = JSON.parse(v.extras); } catch { extrasList = []; }
+            }
+            return Array.isArray(extrasList) && extrasList.some((e: any) => e?.id === linkRow.servicio_id);
+          });
+        }
+
+        if (!blocked) {
+          const svcUpdate: any = {};
+          if (payload.neto !== undefined) svcUpdate.neto = payload.neto;
+          if (payload.pvp !== undefined) svcUpdate.pvp = payload.pvp;
+
+          await agencyDb
+            .from("operativa_expedientes_servicios")
+            .update(svcUpdate)
+            .eq("id", linkRow.servicio_id);
+
+          await agencyDb
+            .from("operativa_expediente_servicio_lineas")
+            .update(svcUpdate)
+            .eq("cotizacion_linea_id", id);
+
+          if (expId) {
+            const { revalidatePath: rp } = await import("next/cache");
+            rp(`/expedientes/${expId}`);
+          }
+        }
+      }
+    }
+
     return { success: true, data };
   } catch (error: any) {
     console.error("Failed to update cotizacion linea:", error.message);
