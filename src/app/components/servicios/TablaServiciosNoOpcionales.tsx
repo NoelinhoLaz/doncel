@@ -364,7 +364,7 @@ export default function TablaServiciosNoOpcionales({
                         {(pvp * plazas * noches).toLocaleString("es-ES", { minimumFractionDigits: 2 })} €
                       </td>
                       <td style={{ textAlign: "center", verticalAlign: "middle" }}>
-                        <EstadoPagoBadge abonado={Number(item.abonado ?? 0)} pvp={pvp} />
+                        <EstadoPagoBadge abonado={Number(item.abonado ?? 0)} pvp={pvp * plazas * noches} />
                       </td>
                       <td style={{ verticalAlign: "middle", width: "1%", whiteSpace: "nowrap", position: "relative" }}>
                         {deleteConfirmId === item.id ? (

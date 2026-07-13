@@ -210,7 +210,9 @@ export default function ModalInfoServicio({ item, tiposMap, onClose, onSave }: P
     }
     setInfoNativeValues({
       descripcion: item?.descripcion || "",
-      proveedor: item?.proveedor || "",
+      // item.proveedor_id existe solo en servicios de expediente (donde item.proveedor puede
+      // ser el nombre ya resuelto, no un id); en cotización item.proveedor ya es el id crudo.
+      proveedor: item?.proveedor_id ?? item?.proveedor ?? "",
       destino: item?.destino || "",
       ubicacion: item?.destino || "",
       plazas: item?.plazas ?? null,

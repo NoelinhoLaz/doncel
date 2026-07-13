@@ -547,6 +547,23 @@ export async function updateExpedienteServicio(id: string, payload: {
 }) {
   try {
     const agencyDb = await getAgencyDbClient();
+
+    // total incluye noches (igual que total_neto/total_pvp en cotización), así que hay que
+    // recalcularlo si cambia cualquiera de sus factores.
+    const recalculaTotal = payload.pvp !== undefined || payload.plazas !== undefined || payload.noches !== undefined;
+    let totalCalculado: number | undefined;
+    if (recalculaTotal) {
+      const { data: actual } = await agencyDb
+        .from("operativa_expedientes_servicios")
+        .select("pvp, plazas, noches")
+        .eq("id", id)
+        .single();
+      const pvpBase = payload.pvp !== undefined ? payload.pvp : Number(actual?.pvp || 0);
+      const plazasBase = payload.plazas !== undefined ? payload.plazas : Number(actual?.plazas || 1);
+      const nochesBase = Number((payload.noches !== undefined ? payload.noches : actual?.noches) || 0) || 1;
+      totalCalculado = pvpBase * (plazasBase || 1) * nochesBase;
+    }
+
     const updatePayload: any = {};
     if (payload.tipo !== undefined) updatePayload.tipo = payload.tipo;
     if (payload.proveedor !== undefined) updatePayload.proveedor = payload.proveedor;
@@ -557,6 +574,7 @@ export async function updateExpedienteServicio(id: string, payload: {
     if (payload.noches !== undefined) updatePayload.noches = payload.noches;
     if (payload.destino !== undefined) updatePayload.destino = payload.destino;
     if (payload.total !== undefined) updatePayload.total = payload.total;
+    else if (totalCalculado !== undefined) updatePayload.total = totalCalculado;
     if (payload.opcional !== undefined) updatePayload.opcional = payload.opcional;
     updatePayload.minimo_plazas = payload.opcional ? (payload.minimo_plazas || null) : null;
 
@@ -607,6 +625,12 @@ export async function updateExpedienteServicio(id: string, payload: {
           tipo: payload.tipo,
         })
         .eq("servicio_id", id);
+
+      // Si el cambio afecta al total (pvp/plazas/noches), el pago existente puede haber
+      // dejado de cubrirlo (o pasar a cubrirlo): mantener sincronizado el confirmado.
+      if (payload.pvp !== undefined || payload.plazas !== undefined || payload.noches !== undefined) {
+        await sincronizarConfirmadoSegunPago(agencyDb, id);
+      }
     }
 
     if (data?.expediente_id) revalidatePath(`/expedientes/${data.expediente_id}`);
@@ -619,6 +643,46 @@ export async function updateExpedienteServicio(id: string, payload: {
 
 /** Resolve (or fallback to) a contabilidad_entidades id for a provider name, mirroring
  *  the lookup used by conciliarPagoProveedor for bank-reconciled payments. */
+/** Mantiene sincronizado el estado "confirmado" de la línea de cotización vinculada con el
+ *  estado real de pago del servicio (mismo criterio que EstadoPagoBadge: Pagado = abonado
+ *  cubre pvp*plazas*noches). Se llama tanto al registrar un pago como al editar importes,
+ *  plazas o noches, para que una línea deje de estar "confirmado" si el cambio hace que el
+ *  pago ya no cubra el total (vuelve a pendiente hasta que se complete el pago de nuevo). */
+async function sincronizarConfirmadoSegunPago(agencyDb: any, servicioId: string) {
+  try {
+    const { data: servicio } = await agencyDb
+      .from("operativa_expedientes_servicios")
+      .select("pvp, plazas, noches")
+      .eq("id", servicioId)
+      .single();
+    if (!servicio) return;
+
+    const { data: abono } = await agencyDb
+      .from("v_abonados_servicios")
+      .select("total_abonado")
+      .eq("servicio_id", servicioId)
+      .maybeSingle();
+
+    const totalPvp = Number(servicio.pvp || 0) * Number(servicio.plazas || 1) * (Number(servicio.noches || 0) || 1);
+    const abonado = Number(abono?.total_abonado || 0);
+    const estaPagadoCompleto = totalPvp > 0 && abonado >= totalPvp;
+
+    const { data: linkRow } = await agencyDb
+      .from("operativa_expediente_servicio_lineas")
+      .select("cotizacion_linea_id")
+      .eq("servicio_id", servicioId)
+      .not("cotizacion_linea_id", "is", null)
+      .maybeSingle();
+
+    if (linkRow?.cotizacion_linea_id) {
+      const { updateCotizacionLinea } = await import("@/actions/cotizaciones");
+      await updateCotizacionLinea(linkRow.cotizacion_linea_id, { confirmado: estaPagadoCompleto });
+    }
+  } catch (error: any) {
+    console.error("Failed to sincronizar confirmado según pago:", error.message);
+  }
+}
+
 async function resolveEntidadIdParaProveedor(agencyDb: any, proveedorNombre: string | null | undefined) {
   if (proveedorNombre) {
     const { data: entByName } = await agencyDb
@@ -637,8 +701,10 @@ async function resolveEntidadIdParaProveedor(agencyDb: any, proveedorNombre: str
 }
 
 /** Registrar un pago directo (tarjeta/efectivo) contra uno o varios servicios del expediente.
- *  Crea un contabilidad_movimientos (tipo=pago, estado=confirmado, sin movimiento_banco_id)
- *  y vincula el importe a cada servicio vía operativa_servicio_pagos. */
+ *  Un pago (contabilidad_movimientos) es siempre de un único proveedor: si los servicios
+ *  seleccionados pertenecen a proveedores distintos, se crea un movimiento por cada proveedor,
+ *  agrupando dentro de él los servicios que lo comparten (mismo patrón que
+ *  vincularServiciosAMovimientoBanco: un movimiento + N filas en operativa_servicio_pagos). */
 export async function registrarPagoServicios(payload: {
   expediente_id: string;
   medio_pago: "efectivo" | "tarjeta";
@@ -650,15 +716,24 @@ export async function registrarPagoServicios(payload: {
     const agencyDb = await getAgencyDbClient();
     const { expediente_id, medio_pago, servicios, concepto, fecha } = payload;
 
-    if (!servicios || servicios.length === 0) {
+    const serviciosValidos = (servicios || []).filter((s) => s.importe && s.importe > 0);
+    if (serviciosValidos.length === 0) {
       throw new Error("Debes seleccionar al menos un servicio para registrar el pago.");
+    }
+
+    const gruposPorProveedor = new Map<string, typeof serviciosValidos>();
+    for (const ser of serviciosValidos) {
+      const key = ser.proveedor || "__sin_proveedor__";
+      const grupo = gruposPorProveedor.get(key) || [];
+      grupo.push(ser);
+      gruposPorProveedor.set(key, grupo);
     }
 
     const results: { servicio_id: string; movimiento_id: string }[] = [];
 
-    for (const ser of servicios) {
-      if (!ser.importe || ser.importe <= 0) continue;
-      const entidadId = await resolveEntidadIdParaProveedor(agencyDb, ser.proveedor);
+    for (const grupo of gruposPorProveedor.values()) {
+      const importeGrupo = grupo.reduce((sum, s) => sum + s.importe, 0);
+      const entidadId = await resolveEntidadIdParaProveedor(agencyDb, grupo[0].proveedor);
 
       const { data: movimiento, error: movError } = await agencyDb
         .from("contabilidad_movimientos")
@@ -666,12 +741,12 @@ export async function registrarPagoServicios(payload: {
           entidad_id: entidadId,
           usuario_id: "550e8400-e29b-41d4-a716-446655440000",
           tipo: "pago",
-          importe_total: ser.importe,
+          importe_total: importeGrupo,
           moneda: "EUR",
           medio_pago,
           tipo_servicio: "Proveedor - Pago",
           fecha: fecha || new Date().toISOString().split("T")[0],
-          concepto: concepto || `Pago ${medio_pago === "efectivo" ? "en efectivo" : "con tarjeta"} - ${ser.proveedor || "Proveedor"}`,
+          concepto: concepto || `Pago ${medio_pago === "efectivo" ? "en efectivo" : "con tarjeta"} - ${grupo[0].proveedor || "Proveedor"}`,
           estado: "confirmado",
           expediente_id,
         }])
@@ -682,11 +757,14 @@ export async function registrarPagoServicios(payload: {
 
       const { error: bridgeError } = await agencyDb
         .from("operativa_servicio_pagos")
-        .insert([{ servicio_id: ser.id, movimiento_id: movimiento.id, importe: ser.importe }]);
+        .insert(grupo.map((ser) => ({ servicio_id: ser.id, movimiento_id: movimiento.id, importe: ser.importe })));
 
       if (bridgeError) throw bridgeError;
 
-      results.push({ servicio_id: ser.id, movimiento_id: movimiento.id });
+      for (const ser of grupo) {
+        results.push({ servicio_id: ser.id, movimiento_id: movimiento.id });
+        await sincronizarConfirmadoSegunPago(agencyDb, ser.id);
+      }
     }
 
     revalidatePath(`/expedientes/${expediente_id}`);
@@ -754,7 +832,15 @@ export async function vincularServiciosAMovimientoBanco(payload: {
       if (bridgeError) throw bridgeError;
 
       results.push({ servicio_id: ser.id, movimiento_id: movimiento.id });
+      await sincronizarConfirmadoSegunPago(agencyDb, ser.id);
     }
+
+    // Concilia el movimiento bancario: queda marcado como conciliado y vinculado al
+    // expediente a través del contabilidad_movimientos recién creado (expediente_id).
+    await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .update({ estado: "conciliado", conciliacion_tipo: "manual", conciliado_at: new Date().toISOString() })
+      .eq("id", movimiento_banco_id);
 
     revalidatePath(`/expedientes/${expediente_id}`);
     return { success: true, data: results };
@@ -809,9 +895,18 @@ export async function getServiciosOpcionalesByDomain(expedienteId: string, domai
 export async function updateExpedienteServicioNoches(id: string, noches: number | null, expedienteId: string) {
   try {
     const agencyDb = await getAgencyDbClient();
+
+    const { data: actual } = await agencyDb
+      .from("operativa_expedientes_servicios")
+      .select("pvp, plazas")
+      .eq("id", id)
+      .single();
+    const nochesFactor = Number(noches || 0) || 1;
+    const totalCalculado = Number(actual?.pvp || 0) * Number(actual?.plazas || 1) * nochesFactor;
+
     const { data: updated, error } = await agencyDb
       .from("operativa_expedientes_servicios")
-      .update({ noches })
+      .update({ noches, total: totalCalculado })
       .eq("id", id)
       .select("*, lineas:operativa_expediente_servicio_lineas(*)")
       .single();
@@ -829,6 +924,8 @@ export async function updateExpedienteServicioNoches(id: string, noches: number 
         total_pvp: Number(updated.pvp || 0) * plazasVal * nochesVal,
       });
     }
+
+    await sincronizarConfirmadoSegunPago(agencyDb, id);
 
     revalidatePath(`/expedientes/${expedienteId}`);
     return { success: true };
@@ -952,6 +1049,7 @@ export async function importOptionalServicesToExpediente(expedienteId: string, l
     // Keep proveedor/destino as raw ids (not resolved to display names) so the
     // service stays properly linked to contabilidad_proveedores/maestro_destinos.
     const servicesToInsert = lineas.map((line: any) => {
+      const nochesLine = Number(line.noches || 0) || 1;
       return {
         expediente_id: expedienteId,
         tipo: line.tipo,
@@ -962,7 +1060,7 @@ export async function importOptionalServicesToExpediente(expedienteId: string, l
         plazas: Number(line.plazas || 1),
         noches: line.noches ?? null,
         destino: line.destino || null,
-        total: Number(line.pvp || 0) * Number(line.plazas || 1),
+        total: Number(line.pvp || 0) * Number(line.plazas || 1) * nochesLine,
         opcional: true,
       };
     });
@@ -1041,6 +1139,16 @@ export async function updateExpedienteServicioImportes(
     if (payload.neto !== undefined) updateFields.neto = payload.neto;
     if (payload.pvp !== undefined) updateFields.pvp = payload.pvp;
 
+    if (payload.pvp !== undefined) {
+      const { data: actual } = await agencyDb
+        .from("operativa_expedientes_servicios")
+        .select("plazas, noches")
+        .eq("id", id)
+        .single();
+      const nochesFactor = Number(actual?.noches || 0) || 1;
+      updateFields.total = payload.pvp * Number(actual?.plazas || 1) * nochesFactor;
+    }
+
     const { data: updated, error: updErr } = await agencyDb
       .from("operativa_expedientes_servicios")
       .update(updateFields)
@@ -1068,6 +1176,10 @@ export async function updateExpedienteServicioImportes(
         .from("operativa_expediente_servicio_lineas")
         .update({ pvp: pvpVal, neto: netoVal })
         .eq("servicio_id", id);
+    }
+
+    if (payload.pvp !== undefined) {
+      await sincronizarConfirmadoSegunPago(agencyDb, id);
     }
 
     revalidatePath(`/expedientes/${expedienteId}`);
@@ -1128,6 +1240,7 @@ export async function importNonOptionalServicesToExpediente(expedienteId: string
     // Keep proveedor/destino as raw ids (not resolved to display names) so the
     // service stays properly linked to contabilidad_proveedores/maestro_destinos.
     const servicesToInsert = lineas.map((line: any) => {
+      const nochesLine = Number(line.noches || 0) || 1;
       return {
         expediente_id: expedienteId,
         tipo: line.tipo,
@@ -1138,7 +1251,7 @@ export async function importNonOptionalServicesToExpediente(expedienteId: string
         plazas: Number(line.plazas || 1),
         noches: line.noches ?? null,
         destino: line.destino || null,
-        total: Number(line.pvp || 0) * Number(line.plazas || 1),
+        total: Number(line.pvp || 0) * Number(line.plazas || 1) * nochesLine,
         opcional: false,
       };
     });

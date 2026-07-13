@@ -13,7 +13,7 @@ interface RegistrarPagoModalProps {
   onSuccess: () => void;
 }
 
-type Step = "seleccion" | "metodo" | "buscador";
+type Step = "seleccion" | "metodo" | "buscador" | "confirmarBanco";
 
 function totalNeto(ser: any) {
   const noches = Number(ser.noches || 0) || 1;
@@ -34,6 +34,7 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
   const [movimientos, setMovimientos] = useState<any[]>([]);
   const [loadingMovs, setLoadingMovs] = useState(false);
   const [searchSeleccion, setSearchSeleccion] = useState("");
+  const [movimientoElegido, setMovimientoElegido] = useState<any | null>(null);
 
   const seleccionables = useMemo(
     () => servicios
@@ -58,6 +59,7 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
       setSearch("");
       setSearchSeleccion("");
       setMovimientos([]);
+      setMovimientoElegido(null);
     }
   }, [isOpen]);
 
@@ -120,14 +122,34 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
     }
   };
 
-  const handleConfirmarBanco = async (movimientoBancoId: string) => {
+  const handleConfirmarBanco = async () => {
+    if (!movimientoElegido) return;
+    const movimientoBancoId = movimientoElegido.id;
+    const importeMovimiento = Number(movimientoElegido.importe);
     setSaving(true);
     setError(null);
     try {
+      // El importe real del movimiento bancario puede ser menor que la suma seleccionada
+      // (pago parcial de una factura conjunta): se aplica el mismo % de avance al TOTAL de
+      // cada servicio (no a su pendiente), para que ningún servicio quede "sobrepagado" solo
+      // por tener un total pequeño — todos avanzan proporcionalmente al mismo ritmo.
+      const seleccionados = serviciosSeleccionados();
+      const importeBanco = Math.abs(importeMovimiento);
+      const totalConjunto = seleccionados.reduce((sum, s) => {
+        const ser = servicios.find((x) => x.id === s.id);
+        return sum + (ser ? totalNeto(ser) : 0);
+      }, 0);
+      const ratio = totalConjunto > 0 ? Math.min(1, importeBanco / totalConjunto) : 0;
+      const serviciosAjustados = seleccionados.map((s) => {
+        const ser = servicios.find((x) => x.id === s.id);
+        const total = ser ? totalNeto(ser) : 0;
+        return { ...s, importe: Math.round(total * ratio * 100) / 100 };
+      });
+
       const res = await vincularServiciosAMovimientoBanco({
         expediente_id: servicios[0]?.expediente_id,
         movimiento_banco_id: movimientoBancoId,
-        servicios: serviciosSeleccionados(),
+        servicios: serviciosAjustados,
       });
       if (!res.success) throw new Error(res.error);
       onSuccess();
@@ -157,7 +179,10 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
 
         {step !== "seleccion" && (
           <button
-            onClick={() => setStep(step === "buscador" ? "metodo" : "seleccion")}
+            onClick={() => {
+              if (step === "confirmarBanco") { setMovimientoElegido(null); setStep("buscador"); }
+              else setStep(step === "buscador" ? "metodo" : "seleccion");
+            }}
             style={{ display: "flex", alignItems: "center", gap: "0.25rem", background: "none", border: "none", color: "#64748b", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer", padding: 0, marginBottom: "0.75rem" }}
           >
             <ArrowLeft size={14} /> Volver
@@ -299,7 +324,7 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
                   <button
                     key={m.id}
                     disabled={saving}
-                    onClick={() => handleConfirmarBanco(m.id)}
+                    onClick={() => { setMovimientoElegido(m); setStep("confirmarBanco"); }}
                     style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.6rem 0.75rem", border: "1px solid #e2e8f0", borderRadius: "0.5rem", background: "#fff", cursor: "pointer", textAlign: "left" }}
                   >
                     <div style={{ minWidth: 0 }}>
@@ -313,6 +338,57 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
                 ))}
               </div>
             )}
+          </>
+        )}
+
+        {step === "confirmarBanco" && movimientoElegido && (
+          <>
+            <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f172a", margin: "0 0 0.25rem 0" }}>Confirmar pago</h3>
+            <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "0 0 1rem 0" }}>
+              Revisa los datos antes de confirmar. Esta acción registrará el pago y no se puede deshacer desde aquí.
+            </p>
+
+            {error && <p style={{ fontSize: "0.78rem", color: "#dc2626", marginBottom: "0.75rem" }}>{error}</p>}
+
+            <div style={{ border: "1px solid #e2e8f0", borderRadius: "0.5rem", padding: "0.9rem 1rem", backgroundColor: "#f8fafc", display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem" }}>
+                <span style={{ color: "#64748b" }}>Movimiento</span>
+                <span style={{ fontWeight: 600, color: "#0f172a", textAlign: "right", maxWidth: "70%" }}>{movimientoElegido.concepto_original || "Movimiento bancario"}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem" }}>
+                <span style={{ color: "#64748b" }}>Fecha</span>
+                <span style={{ fontWeight: 600, color: "#0f172a" }}>{movimientoElegido.fecha_operacion}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem" }}>
+                <span style={{ color: "#64748b" }}>Importe del movimiento</span>
+                <span style={{ fontWeight: 700, color: Number(movimientoElegido.importe) < 0 ? "#dc2626" : "#16a34a" }}>
+                  {Number(movimientoElegido.importe).toLocaleString("es-ES", { minimumFractionDigits: 2 })} €
+                </span>
+              </div>
+              <div style={{ height: "1px", backgroundColor: "#e2e8f0", margin: "0.25rem 0" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem" }}>
+                <span style={{ color: "#64748b" }}>Servicios a abonar</span>
+                <span style={{ fontWeight: 600, color: "#0f172a" }}>{serviciosSeleccionados().length}</span>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.6rem" }}>
+              <button
+                onClick={() => { setMovimientoElegido(null); setStep("buscador"); }}
+                disabled={saving}
+                style={{ padding: "0.55rem 1.1rem", borderRadius: "0.375rem", border: "1px solid #cbd5e1", background: "#fff", color: "#475569", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer" }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmarBanco}
+                disabled={saving}
+                style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.55rem 1.1rem", borderRadius: "0.375rem", border: "none", background: "var(--primary-color, #475569)", color: "#fff", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer" }}
+              >
+                {saving && <Loader2 size={14} className="animate-spin" />}
+                Aceptar
+              </button>
+            </div>
           </>
         )}
       </div>

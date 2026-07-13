@@ -14,6 +14,7 @@ import RegistrarPagoModal from "@/components/modals/RegistrarPagoModal";
 const NuevaComunicacionModal = dynamic(() => import("@/app/expedientes/[id]/components/NuevaComunicacionModal"), { ssr: false });
 
 import TablaServiciosNoOpcionales from "@/app/components/servicios/TablaServiciosNoOpcionales";
+import PagosRealizadosList from "@/app/components/servicios/PagosRealizadosList";
 import ImportarServiciosCotizacionModal from "@/components/modals/ImportarServiciosCotizacionModal";
 
 interface ServiciosTabProps {
@@ -60,6 +61,8 @@ export default function ServiciosTab({ expedienteId, onOpenMatchModal }: Servici
         onRegistrarPago={s.openRegistrarPago}
         onEnviarValoracion={() => setValoracionOpen(true)}
       />
+
+      <PagosRealizadosList serviciosList={s.servicios} />
 
       <ImportarServiciosCotizacionModal
         isOpen={isImportarCotizacionOpen}

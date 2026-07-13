@@ -1,11 +1,12 @@
+// Calcula siempre el total en vivo desde pvp*plazas*noches, sin depender de la columna
+// "total" persistida en operativa_expedientes_servicios: esa columna se ha guardado con
+// criterios distintos en distintos flujos a lo largo del tiempo (a veces sin noches, a veces
+// con un valor manual desconectado de pvp/plazas) y no es una fuente fiable para KPIs/gráficas.
 export function getServiceTotal(service: any): number {
-  const totalValue = Number(service.total);
-  if (!Number.isNaN(totalValue) && totalValue > 0) {
-    return totalValue;
-  }
   const pvpValue = Number(service.pvp || 0);
   const plazasValue = Number(service.plazas || 1);
-  return pvpValue * (plazasValue > 0 ? plazasValue : 1);
+  const nochesValue = Number(service.noches || 0) || 1;
+  return pvpValue * (plazasValue > 0 ? plazasValue : 1) * nochesValue;
 }
 
 export function calculateMargin(pvp: number, neto: number): { margin: number; marginPercent: number } {
@@ -33,8 +34,9 @@ function countPagoEstados(servicios: any[]): { pagado: number; parcial: number }
   let parcial = 0;
   for (const s of servicios) {
     const abonado = Number(s.abonado ?? 0);
-    const pvp = Number(s.pvp || 0);
-    if (pvp > 0 && abonado >= pvp) pagado++;
+    const noches = Number(s.noches || 0) || 1;
+    const totalPvp = Number(s.pvp || 0) * Number(s.plazas || 1) * noches;
+    if (totalPvp > 0 && abonado >= totalPvp) pagado++;
     else if (abonado > 0) parcial++;
   }
   return { pagado, parcial };
