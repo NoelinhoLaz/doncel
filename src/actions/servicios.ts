@@ -708,7 +708,7 @@ async function resolveEntidadIdParaProveedor(agencyDb: any, proveedorNombre: str
 export async function registrarPagoServicios(payload: {
   expediente_id: string;
   medio_pago: "efectivo" | "tarjeta";
-  servicios: Array<{ id: string; importe: number; proveedor?: string | null }>;
+  servicios: Array<{ id: string; importe: number; proveedor?: string | null; proveedor_id?: string | null }>;
   concepto?: string;
   fecha?: string;
 }) {
@@ -721,9 +721,12 @@ export async function registrarPagoServicios(payload: {
       throw new Error("Debes seleccionar al menos un servicio para registrar el pago.");
     }
 
+    // Se agrupa por proveedor_id (identificador real, sin ambigüedad) cuando existe; si no,
+    // por el texto de proveedor tal cual — usar solo el nombre resuelto puede agrupar mal
+    // servicios del mismo proveedor si difieren en formato/espacios/mayúsculas.
     const gruposPorProveedor = new Map<string, typeof serviciosValidos>();
     for (const ser of serviciosValidos) {
-      const key = ser.proveedor || "__sin_proveedor__";
+      const key = ser.proveedor_id || ser.proveedor || "__sin_proveedor__";
       const grupo = gruposPorProveedor.get(key) || [];
       grupo.push(ser);
       gruposPorProveedor.set(key, grupo);

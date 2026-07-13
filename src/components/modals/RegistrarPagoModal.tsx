@@ -100,7 +100,10 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
       .filter(([, importe]) => importe > 0)
       .map(([id, importe]) => {
         const ser = servicios.find((s) => s.id === id);
-        return { id, importe, proveedor: ser?.proveedor };
+        // proveedor_id identifica al proveedor de forma inequívoca (evita agrupar mal por
+        // pequeñas diferencias de texto en el nombre resuelto cuando hay varios servicios
+        // del mismo proveedor real).
+        return { id, importe, proveedor: ser?.proveedor, proveedor_id: ser?.proveedor_id };
       });
 
   const handleConfirmarDirecto = async (medio: "tarjeta" | "efectivo") => {
