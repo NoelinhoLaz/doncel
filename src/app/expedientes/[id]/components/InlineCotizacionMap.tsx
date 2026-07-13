@@ -2,7 +2,10 @@
 
 import { useMemo } from "react";
 import { MapContainer, Marker, TileLayer, Popup, useMap } from "react-leaflet";
+import { renderToStaticMarkup } from "react-dom/server";
+import { MapPin as MapPinIcon } from "lucide-react";
 import L from "leaflet";
+import { resolveLucideIconComponent } from "@/lib/lucideIconResolver";
 
 type MapItem = {
   id: string;
@@ -15,19 +18,13 @@ type MapItem = {
   destinoNombre?: string;
 };
 
-const ICONS: Record<string, string> = {
-  bed: '<path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/><path d="M6 8h6a2 2 0 0 1 2 2v7H6"/>',
-  plane: '<path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 2 3 2 2 3 2-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>',
-  compass: '<circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/>',
-  "map-pin": '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
-  mappin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
-};
-
 function getMarkerIcon(iconName?: string) {
-  const ic = (iconName || "").toLowerCase();
-  const paths = ICONS[ic] || ICONS.bed;
+  const IconComponent = resolveLucideIconComponent(iconName) || MapPinIcon;
+  const svg = renderToStaticMarkup(
+    <IconComponent size={16} color="#ffffff" strokeWidth={2} />
+  );
   const html = `<div style="width:32px;height:32px;background:#475569;border:2px solid rgba(255,255,255,0.85);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>
+    ${svg}
   </div>`;
   return L.divIcon({ html, className: "", iconSize: [32, 32], iconAnchor: [16, 16] });
 }

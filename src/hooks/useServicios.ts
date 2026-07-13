@@ -8,6 +8,7 @@ import { updateCotizacionLinea } from "@/actions/cotizaciones";
 import { getTiposServicios } from "@/actions/tiposServicios";
 import { createDestinoFromPlace } from "@/actions/destinos";
 import { getMatchesPendientesPorExpediente } from "@/actions/banco";
+import { getDocumentosPorMovimiento } from "@/actions/documentosPago";
 import { calculateKpis, calculateCategoryCosts, serviceHasMatch } from "@/lib/utils/servicios";
 
 const DEFAULT_TYPES = [
@@ -44,6 +45,9 @@ export function useServicios(expedienteId: string) {
   const [editServiceId, setEditServiceId] = useState<string | null>(null);
   const [editServiceData, setEditServiceData] = useState<any | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<any | null>(null);
+  const [movimientoAConciliar, setMovimientoAConciliar] = useState<string | null>(null);
+  const [isRegistrarDocumentoOpen, setIsRegistrarDocumentoOpen] = useState(false);
+  const [documentosPorMovimiento, setDocumentosPorMovimiento] = useState<Record<string, any[]>>({});
 
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -78,8 +82,14 @@ export function useServicios(expedienteId: string) {
     catch { /* silent */ }
   };
 
+  const loadDocumentos = async () => {
+    try { setDocumentosPorMovimiento((await getDocumentosPorMovimiento(expedienteId)) || {}); }
+    catch { /* silent */ }
+  };
+
   useEffect(() => { loadServicios(); }, [expedienteId]);
   useEffect(() => { loadMatches(); }, [expedienteId]);
+  useEffect(() => { loadDocumentos(); }, [expedienteId]);
 
   useEffect(() => {
     if (!showAddMenu) return;
@@ -322,5 +332,13 @@ export function useServicios(expedienteId: string) {
     closeMatchBancario: () => { setIsMatchBancarioOpen(false); setSelectedMatch(null); },
     openRegistrarPago: () => setIsRegistrarPagoOpen(true),
     closeRegistrarPago: () => setIsRegistrarPagoOpen(false),
+    movimientoAConciliar,
+    openConciliarPago: (movimientoId: string) => setMovimientoAConciliar(movimientoId),
+    closeConciliarPago: () => setMovimientoAConciliar(null),
+    documentosPorMovimiento,
+    loadDocumentos,
+    isRegistrarDocumentoOpen,
+    openRegistrarDocumento: () => setIsRegistrarDocumentoOpen(true),
+    closeRegistrarDocumento: () => setIsRegistrarDocumentoOpen(false),
   };
 }

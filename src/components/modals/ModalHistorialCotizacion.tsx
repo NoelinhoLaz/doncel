@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
-import { MapPin } from "lucide-react";
+import { MapPin, Users, Moon } from "lucide-react";
 import { Icons } from "@/lib/icons";
 import TipoIcon from "@/app/components/cotizacion/TipoIcon";
 import { formatCurrency } from "@/hooks/useCotizacion";
@@ -46,15 +46,21 @@ export default function ModalHistorialCotizacion({ isOpen, onClose, items, tipos
   const ratings = useRatings(isOpen ? items : []);
   const [pendingItem, setPendingItem] = useState<any | null>(null);
   const [historySearch, setHistorySearch] = useState("");
-  const [historyTipoFilter, setHistoryTipoFilter] = useState<string[]>([]);
+  const [historyTipoFilter, setHistoryTipoFilter] = useState<string[] | null>(null);
   const [historyDestFilter, setHistoryDestFilter] = useState<string | null>(null);
+  const [historyEstadoFilter, setHistoryEstadoFilter] = useState<"" | "confirmado" | "pendiente">("");
   const [histFilterOpen, setHistFilterOpen] = useState(false);
+  const [histEstadoFilterOpen, setHistEstadoFilterOpen] = useState(false);
+  const histEstadoFilterRef = useRef<HTMLDivElement>(null);
   const [historyPage, setHistoryPage] = useState(1);
+  const [showMap, setShowMap] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pendingBulk, setPendingBulk] = useState(false);
   const histFilterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
-    setHistorySearch(""); setHistoryTipoFilter([]); setHistoryDestFilter(null); setHistoryPage(1);
+    setHistorySearch(""); setHistoryTipoFilter(null); setHistoryDestFilter(null); setHistoryEstadoFilter(""); setHistoryPage(1); setShowMap(false); setSelectedIds(new Set());
   }, [isOpen]);
 
   useEffect(() => {
@@ -66,13 +72,24 @@ export default function ModalHistorialCotizacion({ isOpen, onClose, items, tipos
     return () => document.removeEventListener("mousedown", handler);
   }, [histFilterOpen]);
 
+  useEffect(() => {
+    if (!histEstadoFilterOpen) return;
+    function handler(e: MouseEvent) {
+      if (histEstadoFilterRef.current && !histEstadoFilterRef.current.contains(e.target as Node)) setHistEstadoFilterOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [histEstadoFilterOpen]);
+
   const historyFilteredItems = useMemo(() => items.filter((it: any) => {
     if (historySearch) {
       const q = historySearch.toLowerCase();
       if (!(it.descripcion || "").toLowerCase().includes(q) && !(it.config_tipos_servicios?.etiqueta || "").toLowerCase().includes(q)) return false;
     }
-    if (historyTipoFilter.length > 0 && !historyTipoFilter.includes(it.tipo)) return false;
+    if (historyTipoFilter !== null && !historyTipoFilter.includes(it.tipo)) return false;
     if (historyDestFilter && it.maestro_destinos?.id !== historyDestFilter) return false;
+    if (historyEstadoFilter === "confirmado" && !it.confirmado) return false;
+    if (historyEstadoFilter === "pendiente" && !!it.confirmado) return false;
     return true;
   }), [items, historySearch, historyTipoFilter, historyDestFilter]);
 
@@ -87,8 +104,8 @@ export default function ModalHistorialCotizacion({ isOpen, onClose, items, tipos
   [historyFilteredItems]);
 
   const tiposUnicos = Array.from(new Map(items.map((it: any) => [it.tipo, it.config_tipos_servicios])).entries()).filter(([, cs]: any) => cs);
-  const isAll = historyTipoFilter.length === 0;
-  const pageSize = 5;
+  const isAll = historyTipoFilter === null;
+  const pageSize = 12;
   const totalPages = Math.max(1, Math.ceil(historyFilteredItems.length / pageSize));
   const safePage = Math.min(historyPage, totalPages);
   const paginated = historyFilteredItems.slice((safePage - 1) * pageSize, safePage * pageSize);
@@ -104,25 +121,48 @@ export default function ModalHistorialCotizacion({ isOpen, onClose, items, tipos
       onClick={onClose}
     >
       <div
-        style={{ width: 'min(900px, 95vw)', maxHeight: '90vh', background: '#ffffff', borderRadius: 12, boxShadow: '0 24px 48px rgba(2,6,23,0.25)', display: 'grid', gridTemplateRows: '320px minmax(0, 1fr)', gap: '0.5rem', overflow: 'hidden' }}
+        style={{ width: 'min(900px, 95vw)', maxHeight: '90vh', background: '#ffffff', borderRadius: 12, boxShadow: '0 24px 48px rgba(2,6,23,0.25)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Map section */}
-        <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+        {/* Header */}
+        <div style={{ padding: '1rem 1rem 0.6rem', borderBottom: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ margin: 0, fontSize: '1rem', color: '#0f172a' }}>Rastreador de servicios históricos</h3>
             <button onClick={onClose} style={{ border: 'none', background: 'transparent', color: '#64748b', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: '0.2rem 0.4rem' }} aria-label="Cerrar">×</button>
           </div>
-          <CotizacionLineasMap points={historyPoints} onDestinationClick={(id) => setHistoryDestFilter(id)} />
+          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a', marginTop: '0.4rem' }}>
+            Todas las líneas de cotización ({items.length})
+          </div>
         </div>
 
         {/* Table section */}
         <div style={{ padding: '1rem', overflow: 'auto' }}>
           {/* Filters row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
-            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>
-              Todas las líneas de cotización ({items.length})
-            </div>
+            <button
+              onClick={() => setShowMap((v) => !v)}
+              title={showMap ? 'Mostrar en listado' : 'Mostrar en mapa'}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 30, height: 30, border: '1px solid #cbd5e1', borderRadius: 6,
+                background: showMap ? '#475569' : '#fff', color: showMap ? '#fff' : '#475569',
+                cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              <MapPin size={15} />
+            </button>
+            {selectedIds.size > 0 && (
+              <button
+                onClick={() => setPendingBulk(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '0.35rem 0.7rem',
+                  border: 'none', borderRadius: 6, background: '#475569', color: '#fff',
+                  cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, flexShrink: 0,
+                }}
+              >
+                Añadir {selectedIds.size} seleccionado{selectedIds.size !== 1 ? 's' : ''}
+              </button>
+            )}
             <div style={{ position: 'relative', flex: '1 1 200px', maxWidth: 280 }}>
               <input
                 type="text"
@@ -139,37 +179,77 @@ export default function ModalHistorialCotizacion({ isOpen, onClose, items, tipos
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.35rem 0.5rem', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: '0.75rem', cursor: 'pointer', color: '#0f172a', background: '#ffffff', height: 30, boxSizing: 'border-box' }}
               >
                 <span style={{ color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {isAll ? 'Todos los tipos' : `${historyTipoFilter.length} seleccionados`}
+                  {isAll ? 'Todos los tipos' : `${(historyTipoFilter || []).length} seleccionados`}
                 </span>
                 <Icons.ChevronDown size={12} style={{ color: '#64748b', flexShrink: 0, transform: histFilterOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
               </div>
               {histFilterOpen && (
                 <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 99999, background: '#ffffff', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0', padding: '0.35rem', minWidth: 180 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0.3rem 0.4rem', borderRadius: 4, cursor: 'pointer', fontSize: '0.75rem', color: '#475569' }}>
-                      <input type="checkbox" checked={isAll} onChange={() => { setHistoryTipoFilter([]); setHistoryPage(1); }} style={{ accentColor: '#475569', margin: 0 }} />
+                    <label
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0.3rem 0.4rem', borderRadius: 4, cursor: 'pointer', fontSize: '0.75rem', color: '#475569' }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setHistoryTipoFilter(isAll ? [] : null);
+                        setHistoryPage(1);
+                      }}
+                    >
+                      <input type="checkbox" checked={isAll} readOnly style={{ accentColor: '#475569', margin: 0 }} />
                       Todos
                     </label>
                     {tiposUnicos.map(([id, cs]: any) => (
                       <label key={id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0.3rem 0.4rem', borderRadius: 4, cursor: 'pointer', fontSize: '0.75rem', color: '#0f172a' }}>
                         <input
                           type="checkbox"
-                          checked={isAll || historyTipoFilter.includes(id)}
+                          checked={isAll || (historyTipoFilter || []).includes(id)}
                           onChange={() => {
                             setHistoryPage(1);
                             if (isAll) {
                               setHistoryTipoFilter(tiposUnicos.map(([tid]: any) => tid).filter((tid: string) => tid !== id));
-                            } else if (historyTipoFilter.includes(id)) {
-                              const next = historyTipoFilter.filter((v: string) => v !== id);
-                              setHistoryTipoFilter(next.length === tiposUnicos.length ? [] : next);
+                            } else if ((historyTipoFilter || []).includes(id)) {
+                              const next = (historyTipoFilter || []).filter((v: string) => v !== id);
+                              setHistoryTipoFilter(next.length === tiposUnicos.length ? null : next);
                             } else {
-                              const next = [...historyTipoFilter, id];
-                              setHistoryTipoFilter(next.length === tiposUnicos.length ? [] : next);
+                              const next = [...(historyTipoFilter || []), id];
+                              setHistoryTipoFilter(next.length === tiposUnicos.length ? null : next);
                             }
                           }}
                           style={{ accentColor: '#475569', margin: 0 }}
                         />
                         {cs.etiqueta}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div style={{ position: 'relative', minWidth: 140 }} ref={histEstadoFilterRef}>
+              <div
+                onClick={() => setHistEstadoFilterOpen(!histEstadoFilterOpen)}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.35rem 0.5rem', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: '0.75rem', cursor: 'pointer', color: '#0f172a', background: '#ffffff', height: 30, boxSizing: 'border-box' }}
+              >
+                <span style={{ color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {historyEstadoFilter === "" ? 'Todos los estados' : historyEstadoFilter === "confirmado" ? 'Confirmado' : 'Pendiente'}
+                </span>
+                <Icons.ChevronDown size={12} style={{ color: '#64748b', flexShrink: 0, transform: histEstadoFilterOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+              </div>
+              {histEstadoFilterOpen && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 99999, background: '#ffffff', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0', padding: '0.35rem', minWidth: 160 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {([
+                      { value: "" as const, label: "Todos" },
+                      { value: "confirmado" as const, label: "Confirmado" },
+                      { value: "pendiente" as const, label: "Pendiente" },
+                    ]).map((opt) => (
+                      <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0.3rem 0.4rem', borderRadius: 4, cursor: 'pointer', fontSize: '0.75rem', color: '#0f172a' }}>
+                        <input
+                          type="radio"
+                          name="historyEstadoFilter"
+                          checked={historyEstadoFilter === opt.value}
+                          onChange={() => { setHistoryEstadoFilter(opt.value); setHistoryPage(1); setHistEstadoFilterOpen(false); }}
+                          style={{ accentColor: '#475569', margin: 0 }}
+                        />
+                        {opt.label}
                       </label>
                     ))}
                   </div>
@@ -192,17 +272,57 @@ export default function ModalHistorialCotizacion({ isOpen, onClose, items, tipos
             );
           })()}
 
-          {/* Items table */}
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          {/* Items table / map */}
+          {showMap ? (
+            <CotizacionLineasMap points={historyPoints} onDestinationClick={(id) => setHistoryDestFilter(id)} height={600} />
+          ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <colgroup>
+              {onAddItem && <col style={{ width: 28 }} />}
+              <col style={{ width: 36 }} />
+              <col />
+              <col style={{ width: 90 }} />
+              <col style={{ width: 42 }} />
+              <col style={{ width: 42 }} />
+              <col style={{ width: 90 }} />
+              <col style={{ width: 100 }} />
+            </colgroup>
             <thead>
               <tr>
-                {['Tipo', 'Descripcion', 'Destino', 'Plazas', 'Noches', 'Neto', 'PVP', 'Opcional'].map((h, i) => (
-                  <th key={h} style={{ ...thStyle, textAlign: i >= 3 ? 'right' : i === 2 ? 'center' : 'left' }}>{h}</th>
+                {onAddItem && (
+                  <th style={{ ...thStyle, textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={paginated.length > 0 && paginated.every((it: any) => selectedIds.has(it.id))}
+                      onChange={(e) => {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev);
+                          paginated.forEach((it: any) => { e.target.checked ? next.add(it.id) : next.delete(it.id); });
+                          return next;
+                        });
+                      }}
+                      style={{ accentColor: '#475569', margin: 0 }}
+                    />
+                  </th>
+                )}
+                {[
+                  'Tipo', 'Descripcion', 'Destino',
+                  <Users key="plazas" size={13} style={{ display: 'inline-block', verticalAlign: 'middle' }} />,
+                  <Moon key="noches" size={13} style={{ display: 'inline-block', verticalAlign: 'middle' }} />,
+                  'Neto', 'Estado',
+                ].map((h, i) => (
+                  <th key={i} style={{ ...thStyle, textAlign: i >= 3 ? 'right' : i === 2 ? 'center' : 'left' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {paginated.map((it: any) => (
+              {paginated.length === 0 ? (
+                <tr>
+                  <td colSpan={onAddItem ? 8 : 7} style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8', padding: '1.5rem' }}>
+                    No hay servicios con el filtro seleccionado
+                  </td>
+                </tr>
+              ) : paginated.map((it: any) => (
                 <tr
                   key={`hist-${it.id}`}
                   onClick={() => onAddItem && setPendingItem(it)}
@@ -210,15 +330,39 @@ export default function ModalHistorialCotizacion({ isOpen, onClose, items, tipos
                   onMouseEnter={(e) => { if (onAddItem) e.currentTarget.style.background = '#f8fafc'; }}
                   onMouseLeave={(e) => { if (onAddItem) e.currentTarget.style.background = ''; }}
                 >
+                  {onAddItem && (
+                    <td style={{ ...tdStyle, textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(it.id)}
+                        onChange={(e) => {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            e.target.checked ? next.add(it.id) : next.delete(it.id);
+                            return next;
+                          });
+                        }}
+                        style={{ accentColor: '#475569', margin: 0 }}
+                      />
+                    </td>
+                  )}
                   <td style={{ ...tdStyle, textAlign: 'center' }}>
                     <div title={it.config_tipos_servicios?.etiqueta || it.tipo || '-'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <div style={{ width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', borderRadius: 4 }}>
+                      <div style={{ position: 'relative', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', borderRadius: 4 }}>
+                        {!!it.opcional && (
+                          <span
+                            title="Servicio opcional"
+                            style={{ position: 'absolute', top: -6, right: -6, backgroundColor: '#f97316', color: '#fff', fontSize: '0.4rem', fontWeight: 700, padding: '0.05rem 0.25rem', borderRadius: 999, whiteSpace: 'nowrap', lineHeight: 1.4, border: '1px solid #fff', zIndex: 1 }}
+                          >
+                            Op.
+                          </span>
+                        )}
                         <TipoIcon iconName={it.config_tipos_servicios?.icono || tiposMap[it.tipo]?.icono} size={12} />
                       </div>
                     </div>
                   </td>
-                  <td style={tdStyle}>
-                    <div>{it.descripcion || '-'}</div>
+                  <td style={{ ...tdStyle, maxWidth: 0 }}>
+                    <div title={it.descripcion || '-'} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.descripcion || '-'}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
                       {it.cotizacionTitulo && (
                         <span style={{ fontSize: '0.65rem', color: 'var(--primary-color, #4f46e5)', fontWeight: 600, background: 'color-mix(in srgb, var(--primary-color, #6366f1) 12%, transparent)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }} title="Cotización de procedencia">
@@ -248,15 +392,16 @@ export default function ModalHistorialCotizacion({ isOpen, onClose, items, tipos
                     <div>{formatCurrency(it.neto)}</div>
                     <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{formatCurrency(it.total_neto ?? (Number(it.neto || 0) * Number(it.plazas || 1) * Number(it.noches || 1)))}</div>
                   </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    <div>{formatCurrency(it.pvp)}</div>
-                    <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{formatCurrency(it.total_pvp ?? (Number(it.pvp || 0) * Number(it.plazas || 1) * Number(it.noches || 1)))}</div>
+                  <td style={{ ...tdStyle, textAlign: 'center' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0.15rem 0.45rem', borderRadius: 4, fontSize: '0.68rem', fontWeight: 700, whiteSpace: 'nowrap', backgroundColor: it.confirmado ? '#f0fdf4' : '#fffbeb', color: it.confirmado ? '#16a34a' : '#d97706' }}>
+                      {it.confirmado ? 'Confirmado' : 'Pendiente'}
+                    </span>
                   </td>
-                  <td style={{ ...tdStyle, textAlign: 'center', fontSize: '0.75rem' }}>{it.opcional ? 'Si' : 'No'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          )}
 
           {pendingItem && (
             <div
@@ -291,7 +436,46 @@ export default function ModalHistorialCotizacion({ isOpen, onClose, items, tipos
             </div>
           )}
 
-          {totalPages > 1 && (
+          {pendingBulk && (
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 100001, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={() => setPendingBulk(false)}
+            >
+              <div
+                style={{ background: '#fff', borderRadius: 10, padding: '1.5rem', maxWidth: 380, width: '90vw', boxShadow: '0 16px 48px rgba(2,6,23,0.2)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p style={{ margin: '0 0 0.5rem', fontWeight: 700, fontSize: '0.95rem', color: '#0f172a' }}>Añadir servicios</p>
+                <p style={{ margin: '0 0 1.25rem', fontSize: '0.82rem', color: '#64748b', lineHeight: 1.5 }}>
+                  {selectedIds.size} línea{selectedIds.size !== 1 ? 's' : ''} seleccionada{selectedIds.size !== 1 ? 's' : ''}.<br />
+                  ¿Cómo quieres añadirlas?
+                </p>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <button
+                    onClick={() => {
+                      items.filter((it: any) => selectedIds.has(it.id)).forEach((it: any) => onAddItem!(it, false));
+                      setSelectedIds(new Set()); setPendingBulk(false);
+                    }}
+                    style={{ flex: 1, padding: '0.6rem 0.75rem', background: '#475569', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}
+                  >
+                    Para todos los viajeros
+                  </button>
+                  <button
+                    onClick={() => {
+                      items.filter((it: any) => selectedIds.has(it.id)).forEach((it: any) => onAddItem!(it, true));
+                      setSelectedIds(new Set()); setPendingBulk(false);
+                    }}
+                    style={{ flex: 1, padding: '0.6rem 0.75rem', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: 8, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}
+                  >
+                    Opcional
+                  </button>
+                </div>
+                <button onClick={() => setPendingBulk(false)} style={{ marginTop: '0.75rem', width: '100%', padding: '0.45rem', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.78rem' }}>Cancelar</button>
+              </div>
+            </div>
+          )}
+
+          {!showMap && totalPages > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginTop: '0.75rem' }}>
               <button disabled={safePage <= 1} onClick={() => setHistoryPage(safePage - 1)} style={{ border: '1px solid #cbd5e1', background: safePage <= 1 ? '#f1f5f9' : '#fff', color: safePage <= 1 ? '#94a3b8' : '#0f172a', borderRadius: 6, padding: '0.3rem 0.7rem', cursor: safePage <= 1 ? 'default' : 'pointer', fontSize: '0.75rem' }}>Anterior</button>
               <span style={{ fontSize: '0.75rem', color: '#475569' }}>{safePage} / {totalPages}</span>

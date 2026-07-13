@@ -99,9 +99,9 @@ export async function getExpedienteServicios(expedienteId: string) {
 
     const { data: movimientos } = await agencyDb
       .from("contabilidad_movimientos")
-      .select("id, importe_total, concepto, created_at, movimiento_banco_id, medio_pago")
+      .select("id, importe_total, concepto, fecha, fecha_registro, created_at, movimiento_banco_id, medio_pago, sobrante, sobrante_aplicado, estado")
       .eq("tipo", "pago")
-      .eq("estado", "confirmado")
+      .in("estado", ["confirmado", "pendiente_conciliar"])
       .eq("expediente_id", expedienteId);
 
     const bancoIds = [...new Set((movimientos || []).map((m: any) => m.movimiento_banco_id).filter(Boolean))];
@@ -132,9 +132,14 @@ export async function getExpedienteServicios(expedienteId: string) {
         list.push({
           id: mov.id,
           importe: Number(r.importe),
-          fecha: mov.created_at,
+          fecha: mov.fecha || null,
+          fecha_registro: mov.fecha_registro || mov.created_at,
           concepto: mov.concepto,
           medio_pago: mov.medio_pago,
+          sobrante: Number(mov.sobrante || 0),
+          sobrante_aplicado: !!mov.sobrante_aplicado,
+          pendiente_conciliar: mov.estado === "pendiente_conciliar",
+          movimiento_id: mov.id,
         });
         directPagosPorServicio.set(r.servicio_id, list);
       }
@@ -169,6 +174,7 @@ export async function getExpedienteServicios(expedienteId: string) {
             id: banco.id,
             importe: Math.abs(Number(banco.importe || 0)),
             fecha: banco.fecha_operacion,
+            fecha_registro: m.fecha_registro || banco.fecha_operacion,
             concepto: banco.concepto_original || m.concepto,
             medio_pago: m.medio_pago,
           });
@@ -184,6 +190,7 @@ export async function getExpedienteServicios(expedienteId: string) {
 
       const proveedorId = s.proveedor && UUID_REGEX.test(s.proveedor) ? s.proveedor : null;
       const lineaId = lineaIdsPorServicio.get(s.id);
+      const tienePagoPendienteConciliar = movsVinculados.some((p: any) => p.pendiente_conciliar);
 
       return {
         ...s,
@@ -192,6 +199,7 @@ export async function getExpedienteServicios(expedienteId: string) {
         proveedor_email: proveedorEmail,
         abonado: abonoMap.get(s.id) || 0,
         pagos: movsVinculados,
+        pendiente_conciliar: tienePagoPendienteConciliar,
         viajeros_count: countsMap.get(s.id) || 0,
         detalles: lineaId ? detallesPorLinea.get(lineaId) ?? {} : undefined,
         config_tipos_servicios: lineaId ? tipoConfigPorLinea.get(lineaId) ?? null : undefined,
@@ -683,23 +691,6 @@ async function sincronizarConfirmadoSegunPago(agencyDb: any, servicioId: string)
   }
 }
 
-async function resolveEntidadIdParaProveedor(agencyDb: any, proveedorNombre: string | null | undefined) {
-  if (proveedorNombre) {
-    const { data: entByName } = await agencyDb
-      .from("contabilidad_entidades")
-      .select("id")
-      .ilike("nombre", `%${proveedorNombre}%`)
-      .limit(1);
-    if (entByName && entByName.length > 0) return entByName[0].id;
-  }
-  const { data: fallbackEnts } = await agencyDb
-    .from("contabilidad_entidades")
-    .select("id")
-    .limit(1);
-  if (fallbackEnts && fallbackEnts.length > 0) return fallbackEnts[0].id;
-  throw new Error("No hay ninguna entidad registrada en contabilidad_entidades. Debe crear al menos una entidad para continuar.");
-}
-
 /** Registrar un pago directo (tarjeta/efectivo) contra uno o varios servicios del expediente.
  *  Un pago (contabilidad_movimientos) es siempre de un único proveedor: si los servicios
  *  seleccionados pertenecen a proveedores distintos, se crea un movimiento por cada proveedor,
@@ -736,12 +727,12 @@ export async function registrarPagoServicios(payload: {
 
     for (const grupo of gruposPorProveedor.values()) {
       const importeGrupo = grupo.reduce((sum, s) => sum + s.importe, 0);
-      const entidadId = await resolveEntidadIdParaProveedor(agencyDb, grupo[0].proveedor);
 
       const { data: movimiento, error: movError } = await agencyDb
         .from("contabilidad_movimientos")
         .insert([{
-          entidad_id: entidadId,
+          entidad_id: null,
+          proveedor_id: grupo[0].proveedor_id || null,
           usuario_id: "550e8400-e29b-41d4-a716-446655440000",
           tipo: "pago",
           importe_total: importeGrupo,
@@ -778,16 +769,150 @@ export async function registrarPagoServicios(payload: {
   }
 }
 
+/** Registra un pago "pendiente de conciliar": el movimiento bancario real todavía no está
+ *  descargado en el sistema, pero el pago ya se ha hecho. Se crea el contabilidad_movimientos
+ *  con estado='pendiente_conciliar' (fecha=NULL, fecha_registro=hoy) y NO se vincula a ningún
+ *  servicio todavía en operativa_servicio_pagos ni cuenta como abonado — v_abonados_servicios
+ *  filtra por estado='confirmado', así que el servicio sigue en Pendiente/Parcial hasta que se
+ *  concilie con conciliarPagoPendiente. */
+export async function registrarPagoPendienteConciliar(payload: {
+  expediente_id: string;
+  medio_pago: "efectivo" | "tarjeta" | "banco";
+  servicios: Array<{ id: string; importe: number; proveedor?: string | null; proveedor_id?: string | null }>;
+  concepto?: string;
+}) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { expediente_id, medio_pago, servicios, concepto } = payload;
+
+    const serviciosValidos = (servicios || []).filter((s) => s.importe && s.importe > 0);
+    if (serviciosValidos.length === 0) {
+      throw new Error("Debes seleccionar al menos un servicio para registrar el pago.");
+    }
+
+    const gruposPorProveedor = new Map<string, typeof serviciosValidos>();
+    for (const ser of serviciosValidos) {
+      const key = ser.proveedor_id || ser.proveedor || "__sin_proveedor__";
+      const grupo = gruposPorProveedor.get(key) || [];
+      grupo.push(ser);
+      gruposPorProveedor.set(key, grupo);
+    }
+
+    const results: { servicio_id: string; movimiento_id: string }[] = [];
+
+    for (const grupo of gruposPorProveedor.values()) {
+      const importeGrupo = grupo.reduce((sum, s) => sum + s.importe, 0);
+
+      const { data: movimiento, error: movError } = await agencyDb
+        .from("contabilidad_movimientos")
+        .insert([{
+          entidad_id: null,
+          proveedor_id: grupo[0].proveedor_id || null,
+          usuario_id: "550e8400-e29b-41d4-a716-446655440000",
+          tipo: "pago",
+          importe_total: importeGrupo,
+          moneda: "EUR",
+          medio_pago,
+          tipo_servicio: "Proveedor - Pago",
+          fecha: null,
+          concepto: concepto || `Pago Servicio - ${grupo[0].proveedor || "Proveedor"}`,
+          estado: "pendiente_conciliar",
+          expediente_id,
+        }])
+        .select("id")
+        .single();
+
+      if (movError) throw movError;
+
+      const { error: bridgeError } = await agencyDb
+        .from("operativa_servicio_pagos")
+        .insert(grupo.map((ser) => ({ servicio_id: ser.id, movimiento_id: movimiento.id, importe: ser.importe })));
+
+      if (bridgeError) throw bridgeError;
+
+      for (const ser of grupo) {
+        results.push({ servicio_id: ser.id, movimiento_id: movimiento.id });
+      }
+    }
+
+    revalidatePath(`/expedientes/${expediente_id}`);
+    return { success: true, data: results };
+  } catch (error: any) {
+    console.error("Failed to registrar pago pendiente de conciliar:", error.message);
+    return { success: false, error: error.message || "Error al registrar el pago" };
+  }
+}
+
+/** Vincula un pago ya registrado como "pendiente de conciliar" a un movimiento bancario real
+ *  cuando este aparece descargado en el sistema: copia su fecha_operacion como fecha real del
+ *  pago, lo marca movimiento_banco_id y pasa estado a 'confirmado' — a partir de aquí sí cuenta
+ *  como abonado en v_abonados_servicios. También concilia el propio movimiento bancario. */
+export async function conciliarPagoPendiente(movimientoId: string, movimientoBancoId: string, expedienteId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+
+    const { data: movBanco, error: movBancoError } = await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .select("*")
+      .eq("id", movimientoBancoId)
+      .maybeSingle();
+    if (movBancoError || !movBanco) throw new Error("Movimiento bancario no encontrado");
+
+    const { data: movimiento, error: updError } = await agencyDb
+      .from("contabilidad_movimientos")
+      .update({
+        fecha: movBanco.fecha_operacion,
+        movimiento_banco_id: movimientoBancoId,
+        estado: "confirmado",
+      })
+      .eq("id", movimientoId)
+      .select("id, importe_total")
+      .single();
+    if (updError) throw updError;
+
+    // Ajusta el importe del movimiento al real del banco si difiere (mismo criterio de sobrante
+    // que vincularServiciosAMovimientoBanco: si el banco cubre de más, el resto queda como sobrante).
+    const importeBanco = Math.abs(Number(movBanco.importe || 0));
+    const importePago = Number(movimiento.importe_total || 0);
+    if (importeBanco > importePago + 0.01) {
+      await agencyDb
+        .from("contabilidad_movimientos")
+        .update({ sobrante: Math.round((importeBanco - importePago) * 100) / 100 })
+        .eq("id", movimientoId);
+    }
+
+    const { data: pagos } = await agencyDb
+      .from("operativa_servicio_pagos")
+      .select("servicio_id")
+      .eq("movimiento_id", movimientoId);
+    for (const p of (pagos || [])) {
+      await sincronizarConfirmadoSegunPago(agencyDb, p.servicio_id);
+    }
+
+    await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .update({ estado: "conciliado", conciliacion_tipo: "manual", conciliado_at: new Date().toISOString() })
+      .eq("id", movimientoBancoId);
+
+    revalidatePath(`/expedientes/${expedienteId}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to conciliar pago pendiente:", error.message);
+    return { success: false, error: error.message || "Error al conciliar el pago" };
+  }
+}
+
 /** Vincular uno o varios servicios a un movimiento bancario existente (conciliación directa),
  *  creando el contabilidad_movimientos correspondiente igual que conciliarPagoProveedor. */
 export async function vincularServiciosAMovimientoBanco(payload: {
   expediente_id: string;
   movimiento_banco_id: string;
-  servicios: Array<{ id: string; importe: number; proveedor?: string | null }>;
+  servicios: Array<{ id: string; importe: number; proveedor?: string | null; proveedor_id?: string | null }>;
+  sobrante?: number;
 }) {
   try {
     const agencyDb = await getAgencyDbClient();
-    const { expediente_id, movimiento_banco_id, servicios } = payload;
+    const { expediente_id, movimiento_banco_id, servicios, sobrante } = payload;
 
     if (!servicios || servicios.length === 0) {
       throw new Error("Debes seleccionar al menos un servicio para registrar el pago.");
@@ -802,18 +927,23 @@ export async function vincularServiciosAMovimientoBanco(payload: {
     if (movBancoError || !movBanco) throw new Error("Movimiento bancario no encontrado");
 
     const results: { servicio_id: string; movimiento_id: string }[] = [];
+    let sobranteAsignado = false;
 
     for (const ser of servicios) {
       if (!ser.importe || ser.importe <= 0) continue;
-      const entidadId = await resolveEntidadIdParaProveedor(agencyDb, ser.proveedor);
+      // El sobrante (dinero del pago que no hacía falta para cubrir ningún servicio, ya
+      // completos) se guarda en el primer movimiento creado del grupo, para no perderlo.
+      const sobranteParaEsteMovimiento = !sobranteAsignado && sobrante && sobrante > 0 ? sobrante : 0;
+      if (sobranteParaEsteMovimiento > 0) sobranteAsignado = true;
 
       const { data: movimiento, error: movError } = await agencyDb
         .from("contabilidad_movimientos")
         .insert([{
-          entidad_id: entidadId,
+          entidad_id: null,
+          proveedor_id: ser.proveedor_id || null,
           usuario_id: "550e8400-e29b-41d4-a716-446655440000",
           tipo: "pago",
-          importe_total: ser.importe,
+          importe_total: ser.importe + sobranteParaEsteMovimiento,
           moneda: movBanco.moneda || "EUR",
           medio_pago: "banco",
           tipo_servicio: "Proveedor - Pago",
@@ -822,6 +952,7 @@ export async function vincularServiciosAMovimientoBanco(payload: {
           estado: "confirmado",
           movimiento_banco_id,
           expediente_id,
+          sobrante: sobranteParaEsteMovimiento,
         }])
         .select("id")
         .single();
@@ -850,6 +981,128 @@ export async function vincularServiciosAMovimientoBanco(payload: {
   } catch (error: any) {
     console.error("Failed to vincular servicios a movimiento banco:", error.message);
     return { success: false, error: error.message || "Error al registrar el pago" };
+  }
+}
+
+/** Sobrantes de pagos anteriores en este expediente que aún no se han aplicado a otro pago,
+ *  agrupados por entidad_id (contabilidad_entidades.id) — el mismo identificador que usa
+ *  resolveEntidadIdParaProveedor para crear los movimientos. No se puede agrupar por el nombre
+ *  de "proveedor" del servicio (contabilidad_proveedores) porque es un catálogo distinto al de
+ *  entidades y los nombres no siempre coinciden textualmente. */
+export async function getSobrantesPorProveedor(expedienteId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { data, error } = await agencyDb
+      .from("contabilidad_movimientos")
+      .select("id, sobrante, proveedor_id")
+      .eq("expediente_id", expedienteId)
+      .eq("sobrante_aplicado", false)
+      .gt("sobrante", 0);
+
+    if (error) throw error;
+
+    const map = new Map<string, { total: number; movimientos: { id: string; sobrante: number }[] }>();
+    for (const m of (data || [])) {
+      if (!m.proveedor_id) continue;
+      const entry = map.get(m.proveedor_id) || { total: 0, movimientos: [] };
+      entry.total += Number(m.sobrante || 0);
+      entry.movimientos.push({ id: m.id, sobrante: Number(m.sobrante || 0) });
+      map.set(m.proveedor_id, entry);
+    }
+    return Object.fromEntries(map);
+  } catch (error: any) {
+    console.error("Failed to get sobrantes por proveedor:", error.message);
+    return {};
+  }
+}
+
+/** Aplica el sobrante disponible de un proveedor directamente contra uno o varios servicios
+ *  (sin crear un contabilidad_movimientos nuevo ni pasar por banco/tarjeta/efectivo): consume
+ *  los movimientos con sobrante existentes, uno a uno, hasta cubrir los importes pedidos, y
+ *  vincula cada trozo consumido al servicio correspondiente vía operativa_servicio_pagos —
+ *  así el pago queda trazado a los movimientos reales que originaron el crédito. */
+export async function aplicarSobranteAServicios(payload: {
+  expediente_id: string;
+  servicios: Array<{ id: string; importe: number }>;
+  movimientos: { id: string; sobrante: number }[];
+}) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { expediente_id, servicios, movimientos } = payload;
+
+    const serviciosValidos = (servicios || []).filter((s) => s.importe && s.importe > 0);
+    if (serviciosValidos.length === 0) {
+      throw new Error("Debes seleccionar al menos un servicio para aplicar el saldo a favor.");
+    }
+
+    const disponible = movimientos.reduce((sum, m) => sum + m.sobrante, 0);
+    const necesario = serviciosValidos.reduce((sum, s) => sum + s.importe, 0);
+    if (necesario > disponible + 0.01) {
+      throw new Error("El saldo a favor disponible no cubre el importe solicitado.");
+    }
+
+    // Cola de movimientos con sobrante disponible, se van consumiendo en orden hasta cubrir
+    // cada servicio (un servicio puede llegar a repartirse entre varios movimientos de origen).
+    const cola = movimientos.map((m) => ({ ...m }));
+    const movimientosAgotados = new Set<string>();
+
+    for (const ser of serviciosValidos) {
+      let restante = ser.importe;
+      while (restante > 0.001 && cola.length > 0) {
+        const origen = cola[0];
+        const usar = Math.min(restante, origen.sobrante);
+
+        const { error: bridgeError } = await agencyDb
+          .from("operativa_servicio_pagos")
+          .insert([{ servicio_id: ser.id, movimiento_id: origen.id, importe: Math.round(usar * 100) / 100 }]);
+        if (bridgeError) throw bridgeError;
+
+        origen.sobrante = Math.round((origen.sobrante - usar) * 100) / 100;
+        restante = Math.round((restante - usar) * 100) / 100;
+        if (origen.sobrante <= 0.001) {
+          movimientosAgotados.add(origen.id);
+          cola.shift();
+        }
+      }
+      await sincronizarConfirmadoSegunPago(agencyDb, ser.id);
+    }
+
+    // Marca como aplicados los movimientos que se agotaron por completo; los que quedaron
+    // con sobrante residual actualizan su columna sobrante para reflejar lo que aún queda.
+    for (const m of cola) {
+      if (m.sobrante !== movimientos.find((o) => o.id === m.id)?.sobrante) {
+        await agencyDb.from("contabilidad_movimientos").update({ sobrante: m.sobrante }).eq("id", m.id);
+      }
+    }
+    if (movimientosAgotados.size > 0) {
+      await agencyDb
+        .from("contabilidad_movimientos")
+        .update({ sobrante_aplicado: true, sobrante: 0 })
+        .in("id", Array.from(movimientosAgotados));
+    }
+
+    revalidatePath(`/expedientes/${expediente_id}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to aplicar sobrante a servicios:", error.message);
+    return { success: false, error: error.message || "Error al aplicar el saldo a favor" };
+  }
+}
+
+/** Marca como aplicados los sobrantes indicados (tras usarlos en un nuevo pago). */
+export async function aplicarSobrantes(movimientoIds: string[]) {
+  try {
+    if (!movimientoIds || movimientoIds.length === 0) return { success: true };
+    const agencyDb = await getAgencyDbClient();
+    const { error } = await agencyDb
+      .from("contabilidad_movimientos")
+      .update({ sobrante_aplicado: true })
+      .in("id", movimientoIds);
+    if (error) throw error;
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to aplicar sobrantes:", error.message);
+    return { success: false, error: error.message };
   }
 }
 

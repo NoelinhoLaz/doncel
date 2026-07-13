@@ -13,8 +13,6 @@ import { addDestinoCotizacion, removeDestinoCotizacion, updateCotizacionMeta } f
 import { getEntidades } from "@/actions/entidades";
 import ExpedienteActionsToolbar from "@/app/components/ExpedienteActionsToolbar";
 
-const InlineCotizacionMap = dynamic(() => import("../../expedientes/[id]/components/InlineCotizacionMap"), { ssr: false });
-
 export default function NuevaCotizacionPage() {
   const [contactoId, setContactoId] = useState<string | null>(null);
   const [contactoNombre, setContactoNombre] = useState<string | null>(null);
@@ -29,8 +27,6 @@ export default function NuevaCotizacionPage() {
   const [summaryFree, setSummaryFree] = useState<number>(2);
   const [suplementos, setSuplementos] = useState<string>("");
   const [totals, setTotals] = useState({ totalCost: 0, totalRevenue: 0 });
-  const [showMap, setShowMap] = useState(false);
-  const [mapItems, setMapItems] = useState<any[]>([]);
   const [summaryPvpViajero, setSummaryPvpViajero] = useState<number>(0);
   const [hasEditedPvp, setHasEditedPvp] = useState<boolean>(false);
 
@@ -93,38 +89,6 @@ export default function NuevaCotizacionPage() {
     if (Number.isNaN(n)) return String(v);
     return currency.format(n);
   };
-
-  useEffect(() => {
-    if (!showMap || !cotId) return;
-    fetch(`/api/cotizaciones?id=${cotId}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d?.success && d.data) {
-          const lineas = d.data.operativa_cotizacion_lineas || d.data.lineas || [];
-          const typed = lineas.reduce((acc: any[], it: any) => {
-            const dst = it.maestro_destinos;
-            const lat = Number(dst?.lat);
-            const lng = Number(dst?.lng);
-            if (dst && !Number.isNaN(lat) && !Number.isNaN(lng)) {
-              acc.push({
-                id: it.id,
-                lat,
-                lng,
-                label: dst.nombre_comercial || dst.nombre || 'Destino',
-                tipoIcono: it.config_tipos_servicios?.icono,
-                tipoEtiqueta: it.config_tipos_servicios?.etiqueta,
-                descripcion: it.descripcion,
-                destinoNombre: dst.nombre_comercial || dst.nombre,
-              });
-            }
-            return acc;
-          }, []);
-          setMapItems(typed);
-        } else {
-          setMapItems([]);
-        }
-      });
-  }, [showMap, cotId]);
 
   // Handlers para gestionar destinos
   const handleAddDestino = async (place: { id: string; nombre: string }) => {
@@ -420,36 +384,15 @@ export default function NuevaCotizacionPage() {
           </div>
           </div>
 
-        {/* Map toggle */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            onClick={() => setShowMap(!showMap)}
-            style={{
-              border: 'none', background: 'transparent', color: '#6366f1',
-              cursor: 'pointer', fontSize: '0.72rem', fontWeight: 500,
-              display: 'flex', alignItems: 'center', gap: 4, padding: '0.2rem 0.4rem',
-              borderRadius: 6,
-            }}
-          >
-            <MapPin size={12} />
-            {showMap ? 'Mostrar en listado' : 'Mostrar en mapa'}
-          </button>
-        </div>
-        {showMap && (
-          <div style={{ width: '100%' }}>
-            <InlineCotizacionMap items={mapItems} />
-          </div>
-        )}
-
         {/* Full-width Quote Service List Table (obligatorios + opcionales unidos) */}
-        {!showMap && <div style={{ width: '100%' }}>
+        <div style={{ width: '100%' }}>
           <CotizacionesTab
             compactHeader
             hideSummary
             cotizacionId={cotId}
             onTotalsChange={setTotals}
           />
-        </div>}
+        </div>
 
       </div>
 

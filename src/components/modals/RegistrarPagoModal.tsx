@@ -2,8 +2,8 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { Icons } from "@/lib/icons";
-import { Landmark, CreditCard, Banknote, Search, Loader2, ArrowLeft } from "lucide-react";
-import { registrarPagoServicios, vincularServiciosAMovimientoBanco } from "@/actions/servicios";
+import { Landmark, CreditCard, Banknote, Search, Loader2, ArrowLeft, Wallet, Clock } from "lucide-react";
+import { registrarPagoServicios, vincularServiciosAMovimientoBanco, getSobrantesPorProveedor, aplicarSobrantes, aplicarSobranteAServicios, registrarPagoPendienteConciliar } from "@/actions/servicios";
 import { getMovimientosBanco } from "@/actions/banco";
 
 interface RegistrarPagoModalProps {
@@ -35,6 +35,9 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
   const [loadingMovs, setLoadingMovs] = useState(false);
   const [searchSeleccion, setSearchSeleccion] = useState("");
   const [movimientoElegido, setMovimientoElegido] = useState<any | null>(null);
+  const [sobrantesPorProveedor, setSobrantesPorProveedor] = useState<Record<string, { total: number; movimientos: { id: string; sobrante: number }[] }>>({});
+  const [aplicarSobrante, setAplicarSobrante] = useState(true);
+  const [sobranteActivo, setSobranteActivo] = useState<{ total: number; movimientos: { id: string; sobrante: number }[] } | null>(null);
 
   const seleccionables = useMemo(
     () => servicios
@@ -60,6 +63,10 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
       setSearchSeleccion("");
       setMovimientos([]);
       setMovimientoElegido(null);
+      setAplicarSobrante(true);
+    } else {
+      const expedienteId = servicios[0]?.expediente_id;
+      if (expedienteId) getSobrantesPorProveedor(expedienteId).then(setSobrantesPorProveedor);
     }
   }, [isOpen]);
 
@@ -77,6 +84,16 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
     }, 300);
     return () => { active = false; clearTimeout(t); };
   }, [step, search]);
+
+  // Sobrante disponible del proveedor de los servicios seleccionados (asume un único
+  // proveedor por pago, igual que el resto del flujo de este modal). El cruce se hace por
+  // proveedor_id directamente (contabilidad_proveedores), sin pasar por entidad_id.
+  useEffect(() => {
+    const proveedorId = Object.entries(selected)
+      .filter(([, importe]) => importe > 0)
+      .map(([id]) => servicios.find((s) => s.id === id)?.proveedor_id)[0];
+    setSobranteActivo(proveedorId ? sobrantesPorProveedor[proveedorId] || null : null);
+  }, [selected, sobrantesPorProveedor, servicios]);
 
   if (!isOpen) return null;
 
@@ -125,6 +142,53 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
     }
   };
 
+  const handleRegistrarPendienteConciliar = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await registrarPagoPendienteConciliar({
+        expediente_id: servicios[0]?.expediente_id,
+        medio_pago: "banco",
+        servicios: serviciosSeleccionados(),
+      });
+      if (!res.success) throw new Error(res.error);
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      setError(err.message || "Error al registrar el pago");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUsarSobrante = async () => {
+    const sobranteInfo = sobranteActivo;
+    if (!sobranteInfo) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const seleccionados = serviciosSeleccionados();
+      // El importe pedido no puede superar el sobrante disponible: se topa cada servicio a
+      // su pendiente real y, si en conjunto exceden el saldo, se recorta proporcionalmente.
+      const totalPedido = seleccionados.reduce((sum, s) => sum + s.importe, 0);
+      const ratio = totalPedido > sobranteInfo.total ? sobranteInfo.total / totalPedido : 1;
+      const serviciosAAplicar = seleccionados.map((s) => ({ id: s.id, importe: Math.round(s.importe * ratio * 100) / 100 }));
+
+      const res = await aplicarSobranteAServicios({
+        expediente_id: servicios[0]?.expediente_id,
+        servicios: serviciosAAplicar,
+        movimientos: sobranteInfo.movimientos,
+      });
+      if (!res.success) throw new Error(res.error);
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      setError(err.message || "Error al aplicar el saldo a favor");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleConfirmarBanco = async () => {
     if (!movimientoElegido) return;
     const movimientoBancoId = movimientoElegido.id;
@@ -133,28 +197,40 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
     setError(null);
     try {
       // El importe real del movimiento bancario puede ser menor que la suma seleccionada
-      // (pago parcial de una factura conjunta): se aplica el mismo % de avance al TOTAL de
-      // cada servicio (no a su pendiente), para que ningún servicio quede "sobrepagado" solo
-      // por tener un total pequeño — todos avanzan proporcionalmente al mismo ritmo.
+      // (pago parcial de una factura conjunta): se aplica el mismo % de avance al PENDIENTE de
+      // cada servicio (lo que de verdad falta por cobrar, no su total bruto), para que ningún
+      // servicio quede "sobrepagado" solo por tener un pendiente pequeño — todos avanzan
+      // proporcionalmente al mismo ritmo. Si el banco cubre de sobra (ratio >= 1), cada servicio
+      // se paga exactamente su pendiente completo y el resto se guarda como sobrante del pago,
+      // disponible para aplicarlo al siguiente pago de este mismo proveedor.
       const seleccionados = serviciosSeleccionados();
       const importeBanco = Math.abs(importeMovimiento);
-      const totalConjunto = seleccionados.reduce((sum, s) => {
+      const totalPendienteConjunto = seleccionados.reduce((sum, s) => {
         const ser = servicios.find((x) => x.id === s.id);
-        return sum + (ser ? totalNeto(ser) : 0);
+        return sum + (ser ? pendiente(ser) : 0);
       }, 0);
-      const ratio = totalConjunto > 0 ? Math.min(1, importeBanco / totalConjunto) : 0;
+
+      const sobranteDisponible = aplicarSobrante ? sobranteActivo : null;
+      const importeDisponible = importeBanco + (sobranteDisponible?.total || 0);
+
+      const ratio = totalPendienteConjunto > 0 ? Math.min(1, importeDisponible / totalPendienteConjunto) : 0;
       const serviciosAjustados = seleccionados.map((s) => {
         const ser = servicios.find((x) => x.id === s.id);
-        const total = ser ? totalNeto(ser) : 0;
-        return { ...s, importe: Math.round(total * ratio * 100) / 100 };
+        const pend = ser ? pendiente(ser) : 0;
+        return { ...s, importe: Math.round(pend * ratio * 100) / 100 };
       });
+      const sobrante = Math.max(0, Math.round((importeDisponible - totalPendienteConjunto) * 100) / 100);
 
       const res = await vincularServiciosAMovimientoBanco({
         expediente_id: servicios[0]?.expediente_id,
         movimiento_banco_id: movimientoBancoId,
         servicios: serviciosAjustados,
+        sobrante,
       });
       if (!res.success) throw new Error(res.error);
+      if (sobranteDisponible) {
+        await aplicarSobrantes(sobranteDisponible.movimientos.map((m) => m.id));
+      }
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -262,6 +338,22 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
             {error && <p style={{ fontSize: "0.78rem", color: "#dc2626", marginBottom: "0.75rem" }}>{error}</p>}
 
             <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+              {sobranteActivo && (
+                <button
+                  onClick={handleUsarSobrante}
+                  disabled={saving}
+                  style={{ display: "flex", alignItems: "center", gap: "0.6rem", padding: "0.75rem 1rem", border: "1px solid #bfdbfe", borderRadius: "0.5rem", background: "#eff6ff", cursor: "pointer", textAlign: "left" }}
+                >
+                  <Wallet size={18} color="#1d4ed8" />
+                  <div>
+                    <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#1e3a8a" }}>
+                      Usar saldo a favor ({sobranteActivo.total.toLocaleString("es-ES", { minimumFractionDigits: 2 })} € disponibles)
+                    </div>
+                    <div style={{ fontSize: "0.72rem", color: "#3b82f6" }}>Aplicar el crédito de un pago anterior de este proveedor, sin necesidad de banco/tarjeta</div>
+                  </div>
+                  {saving && <Loader2 size={14} className="animate-spin" style={{ marginLeft: "auto" }} />}
+                </button>
+              )}
               <button
                 onClick={() => setStep("buscador")}
                 disabled={saving}
@@ -341,6 +433,16 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
                 ))}
               </div>
             )}
+
+            <button
+              onClick={handleRegistrarPendienteConciliar}
+              disabled={saving}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", width: "100%", marginTop: "0.9rem", padding: "0.65rem 1rem", border: "1px dashed #cbd5e1", borderRadius: "0.5rem", background: "#f8fafc", color: "#475569", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer" }}
+            >
+              <Clock size={15} />
+              Conciliar más tarde
+              {saving && <Loader2 size={14} className="animate-spin" />}
+            </button>
           </>
         )}
 
@@ -374,6 +476,20 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
                 <span style={{ fontWeight: 600, color: "#0f172a" }}>{serviciosSeleccionados().length}</span>
               </div>
             </div>
+
+            {sobranteActivo && (
+              <label style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", padding: "0.7rem 0.9rem", border: "1px solid #bfdbfe", borderRadius: "0.5rem", backgroundColor: "#eff6ff", marginBottom: "1rem", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={aplicarSobrante}
+                  onChange={(e) => setAplicarSobrante(e.target.checked)}
+                  style={{ marginTop: "2px", accentColor: "var(--primary-color, #475569)", cursor: "pointer" }}
+                />
+                <span style={{ fontSize: "0.8rem", color: "#1e3a8a" }}>
+                  Este proveedor tiene <strong>{sobranteActivo.total.toLocaleString("es-ES", { minimumFractionDigits: 2 })} €</strong> de saldo a favor de un pago anterior. Aplicarlo a este pago.
+                </span>
+              </label>
+            )}
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.6rem" }}>
               <button

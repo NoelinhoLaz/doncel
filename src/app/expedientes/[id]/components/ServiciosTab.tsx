@@ -11,6 +11,8 @@ import ServicioFormModal from "@/components/modals/ServicioFormModal";
 import ModalInfoServicio from "@/components/modals/ModalInfoServicio";
 import ModalEnviarValoracion from "@/components/modals/ModalEnviarValoracion";
 import RegistrarPagoModal from "@/components/modals/RegistrarPagoModal";
+import ConciliarPagoModal from "@/components/modals/ConciliarPagoModal";
+import RegistrarDocumentoModal from "@/components/modals/RegistrarDocumentoModal";
 const NuevaComunicacionModal = dynamic(() => import("@/app/expedientes/[id]/components/NuevaComunicacionModal"), { ssr: false });
 
 import TablaServiciosNoOpcionales from "@/app/components/servicios/TablaServiciosNoOpcionales";
@@ -59,10 +61,12 @@ export default function ServiciosTab({ expedienteId, onOpenMatchModal }: Servici
         pendingMatchCount={s.pendingMatchCount}
         onOpenMatchModal={onOpenMatchModal}
         onRegistrarPago={s.openRegistrarPago}
+        onRegistrarDocumento={s.openRegistrarDocumento}
         onEnviarValoracion={() => setValoracionOpen(true)}
+        onOpenConciliar={s.openConciliarPago}
       />
 
-      <PagosRealizadosList serviciosList={s.servicios} />
+      <PagosRealizadosList serviciosList={s.servicios} onConciliar={s.openConciliarPago} documentosPorMovimiento={s.documentosPorMovimiento} />
 
       <ImportarServiciosCotizacionModal
         isOpen={isImportarCotizacionOpen}
@@ -90,6 +94,21 @@ export default function ServiciosTab({ expedienteId, onOpenMatchModal }: Servici
         onClose={s.closeRegistrarPago}
         servicios={s.servicios}
         onSuccess={() => { s.loadServicios(); s.loadMatches(); }}
+      />
+
+      <ConciliarPagoModal
+        isOpen={!!s.movimientoAConciliar}
+        onClose={s.closeConciliarPago}
+        expedienteId={expedienteId}
+        movimientoId={s.movimientoAConciliar}
+        onSuccess={() => { s.loadServicios(); s.loadMatches(); }}
+      />
+
+      <RegistrarDocumentoModal
+        isOpen={s.isRegistrarDocumentoOpen}
+        onClose={s.closeRegistrarDocumento}
+        expedienteId={expedienteId}
+        onSuccess={() => { s.loadServicios(); s.loadDocumentos(); }}
       />
 
       <ImportarPdfModal

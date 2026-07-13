@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, Fragment } from "react";
-import { Info, Layers, Unlink, Copy, Trash2, ClipboardPaste, Mail, Users, Moon } from "lucide-react";
+import { Info, Layers, Unlink, Copy, Trash2, ClipboardPaste, Mail, Users, Moon, ChevronDown, ChevronRight, MapPin } from "lucide-react";
+import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 const NuevaComunicacionModal = dynamic(() => import("@/app/expedientes/[id]/components/NuevaComunicacionModal"), { ssr: false });
+const InlineCotizacionMap = dynamic(() => import("@/app/expedientes/[id]/components/InlineCotizacionMap"), { ssr: false });
 import { Icons } from "@/lib/icons";
 import Pagination from "@/app/components/Pagination";
 import ProviderSelector from "@/app/expedientes/[id]/components/ProviderSelector";
@@ -44,10 +46,49 @@ function getGroupLabel(groupId: string, displayItems: any[]): string {
   return String.fromCharCode(65 + (idx >= 0 ? idx % 26 : 0));
 }
 
+const AGRUPAR_LABELS: Record<"proveedor" | "tipo" | "opcional", string> = {
+  proveedor: "Proveedor",
+  tipo: "Tipo",
+  opcional: "Todos/Opcionales",
+};
+
+function OpcionalBadge() {
+  return (
+    <span
+      title="Servicio opcional"
+      style={{
+        position: "absolute",
+        top: -6,
+        right: -6,
+        backgroundColor: "#f97316",
+        color: "#fff",
+        fontSize: "0.4rem",
+        fontWeight: 700,
+        padding: "0.05rem 0.25rem",
+        borderRadius: "999px",
+        whiteSpace: "nowrap",
+        lineHeight: 1.4,
+        border: "1px solid #fff",
+        zIndex: 1,
+      }}
+    >
+      Op.
+    </span>
+  );
+}
+
 export default function TablaCotizacion({ c, hideHeader, compactHeader, title, sidePanel, cotizacionId }: Props) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [mailModalProveedor, setMailModalProveedor] = useState<{ nombre: string; email: string } | null>(null);
   const [openTipoRowId, setOpenTipoRowId] = useState<string | null>(null);
+  const [showFiltros, setShowFiltros] = useState(false);
+  const [showAgruparDropdown, setShowAgruparDropdown] = useState(false);
+  const [agruparBtnRect, setAgruparBtnRect] = useState<{ top: number; left: number } | null>(null);
+  const agruparDropdownRef = useRef<HTMLDivElement>(null);
+  const agruparBtnRef = useRef<HTMLButtonElement>(null);
+  const [agruparPor, setAgruparPor] = useState<"proveedor" | "tipo" | "opcional" | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [showMap, setShowMap] = useState(false);
 
   useEffect(() => {
     if (!openTipoRowId) return;
@@ -55,6 +96,21 @@ export default function TablaCotizacion({ c, hideHeader, compactHeader, title, s
     window.addEventListener('mousedown', close);
     return () => window.removeEventListener('mousedown', close);
   }, [openTipoRowId]);
+
+  useEffect(() => {
+    if (!showAgruparDropdown) return;
+    const close = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        agruparBtnRef.current && !agruparBtnRef.current.contains(target) &&
+        agruparDropdownRef.current && !agruparDropdownRef.current.contains(target)
+      ) {
+        setShowAgruparDropdown(false);
+      }
+    };
+    window.addEventListener('mousedown', close);
+    return () => window.removeEventListener('mousedown', close);
+  }, [showAgruparDropdown]);
 
   // ── Google Sheets import state ──────────────────────────────────
   const [showSheetsModal, setShowSheetsModal] = useState(false);
@@ -142,6 +198,236 @@ export default function TablaCotizacion({ c, hideHeader, compactHeader, title, s
     setTimeout(() => { setShowSheetsModal(false); setSheetsResult(null); }, 2200);
   };
 
+  const mapItems = (c.filtered || []).reduce((acc: any[], it: any) => {
+    const dst = it.maestro_destinos;
+    const lat = Number(dst?.lat);
+    const lng = Number(dst?.lng);
+    if (dst && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+      acc.push({
+        id: it.id,
+        lat,
+        lng,
+        label: dst.nombre_comercial || dst.nombre || 'Destino',
+        tipoIcono: it.config_tipos_servicios?.icono,
+        tipoEtiqueta: it.config_tipos_servicios?.etiqueta,
+        descripcion: it.descripcion,
+        destinoNombre: dst.nombre_comercial || dst.nombre,
+      });
+    }
+    return acc;
+  }, []);
+
+  const sortedItems = [...c.paginated].sort((a: any, b: any) => {
+    const oa = Number(!!a.opcional);
+    const ob = Number(!!b.opcional);
+    if (oa !== ob) return oa - ob;
+    const ga = a.grupo_alternativa_id || '';
+    const gb = b.grupo_alternativa_id || '';
+    if (ga && gb && ga === gb) return 0;
+    if (ga && !gb) return -1;
+    if (!ga && gb) return 1;
+    if (ga && gb && ga !== gb) return ga < gb ? -1 : 1;
+    return 0;
+  });
+
+  const grupos = (() => {
+    if (!agruparPor) return null;
+
+    if (agruparPor === "opcional") {
+      const obligatorios = sortedItems.filter((it: any) => !it.opcional);
+      const opcionales = sortedItems.filter((it: any) => !!it.opcional);
+      const result = [];
+      if (obligatorios.length > 0) result.push({ key: "__obligatorios__", label: "Todos los viajeros", items: obligatorios });
+      if (opcionales.length > 0) result.push({ key: "__opcionales__", label: "Opcionales", items: opcionales });
+      return result;
+    }
+
+    const map = new Map<string, { key: string; label: string; items: any[] }>();
+    for (const it of sortedItems) {
+      const key = agruparPor === "proveedor"
+        ? (it.proveedor || it.contabilidad_proveedores?.nombre || "__sin_proveedor__")
+        : (it.tipo || "__sin_tipo__");
+      const label = agruparPor === "proveedor"
+        ? (it.contabilidad_proveedores?.nombre || it.contabilidad_proveedores?.razon_social || "Sin proveedor")
+        : (c.tiposMap[it.tipo]?.etiqueta || "Sin tipo");
+      const grupo = map.get(key) || { key, label, items: [] as any[] };
+      grupo.items.push(it);
+      map.set(key, grupo);
+    }
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+  })();
+
+  useEffect(() => {
+    if (agruparPor && grupos) {
+      setCollapsedGroups(new Set(grupos.map((g) => g.key)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agruparPor]);
+
+  const toggleGroup = (key: string) => setCollapsedGroups((prev) => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
+
+  const seenGroupsRef = new Set<string>();
+  const renderItemRow = (it: any, index: number, firstOpcionalIndex: number) => {
+    const groupColor = getGroupColor(it.grupo_alternativa_id);
+    const isInGroup = !!it.grupo_alternativa_id;
+    const isUnchecked = isInGroup && c.checkedIds[it.id] === false;
+    const isGroupLeader = isInGroup && !seenGroupsRef.has(it.grupo_alternativa_id);
+    if (isInGroup) seenGroupsRef.add(it.grupo_alternativa_id);
+    return (
+      <Fragment key={it.id}>
+        {index === firstOpcionalIndex && (
+          <tr>
+            <td colSpan={13} style={{ padding: '0.75rem 1rem 0.5rem 1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>OPCIONALES</span>
+                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
+              </div>
+            </td>
+          </tr>
+        )}
+        <tr style={groupColor ? { borderLeft: `3px solid ${groupColor}`, background: isUnchecked ? '#f8fafc' : undefined } : {}}>
+          <td style={{ verticalAlign: 'middle', width: '1%' }}>
+            <input
+              type="checkbox"
+              checked={c.checkedIds[it.id] !== false}
+              onChange={(e) => c.handleCheckedChange(it.id, e.target.checked, it.grupo_alternativa_id)}
+              aria-label={`Seleccionar ${it.id}`}
+            />
+          </td>
+          <td style={{ whiteSpace: 'nowrap', width: compactHeader ? '32px' : '1%', verticalAlign: 'middle', position: 'relative' }}>
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              {!!grupos && agruparPor !== 'opcional' && !!it.opcional && <OpcionalBadge />}
+              <TipoSelectorPopup
+                tipos={Object.values(c.tiposMap).map((t: any) => ({ id: t.id, label: t.etiqueta, icono: t.icono }))}
+                selectedId={it.config_tipos_servicios?.id || it.tipo}
+                selectedIcono={it.config_tipos_servicios?.icono || c.tiposMap[it.tipo]?.icono}
+                selectedLabel={it.config_tipos_servicios?.etiqueta || c.tiposMap[it.tipo]?.etiqueta}
+                isOpen={openTipoRowId === it.id}
+                onToggle={() => setOpenTipoRowId(openTipoRowId === it.id ? null : it.id)}
+                onSelect={(tipoId) => { c.handleItemChange(it.id, 'tipo', tipoId); setOpenTipoRowId(null); }}
+              />
+            </div>
+          </td>
+          <td>
+            <input
+              type="text"
+              defaultValue={it.descripcion ?? ''}
+              key={it.id + '-desc'}
+              onBlur={(e) => c.handleItemChange(it.id, 'descripcion', e.target.value)}
+              style={{ ...fieldStyle, width: '100%' }}
+            />
+          </td>
+          <td>
+            <ProviderSelector
+              value={it.proveedor ?? ''}
+              label={(() => { const n = it.contabilidad_proveedores?.nombre || it.contabilidad_proveedores?.razon_social || ''; return n.length > 32 ? n.slice(0, 31) + '…' : n; })()}
+              onChange={(val) => c.handleItemChange(it.id, 'proveedor', val)}
+              compact
+            />
+          </td>
+          <td>
+            <DestinationSelector
+              value={it.destino ?? ''}
+              label={(() => { const d = it.maestro_destinos; if (!d) return ''; const name = d.nombre_comercial || d.nombre || ''; const area = d.admin_area_l2 || d.admin_area_l1 || ''; const full = area ? `${name}, ${area}` : name; return full.length > 32 ? full.slice(0, 31) + '…' : full; })()}
+              onChange={(val) => c.handleItemChange(it.id, 'destino', val)}
+              compact
+            />
+          </td>
+          <td style={{ textAlign: 'right' }}>
+            <input
+              type="text"
+              key={it.id + '-plazas'}
+              defaultValue={it.plazas ?? ''}
+              maxLength={3}
+              onBlur={(e) => { const v = e.target.value.replace(/\D/g, ''); c.handleItemChange(it.id, 'plazas', v ? Number(v) : null); }}
+              style={{ ...fieldStyle, width: '100%', padding: '0.2rem', textAlign: 'right' }}
+            />
+          </td>
+          <td style={{ textAlign: 'right' }}>
+            <input
+              type="text"
+              key={it.id + '-noches'}
+              defaultValue={it.noches ?? ''}
+              maxLength={3}
+              onBlur={(e) => { const v = e.target.value.replace(/\D/g, ''); c.handleItemChange(it.id, 'noches', v ? Number(v) : null); }}
+              style={{ ...fieldStyle, width: '100%', padding: '0.2rem', textAlign: 'right' }}
+            />
+          </td>
+          <td style={{ textAlign: 'right' }}>
+            <input
+              type="text"
+              key={it.id + '-neto'}
+              defaultValue={!it.neto || Number(it.neto) === 0 ? '' : it.neto}
+              onBlur={(e) => c.handleItemChange(it.id, 'neto', e.target.value)}
+              style={{ ...fieldStyle, width: '100%', padding: '0.2rem', textAlign: 'right' }}
+            />
+          </td>
+          <td style={{ textAlign: 'right' }}>
+            <input
+              type="text"
+              key={it.id + '-pvp'}
+              defaultValue={!it.pvp || Number(it.pvp) === 0 ? '' : it.pvp}
+              onBlur={(e) => c.handleItemChange(it.id, 'pvp', e.target.value)}
+              style={{ ...fieldStyle, width: '100%', padding: '0.2rem', textAlign: 'right' }}
+            />
+          </td>
+          <td style={{ textAlign: 'right', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
+            {formatCurrency(it.total_neto ?? (Number(it.neto || 0) * Number(it.plazas || 0) * Number(it.noches || 0)))}
+          </td>
+          <td style={{ textAlign: 'right', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
+            {formatCurrency(it.total_pvp ?? (Number(it.pvp || 0) * Number(it.plazas || 0) * Number(it.noches || 0)))}
+          </td>
+          <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+            <button
+              type="button"
+              onClick={() => c.handleItemChange(it.id, 'confirmado', !it.confirmado)}
+              title={it.confirmado ? 'Confirmado — clic para marcar como pendiente' : 'Pendiente de confirmar — clic para confirmar'}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                padding: '0.2rem 0.5rem', borderRadius: '0.25rem', border: 'none', cursor: 'pointer',
+                fontSize: '0.68rem', fontWeight: 700, whiteSpace: 'nowrap',
+                backgroundColor: it.confirmado ? '#f0fdf4' : '#fffbeb',
+                color: it.confirmado ? '#16a34a' : '#d97706',
+              }}
+            >
+              {it.confirmado ? 'Confirmado' : 'Pendiente'}
+            </button>
+          </td>
+          <td style={{ verticalAlign: 'middle', width: '1%', whiteSpace: 'nowrap', position: 'relative' }}>
+            {deleteConfirmId === it.id ? (
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center', background: '#fef2f2', border: '1px solid #fca5a5', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: '0.65rem', color: '#b91c1c', fontWeight: 'bold', whiteSpace: 'nowrap' }}>¿Eliminar?</span>
+                <button type="button" style={{ border: 'none', background: '#ef4444', color: '#fff', borderRadius: '3px', padding: '1px 4px', fontSize: '0.62rem', cursor: 'pointer', fontWeight: 'bold' }} onClick={() => { c.handleDeleteItem(it.id); setDeleteConfirmId(null); }}>Sí</button>
+                <button type="button" style={{ border: '1px solid #cbd5e1', background: '#fff', color: '#475569', borderRadius: '3px', padding: '1px 4px', fontSize: '0.62rem', cursor: 'pointer' }} onClick={() => setDeleteConfirmId(null)}>No</button>
+              </div>
+            ) : (
+              <AccionesLineaCell
+                rowId={it.id}
+                isLinked={!!it.is_linked}
+                linkTitleLinked="Vinculado a servicio de expediente"
+                linkTitleUnlinked="No vinculado a ningún servicio de expediente"
+                onLinkClick={typeof it.id === 'string' && !it.id.startsWith('new-') ? () => c.handleVincularExpediente(it.id) : undefined}
+                saveStatus={c.saveStatus[it.id]}
+                actions={[
+                  { icon: <Info size={13} />, title: "Formulario del servicio", onClick: () => c.openInfoModal(it) },
+                  isInGroup && !isGroupLeader
+                    ? { icon: <Unlink size={13} />, title: "Desagrupar esta alternativa", onClick: () => c.handleUngroup(it) }
+                    : { icon: <Layers size={13} />, title: "Crear alternativa", onClick: () => c.handleCreateAlternative(it) },
+                  { icon: <Copy size={13} />, title: "Duplicar fila", onClick: () => c.handleDuplicateItem(it) },
+                  { icon: <Mail size={13} />, title: it.contabilidad_proveedores?.email ? `Enviar email a ${it.contabilidad_proveedores.nombre || it.contabilidad_proveedores.razon_social}` : "Enviar email al proveedor", onClick: () => setMailModalProveedor({ nombre: it.contabilidad_proveedores?.nombre || it.contabilidad_proveedores?.razon_social || it.descripcion || "", email: it.contabilidad_proveedores?.email || "" }) },
+                  ...(c.canDelete ? [{ icon: <Trash2 size={13} />, title: "Eliminar fila", onClick: () => setDeleteConfirmId(it.id), danger: true }] : []),
+                ]}
+              />
+            )}
+          </td>
+        </tr>
+      </Fragment>
+    );
+  };
 
   return (
     <>
@@ -163,11 +449,24 @@ export default function TablaCotizacion({ c, hideHeader, compactHeader, title, s
               />
             </div>
             <button
-              className={styles.actionIconButton}
-              title="Importar desde Google Sheets / Excel (Ctrl+Shift+V)"
-              onClick={openSheetsModal}
+              className={`${styles.actionIconButton} ${showFiltros ? listStyles.activeAction : ""}`}
+              title="Filtrar"
+              onClick={() => setShowFiltros((v) => !v)}
+              style={{ position: "relative", ...(agruparPor && !showFiltros ? { color: "var(--primary-color, #475569)" } : {}) }}
             >
-              <ClipboardPaste size={16} />
+              <Icons.Filter size={18} />
+              {agruparPor && (
+                <span style={{ position: "absolute", top: "-4px", right: "-4px", minWidth: "14px", height: "14px", borderRadius: "7px", backgroundColor: "var(--primary-color, #475569)", color: "#fff", fontSize: "0.58rem", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px", lineHeight: 1, border: "1.5px solid #fff" }}>
+                  1
+                </span>
+              )}
+            </button>
+            <button
+              className={`${styles.actionIconButton} ${showMap ? listStyles.activeAction : ""}`}
+              title={showMap ? "Mostrar en listado" : "Mostrar en mapa"}
+              onClick={() => setShowMap((v) => !v)}
+            >
+              <MapPin size={18} />
             </button>
             <button className={styles.actionIconButton} title="Historial de cotizaciones" onClick={() => c.openHistoryModal()}>
               <Icons.History size={16} />
@@ -194,7 +493,94 @@ export default function TablaCotizacion({ c, hideHeader, compactHeader, title, s
                       </div>
                     ))
                   )}
+                  <div style={{ width: '1px', alignSelf: 'stretch', backgroundColor: '#e2e8f0', margin: '0 2px' }} />
+                  <div
+                    title="Importar desde Google Sheets / Excel"
+                    className={tablaStyles.tipoPopupItem}
+                    onClick={() => { c.setShowAddTipoPopup(false); openSheetsModal(); }}
+                  >
+                    <ClipboardPaste size={14} />
+                  </div>
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFiltros && (
+        <div className={listStyles.filterRow}>
+          <div className={listStyles.filterGroup}>
+            <label>Agrupar por</label>
+            <div style={{ position: "relative" }}>
+              <button
+                type="button"
+                ref={agruparBtnRef}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!showAgruparDropdown && agruparBtnRef.current) {
+                    const rect = agruparBtnRef.current.getBoundingClientRect();
+                    setAgruparBtnRect({ top: rect.bottom + 4, left: rect.left });
+                  }
+                  setShowAgruparDropdown((v) => !v);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  padding: "0.35rem 0.7rem",
+                  borderRadius: "6px",
+                  border: agruparPor ? "1px solid var(--primary-color, #475569)" : "1px solid #e2e8f0",
+                  background: agruparPor ? "#f1f5f9" : "#fff",
+                  color: agruparPor ? "#0f172a" : "#475569",
+                  fontSize: "0.78rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {agruparPor ? AGRUPAR_LABELS[agruparPor] : "Sin agrupar"}
+                <ChevronDown size={13} />
+              </button>
+              {showAgruparDropdown && agruparBtnRect && typeof document !== "undefined" && createPortal(
+                <div
+                  ref={agruparDropdownRef}
+                  style={{ position: "fixed", top: agruparBtnRect.top, left: agruparBtnRect.left, zIndex: 3000, minWidth: "160px", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "8px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)", padding: "0.3rem 0" }}
+                >
+                  {(["proveedor", "tipo", "opcional"] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => { setAgruparPor(opt); setShowAgruparDropdown(false); }}
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "0.45rem 0.8rem",
+                        background: agruparPor === opt ? "#f1f5f9" : "none",
+                        border: "none",
+                        color: "#334155",
+                        fontSize: "0.8rem",
+                        fontWeight: agruparPor === opt ? 700 : 500,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {AGRUPAR_LABELS[opt]}
+                    </button>
+                  ))}
+                  {agruparPor && (
+                    <>
+                      <div style={{ height: "1px", backgroundColor: "#e2e8f0", margin: "0.3rem 0" }} />
+                      <button
+                        type="button"
+                        onClick={() => { setAgruparPor(null); setShowAgruparDropdown(false); }}
+                        style={{ display: "block", width: "100%", textAlign: "left", padding: "0.45rem 0.8rem", background: "none", border: "none", color: "#94a3b8", fontSize: "0.8rem", fontWeight: 500, cursor: "pointer" }}
+                      >
+                        Desagrupar
+                      </button>
+                    </>
+                  )}
+                </div>,
+                document.body
               )}
             </div>
           </div>
@@ -403,6 +789,10 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
 
       {c.loading ? (
         <div style={{ padding: "2rem", color: "#64748b" }}>Cargando cotizaciones...</div>
+      ) : showMap ? (
+        <div style={{ padding: '1rem', width: '100%' }}>
+          <InlineCotizacionMap items={mapItems} />
+        </div>
       ) : (
         <div style={{ display: 'flex', gap: '1.25rem', padding: '1rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <div className={listStyles.tableContainer} style={{ overflow: 'visible', flex: '1 1 650px', minWidth: 0, boxShadow: 'none', border: 'none', background: 'transparent', padding: 0 }}>
@@ -446,175 +836,32 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                       No hay líneas en esta cotización. Usa el botón + para añadir.
                     </td>
                   </tr>
+                ) : grupos ? (
+                  grupos.map((grupo) => {
+                    const isCollapsed = collapsedGroups.has(grupo.key);
+                    const totalGrupo = grupo.items.reduce((sum, it: any) => sum + (it.total_pvp ?? (Number(it.pvp || 0) * Number(it.plazas || 0) * Number(it.noches || 0))), 0);
+                    return (
+                      <Fragment key={grupo.key}>
+                        <tr onClick={() => toggleGroup(grupo.key)} style={{ cursor: 'pointer' }}>
+                          <td colSpan={13} style={{ padding: 0, borderTop: '1px solid #e2e8f0', borderBottom: isCollapsed ? '1px solid #e2e8f0' : 'none' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 1rem', backgroundColor: '#fff' }}>
+                              {isCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
+                              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.02em' }}>{grupo.label}</span>
+                              <span style={{ fontSize: '0.72rem', color: '#64748b', backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '999px', padding: '0.05rem 0.5rem' }}>{grupo.items.length}</span>
+                              <div style={{ flex: 1 }} />
+                              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0f172a' }}>
+                                {formatCurrency(totalGrupo)}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                        {!isCollapsed && grupo.items.map((it: any) => renderItemRow(it, NaN, NaN))}
+                      </Fragment>
+                    );
+                  })
                 ) : (() => {
-                  const sorted = [...c.paginated].sort((a: any, b: any) => {
-                    const oa = Number(!!a.opcional);
-                    const ob = Number(!!b.opcional);
-                    if (oa !== ob) return oa - ob;
-                    const ga = a.grupo_alternativa_id || '';
-                    const gb = b.grupo_alternativa_id || '';
-                    if (ga && gb && ga === gb) return 0;
-                    if (ga && !gb) return -1;
-                    if (!ga && gb) return 1;
-                    if (ga && gb && ga !== gb) return ga < gb ? -1 : 1;
-                    return 0;
-                  });
-                  const firstOpcionalIndex = sorted.findIndex((it: any) => !!it.opcional);
-                  const seenGroups = new Set<string>();
-                  return sorted.map((it: any, index: number) => {
-                  const groupColor = getGroupColor(it.grupo_alternativa_id);
-                  const isInGroup = !!it.grupo_alternativa_id;
-                  const isUnchecked = isInGroup && c.checkedIds[it.id] === false;
-                  const isGroupLeader = isInGroup && !seenGroups.has(it.grupo_alternativa_id);
-                  if (isInGroup) seenGroups.add(it.grupo_alternativa_id);
-                  return (
-                    <Fragment key={it.id}>
-                    {index === firstOpcionalIndex && (
-                      <tr>
-                        <td colSpan={13} style={{ padding: '0.75rem 1rem 0.5rem 1rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>OPCIONALES</span>
-                            <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                    <tr style={groupColor ? { borderLeft: `3px solid ${groupColor}`, background: isUnchecked ? '#f8fafc' : undefined } : {}}>
-                      <td style={{ verticalAlign: 'middle', width: '1%' }}>
-                        <input
-                          type="checkbox"
-                          checked={c.checkedIds[it.id] !== false}
-                          onChange={(e) => c.handleCheckedChange(it.id, e.target.checked, it.grupo_alternativa_id)}
-                          aria-label={`Seleccionar ${it.id}`}
-                        />
-                      </td>
-                      <td style={{ whiteSpace: 'nowrap', width: compactHeader ? '32px' : '1%', verticalAlign: 'middle', position: 'relative' }}>
-                        <TipoSelectorPopup
-                          tipos={Object.values(c.tiposMap).map((t: any) => ({ id: t.id, label: t.etiqueta, icono: t.icono }))}
-                          selectedId={it.config_tipos_servicios?.id || it.tipo}
-                          selectedIcono={it.config_tipos_servicios?.icono || c.tiposMap[it.tipo]?.icono}
-                          selectedLabel={it.config_tipos_servicios?.etiqueta || c.tiposMap[it.tipo]?.etiqueta}
-                          isOpen={openTipoRowId === it.id}
-                          onToggle={() => setOpenTipoRowId(openTipoRowId === it.id ? null : it.id)}
-                          onSelect={(tipoId) => { c.handleItemChange(it.id, 'tipo', tipoId); setOpenTipoRowId(null); }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="text"
-                          defaultValue={it.descripcion ?? ''}
-                          key={it.id + '-desc'}
-                          onBlur={(e) => c.handleItemChange(it.id, 'descripcion', e.target.value)}
-                          style={{ ...fieldStyle, width: '100%' }}
-                        />
-                      </td>
-                      <td>
-                        <ProviderSelector
-                          value={it.proveedor ?? ''}
-                          label={(() => { const n = it.contabilidad_proveedores?.nombre || it.contabilidad_proveedores?.razon_social || ''; return n.length > 32 ? n.slice(0, 31) + '…' : n; })()}
-                          onChange={(val) => c.handleItemChange(it.id, 'proveedor', val)}
-                          compact
-                        />
-                      </td>
-                      <td>
-                        <DestinationSelector
-                          value={it.destino ?? ''}
-                          label={(() => { const d = it.maestro_destinos; if (!d) return ''; const name = d.nombre_comercial || d.nombre || ''; const area = d.admin_area_l2 || d.admin_area_l1 || ''; const full = area ? `${name}, ${area}` : name; return full.length > 32 ? full.slice(0, 31) + '…' : full; })()}
-                          onChange={(val) => c.handleItemChange(it.id, 'destino', val)}
-                          compact
-                        />
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <input
-                          type="text"
-                          key={it.id + '-plazas'}
-                          defaultValue={it.plazas ?? ''}
-                          maxLength={3}
-                          onBlur={(e) => { const v = e.target.value.replace(/\D/g, ''); c.handleItemChange(it.id, 'plazas', v ? Number(v) : null); }}
-                          style={{ ...fieldStyle, width: '100%', padding: '0.2rem', textAlign: 'right' }}
-                        />
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <input
-                          type="text"
-                          key={it.id + '-noches'}
-                          defaultValue={it.noches ?? ''}
-                          maxLength={3}
-                          onBlur={(e) => { const v = e.target.value.replace(/\D/g, ''); c.handleItemChange(it.id, 'noches', v ? Number(v) : null); }}
-                          style={{ ...fieldStyle, width: '100%', padding: '0.2rem', textAlign: 'right' }}
-                        />
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <input
-                          type="text"
-                          key={it.id + '-neto'}
-                          defaultValue={!it.neto || Number(it.neto) === 0 ? '' : it.neto}
-                          onBlur={(e) => c.handleItemChange(it.id, 'neto', e.target.value)}
-                          style={{ ...fieldStyle, width: '100%', padding: '0.2rem', textAlign: 'right' }}
-                        />
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <input
-                          type="text"
-                          key={it.id + '-pvp'}
-                          defaultValue={!it.pvp || Number(it.pvp) === 0 ? '' : it.pvp}
-                          onBlur={(e) => c.handleItemChange(it.id, 'pvp', e.target.value)}
-                          style={{ ...fieldStyle, width: '100%', padding: '0.2rem', textAlign: 'right' }}
-                        />
-                      </td>
-                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
-                        {formatCurrency(it.total_neto ?? (Number(it.neto || 0) * Number(it.plazas || 0) * Number(it.noches || 0)))}
-                      </td>
-                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
-                        {formatCurrency(it.total_pvp ?? (Number(it.pvp || 0) * Number(it.plazas || 0) * Number(it.noches || 0)))}
-                      </td>
-                      <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
-                        <button
-                          type="button"
-                          onClick={() => c.handleItemChange(it.id, 'confirmado', !it.confirmado)}
-                          title={it.confirmado ? 'Confirmado — clic para marcar como pendiente' : 'Pendiente de confirmar — clic para confirmar'}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-                            padding: '0.2rem 0.5rem', borderRadius: '0.25rem', border: 'none', cursor: 'pointer',
-                            fontSize: '0.68rem', fontWeight: 700, whiteSpace: 'nowrap',
-                            backgroundColor: it.confirmado ? '#f0fdf4' : '#fffbeb',
-                            color: it.confirmado ? '#16a34a' : '#d97706',
-                          }}
-                        >
-                          {it.confirmado ? 'Confirmado' : 'Pendiente'}
-                        </button>
-                      </td>
-                      <td style={{ verticalAlign: 'middle', width: '1%', whiteSpace: 'nowrap', position: 'relative' }}>
-                        {deleteConfirmId === it.id ? (
-                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center', background: '#fef2f2', border: '1px solid #fca5a5', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
-                            <span style={{ fontSize: '0.65rem', color: '#b91c1c', fontWeight: 'bold', whiteSpace: 'nowrap' }}>¿Eliminar?</span>
-                            <button type="button" style={{ border: 'none', background: '#ef4444', color: '#fff', borderRadius: '3px', padding: '1px 4px', fontSize: '0.62rem', cursor: 'pointer', fontWeight: 'bold' }} onClick={() => { c.handleDeleteItem(it.id); setDeleteConfirmId(null); }}>Sí</button>
-                            <button type="button" style={{ border: '1px solid #cbd5e1', background: '#fff', color: '#475569', borderRadius: '3px', padding: '1px 4px', fontSize: '0.62rem', cursor: 'pointer' }} onClick={() => setDeleteConfirmId(null)}>No</button>
-                          </div>
-                        ) : (
-                          <AccionesLineaCell
-                            rowId={it.id}
-                            isLinked={!!it.is_linked}
-                            linkTitleLinked="Vinculado a servicio de expediente"
-                            linkTitleUnlinked="No vinculado a ningún servicio de expediente"
-                            onLinkClick={typeof it.id === 'string' && !it.id.startsWith('new-') ? () => c.handleVincularExpediente(it.id) : undefined}
-                            saveStatus={c.saveStatus[it.id]}
-                            actions={[
-                              { icon: <Info size={13} />, title: "Formulario del servicio", onClick: () => c.openInfoModal(it) },
-                              isInGroup && !isGroupLeader
-                                ? { icon: <Unlink size={13} />, title: "Desagrupar esta alternativa", onClick: () => c.handleUngroup(it) }
-                                : { icon: <Layers size={13} />, title: "Crear alternativa", onClick: () => c.handleCreateAlternative(it) },
-                              { icon: <Copy size={13} />, title: "Duplicar fila", onClick: () => c.handleDuplicateItem(it) },
-                              { icon: <Mail size={13} />, title: it.contabilidad_proveedores?.email ? `Enviar email a ${it.contabilidad_proveedores.nombre || it.contabilidad_proveedores.razon_social}` : "Enviar email al proveedor", onClick: () => setMailModalProveedor({ nombre: it.contabilidad_proveedores?.nombre || it.contabilidad_proveedores?.razon_social || it.descripcion || "", email: it.contabilidad_proveedores?.email || "" }) },
-                              ...(c.canDelete ? [{ icon: <Trash2 size={13} />, title: "Eliminar fila", onClick: () => setDeleteConfirmId(it.id), danger: true }] : []),
-                            ]}
-                          />
-                        )}
-                      </td>
-                    </tr>
-                    </Fragment>
-                  );
-                  });
+                  const firstOpcionalIndex = sortedItems.findIndex((it: any) => !!it.opcional);
+                  return sortedItems.map((it: any, index: number) => renderItemRow(it, index, firstOpcionalIndex));
                 })()}
               </tbody>
             </table>

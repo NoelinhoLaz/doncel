@@ -213,7 +213,7 @@ function MapSearchControl() {
   );
 }
 
-export default function CotizacionLineasMap({ points, onDestinationClick }: { points: Point[]; onDestinationClick: (id: string) => void }) {
+export default function CotizacionLineasMap({ points, onDestinationClick, height = 280 }: { points: Point[]; onDestinationClick: (id: string) => void; height?: number }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
@@ -222,12 +222,12 @@ export default function CotizacionLineasMap({ points, onDestinationClick }: { po
     return L.latLngBounds(points.map((p) => [p.lat, p.lng] as [number, number]));
   }, [points]);
 
-  if (!mounted) return <div style={{ height: 280, borderRadius: 10, border: "1px solid #e2e8f0", background: "#f8fafc" }} />;
+  if (!mounted) return <div style={{ height, borderRadius: 10, border: "1px solid #e2e8f0", background: "#f8fafc" }} />;
 
   if (points.length === 0) {
     return (
       <div style={{
-        height: 280,
+        height,
         borderRadius: 10,
         border: "1px solid #e2e8f0",
         background: "#f8fafc",
@@ -248,7 +248,7 @@ export default function CotizacionLineasMap({ points, onDestinationClick }: { po
       zoom={3}
       bounds={bounds || undefined}
       scrollWheelZoom
-      style={{ height: 280, width: "100%", borderRadius: 10 }}
+      style={{ height, width: "100%", borderRadius: 10 }}
     >
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"

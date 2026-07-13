@@ -204,6 +204,19 @@ async function getAgenciaIdFromSession(): Promise<string> {
 }
 
 /**
+ * Corrige un error común de la IA al extraer importes de documentos en formato español:
+ * confundir el separador de miles con el decimal y devolver algo como "2.093.00" (dos puntos)
+ * en vez de "2093.00", lo que rompe JSON.parse. Colapsa cualquier número con más de un punto,
+ * dejando solo el último como separador decimal (2.093.00 -> 2093.00, 1.234.567.89 -> 1234567.89).
+ */
+function sanearNumerosJSON(texto: string): string {
+  return texto.replace(/-?\d{1,3}(?:\.\d{3})+\.\d{1,2}(?=[,\s\]\}])/g, (match) => {
+    const ultimoPunto = match.lastIndexOf('.')
+    return match.slice(0, ultimoPunto).replace(/\./g, '') + match.slice(ultimoPunto)
+  })
+}
+
+/**
  * Procesa un archivo PDF de proveedor:
  *  1. Valida el archivo
  *  2. Sube el PDF a Storage
@@ -372,7 +385,7 @@ export async function procesarDocumento(
     // Parsear JSON de la respuesta del agente
     let extraccion: ExtraccionIA
     try {
-      extraccion = JSON.parse(textoRespuesta)
+      extraccion = JSON.parse(sanearNumerosJSON(textoRespuesta))
     } catch {
       console.error('RESPUESTA RAW:', textoRespuesta.slice(-500))
       console.error('FINISH REASON:', stop_reason)
@@ -576,7 +589,7 @@ export async function reprocesarDocumento(
 
   let extraccion: ExtraccionIA
   try {
-    extraccion = JSON.parse(textoRespuesta)
+    extraccion = JSON.parse(sanearNumerosJSON(textoRespuesta))
   } catch {
     console.error('RESPUESTA RAW:', textoRespuesta.slice(-500))
     console.error('FINISH REASON:', stop_reason)
