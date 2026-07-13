@@ -372,7 +372,7 @@ export async function updateCotizacionLinea(id: string, payload: {
   tipo?: string;
   descripcion?: string;
   proveedor?: string;
-  destino?: string;
+  destino?: string | null;
   plazas?: number | null;
   noches?: number | null;
   neto?: number | null;
@@ -381,6 +381,7 @@ export async function updateCotizacionLinea(id: string, payload: {
   total_pvp?: number | null;
   detalles?: any;
   checked?: boolean;
+  confirmado?: boolean;
   grupo_alternativa_id?: string | null;
 }) {
   try {
@@ -398,6 +399,7 @@ export async function updateCotizacionLinea(id: string, payload: {
     if (payload.total_pvp !== undefined) updatePayload.total_pvp = payload.total_pvp;
     if (payload.detalles !== undefined) updatePayload.detalles = payload.detalles;
     if (payload.checked !== undefined) updatePayload.checked = payload.checked;
+    if (payload.confirmado !== undefined) updatePayload.confirmado = payload.confirmado;
     if (payload.grupo_alternativa_id !== undefined) updatePayload.grupo_alternativa_id = payload.grupo_alternativa_id;
 
     if (Object.keys(updatePayload).length === 0) return { success: true, data: null };
@@ -424,8 +426,9 @@ export async function updateCotizacionLinea(id: string, payload: {
       }
     }
 
-    // Propagate neto/pvp back to linked expediente service (bidirectional sync)
-    if (payload.neto !== undefined || payload.pvp !== undefined) {
+    // Propagate changes back to linked expediente service (bidirectional sync)
+    const camposSincronizables = ['neto', 'pvp', 'descripcion', 'plazas', 'noches', 'tipo', 'destino'] as const;
+    if (camposSincronizables.some((f) => payload[f] !== undefined)) {
       const { data: linkRow } = await agencyDb
         .from("operativa_expediente_servicio_lineas")
         .select("servicio_id, operativa_expedientes_servicios!servicio_id(id, expediente_id)")
@@ -436,7 +439,9 @@ export async function updateCotizacionLinea(id: string, payload: {
         const servicio = (linkRow as any).operativa_expedientes_servicios;
         const expId = servicio?.expediente_id;
 
-        // Check for travelers before propagating
+        // El PVP y las plazas ya están comprometidos con los viajeros que contrataron el
+        // servicio, así que no se propagan si hay alguno vinculado. El resto de campos
+        // (neto, descripción, noches, tipo, destino) sí puede cambiar libremente.
         let blocked = false;
         if (expId) {
           const { data: viajeros } = await agencyDb
@@ -454,20 +459,34 @@ export async function updateCotizacionLinea(id: string, payload: {
           });
         }
 
+        const svcUpdate: any = {};
+        if (payload.neto !== undefined) svcUpdate.neto = payload.neto;
+        if (payload.descripcion !== undefined) svcUpdate.descripcion = payload.descripcion;
+        if (payload.noches !== undefined) svcUpdate.noches = payload.noches;
+        if (payload.tipo !== undefined) svcUpdate.tipo = payload.tipo;
+        if (payload.destino !== undefined) svcUpdate.destino = payload.destino;
         if (!blocked) {
-          const svcUpdate: any = {};
-          if (payload.neto !== undefined) svcUpdate.neto = payload.neto;
           if (payload.pvp !== undefined) svcUpdate.pvp = payload.pvp;
+          if (payload.plazas !== undefined) svcUpdate.plazas = payload.plazas;
+        }
 
+        if (Object.keys(svcUpdate).length > 0) {
           await agencyDb
             .from("operativa_expedientes_servicios")
             .update(svcUpdate)
             .eq("id", linkRow.servicio_id);
 
-          await agencyDb
-            .from("operativa_expediente_servicio_lineas")
-            .update(svcUpdate)
-            .eq("cotizacion_linea_id", id);
+          const lineaUpdate: any = {};
+          if (svcUpdate.descripcion !== undefined) lineaUpdate.descripcion = svcUpdate.descripcion;
+          if (svcUpdate.neto !== undefined) lineaUpdate.neto = svcUpdate.neto;
+          if (svcUpdate.pvp !== undefined) lineaUpdate.pvp = svcUpdate.pvp;
+          if (svcUpdate.tipo !== undefined) lineaUpdate.tipo = svcUpdate.tipo;
+          if (Object.keys(lineaUpdate).length > 0) {
+            await agencyDb
+              .from("operativa_expediente_servicio_lineas")
+              .update(lineaUpdate)
+              .eq("cotizacion_linea_id", id);
+          }
 
           if (expId) {
             const { revalidatePath: rp } = await import("next/cache");
@@ -673,7 +692,7 @@ export async function getCotizacionLineasToCopy(cotizacionId: string) {
     const agencyDb = await getAgencyDbClient();
     const { data, error } = await agencyDb
       .from("operativa_cotizacion_lineas")
-      .select("id, tipo, descripcion, proveedor, contabilidad_proveedores!proveedor(nombre, razon_social), destino, plazas, noches, neto, pvp, total_neto, total_pvp, opcional, detalles")
+      .select("id, tipo, descripcion, proveedor, contabilidad_proveedores!proveedor(nombre, razon_social), destino, maestro_destinos(nombre, nombre_comercial), plazas, noches, neto, pvp, total_neto, total_pvp, opcional, detalles")
       .eq("cotizacion_id", cotizacionId)
       .order("created_at", { ascending: true });
 
@@ -681,6 +700,7 @@ export async function getCotizacionLineasToCopy(cotizacionId: string) {
     return (data || []).map((l: any) => ({
       ...l,
       proveedor_nombre: l.contabilidad_proveedores?.nombre || l.contabilidad_proveedores?.razon_social || l.proveedor || "",
+      destino_nombre: l.maestro_destinos?.nombre_comercial || l.maestro_destinos?.nombre || "",
     }));
   } catch (error: any) {
     console.error("Failed to get cotizacion lineas:", error.message);

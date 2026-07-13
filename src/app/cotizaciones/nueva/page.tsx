@@ -29,7 +29,6 @@ export default function NuevaCotizacionPage() {
   const [summaryFree, setSummaryFree] = useState<number>(2);
   const [suplementos, setSuplementos] = useState<string>("");
   const [totals, setTotals] = useState({ totalCost: 0, totalRevenue: 0 });
-  const [optionalTotals, setOptionalTotals] = useState({ totalCost: 0, totalRevenue: 0 });
   const [showMap, setShowMap] = useState(false);
   const [mapItems, setMapItems] = useState<any[]>([]);
   const [summaryPvpViajero, setSummaryPvpViajero] = useState<number>(0);
@@ -442,26 +441,13 @@ export default function NuevaCotizacionPage() {
           </div>
         )}
 
-        {/* Full-width Quote Service List Table */}
+        {/* Full-width Quote Service List Table (obligatorios + opcionales unidos) */}
         {!showMap && <div style={{ width: '100%' }}>
-          <CotizacionesTab 
-            compactHeader 
-            hideSummary 
+          <CotizacionesTab
+            compactHeader
+            hideSummary
             cotizacionId={cotId}
-            opcionalFilter={false}
-            onTotalsChange={setTotals} 
-          />
-        </div>}
-
-        {/* Full-width Optional Quote Service List Table */}
-        {!showMap && <div style={{ width: '100%' }}>
-          <CotizacionesTab 
-            compactHeader 
-            hideSummary 
-            title="Servicios opcionales cotizados"
-            cotizacionId={cotId}
-            opcionalFilter={true}
-            onTotalsChange={setOptionalTotals} 
+            onTotalsChange={setTotals}
           />
         </div>}
 

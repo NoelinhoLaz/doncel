@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getTiposServicios } from "@/actions/tiposServicios";
 import { createDestinoFromPlace } from "@/actions/destinos";
+import { vincularCotizacionLineaAExpediente } from "@/actions/servicios";
 import { computeLineTotals } from "@/lib/utils/cotizaciones";
 import { supabase } from "@/lib/supabase";
 
@@ -224,9 +225,39 @@ export function useCotizacion(
     [displayItems, checkedIds]
   );
 
+  // Totales de solo los servicios NO opcionales, independientes de opcionalFilter,
+  // para que el resumen (precio por viajero, etc.) nunca incluya extras opcionales
+  // aunque la tabla muestre todos los servicios juntos.
+  const nonOpcionalCost = useMemo(
+    () => items.filter(i => !i.opcional).reduce((sum, it) => {
+      if (checkedIds[it.id] === false) return sum;
+      const plazas = !it.plazas || Number(it.plazas) === 0 ? 1 : Number(it.plazas);
+      const noches = !it.noches || Number(it.noches) === 0 ? 1 : Number(it.noches);
+      return sum + Number(it.total_neto ?? (Number(it.neto || 0) * plazas * noches));
+    }, 0),
+    [items, checkedIds]
+  );
+
+  const nonOpcionalRevenue = useMemo(
+    () => items.filter(i => !i.opcional).reduce((sum, it) => {
+      if (checkedIds[it.id] === false) return sum;
+      const plazas = !it.plazas || Number(it.plazas) === 0 ? 1 : Number(it.plazas);
+      const noches = !it.noches || Number(it.noches) === 0 ? 1 : Number(it.noches);
+      return sum + Number(it.total_pvp ?? (Number(it.pvp || 0) * plazas * noches));
+    }, 0),
+    [items, checkedIds]
+  );
+
   useEffect(() => {
     if (!hasEditedPvp && summaryPlazas > 0) setSummaryPvpViajero(Math.round(totalRevenue / summaryPlazas));
   }, [totalRevenue, summaryPlazas, hasEditedPvp]);
+
+  const handleVincularExpediente = async (id: any) => {
+    if (!confirm("¿Añadir esta línea como servicio del expediente?")) return;
+    const res = await vincularCotizacionLineaAExpediente(id);
+    if (!res.success) { alert(res.error || "Error al añadir la línea al expediente"); return; }
+    setItems(prev => prev.map(it => it.id === id ? { ...it, is_linked: true } : it));
+  };
 
   const handleDeleteItem = (id: any) => {
     setItems(prev => prev.filter(it => it.id !== id));
@@ -432,6 +463,7 @@ export function useCotizacion(
     router,
     items, allItems: allItemsForHistory, loading, tiposMap,
     displayItems, filtered, paginated,
+    nonOpcionalCost, nonOpcionalRevenue,
     checkedIds, saveStatus,
     search, setSearch: (v: string) => { setSearchRaw(v); setCurrentPage(1); },
     currentPage, setCurrentPage,
@@ -448,6 +480,7 @@ export function useCotizacion(
     canDelete: !initialCotizacion?.agente_id || currentAuthUid === initialCotizacion?.agente_id,
     handleItemChange, handleCheckedChange, handleDeleteItem, handleDuplicateItem,
     handleCreateAlternative, handleUngroup, handleAddItemByTipo, addItemFromHistory, handleSaveInfoModal,
+    handleVincularExpediente,
     handleImportFromSheets,
     persistChange,
   };

@@ -435,13 +435,15 @@ export default function ImportarCotizacionModal({
                   await createGroupedExpedienteServicio({
                     expediente_id: expedienteId,
                     tipo: first.tipo || "transporte",
-                    proveedor: first.proveedor_nombre || first.proveedor || "",
+                    proveedor: first.proveedor || "",
                     descripcion: `${selected.length} servicio${selected.length > 1 ? "s" : ""} de ${first.proveedor_nombre || first.proveedor || "proveedor"}`,
                     neto: selected.reduce((s: number, l: any) => s + Number(l.neto || 0), 0),
                     pvp: totalVal,
                     total: totalVal,
                     opcional: false,
                     condiciones,
+                    destino: first.destino || null,
+                    noches: first.noches ?? null,
                     origenes: selected.map((l: any) => ({
                       cotizacion_linea_id: l.id,
                       tipo: l.tipo || "transporte",

@@ -24,13 +24,13 @@ export default function CotizacionesTab({ expedienteId, hideHeader, compactHeade
   const c = useCotizacion(cotizacionId, initialCotizacion, opcionalFilter);
 
   useEffect(() => {
-    if (onTotalsChange) onTotalsChange({ totalCost: c.totalCost, totalRevenue: c.totalRevenue });
-  }, [c.totalCost, c.totalRevenue, onTotalsChange]);
+    if (onTotalsChange) onTotalsChange({ totalCost: c.nonOpcionalCost, totalRevenue: c.nonOpcionalRevenue });
+  }, [c.nonOpcionalCost, c.nonOpcionalRevenue, onTotalsChange]);
 
   const resumen = !hideSummary ? (
     <ResumenCotizacion
-      totalCost={c.totalCost}
-      totalRevenue={c.totalRevenue}
+      totalCost={c.nonOpcionalCost}
+      totalRevenue={c.nonOpcionalRevenue}
       summaryPlazas={c.summaryPlazas}
       summaryFree={c.summaryFree}
       summaryPvpViajero={c.summaryPvpViajero}

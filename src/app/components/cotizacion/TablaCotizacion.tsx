@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
-import { Info, Layers, Unlink, Copy, Trash2, ClipboardPaste, Mail, Link as LinkIcon } from "lucide-react";
+import { useState, useRef, useCallback, useEffect, Fragment } from "react";
+import { Info, Layers, Unlink, Copy, Trash2, ClipboardPaste, Mail, Users, Moon } from "lucide-react";
 import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 const NuevaComunicacionModal = dynamic(() => import("@/app/expedientes/[id]/components/NuevaComunicacionModal"), { ssr: false });
@@ -10,6 +10,8 @@ import Pagination from "@/app/components/Pagination";
 import ProviderSelector from "@/app/expedientes/[id]/components/ProviderSelector";
 import DestinationSelector from "@/app/expedientes/[id]/components/DestinationSelector";
 import TipoIcon from "./TipoIcon";
+import AccionesLineaCell from "@/app/components/ui/AccionesLineaCell";
+import TipoSelectorPopup from "@/app/components/ui/TipoSelectorPopup";
 import { formatCurrency } from "@/hooks/useCotizacion";
 import type { useCotizacion } from "@/hooks/useCotizacion";
 import styles from "@/app/expedientes/[id]/page.module.css";
@@ -183,16 +185,12 @@ export default function TablaCotizacion({ c, hideHeader, compactHeader, title, s
               </button>
               {c.showAddTipoPopup && compactHeader && (
                 <div className={tablaStyles.tipoPopup}>
-                  <div className={tablaStyles.tipoPopupLabel}>Seleccionar tipo</div>
                   {Object.values(c.tiposMap).length === 0 ? (
                     <div style={{ padding: '0.5rem', fontSize: '0.75rem', color: '#94a3b8', textAlign: 'center' }}>Sin tipos</div>
                   ) : (
                     Object.values(c.tiposMap).map((t: any) => (
-                      <div key={t.id} className={tablaStyles.tipoPopupItem} onClick={() => c.handleAddItemByTipo(t)}>
-                        <span style={{ width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <TipoIcon iconName={t.icono} size={12} />
-                        </span>
-                        <span style={{ flex: 1 }}>{t.etiqueta}</span>
+                      <div key={t.id} title={t.etiqueta} className={tablaStyles.tipoPopupItem} onClick={() => c.handleAddItemByTipo(t)}>
+                        <TipoIcon iconName={t.icono} size={14} />
                       </div>
                     ))
                   )}
@@ -342,27 +340,24 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                                         position: 'absolute', zIndex: 50, top: '100%', left: '50%', transform: 'translateX(-50%)',
                                         marginTop: 4, background: '#fff', border: '1px solid #e2e8f0',
                                         borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                                        padding: '0.3rem', display: 'flex', flexDirection: 'column', gap: 2, minWidth: 160,
+                                        padding: '0.3rem', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
                                       }}
                                     >
                                       {Object.values(c.tiposMap).map((t: any) => (
                                         <button
                                           key={t.id}
                                           type="button"
+                                          title={t.etiqueta}
                                           onClick={() => { setPreviewRows(prev => prev.map((r, i) => i === idx ? { ...r, tipoId: t.id } : r)); setOpenTipoPopupIdx(null); }}
                                           style={{
-                                            display: 'flex', alignItems: 'center', gap: '0.4rem',
-                                            padding: '0.3rem 0.5rem', borderRadius: 5, border: 'none',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            padding: '0.4rem', borderRadius: 6, border: 'none',
                                             background: t.id === row.tipoId ? '#eef2ff' : 'transparent',
-                                            color: t.id === row.tipoId ? '#6366f1' : '#334155',
-                                            fontWeight: t.id === row.tipoId ? 600 : 400,
-                                            fontSize: '0.74rem', cursor: 'pointer', textAlign: 'left', width: '100%',
+                                            color: t.id === row.tipoId ? '#6366f1' : '#64748b',
+                                            cursor: 'pointer', flexShrink: 0,
                                           }}
                                         >
-                                          <span style={{ flexShrink: 0, color: t.id === row.tipoId ? '#6366f1' : '#64748b' }}>
-                                            <TipoIcon iconName={t.icono} size={12} />
-                                          </span>
-                                          {t.etiqueta}
+                                          <TipoIcon iconName={t.icono} size={14} />
                                         </button>
                                       ))}
                                     </div>
@@ -418,13 +413,14 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                 <col />
                 <col style={{ width: 180 }} />
                 <col style={{ width: 180 }} />
-                <col style={{ width: 60 }} />
-                <col style={{ width: 60 }} />
+                <col style={{ width: 42 }} />
+                <col style={{ width: 42 }} />
                 <col style={{ width: 72 }} />
                 <col style={{ width: 72 }} />
                 <col style={{ width: 90 }} />
                 <col style={{ width: 90 }} />
-                <col style={{ width: 110 }} />
+                <col style={{ width: 92 }} />
+                <col style={{ width: 56 }} />
               </colgroup>
               <thead>
                 <tr>
@@ -433,24 +429,28 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                   <th>Descripción</th>
                   <th>Proveedor</th>
                   <th>Destino</th>
-                  <th style={{ textAlign: 'right' }}>Plazas</th>
-                  <th style={{ textAlign: 'right' }}>Noches</th>
+                  <th style={{ textAlign: 'right' }} title="Plazas"><Users size={13} style={{ display: 'inline-block', verticalAlign: 'middle' }} /></th>
+                  <th style={{ textAlign: 'right' }} title="Noches"><Moon size={13} style={{ display: 'inline-block', verticalAlign: 'middle' }} /></th>
                   <th style={{ textAlign: 'right' }}>Neto</th>
                   <th style={{ textAlign: 'right' }}>PVP</th>
                   <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Tot. Neto</th>
                   <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Tot. PVP</th>
+                  <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Estado</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {c.paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={12} style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>
+                    <td colSpan={13} style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>
                       No hay líneas en esta cotización. Usa el botón + para añadir.
                     </td>
                   </tr>
                 ) : (() => {
                   const sorted = [...c.paginated].sort((a: any, b: any) => {
+                    const oa = Number(!!a.opcional);
+                    const ob = Number(!!b.opcional);
+                    if (oa !== ob) return oa - ob;
                     const ga = a.grupo_alternativa_id || '';
                     const gb = b.grupo_alternativa_id || '';
                     if (ga && gb && ga === gb) return 0;
@@ -459,15 +459,27 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                     if (ga && gb && ga !== gb) return ga < gb ? -1 : 1;
                     return 0;
                   });
+                  const firstOpcionalIndex = sorted.findIndex((it: any) => !!it.opcional);
                   const seenGroups = new Set<string>();
-                  return sorted.map((it: any) => {
+                  return sorted.map((it: any, index: number) => {
                   const groupColor = getGroupColor(it.grupo_alternativa_id);
                   const isInGroup = !!it.grupo_alternativa_id;
                   const isUnchecked = isInGroup && c.checkedIds[it.id] === false;
                   const isGroupLeader = isInGroup && !seenGroups.has(it.grupo_alternativa_id);
                   if (isInGroup) seenGroups.add(it.grupo_alternativa_id);
                   return (
-                    <tr key={it.id} style={groupColor ? { borderLeft: `3px solid ${groupColor}`, background: isUnchecked ? '#f8fafc' : undefined } : {}}>
+                    <Fragment key={it.id}>
+                    {index === firstOpcionalIndex && (
+                      <tr>
+                        <td colSpan={13} style={{ padding: '0.75rem 1rem 0.5rem 1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>OPCIONALES</span>
+                            <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    <tr style={groupColor ? { borderLeft: `3px solid ${groupColor}`, background: isUnchecked ? '#f8fafc' : undefined } : {}}>
                       <td style={{ verticalAlign: 'middle', width: '1%' }}>
                         <input
                           type="checkbox"
@@ -477,42 +489,15 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                         />
                       </td>
                       <td style={{ whiteSpace: 'nowrap', width: compactHeader ? '32px' : '1%', verticalAlign: 'middle', position: 'relative' }}>
-                        <button
-                          type="button"
-                          title={(it.config_tipos_servicios?.etiqueta) || c.tiposMap[it.tipo]?.etiqueta || 'Cambiar tipo'}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={() => setOpenTipoRowId(openTipoRowId === it.id ? null : it.id)}
-                          style={{
-                            width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            background: openTipoRowId === it.id ? '#eef2ff' : '#f1f5f9',
-                            border: openTipoRowId === it.id ? '1px solid #6366f1' : '1px solid transparent',
-                            borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
-                          }}
-                        >
-                          <TipoIcon iconName={it.config_tipos_servicios?.icono || c.tiposMap[it.tipo]?.icono} size={14} />
-                        </button>
-                        {openTipoRowId === it.id && (
-                          <div className={tablaStyles.tipoPopup} style={{ right: 'auto', left: 0 }} onMouseDown={(e) => e.stopPropagation()}>
-                            <div className={tablaStyles.tipoPopupLabel}>Cambiar tipo</div>
-                            {Object.values(c.tiposMap).map((t: any) => {
-                              const isSelected = (it.tipo === t.id) || (it.config_tipos_servicios?.id === t.id);
-                              return (
-                                <div
-                                  key={t.id}
-                                  className={tablaStyles.tipoPopupItem}
-                                  style={{ background: isSelected ? '#eef2ff' : undefined, color: isSelected ? '#6366f1' : undefined, fontWeight: isSelected ? 600 : undefined }}
-                                  onClick={() => { c.handleItemChange(it.id, 'tipo', t.id); setOpenTipoRowId(null); }}
-                                >
-                                  <span style={{ width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: isSelected ? '#6366f1' : '#64748b' }}>
-                                    <TipoIcon iconName={t.icono} size={12} />
-                                  </span>
-                                  <span style={{ flex: 1 }}>{t.etiqueta}</span>
-                                  {isSelected && <span style={{ fontSize: '0.65rem' }}>✓</span>}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                        <TipoSelectorPopup
+                          tipos={Object.values(c.tiposMap).map((t: any) => ({ id: t.id, label: t.etiqueta, icono: t.icono }))}
+                          selectedId={it.config_tipos_servicios?.id || it.tipo}
+                          selectedIcono={it.config_tipos_servicios?.icono || c.tiposMap[it.tipo]?.icono}
+                          selectedLabel={it.config_tipos_servicios?.etiqueta || c.tiposMap[it.tipo]?.etiqueta}
+                          isOpen={openTipoRowId === it.id}
+                          onToggle={() => setOpenTipoRowId(openTipoRowId === it.id ? null : it.id)}
+                          onSelect={(tipoId) => { c.handleItemChange(it.id, 'tipo', tipoId); setOpenTipoRowId(null); }}
+                        />
                       </td>
                       <td>
                         <input
@@ -544,6 +529,7 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                           type="text"
                           key={it.id + '-plazas'}
                           defaultValue={it.plazas ?? ''}
+                          maxLength={3}
                           onBlur={(e) => { const v = e.target.value.replace(/\D/g, ''); c.handleItemChange(it.id, 'plazas', v ? Number(v) : null); }}
                           style={{ ...fieldStyle, width: '100%', padding: '0.2rem', textAlign: 'right' }}
                         />
@@ -553,40 +539,18 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                           type="text"
                           key={it.id + '-noches'}
                           defaultValue={it.noches ?? ''}
+                          maxLength={3}
                           onBlur={(e) => { const v = e.target.value.replace(/\D/g, ''); c.handleItemChange(it.id, 'noches', v ? Number(v) : null); }}
                           style={{ ...fieldStyle, width: '100%', padding: '0.2rem', textAlign: 'right' }}
                         />
                       </td>
-                      <td style={{ textAlign: 'right', position: 'relative' }}>
-                        {it.is_linked && (
-                          <span 
-                            title="Vinculado a servicio de expediente" 
-                            style={{ 
-                              position: 'absolute', 
-                              left: '6px', 
-                              top: '50%', 
-                              transform: 'translateY(-50%)', 
-                              display: 'inline-flex', 
-                              alignItems: 'center', 
-                              zIndex: 10,
-                              pointerEvents: 'none'
-                            }}
-                          >
-                            <LinkIcon size={11} style={{ color: '#2563eb' }} />
-                          </span>
-                        )}
+                      <td style={{ textAlign: 'right' }}>
                         <input
                           type="text"
                           key={it.id + '-neto'}
                           defaultValue={!it.neto || Number(it.neto) === 0 ? '' : it.neto}
                           onBlur={(e) => c.handleItemChange(it.id, 'neto', e.target.value)}
-                          style={{ 
-                            ...fieldStyle, 
-                            width: '100%', 
-                            padding: '0.2rem', 
-                            paddingLeft: it.is_linked ? '1.25rem' : '0.2rem', 
-                            textAlign: 'right' 
-                          }}
+                          style={{ ...fieldStyle, width: '100%', padding: '0.2rem', textAlign: 'right' }}
                         />
                       </td>
                       <td style={{ textAlign: 'right' }}>
@@ -604,40 +568,51 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                       <td style={{ textAlign: 'right', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
                         {formatCurrency(it.total_pvp ?? (Number(it.pvp || 0) * Number(it.plazas || 0) * Number(it.noches || 0)))}
                       </td>
-                      <td style={{ verticalAlign: 'middle', width: '1%', whiteSpace: 'nowrap' }}>
-                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', alignItems: 'center' }}>
-                          {c.saveStatus[it.id] === 'saving' && <div className={tablaStyles.spinIcon} title="Guardando..." />}
-                          {c.saveStatus[it.id] === 'saved' && <span title="Guardado" style={{ color: '#22c55e', fontSize: '14px', lineHeight: 1 }}>✓</span>}
-                          {c.saveStatus[it.id] === 'error' && <span title="Error al guardar" style={{ color: '#ef4444', fontSize: '12px', lineHeight: 1 }}>⚠</span>}
-                          
-                          {deleteConfirmId === it.id ? (
-                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', background: '#fef2f2', border: '1px solid #fca5a5', padding: '2px 6px', borderRadius: '4px' }}>
-                              <span style={{ fontSize: '0.65rem', color: '#b91c1c', fontWeight: 'bold' }}>¿Eliminar?</span>
-                              <button type="button" style={{ border: 'none', background: '#ef4444', color: '#fff', borderRadius: '3px', padding: '1px 4px', fontSize: '0.62rem', cursor: 'pointer', fontWeight: 'bold' }} onClick={() => { c.handleDeleteItem(it.id); setDeleteConfirmId(null); }}>Sí</button>
-                              <button type="button" style={{ border: '1px solid #cbd5e1', background: '#fff', color: '#475569', borderRadius: '3px', padding: '1px 4px', fontSize: '0.62rem', cursor: 'pointer' }} onClick={() => setDeleteConfirmId(null)}>No</button>
-                            </div>
-                          ) : (
-                            <>
-                              <button type="button" className={tablaStyles.iconBtn} onClick={() => c.openInfoModal(it)} title="Formulario del servicio"><Info size={13} /></button>
-                              {isInGroup && !isGroupLeader
-                                ? <button type="button" className={tablaStyles.iconBtn} onClick={() => c.handleUngroup(it)} title="Desagrupar esta alternativa"><Unlink size={13} /></button>
-                                : <button type="button" className={tablaStyles.iconBtn} onClick={() => c.handleCreateAlternative(it)} title="Crear alternativa"><Layers size={13} /></button>
-                              }
-                              <button type="button" className={tablaStyles.iconBtn} onClick={() => c.handleDuplicateItem(it)} title="Duplicar fila"><Copy size={13} /></button>
-                              <button
-                                type="button"
-                                className={tablaStyles.iconBtn}
-                                title={it.contabilidad_proveedores?.email ? `Enviar email a ${it.contabilidad_proveedores.nombre || it.contabilidad_proveedores.razon_social}` : "Enviar email al proveedor"}
-                                onClick={() => setMailModalProveedor({ nombre: it.contabilidad_proveedores?.nombre || it.contabilidad_proveedores?.razon_social || it.descripcion || "", email: it.contabilidad_proveedores?.email || "" })}
-                              >
-                                <Mail size={13} />
-                              </button>
-                              {c.canDelete && <button type="button" className={tablaStyles.iconBtn} onClick={() => setDeleteConfirmId(it.id)} title="Eliminar fila"><Trash2 size={13} /></button>}
-                            </>
-                          )}
-                        </div>
+                      <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                        <button
+                          type="button"
+                          onClick={() => c.handleItemChange(it.id, 'confirmado', !it.confirmado)}
+                          title={it.confirmado ? 'Confirmado — clic para marcar como pendiente' : 'Pendiente de confirmar — clic para confirmar'}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                            padding: '0.2rem 0.5rem', borderRadius: '0.25rem', border: 'none', cursor: 'pointer',
+                            fontSize: '0.68rem', fontWeight: 700, whiteSpace: 'nowrap',
+                            backgroundColor: it.confirmado ? '#f0fdf4' : '#fffbeb',
+                            color: it.confirmado ? '#16a34a' : '#d97706',
+                          }}
+                        >
+                          {it.confirmado ? 'Confirmado' : 'Pendiente'}
+                        </button>
+                      </td>
+                      <td style={{ verticalAlign: 'middle', width: '1%', whiteSpace: 'nowrap', position: 'relative' }}>
+                        {deleteConfirmId === it.id ? (
+                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center', background: '#fef2f2', border: '1px solid #fca5a5', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: '0.65rem', color: '#b91c1c', fontWeight: 'bold', whiteSpace: 'nowrap' }}>¿Eliminar?</span>
+                            <button type="button" style={{ border: 'none', background: '#ef4444', color: '#fff', borderRadius: '3px', padding: '1px 4px', fontSize: '0.62rem', cursor: 'pointer', fontWeight: 'bold' }} onClick={() => { c.handleDeleteItem(it.id); setDeleteConfirmId(null); }}>Sí</button>
+                            <button type="button" style={{ border: '1px solid #cbd5e1', background: '#fff', color: '#475569', borderRadius: '3px', padding: '1px 4px', fontSize: '0.62rem', cursor: 'pointer' }} onClick={() => setDeleteConfirmId(null)}>No</button>
+                          </div>
+                        ) : (
+                          <AccionesLineaCell
+                            rowId={it.id}
+                            isLinked={!!it.is_linked}
+                            linkTitleLinked="Vinculado a servicio de expediente"
+                            linkTitleUnlinked="No vinculado a ningún servicio de expediente"
+                            onLinkClick={typeof it.id === 'string' && !it.id.startsWith('new-') ? () => c.handleVincularExpediente(it.id) : undefined}
+                            saveStatus={c.saveStatus[it.id]}
+                            actions={[
+                              { icon: <Info size={13} />, title: "Formulario del servicio", onClick: () => c.openInfoModal(it) },
+                              isInGroup && !isGroupLeader
+                                ? { icon: <Unlink size={13} />, title: "Desagrupar esta alternativa", onClick: () => c.handleUngroup(it) }
+                                : { icon: <Layers size={13} />, title: "Crear alternativa", onClick: () => c.handleCreateAlternative(it) },
+                              { icon: <Copy size={13} />, title: "Duplicar fila", onClick: () => c.handleDuplicateItem(it) },
+                              { icon: <Mail size={13} />, title: it.contabilidad_proveedores?.email ? `Enviar email a ${it.contabilidad_proveedores.nombre || it.contabilidad_proveedores.razon_social}` : "Enviar email al proveedor", onClick: () => setMailModalProveedor({ nombre: it.contabilidad_proveedores?.nombre || it.contabilidad_proveedores?.razon_social || it.descripcion || "", email: it.contabilidad_proveedores?.email || "" }) },
+                              ...(c.canDelete ? [{ icon: <Trash2 size={13} />, title: "Eliminar fila", onClick: () => setDeleteConfirmId(it.id), danger: true }] : []),
+                            ]}
+                          />
+                        )}
                       </td>
                     </tr>
+                    </Fragment>
                   );
                   });
                 })()}

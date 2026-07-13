@@ -179,7 +179,7 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
                 className={styles.submenuItem}
                 onClick={() => { setPresupSubOpen(false); router.push("/cotizaciones"); }}
               >
-                <Icons.Facturacion size={14} className={styles.submenuIcon} />
+                <Icons.Cotizacion size={14} className={styles.submenuIcon} />
                 <span>Cotizaciones</span>
               </button>
             )}

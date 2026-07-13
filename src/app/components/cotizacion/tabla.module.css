@@ -16,7 +16,7 @@
   border: none;
   color: #64748b;
   cursor: pointer;
-  padding: 4px;
+  padding: 2px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -51,34 +51,41 @@
   top: 100%;
   right: 0;
   z-index: 99999;
-  min-width: 170px;
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   border: 1px solid #e2e8f0;
-  padding: 0.25rem;
+  padding: 0.35rem;
   margin-top: 4px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
 }
 
 .tipoPopupLabel {
-  padding: 0.3rem 0.5rem;
+  padding: 0.3rem 0.4rem;
   font-size: 0.7rem;
   color: #64748b;
   font-weight: 600;
-  border-bottom: 1px solid #f1f5f9;
-  margin-bottom: 2px;
+  border-right: 1px solid #f1f5f9;
+  margin-right: 2px;
+  flex-shrink: 0;
 }
 
 .tipoPopupItem {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 0.4rem 0.5rem;
+  padding: 0.4rem;
   border-radius: 6px;
   cursor: pointer;
   font-size: 0.78rem;
   color: #0f172a;
   transition: background 0.1s;
+  flex-shrink: 0;
 }
 
 .tipoPopupItem:hover {

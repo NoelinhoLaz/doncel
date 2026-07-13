@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Search, Plus, Check, ChevronDown, Loader2, X, MapPin } from "lucide-react";
+import { Search, Plus, Check, ChevronDown, X, MapPin } from "lucide-react";
 import { getDestinos, createDestino, createDestinoFromPlace } from "@/actions/destinos";
 import { searchPlaces, getPlaceDetails } from "@/actions/places";
 import type { PlaceSuggestion } from "@/actions/places";
@@ -13,15 +13,15 @@ interface DestinationSelectorProps {
   label?: string;
 }
 
+const MIN_SEARCH_CHARS = 3;
+
 export default function DestinationSelector({ value, onChange, compact, label }: DestinationSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [loading, setLoading] = useState(false);
   const [destinos, setDestinos] = useState<any[]>([]);
-  const [searchResults, setSearchResults] = useState<any[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
 
-  // Google Places search
+  // Google Places search (used from the "add new destino" form)
   const [showPlacesPanel, setShowPlacesPanel] = useState(false);
   const [placesQuery, setPlacesQuery] = useState("");
   const [placesSuggestions, setPlacesSuggestions] = useState<PlaceSuggestion[]>([]);
@@ -29,11 +29,10 @@ export default function DestinationSelector({ value, onChange, compact, label }:
   const placesInputRef = useRef<HTMLInputElement>(null);
   const placesDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Load destinos if no label provided (modal) or when opening dropdown
+  // Load destinos if no label provided (needed to resolve the trigger's display name) —
+  // avoids one getDestinos() call per empty-destino row on every table refresh.
   useEffect(() => {
-    if (label) { setDataLoaded(true); return; }
+    if (label || !value) { setDataLoaded(true); return; }
     async function load() {
       try {
         const destsData = await getDestinos();
@@ -45,19 +44,8 @@ export default function DestinationSelector({ value, onChange, compact, label }:
       }
     }
     load();
-  }, [label]);
-
-  // Handle outside click to close dropdown
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-        setShowPlacesPanel(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [label, value]);
 
   // Focus Places input when panel opens
   useEffect(() => {
@@ -95,11 +83,27 @@ export default function DestinationSelector({ value, onChange, compact, label }:
     return found?.nombre || id;
   };
 
-  const handleSelect = (destId: string, destName: string) => {
-    onChange(destId, destName);
-    setIsOpen(false);
+  const openModal = async () => {
     setSearchTerm("");
     setShowPlacesPanel(false);
+    setPlacesQuery("");
+    setPlacesSuggestions([]);
+    const destsData = await getDestinos();
+    setDestinos(destsData || []);
+    setDataLoaded(true);
+    setIsOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsOpen(false);
+    setShowPlacesPanel(false);
+    setPlacesQuery("");
+    setPlacesSuggestions([]);
+  };
+
+  const handleSelect = (destId: string, destName: string) => {
+    onChange(destId, destName);
+    closeModal();
   };
 
   const handleSelectPlace = async (suggestion: PlaceSuggestion) => {
@@ -116,9 +120,6 @@ export default function DestinationSelector({ value, onChange, compact, label }:
       alert("Error al crear destino: " + err.message);
     } finally {
       setPlacesLoading(false);
-      setShowPlacesPanel(false);
-      setPlacesQuery("");
-      setPlacesSuggestions([]);
     }
   };
 
@@ -136,31 +137,18 @@ export default function DestinationSelector({ value, onChange, compact, label }:
       alert("Error al crear destino: " + err.message);
     } finally {
       setPlacesLoading(false);
-      setShowPlacesPanel(false);
-      setPlacesQuery("");
-      setPlacesSuggestions([]);
     }
   };
 
-  const filteredDestinos = destinos.filter((d) =>
-    d.nombre.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredDestinos = searchTerm.trim().length >= MIN_SEARCH_CHARS
+    ? destinos.filter((d) => d.nombre.toLowerCase().includes(searchTerm.trim().toLowerCase()))
+    : destinos.slice(0, 5);
 
   return (
-    <div ref={containerRef} style={{ position: "relative", width: "100%" }}>
-      {/* Trigger Button/Input */}
+    <div style={{ position: "relative", width: "100%" }}>
+      {/* Trigger */}
       <div
-        onClick={async () => {
-          if (!isOpen) {
-            // Recargar siempre al abrir para incluir destinos recién creados en otras líneas
-            const destsData = await getDestinos();
-            setDestinos(destsData || []);
-            setDataLoaded(true);
-            setSearchTerm("");
-            setShowPlacesPanel(false);
-          }
-          setIsOpen(!isOpen);
-        }}
+        onClick={openModal}
         style={{
           display: "flex",
           justifyContent: "space-between",
@@ -187,264 +175,271 @@ export default function DestinationSelector({ value, onChange, compact, label }:
             onClick={(e) => { e.stopPropagation(); onChange(""); }}
           />
         )}
-        <ChevronDown size={14} style={{ color: "#64748b", transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }} />
+        <ChevronDown size={14} style={{ color: "#64748b", flexShrink: 0 }} />
       </div>
 
-      {/* Dropdown Card */}
+      {/* Modal */}
       {isOpen && (
         <div
-          style={{
-            position: "absolute",
-            top: "calc(100% + 4px)",
-            left: 0,
-            width: "280px", // ancho un poco mayor para caber bien la busqueda de lugares
-            backgroundColor: "#ffffff",
-            borderRadius: "0.5rem",
-            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
-            border: "1px solid #e2e8f0",
-            zIndex: 99999,
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-            animation: "fadeIn 0.15s ease-out"
-          }}
+          onClick={closeModal}
+          style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(4px)", zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center" }}
         >
-          {!showPlacesPanel ? (
-            <>
-              {/* Search Header */}
-              <div style={{ display: "flex", padding: "0.4rem 0.5rem", gap: "0.4rem", borderBottom: "1px solid #f1f5f9" }}>
-                <div style={{ position: "relative", flex: 1 }}>
-                  <Search size={14} style={{ position: "absolute", left: "6px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "380px",
+              maxHeight: "70vh",
+              backgroundColor: "#ffffff",
+              borderRadius: "0.75rem",
+              boxShadow: "0 25px 50px -12px rgba(15, 23, 42, 0.25)",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            {!showPlacesPanel ? (
+              <>
+                {/* Header */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.9rem 1rem 0.6rem 1rem" }}>
+                  <h3 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 700, color: "#0f172a" }}>Seleccionar destino</h3>
+                  <button onClick={closeModal} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "26px", height: "26px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748b" }}>
+                    <X size={14} />
+                  </button>
+                </div>
+
+                {/* Search Header */}
+                <div style={{ display: "flex", alignItems: "center", borderBottom: "1px solid #f1f5f9", borderTop: "1px solid #f1f5f9", padding: "0.5rem 1rem", gap: "0.5rem" }}>
+                  <Search size={16} style={{ color: "#94a3b8", flexShrink: 0 }} />
                   <input
                     type="text"
                     placeholder="Buscar destino..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
                     autoFocus
                     style={{
-                      width: "100%",
-                      padding: "0.35rem 0.4rem 0.35rem 1.5rem",
-                      borderRadius: "0.25rem",
-                      border: "1px solid #cbd5e1",
-                      fontSize: "0.75rem",
+                      border: "none",
                       outline: "none",
-                      backgroundColor: "#ffffff",
-                      color: "#0f172a"
+                      width: "100%",
+                      fontSize: "0.85rem",
+                      color: "#0f172a",
+                      backgroundColor: "transparent",
+                      padding: "0.25rem 0"
                     }}
                   />
-                </div>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setPlacesQuery(searchTerm);
-                    setShowPlacesPanel(true);
-                  }}
-                  style={{
-                    backgroundColor: "var(--primary-color, #475569)",
-                    color: "#ffffff",
-                    border: "none",
-                    padding: "0 0.5rem",
-                    borderRadius: "0.25rem",
-                    fontSize: "0.7rem",
-                    fontWeight: "600",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.2rem",
-                    whiteSpace: "nowrap"
-                  }}
-                >
-                  <Plus size={10} />
-                  <span>Google</span>
-                </button>
-              </div>
-
-              {/* Destinos List */}
-              <div style={{ maxHeight: "200px", overflowY: "auto", padding: "0.25rem" }}>
-                {filteredDestinos.length > 0 ? (
-                  filteredDestinos.map((dest) => {
-                    const isSelected = value === dest.id;
-                    return (
-                      <div
-                        key={dest.id}
-                        onClick={() => handleSelect(dest.id, dest.nombre)}
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          padding: "0.4rem 0.6rem",
-                          borderRadius: "0.25rem",
-                          fontSize: "0.75rem",
-                          cursor: "pointer",
-                          color: isSelected ? "#ffffff" : "#334155",
-                          backgroundColor: isSelected ? "var(--primary-color, #475569)" : "transparent",
-                          transition: "all 0.15s"
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isSelected) e.currentTarget.style.backgroundColor = "#f1f5f9";
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isSelected) e.currentTarget.style.backgroundColor = "transparent";
-                        }}
-                      >
-                        <span style={{ fontWeight: isSelected ? "600" : "400" }}>{dest.nombre}</span>
-                        {isSelected && <Check size={12} style={{ color: "#ffffff" }} />}
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div style={{ padding: "1rem", textAlign: "center", fontSize: "0.75rem", color: "#94a3b8" }}>
-                    No encontrado.{" "}
-                    <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setPlacesQuery(searchTerm);
-                        setShowPlacesPanel(true);
-                      }}
-                      style={{ color: "var(--primary-color, #475569)", fontWeight: "600", cursor: "pointer", textDecoration: "underline" }}
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm("")}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "0.15rem", flexShrink: 0 }}
                     >
-                      Buscar con Google Places
-                    </span>
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {searchTerm.trim().length > 0 && searchTerm.trim().length < MIN_SEARCH_CHARS && (
+                  <div style={{ padding: "0.5rem 1rem", fontSize: "0.72rem", color: "#94a3b8" }}>
+                    Escribe al menos {MIN_SEARCH_CHARS} letras para buscar
                   </div>
                 )}
-              </div>
-            </>
-          ) : (
-            /* Google Places Panel */
-            <div style={{ padding: "0.5rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", paddingBottom: "0.25rem" }}>
-                <span style={{ fontSize: "0.7rem", fontWeight: "700", color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  Google Places
-                </span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowPlacesPanel(false);
-                    setPlacesQuery("");
-                    setPlacesSuggestions([]);
-                  }}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8" }}
-                >
-                  <X size={14} />
-                </button>
-              </div>
 
-              {/* Places Search Input */}
-              <div style={{ position: "relative" }}>
-                <Search size={12} style={{ position: "absolute", left: "6px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
-                <input
-                  ref={placesInputRef}
-                  type="text"
-                  placeholder="Ej: Barcelona, Cancún, Maldivas..."
-                  value={placesQuery}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    setPlacesQuery(e.target.value);
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  style={{
-                    width: "100%",
-                    padding: "0.35rem 0.4rem 0.35rem 1.5rem",
-                    borderRadius: "0.25rem",
-                    border: "1px solid #cbd5e1",
-                    fontSize: "0.75rem",
-                    outline: "none",
-                    backgroundColor: "#ffffff",
-                    color: "#0f172a"
-                  }}
-                />
-                {placesLoading && (
-                  <div style={{
-                    position: "absolute", right: "6px", top: "50%", transform: "translateY(-50%)",
-                    width: "10px", height: "10px", border: "2px solid #cbd5e1",
-                    borderTopColor: "var(--primary-color, #475569)", borderRadius: "50%",
-                    animation: "spin 0.8s linear infinite"
-                  }} />
+                {/* Destinos List */}
+                <div style={{ maxHeight: "280px", overflowY: "auto", padding: "0.25rem 0" }}>
+                  {filteredDestinos.length > 0 ? (
+                    <>
+                      <div style={{ padding: "0.35rem 1rem", fontSize: "0.7rem", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        {searchTerm.trim().length >= MIN_SEARCH_CHARS ? "Resultados de búsqueda" : "5 destinos"}
+                      </div>
+                      {filteredDestinos.map((dest) => {
+                        const isSelected = value === dest.id;
+                        return (
+                          <div
+                            key={dest.id}
+                            onClick={() => handleSelect(dest.id, dest.nombre)}
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              padding: "0.5rem 1rem",
+                              cursor: "pointer",
+                              backgroundColor: isSelected ? "#f0fdf4" : "transparent",
+                              transition: "background-color 0.15s",
+                              borderBottom: "1px solid #f8fafc"
+                            }}
+                            onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = "#f8fafc"; }}
+                            onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = "transparent"; }}
+                          >
+                            <span style={{ fontWeight: isSelected ? "600" : "400", fontSize: "0.85rem", color: "#0f172a" }}>{dest.nombre}</span>
+                            {isSelected && <Check size={16} style={{ color: "#22c55e" }} />}
+                          </div>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <div style={{ padding: "1.5rem 1rem", textAlign: "center" }}>
+                      <div style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.5rem" }}>
+                        No se encontraron destinos
+                      </div>
+                      {searchTerm.trim().length >= MIN_SEARCH_CHARS && (
+                        <span
+                          onClick={() => { setPlacesQuery(searchTerm); setShowPlacesPanel(true); }}
+                          style={{ color: "var(--primary-color, #475569)", fontWeight: "600", cursor: "pointer", textDecoration: "underline", fontSize: "0.8rem" }}
+                        >
+                          Buscar con Google Places
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Bottom Actions */}
+                <div style={{ borderTop: "1px solid #f1f5f9", padding: "0.6rem 1rem", backgroundColor: "#f8fafc" }}>
+                  <button
+                    type="button"
+                    onClick={() => { setPlacesQuery(searchTerm); setShowPlacesPanel(true); }}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.35rem",
+                      padding: "0.5rem",
+                      borderRadius: "0.375rem",
+                      border: "1px dashed #cbd5e1",
+                      backgroundColor: "#ffffff",
+                      color: "var(--primary-color, #475569)",
+                      fontSize: "0.8rem",
+                      fontWeight: "600",
+                      cursor: "pointer",
+                      transition: "all 0.2s"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#f1f5f9";
+                      e.currentTarget.style.borderColor = "#94a3b8";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "#ffffff";
+                      e.currentTarget.style.borderColor = "#cbd5e1";
+                    }}
+                  >
+                    <Plus size={14} />
+                    <span>Añadir nuevo destino</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* Google Places Panel */
+              <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", paddingBottom: "0.5rem" }}>
+                  <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "#0f172a" }}>
+                    Nuevo destino
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { setShowPlacesPanel(false); setPlacesQuery(""); setPlacesSuggestions([]); }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8" }}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                {/* Places Search Input */}
+                <div style={{ position: "relative" }}>
+                  <Search size={14} style={{ position: "absolute", left: "8px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                  <input
+                    ref={placesInputRef}
+                    type="text"
+                    placeholder="Ej: Barcelona, Cancún, Maldivas..."
+                    value={placesQuery}
+                    onChange={(e) => setPlacesQuery(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "0.45rem 0.6rem 0.45rem 1.8rem",
+                      borderRadius: "0.25rem",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "0.8rem",
+                      outline: "none",
+                      backgroundColor: "#ffffff",
+                      color: "#0f172a",
+                      boxSizing: "border-box"
+                    }}
+                  />
+                  {placesLoading && (
+                    <div style={{
+                      position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)",
+                      width: "12px", height: "12px", border: "2px solid #cbd5e1",
+                      borderTopColor: "var(--primary-color, #475569)", borderRadius: "50%",
+                      animation: "spin 0.8s linear infinite"
+                    }} />
+                  )}
+                </div>
+
+                {/* Autocomplete Suggestions */}
+                {placesSuggestions.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2px", maxHeight: "180px", overflowY: "auto", border: "1px solid #f1f5f9", borderRadius: "0.25rem", padding: "0.2rem" }}>
+                    {placesSuggestions.map((s) => (
+                      <div
+                        key={s.placeId}
+                        onClick={() => handleSelectPlace(s)}
+                        style={{
+                          padding: "0.4rem 0.6rem",
+                          borderRadius: "0.2rem",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: "0.4rem",
+                          transition: "background-color 0.15s"
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#f1f5f9"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+                      >
+                        <MapPin size={12} style={{ minWidth: "12px", color: "#475569", marginTop: "1px" }} />
+                        <div>
+                          <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#0f172a" }}>{s.mainText}</div>
+                          {s.secondaryText && (
+                            <div style={{ fontSize: "0.7rem", color: "#64748b" }}>{s.secondaryText}</div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {!placesLoading && placesQuery.trim().length >= 2 && placesSuggestions.length === 0 && (
+                  <div style={{ fontSize: "0.75rem", color: "#94a3b8", textAlign: "center", padding: "0.25rem 0" }}>
+                    Sin resultados en Google Places
+                  </div>
+                )}
+
+                {/* Plain text save option */}
+                {placesQuery.trim().length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleSaveWithoutGoogle}
+                    style={{
+                      background: "none",
+                      border: "1px dashed #cbd5e1",
+                      color: "#64748b",
+                      fontSize: "0.75rem",
+                      borderRadius: "0.25rem",
+                      padding: "0.4rem 0.6rem",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      width: "100%",
+                      marginTop: "0.2rem"
+                    }}
+                  >
+                    Guardar "{placesQuery}" sin datos de Google
+                  </button>
                 )}
               </div>
-
-              {/* Autocomplete Suggestions */}
-              {placesSuggestions.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "2px", maxHeight: "140px", overflowY: "auto", border: "1px solid #f1f5f9", borderRadius: "0.25rem", padding: "0.2rem" }}>
-                  {placesSuggestions.map((s) => (
-                    <div
-                      key={s.placeId}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSelectPlace(s);
-                      }}
-                      style={{
-                        padding: "0.35rem 0.5rem",
-                        borderRadius: "0.2rem",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "flex-start",
-                        gap: "0.4rem",
-                        transition: "background-color 0.15s"
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = "#e2e8f0";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = "transparent";
-                      }}
-                    >
-                      <MapPin size={12} style={{ minWidth: "12px", color: "#475569", marginTop: "1px" }} />
-                      <div>
-                        <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#0f172a" }}>{s.mainText}</div>
-                        {s.secondaryText && (
-                          <div style={{ fontSize: "0.65rem", color: "#64748b" }}>{s.secondaryText}</div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {!placesLoading && placesQuery.trim().length >= 2 && placesSuggestions.length === 0 && (
-                <div style={{ fontSize: "0.7rem", color: "#94a3b8", textAlign: "center", padding: "0.25rem 0" }}>
-                  Sin resultados en Google Places
-                </div>
-              )}
-
-              {/* Plain text save option */}
-              {placesQuery.trim().length > 0 && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSaveWithoutGoogle();
-                  }}
-                  style={{
-                    background: "none",
-                    border: "1px dashed #cbd5e1",
-                    color: "#64748b",
-                    fontSize: "0.7rem",
-                    borderRadius: "0.25rem",
-                    padding: "0.25rem 0.5rem",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    width: "100%",
-                    marginTop: "0.2rem"
-                  }}
-                >
-                  Guardar "{placesQuery}" sin datos de Google
-                </button>
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
       <style jsx global>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-4px); }
-          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>

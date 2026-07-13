@@ -22,19 +22,40 @@ export interface Kpis {
   opcionalCount: number;
   obligatorioPercent: number;
   opcionalPercent: number;
+  obligatorioPagadoCount: number;
+  obligatorioParcialCount: number;
+  opcionalPagadoCount: number;
+  opcionalParcialCount: number;
+}
+
+function countPagoEstados(servicios: any[]): { pagado: number; parcial: number } {
+  let pagado = 0;
+  let parcial = 0;
+  for (const s of servicios) {
+    const abonado = Number(s.abonado ?? 0);
+    const pvp = Number(s.pvp || 0);
+    if (pvp > 0 && abonado >= pvp) pagado++;
+    else if (abonado > 0) parcial++;
+  }
+  return { pagado, parcial };
 }
 
 export function calculateKpis(servicios: any[]): Kpis {
   const totalCost = servicios.reduce((sum, s) => sum + getServiceTotal(s), 0);
-  const obligatorioCost = servicios.filter(s => !s.opcional).reduce((sum, s) => sum + getServiceTotal(s), 0);
-  const opcionalCost = servicios.filter(s => s.opcional).reduce((sum, s) => sum + getServiceTotal(s), 0);
+  const obligatorios = servicios.filter(s => !s.opcional);
+  const opcionales = servicios.filter(s => s.opcional);
+  const obligatorioCost = obligatorios.reduce((sum, s) => sum + getServiceTotal(s), 0);
+  const opcionalCost = opcionales.reduce((sum, s) => sum + getServiceTotal(s), 0);
 
-  const obligatorioCount = servicios.filter(s => !s.opcional).length;
-  const opcionalCount = servicios.filter(s => s.opcional).length;
+  const obligatorioCount = obligatorios.length;
+  const opcionalCount = opcionales.length;
   const totalCount = servicios.length;
 
   const obligatorioPercent = totalCount > 0 ? Math.round((obligatorioCount / totalCount) * 100) : 0;
   const opcionalPercent = totalCount > 0 ? Math.round((opcionalCount / totalCount) * 100) : 0;
+
+  const obligatorioEstados = countPagoEstados(obligatorios);
+  const opcionalEstados = countPagoEstados(opcionales);
 
   return {
     totalCost,
@@ -43,7 +64,11 @@ export function calculateKpis(servicios: any[]): Kpis {
     obligatorioCount,
     opcionalCount,
     obligatorioPercent,
-    opcionalPercent
+    opcionalPercent,
+    obligatorioPagadoCount: obligatorioEstados.pagado,
+    obligatorioParcialCount: obligatorioEstados.parcial,
+    opcionalPagadoCount: opcionalEstados.pagado,
+    opcionalParcialCount: opcionalEstados.parcial,
   };
 }
 
