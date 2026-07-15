@@ -2,6 +2,7 @@
 
 import { getAgencyDbClient } from "@/lib/agencyDb";
 import { revalidatePath } from "next/cache";
+import { recalcularEstadoMovimientoBanco } from "@/lib/conciliacion/contabilidadService";
 
 // UUID_REGEX lives here: createExpedienteServicio and createGroupedExpedienteServicio use it
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -889,10 +890,7 @@ export async function conciliarPagoPendiente(movimientoId: string, movimientoBan
       await sincronizarConfirmadoSegunPago(agencyDb, p.servicio_id);
     }
 
-    await agencyDb
-      .from("contabilidad_movimientos_banco")
-      .update({ estado: "conciliado", conciliacion_tipo: "manual", conciliado_at: new Date().toISOString() })
-      .eq("id", movimientoBancoId);
+    await recalcularEstadoMovimientoBanco(agencyDb, movimientoBancoId, "manual");
 
     revalidatePath(`/expedientes/${expedienteId}`);
     return { success: true };
@@ -969,12 +967,9 @@ export async function vincularServiciosAMovimientoBanco(payload: {
       await sincronizarConfirmadoSegunPago(agencyDb, ser.id);
     }
 
-    // Concilia el movimiento bancario: queda marcado como conciliado y vinculado al
-    // expediente a través del contabilidad_movimientos recién creado (expediente_id).
-    await agencyDb
-      .from("contabilidad_movimientos_banco")
-      .update({ estado: "conciliado", conciliacion_tipo: "manual", conciliado_at: new Date().toISOString() })
-      .eq("id", movimiento_banco_id);
+    // Recalcula el estado del movimiento bancario: conciliado si el importe queda cubierto por
+    // completo, o parcial si aún faltan pagos de otros expedientes/servicios para completarlo.
+    await recalcularEstadoMovimientoBanco(agencyDb, movimiento_banco_id, "manual");
 
     revalidatePath(`/expedientes/${expediente_id}`);
     return { success: true, data: results };

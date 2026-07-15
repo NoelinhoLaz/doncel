@@ -1,5 +1,42 @@
 import { ejecutarConciliacionGroomy } from "@/lib/GroomyConciliationService";
 
+/** Recalcula el estado de un movimiento bancario comparando su importe con la suma de los
+ *  contabilidad_movimientos confirmados que tiene vinculados (movimiento_banco_id). Si no cubre
+ *  el importe total queda 'parcial' en vez de 'conciliado', permitiendo completarlo más adelante
+ *  con más pagos de otros expedientes (ej. cobro de aseguradora que agrupa varias pólizas). */
+export async function recalcularEstadoMovimientoBanco(
+  agencyDb: any,
+  movimientoBancoId: string,
+  conciliacionTipo: "automatica" | "manual" = "manual"
+): Promise<"conciliado" | "parcial"> {
+  const { data: banco } = await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .select("importe")
+    .eq("id", movimientoBancoId)
+    .single();
+
+  const { data: pagos } = await agencyDb
+    .from("contabilidad_movimientos")
+    .select("importe_total")
+    .eq("movimiento_banco_id", movimientoBancoId)
+    .eq("estado", "confirmado");
+
+  const totalConciliado = (pagos || []).reduce((sum: number, p: any) => sum + Number(p.importe_total || 0), 0);
+  const importeMovimiento = Math.abs(Number(banco?.importe || 0));
+  const nuevoEstado: "conciliado" | "parcial" = totalConciliado + 0.01 >= importeMovimiento ? "conciliado" : "parcial";
+
+  await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .update({
+      estado: nuevoEstado,
+      conciliacion_tipo: conciliacionTipo,
+      conciliado_at: nuevoEstado === "conciliado" ? new Date().toISOString() : null,
+    })
+    .eq("id", movimientoBancoId);
+
+  return nuevoEstado;
+}
+
 export async function conciliarPagoProveedor(
   agencyDb: any,
   pagoId: string,
@@ -109,18 +146,7 @@ export async function conciliarPagoProveedor(
     console.error("Error linking payment installment to bank movement:", updPagoError);
   }
 
-  const { error: updBancoError } = await agencyDb
-    .from("contabilidad_movimientos_banco")
-    .update({
-      estado: "conciliado",
-      conciliacion_tipo: "manual",
-      conciliado_at: new Date().toISOString(),
-    })
-    .eq("id", movimientoBancoId);
-
-  if (updBancoError) {
-    console.error("Error updating bank movement status:", updBancoError);
-  }
+  await recalcularEstadoMovimientoBanco(agencyDb, movimientoBancoId, "manual");
 
   const { data: todosPagos } = await agencyDb
     .from("operativa_documentos_pagos")
@@ -326,14 +352,7 @@ export async function ejecutarConciliacionMovimiento(
       return { success: false, error: `Error al insertar movimiento contable: ${mcError?.message || ""}` };
     }
 
-    const { error: updBancoError } = await agencyDb
-      .from("contabilidad_movimientos_banco")
-      .update({ estado: "conciliado", conciliacion_tipo: "manual", conciliado_at: new Date().toISOString() })
-      .eq("id", movimientoBancoId);
-
-    if (updBancoError) {
-      return { success: false, error: `Error actualizando movimiento bancario: ${updBancoError.message || ""}` };
-    }
+    await recalcularEstadoMovimientoBanco(agencyDb, movimientoBancoId, "manual");
 
     return { success: true, documento_id: meta.documento_id, proveedor_id: meta.proveedor_id || null, expediente_id: meta.expediente_id, entidad_id: entidadId };
   }
@@ -352,9 +371,9 @@ export async function ejecutarConciliacionMovimiento(
   }
 
   const sumaPagos = pagos.reduce((sum: number, p: any) => sum + Number(p.importe || 0), 0);
-  const diferencia = Math.abs(Math.abs(Number(movimiento.importe || 0)) - sumaPagos);
-  if (diferencia > 5) {
-    return { success: false, error: `Diferencia de importes superior a 5€: ${diferencia.toFixed(2)}€` };
+  const exceso = sumaPagos - Math.abs(Number(movimiento.importe || 0));
+  if (exceso > 5) {
+    return { success: false, error: `Los pagos seleccionados superan el importe del movimiento en ${exceso.toFixed(2)}€` };
   }
 
   let lastResult: any = null;

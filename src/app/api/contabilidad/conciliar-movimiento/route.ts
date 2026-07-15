@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAgencyDbClient } from '@/lib/agencyDb';
+import { recalcularEstadoMovimientoBanco } from '@/lib/conciliacion/contabilidadService';
 
 interface ConciliacionRequest {
   movimiento_banco_id: string;
@@ -102,19 +103,16 @@ export async function POST(request: NextRequest) {
     // 4. Insertar apuntes contables en estado pendiente (sin asiento)
     const apunteId = await insertarApuntesPendientes(movimientoContable.id, movimiento, pagador, agencyDb, expediente_id);
 
-    // 5. Marcar movimiento bancario como conciliado
-    const { error: updateBancoError } = await agencyDb
+    // 5. Recalcular estado del movimiento bancario (conciliado o parcial según importe cubierto)
+    await recalcularEstadoMovimientoBanco(agencyDb, movimiento_banco_id, conciliacion_tipo);
+
+    const { error: updateApunteError } = await agencyDb
       .from('contabilidad_movimientos_banco')
-      .update({
-        estado: 'conciliado',
-        conciliacion_tipo: conciliacion_tipo,
-        conciliado_at: new Date().toISOString(),
-        apunte_id: apunteId
-      })
+      .update({ apunte_id: apunteId })
       .eq('id', movimiento_banco_id);
 
-    if (updateBancoError) {
-      console.error('Error updating bank movement state:', updateBancoError);
+    if (updateApunteError) {
+      console.error('Error updating bank movement apunte_id:', updateApunteError);
     }
 
     // 6. Crear imputaciones a viajeros del expediente (priorizando los del match_metadatos)

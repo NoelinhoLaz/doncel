@@ -61,6 +61,13 @@ const getEstadoBadgeStyle = (estado: string) => {
         border: "1px solid color-mix(in srgb, var(--primary-color, #475569) 30%, white)",
         label: "Matching"
       };
+    case "parcial":
+      return {
+        bg: "#fef3c7",
+        color: "#b45309",
+        border: "1px solid #fde68a",
+        label: "Parcial"
+      };
     case "pendiente":
     default:
       return {
@@ -385,6 +392,7 @@ export default function BancoPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
                   {[
                     { value: "conciliado", label: "Ok" },
+                    { value: "parcial", label: "Parcial" },
                     { value: "propuesto", label: "Matching" },
                     { value: "pendiente", label: "Pendiente" },
                   ].map(opt => (
