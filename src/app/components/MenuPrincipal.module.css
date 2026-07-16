@@ -40,6 +40,36 @@
   color: #1e293b;
 }
 
+.moduleRadar:hover, .moduleRadar.active {
+  color: #3189F4;
+}
+
+.moduleStudio:hover, .moduleStudio.active {
+  color: #41CDD7;
+}
+
+.moduleCore:hover, .moduleCore.active {
+  color: #6F38E6;
+}
+
+.modulePulse:hover, .modulePulse.active {
+  color: #F62976;
+}
+
+.menuItem:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.menuItem:disabled:hover {
+  background-color: transparent;
+  color: #94a3b8;
+}
+
+.moduleAudit:hover, .moduleAudit.active {
+  color: #FFE04D;
+}
+
 .settingsWrapper {
   margin-top: auto;
   padding-bottom: 1rem;

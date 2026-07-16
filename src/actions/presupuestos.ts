@@ -135,12 +135,30 @@ export async function createPresupuesto(input: CreatePresupuestoInput) {
       }
     }
 
-    // Insertar contactos de nueva entidad si los hay
+    // Insertar contactos de nueva entidad si los hay (también en crm_contactos para que
+    // queden disponibles como responsables reutilizables al editar el presupuesto)
     const contactos = input.nueva_entidad?.contactos?.filter(c => c.nombre?.trim()) ?? [];
     if (contactos.length > 0) {
+      const { data: crmContactos, error: crmError } = await agencyDb
+        .from("crm_contactos")
+        .insert(
+          contactos.map((c, i) => ({
+            entidad_id: entidadId,
+            nombre: [c.nombre.trim(), c.apellidos?.trim()].filter(Boolean).join(" "),
+            cargo: c.cargo?.trim() || null,
+            email: c.email?.trim() || null,
+            telefono: c.telefono?.trim() || null,
+            es_principal: !input.responsable_contacto_id && i === 0,
+          }))
+        )
+        .select("id");
+
+      if (crmError) throw crmError;
+
       await agencyDb.from("operativa_presupuesto_contactos").insert(
         contactos.map((c, i) => ({
           presupuesto_id: presupuesto.id,
+          crm_contacto_id: crmContactos?.[i]?.id ?? null,
           nombre: c.nombre.trim(),
           apellidos: c.apellidos?.trim() || null,
           cargo: c.cargo?.trim() || null,

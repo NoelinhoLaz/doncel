@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminServerClient, createAdminServiceClient } from '@/lib/supabaseServer';
 import { decrypt } from "@/lib/encryption";
 
+// Normaliza URLs de Supabase pegadas desde el dashboard (p. ej. con /rest/v1/ o barra final)
+function normalizeSupabaseUrl(url: string): string {
+  return url.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+}
+
 async function verifySuperAdmin() {
   const sessionClient = await createAdminServerClient();
   const { data: { user }, error } = await sessionClient.auth.getUser();
@@ -25,7 +30,7 @@ export async function GET() {
   const adminDb = createAdminServiceClient();
   const { data, error } = await adminDb
     .from('agencias')
-    .select('id, nombre_comercial, razon_social, cif_nif, slug, plan_tipo, estado, fecha_alta, email_general, telefono_general, direccion_central, color_corporativo, logo_url, supabase_url, supabase_service_role_key_enc, iv, auth_tag')
+    .select('id, nombre_comercial, razon_social, cif_nif, slug, plan_tipo, capacidad_tipo, estado, fecha_alta, email_general, telefono_general, direccion_central, color_corporativo, logo_url, supabase_url, supabase_service_role_key_enc, iv, auth_tag')
     .order('nombre_comercial', { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -150,6 +155,7 @@ export async function GET() {
       cif_nif: agencia.cif_nif,
       slug: agencia.slug,
       plan_tipo: agencia.plan_tipo,
+      capacidad_tipo: agencia.capacidad_tipo || "Starter",
       estado: agencia.estado,
       fecha_alta: agencia.fecha_alta,
       email_general: agencia.email_general,
@@ -161,7 +167,7 @@ export async function GET() {
       subtenants_count: subtenantsCount,
       active_modules: activeModules,
       cuota_mensual: Math.round(totalQuota * 100) / 100, // round to 2 decimals
-      tipo: subtenantsCount === 0 ? "Starter" : "Growth"
+      tipo: agencia.capacidad_tipo || "Starter"
     };
   }));
 
@@ -176,9 +182,15 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const body = await req.json();
+  // Los módulos (radar_activo, core_activo, etc.) viven en config_modulos_tenant
+  // dentro de la BD de la propia agencia, no en la tabla 'agencias' de la BD Admin.
+  const { radar_activo, studio_activo, core_activo, pulse_activo, ledger_tax_activo, ...agenciaFields } = body;
+  if (agenciaFields.supabase_url) {
+    agenciaFields.supabase_url = normalizeSupabaseUrl(agenciaFields.supabase_url);
+  }
   const adminDb = createAdminServiceClient();
 
-  const { error } = await adminDb.from('agencias').insert([body]);
+  const { error } = await adminDb.from('agencias').insert([agenciaFields]);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ ok: true });
@@ -195,7 +207,8 @@ export async function PATCH(req: NextRequest) {
 
   const body = await req.json();
   const {
-    nombre_comercial, razon_social, cif_nif, slug, email_general, telefono_general, direccion_central, color_corporativo, plan_tipo, estado,
+    nombre_comercial, razon_social, cif_nif, slug, email_general, telefono_general, direccion_central, color_corporativo, plan_tipo, capacidad_tipo, estado,
+    supabase_url,
     radar_activo, studio_activo, core_activo, pulse_activo, ledger_tax_activo
   } = body;
 
@@ -211,6 +224,8 @@ export async function PATCH(req: NextRequest) {
   if (direccion_central !== undefined) updatePayload.direccion_central = direccion_central;
   if (color_corporativo !== undefined) updatePayload.color_corporativo = color_corporativo;
   if (plan_tipo !== undefined) updatePayload.plan_tipo = plan_tipo;
+  if (capacidad_tipo !== undefined) updatePayload.capacidad_tipo = capacidad_tipo;
+  if (supabase_url) updatePayload.supabase_url = normalizeSupabaseUrl(supabase_url);
   if (estado !== undefined) updatePayload.estado = estado;
 
   const { error } = await adminDb.from('agencias').update(updatePayload).eq('id', id);

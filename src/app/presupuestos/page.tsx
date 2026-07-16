@@ -6,7 +6,7 @@ import { Icons } from "@/lib/icons";
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Pagination from "@/app/components/Pagination";
-import { Sun, Moon, Users } from "lucide-react";
+import { Sun, Moon, Users, Trash2 } from "lucide-react";
 
 const TIPO_LABELS: Record<string, string> = {
   vacacional: "Vacacional",
@@ -36,6 +36,7 @@ export default function PresupuestosPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [cotizando, setCotizando] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [destinosMap, setDestinosMap] = useState<Record<string, string>>({});
   const [agentesMap, setAgentesMap] = useState<Record<string, string>>({});
 
@@ -121,6 +122,19 @@ export default function PresupuestosPage() {
       }
     } catch {}
     setCotizando(null);
+  }
+
+  async function handleDelete(e: React.MouseEvent, p: any) {
+    e.stopPropagation();
+    if (deleting) return;
+    if (!confirm(`¿Eliminar la solicitud de presupuesto "${p.titulo_viaje}"? Esta acción no se puede deshacer.`)) return;
+    setDeleting(p.id);
+    try {
+      const res = await fetch(`/api/presupuestos/${p.id}`, { method: "DELETE" });
+      const j = await res.json();
+      if (j?.success) load();
+    } catch {}
+    setDeleting(null);
   }
 
   return (
@@ -313,22 +327,39 @@ export default function PresupuestosPage() {
                           </span>
                         </td>
                         <td style={{ textAlign: "right", paddingRight: "0.75rem" }}>
-                          {(p.estado === "pendiente_cotizar" || p.estado === "cotizando") && (
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+                            {(p.estado === "pendiente_cotizar" || p.estado === "cotizando") && (
+                              <button
+                                onClick={(e) => handleCotizar(e, p)}
+                                disabled={cotizando === p.id}
+                                title={cotizando === p.id ? "Creando…" : "Cotizar"}
+                                style={{
+                                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                  width: "1.9rem", height: "1.9rem",
+                                  borderRadius: "0.4rem", border: "none",
+                                  background: "none",
+                                  color: "var(--primary-color, #475569)",
+                                  cursor: cotizando === p.id ? "wait" : "pointer",
+                                }}
+                              >
+                                <Icons.Cotizacion size={15} />
+                              </button>
+                            )}
                             <button
-                              onClick={(e) => handleCotizar(e, p)}
-                              disabled={cotizando === p.id}
+                              onClick={(e) => handleDelete(e, p)}
+                              disabled={deleting === p.id}
+                              title="Eliminar solicitud"
                               style={{
-                                padding: "0.25rem 0.65rem", fontSize: "0.72rem", fontWeight: 600,
-                                borderRadius: "0.4rem", border: "1.5px solid var(--primary-color, #475569)",
-                                background: "color-mix(in srgb, var(--primary-color, #475569) 10%, white)",
-                                color: "var(--primary-color, #475569)",
-                                cursor: cotizando === p.id ? "wait" : "pointer",
-                                whiteSpace: "nowrap",
+                                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                width: "1.9rem", height: "1.9rem",
+                                borderRadius: "0.4rem", border: "none",
+                                background: "none", color: "#dc2626",
+                                cursor: deleting === p.id ? "wait" : "pointer",
                               }}
                             >
-                              {cotizando === p.id ? "Creando…" : "Cotizar"}
+                              <Trash2 size={15} />
                             </button>
-                          )}
+                          </div>
                         </td>
                       </tr>
                     );

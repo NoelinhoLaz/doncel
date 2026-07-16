@@ -83,7 +83,7 @@ async function getDefaultTipoId(agencyDb: any): Promise<string | null> {
     const agencyDb = await getAgencyDbClient();
     const { data, error } = await agencyDb
       .from("operativa_cotizaciones")
-      .select("*, contabilidad_entidades!contacto(id, nombre), operativa_cotizacion_lineas(id, tipo, descripcion, plazas, noches, neto, pvp, total_neto, total_pvp, checked, opcional, maestro_destinos(id, nombre, nombre_comercial, lat, lng), contabilidad_proveedores!proveedor(id, nombre, email), config_tipos_servicios(id, etiqueta, icono, contenido))")
+      .select("*, contabilidad_entidades!contacto(id, nombre), operativa_cotizacion_lineas(id, tipo, descripcion, plazas, noches, neto, pvp, total_neto, total_pvp, checked, opcional, confirmado, maestro_destinos(id, nombre, nombre_comercial, lat, lng), contabilidad_proveedores!proveedor(id, nombre, email), config_tipos_servicios(id, etiqueta, icono, contenido))")
       .order("created_at", { ascending: false });
 
     if (error) throw error;

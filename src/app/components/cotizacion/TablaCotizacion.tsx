@@ -86,7 +86,7 @@ export default function TablaCotizacion({ c, hideHeader, compactHeader, title, s
   const [agruparBtnRect, setAgruparBtnRect] = useState<{ top: number; left: number } | null>(null);
   const agruparDropdownRef = useRef<HTMLDivElement>(null);
   const agruparBtnRef = useRef<HTMLButtonElement>(null);
-  const [agruparPor, setAgruparPor] = useState<"proveedor" | "tipo" | "opcional" | null>(null);
+  const [agruparPor, setAgruparPor] = useState<"proveedor" | "tipo" | "opcional" | null>("proveedor");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [showMap, setShowMap] = useState(false);
 

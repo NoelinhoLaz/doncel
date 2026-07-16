@@ -5,7 +5,7 @@ import styles from "../expedientes/[id]/page.module.css";
 import { Icons } from "@/lib/icons";
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Trash2, UserRound, X, Search, MapPin, Rows3, List, SlidersHorizontal, ChevronRight, ChevronDown, Compass, DatabaseZap, Link2 } from "lucide-react";
+import { Copy, Trash2, UserRound, X, Search, MapPin, SlidersHorizontal, ChevronRight, ChevronDown, Compass, DatabaseZap, Link2 } from "lucide-react";
 import { PresupuestoDetalleDrawer } from "@/components/modals/PresupuestoDetalleDrawer";
 import Pagination from "@/app/components/Pagination";
 import { duplicateCotizacion, deleteCotizacion, updateCotizacionLinea } from "@/actions/cotizaciones";
@@ -106,7 +106,8 @@ function ModalBuscarContacto({ modal, onClose, onSelect }: {
 
 export default function CotizacionesPage() {
   const router = useRouter();
-  const [viewMode, setViewMode] = useState<"cotizaciones" | "lineas">("cotizaciones");
+  const [agruparPor, setAgruparPor] = useState<"cotizacion" | "tipo" | "desagrupar">("cotizacion");
+  const viewMode: "cotizaciones" | "lineas" = agruparPor === "cotizacion" ? "cotizaciones" : "lineas";
   const [cotizaciones, setCotizaciones] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -124,6 +125,7 @@ export default function CotizacionesPage() {
   const [tipoFilter, setTipoFilter] = useState<string[]>([]);
   const [showMap, setShowMap] = useState(false);
   const [expandedCotizacionIds, setExpandedCotizacionIds] = useState<string[]>([]);
+  const [collapsedTipoGroups, setCollapsedTipoGroups] = useState<Set<string>>(new Set());
   const [allServiceTypes, setAllServiceTypes] = useState<any[]>([]);
   const [showMigracion, setShowMigracion] = useState(false);
   const [migracionPreview, setMigracionPreview] = useState<any[]>([]);
@@ -142,6 +144,12 @@ export default function CotizacionesPage() {
       setExpandedCotizacionIds([...expandedCotizacionIds, id]);
     }
   };
+
+  const toggleTipoGroup = (key: string) => setCollapsedTipoGroups((prev) => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
 
   const loadCotizaciones = () => {
     fetch("/api/cotizaciones")
@@ -375,6 +383,27 @@ export default function CotizacionesPage() {
       : filteredLines.slice(startIndex, startIndex + itemsPerPage);
   }, [viewMode, filteredCotizaciones, filteredLines, startIndex, itemsPerPage]);
 
+  const gruposPorTipo = useMemo(() => {
+    if (agruparPor !== "tipo") return null;
+    const map = new Map<string, { key: string; label: string; icono: string; items: any[] }>();
+    for (const l of filteredLines) {
+      const key = l.config_tipos_servicios?.etiqueta || "__sin_tipo__";
+      const label = l.config_tipos_servicios?.etiqueta || "Sin tipo";
+      const icono = l.config_tipos_servicios?.icono || "compass";
+      const grupo = map.get(key) || { key, label, icono, items: [] as any[] };
+      grupo.items.push(l);
+      map.set(key, grupo);
+    }
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [agruparPor, filteredLines]);
+
+  useEffect(() => {
+    if (agruparPor === "tipo" && gruposPorTipo) {
+      setCollapsedTipoGroups(new Set(gruposPorTipo.map((g) => g.key)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agruparPor]);
+
   const filteredMigracionPreview = useMemo(() => {
     if (!migracionSearch.trim()) return migracionPreview;
     const query = migracionSearch.toLowerCase();
@@ -401,6 +430,131 @@ export default function CotizacionesPage() {
   };
 
   const f = (n: any) => Number(n || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 });
+
+  const renderLineaRow = (l: any) => {
+    const isSelected = selectedLineIds.includes(l.id);
+    const provName = l.contabilidad_proveedores
+      ? (l.contabilidad_proveedores.nombre || l.contabilidad_proveedores.razon_social)
+      : "—";
+
+    const destName = l.maestro_destinos
+      ? (l.maestro_destinos.nombre_comercial || l.maestro_destinos.nombre)
+      : "—";
+
+    const truncatedDesc = l.descripcion
+      ? (l.descripcion.length > 75 ? l.descripcion.substring(0, 75) + "…" : l.descripcion)
+      : "—";
+
+    const truncatedDest = destName.length > 25 ? destName.substring(0, 25) + "…" : destName;
+
+    return (
+      <tr
+        key={l.id}
+        onClick={() => router.push(`/cotizaciones/nueva?id=${l.cotizacionId}`)}
+        className={styles.clickableRow}
+      >
+        <td style={{ width: "24px", padding: "0.25rem" }} />
+        <td style={{ width: "32px", paddingLeft: "0.1rem" }} onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => {
+              if (isSelected) {
+                setSelectedLineIds(selectedLineIds.filter(id => id !== l.id));
+              } else {
+                setSelectedLineIds([...selectedLineIds, l.id]);
+              }
+            }}
+            style={{ cursor: "pointer" }}
+          />
+        </td>
+        <td style={{ width: "22px", paddingLeft: "0.1rem", position: "relative" }}>
+          <div title={l.config_tipos_servicios?.etiqueta || 'Tipo'} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+            <TipoIcon iconName={l.config_tipos_servicios?.icono || 'compass'} size={15} />
+            {l.opcional && (
+              <span
+                title="Opcional"
+                style={{
+                  position: 'absolute', top: -6, left: 10, fontSize: '0.5rem', fontWeight: 700,
+                  color: '#d97706', background: '#fef3c7', borderRadius: '0.2rem', padding: '0 2px', lineHeight: '1.1'
+                }}
+              >
+                Op.
+              </span>
+            )}
+          </div>
+        </td>
+        <td style={{ width: "450px" }}>
+          <div
+            style={{ fontWeight: 600, color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "440px" }}
+            title={l.descripcion || ""}
+          >
+            {truncatedDesc}
+          </div>
+          <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "2px" }}>
+            {provName}
+          </div>
+        </td>
+        <td style={{ width: "140px" }}>
+          <div
+            style={{ fontSize: "0.8rem", color: "#334155", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "130px" }}
+            title={destName}
+          >
+            {truncatedDest}
+          </div>
+        </td>
+        <td style={{ width: "70px", textAlign: "right", color: "#334155", fontWeight: 500 }}>
+          {l.plazas || "—"}
+        </td>
+        <td style={{ width: "70px", textAlign: "right", color: "#334155", fontWeight: 500 }}>
+          {l.noches || "—"}
+        </td>
+        <td style={{ width: "110px", textAlign: "right" }}>
+          <div style={{ fontSize: "0.82rem", color: "#334155", fontWeight: 500, whiteSpace: "nowrap" }}>
+            {f(l.neto)}
+          </div>
+          <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "2px", whiteSpace: "nowrap" }}>
+            {f(l.pvp)}
+          </div>
+        </td>
+        <td style={{ width: "110px", textAlign: "right" }}>
+          <div style={{ fontSize: "0.82rem", color: "#0f172a", fontWeight: 600, whiteSpace: "nowrap" }}>
+            {f(l.total_neto)}
+          </div>
+          <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "2px", whiteSpace: "nowrap" }}>
+            {f(l.total_pvp)}
+          </div>
+        </td>
+        <td style={{ width: "95px", textAlign: "center" }}>
+          <span style={{
+            display: "inline-block",
+            padding: "0.15rem 0.45rem",
+            borderRadius: "0.25rem",
+            fontSize: "0.68rem",
+            fontWeight: 600,
+            background: l.confirmado ? "#dcfce7" : "#fffbeb",
+            color: l.confirmado ? "#16a34a" : "#d97706"
+          }}>
+            {l.confirmado ? "Confirmada" : "Pendiente"}
+          </span>
+        </td>
+        <td style={{ width: "200px" }}>
+          <div
+            style={{ fontWeight: 600, fontSize: "0.82rem", color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "190px" }}
+            title={l.cotizacionTitulo}
+          >
+            {l.cotizacionTitulo}
+          </div>
+          <div
+            style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "190px" }}
+            title={l.agente?.nombre ?? "Agente"}
+          >
+            {l.agente?.nombre ?? "—"}
+          </div>
+        </td>
+      </tr>
+    );
+  };
 
   const handleToggleSelectLine = (lineId: string) => {
     setSelectedLineIds(prev =>
@@ -912,20 +1066,6 @@ export default function CotizacionesPage() {
               >
                 <DatabaseZap size={15} />
               </button>
-              <button
-                type="button"
-                className={styles.addActionButton}
-                title={viewMode === "cotizaciones" ? "Vista de líneas" : "Vista de cotizaciones"}
-                onClick={() => { setViewMode(viewMode === "cotizaciones" ? "lineas" : "cotizaciones"); setSelectedLineIds([]); setTipoFilter([]); setCurrentPage(1); }}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  width: 32, height: 32, borderRadius: "0.5rem", border: "1px solid #cbd5e1",
-                  background: "#fff", color: "#475569", cursor: "pointer", transition: "all 0.15s",
-                  padding: 0
-                }}
-              >
-                {viewMode === "cotizaciones" ? <List size={15} /> : <Rows3 size={15} />}
-              </button>
             </div>
             <button
               type="button"
@@ -1014,6 +1154,23 @@ export default function CotizacionesPage() {
 
          {showFilters && (
           <div className={styles.filterRow} style={{ display: "flex", gap: "1rem", flexWrap: "wrap", padding: "1rem", background: "#f8fafc", borderBottom: "1px solid #f1f5f9" }}>
+            <div className={styles.filterGroup} style={{ width: "180px" }}>
+              <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "0.25rem" }}>Agrupar por</label>
+              <select
+                value={agruparPor}
+                onChange={(e) => {
+                  setAgruparPor(e.target.value as "cotizacion" | "tipo" | "desagrupar");
+                  setSelectedLineIds([]);
+                  if (e.target.value !== "tipo") setTipoFilter([]);
+                  setCurrentPage(1);
+                }}
+                style={{ padding: "0.3rem 0.5rem", borderRadius: "0.375rem", border: "1px solid #cbd5e1", fontSize: "0.8rem", background: "#fff", width: "100%" }}
+              >
+                <option value="cotizacion">Cotización</option>
+                <option value="tipo">Tipo</option>
+                <option value="desagrupar">Desagrupar</option>
+              </select>
+            </div>
             <div className={styles.filterGroup} style={{ width: "200px" }}>
               <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "0.25rem" }}>Agente</label>
               <MultiSelectDropdown
@@ -1034,7 +1191,7 @@ export default function CotizacionesPage() {
                 style={{ padding: "0.3rem 0.5rem" }}
               />
             </div>
-            {viewMode === "lineas" && (
+            {agruparPor === "tipo" && (
               <div className={styles.filterGroup} style={{ width: "200px" }}>
                 <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "0.25rem" }}>Tipo</label>
                 <MultiSelectDropdown
@@ -1347,7 +1504,7 @@ export default function CotizacionesPage() {
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', marginTop: '0.25rem' }}>
                                       <thead>
                                         <tr style={{ borderBottom: '1px solid #e2e8f0', textAlign: 'left', color: '#64748b' }}>
-                                          <th style={{ padding: '4px 8px', fontWeight: 600, width: '32px' }}>Tipo</th>
+                                          <th style={{ padding: '4px 8px', fontWeight: 600, width: '22px' }}>Tipo</th>
                                           <th style={{ padding: '4px 8px', fontWeight: 600 }}>Descripción / Proveedor</th>
                                           <th style={{ padding: '4px 8px', fontWeight: 600, width: '350px' }}>Destino</th>
                                           <th style={{ padding: '4px 8px', fontWeight: 600, width: '60px', textAlign: 'right' }}>Plazas</th>
@@ -1368,8 +1525,19 @@ export default function CotizacionesPage() {
                                           return (
                                             <tr key={l.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                               <td style={{ padding: '6px 8px' }}>
-                                                <div title={l.config_tipos_servicios?.etiqueta || 'Tipo'} style={{ display: 'flex', alignItems: 'center' }}>
+                                                <div title={l.config_tipos_servicios?.etiqueta || 'Tipo'} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
                                                   <TipoIcon iconName={l.config_tipos_servicios?.icono || 'compass'} size={13} />
+                                                  {l.opcional && (
+                                                    <span
+                                                      title="Opcional"
+                                                      style={{
+                                                        position: 'absolute', top: -6, left: 9, fontSize: '0.48rem', fontWeight: 700,
+                                                        color: '#d97706', background: '#fef3c7', borderRadius: '0.2rem', padding: '0 2px', lineHeight: '1.1'
+                                                      }}
+                                                    >
+                                                      Op.
+                                                    </span>
+                                                  )}
                                                 </div>
                                               </td>
                                               <td style={{ padding: '6px 8px' }}>
@@ -1402,16 +1570,16 @@ export default function CotizacionesPage() {
                                                 </div>
                                               </td>
                                               <td style={{ padding: '6px 8px', textAlign: 'center' }}>
-                                                <span style={{ 
-                                                  display: "inline-block", 
-                                                  padding: "0.1rem 0.35rem", 
-                                                  borderRadius: "0.25rem", 
+                                                <span style={{
+                                                  display: "inline-block",
+                                                  padding: "0.1rem 0.35rem",
+                                                  borderRadius: "0.25rem",
                                                   fontSize: "0.62rem",
                                                   fontWeight: 600,
-                                                  background: l.opcional ? "#fef3c7" : "#dcfce7",
-                                                  color: l.opcional ? "#d97706" : "#16a34a"
+                                                  background: l.confirmado ? "#dcfce7" : "#fffbeb",
+                                                  color: l.confirmado ? "#16a34a" : "#d97706"
                                                 }}>
-                                                  {l.opcional ? "Extra" : "Incluido"}
+                                                  {l.confirmado ? "Confirmada" : "Pendiente"}
                                                 </span>
                                               </td>
                                             </tr>
@@ -1453,7 +1621,7 @@ export default function CotizacionesPage() {
                           style={{ cursor: "pointer" }}
                         />
                       </th>
-                      <th style={{ width: "36px", paddingLeft: "0.1rem" }}>Tipo</th>
+                      <th style={{ width: "22px", paddingLeft: "0.1rem" }}>Tipo</th>
                       <th style={{ width: "450px" }}>Descripción / Proveedor</th>
                       <th style={{ width: "140px" }}>Destino</th>
                       <th style={{ width: "70px", textAlign: "right" }}>Plazas</th>
@@ -1471,132 +1639,44 @@ export default function CotizacionesPage() {
                           No hay líneas de cotización.
                         </td>
                       </tr>
-                    ) : (
-                      paginated.map((l: any) => {
-                        const isSelected = selectedLineIds.includes(l.id);
-                        const provName = l.contabilidad_proveedores 
-                          ? (l.contabilidad_proveedores.nombre || l.contabilidad_proveedores.razon_social)
-                          : "—";
-
-                        const destName = l.maestro_destinos 
-                          ? (l.maestro_destinos.nombre_comercial || l.maestro_destinos.nombre)
-                          : "—";
-
-                        const truncatedDesc = l.descripcion 
-                          ? (l.descripcion.length > 75 ? l.descripcion.substring(0, 75) + "…" : l.descripcion)
-                          : "—";
-
-                        const truncatedDest = destName.length > 25 ? destName.substring(0, 25) + "…" : destName;
-
+                    ) : agruparPor === "tipo" && gruposPorTipo ? (
+                      gruposPorTipo.map((grupo) => {
+                        const isCollapsed = collapsedTipoGroups.has(grupo.key);
                         return (
-                          <tr
-                            key={l.id}
-                            onClick={() => router.push(`/cotizaciones/nueva?id=${l.cotizacionId}`)}
-                            className={styles.clickableRow}
-                          >
-                            <td style={{ width: "24px", padding: "0.25rem" }} />
-                            <td style={{ width: "32px", paddingLeft: "0.1rem" }} onClick={(e) => e.stopPropagation()}>
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => {
-                                  if (isSelected) {
-                                    setSelectedLineIds(selectedLineIds.filter(id => id !== l.id));
-                                  } else {
-                                    setSelectedLineIds([...selectedLineIds, l.id]);
-                                  }
-                                }}
-                                style={{ cursor: "pointer" }}
-                              />
-                            </td>
-                            <td style={{ width: "36px", paddingLeft: "0.1rem" }}>
-                              <div title={l.config_tipos_servicios?.etiqueta || 'Tipo'} style={{ display: 'flex', alignItems: 'center' }}>
-                                <TipoIcon iconName={l.config_tipos_servicios?.icono || 'compass'} size={15} />
-                              </div>
-                            </td>
-                            <td style={{ width: "450px" }}>
-                              <div 
-                                style={{ fontWeight: 600, color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "440px" }}
-                                title={l.descripcion || ""}
-                              >
-                                {truncatedDesc}
-                              </div>
-                              <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "2px" }}>
-                                {provName}
-                              </div>
-                            </td>
-                            <td style={{ width: "140px" }}>
-                              <div 
-                                style={{ fontSize: "0.8rem", color: "#334155", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "130px" }}
-                                title={destName}
-                              >
-                                {truncatedDest}
-                              </div>
-                            </td>
-                            <td style={{ width: "70px", textAlign: "right", color: "#334155", fontWeight: 500 }}>
-                              {l.plazas || "—"}
-                            </td>
-                            <td style={{ width: "70px", textAlign: "right", color: "#334155", fontWeight: 500 }}>
-                              {l.noches || "—"}
-                            </td>
-                            <td style={{ width: "110px", textAlign: "right" }}>
-                              <div style={{ fontSize: "0.82rem", color: "#334155", fontWeight: 500, whiteSpace: "nowrap" }}>
-                                {f(l.neto)}
-                              </div>
-                              <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "2px", whiteSpace: "nowrap" }}>
-                                {f(l.pvp)}
-                              </div>
-                            </td>
-                            <td style={{ width: "110px", textAlign: "right" }}>
-                              <div style={{ fontSize: "0.82rem", color: "#0f172a", fontWeight: 600, whiteSpace: "nowrap" }}>
-                                {f(l.total_neto)}
-                              </div>
-                              <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "2px", whiteSpace: "nowrap" }}>
-                                {f(l.total_pvp)}
-                              </div>
-                            </td>
-                            <td style={{ width: "95px", textAlign: "center" }}>
-                              <span style={{ 
-                                display: "inline-block", 
-                                padding: "0.15rem 0.45rem", 
-                                borderRadius: "0.25rem", 
-                                fontSize: "0.68rem",
-                                fontWeight: 600,
-                                background: l.opcional ? "#fef3c7" : "#dcfce7",
-                                color: l.opcional ? "#d97706" : "#16a34a"
-                              }}>
-                                {l.opcional ? "Extra" : "Incluido"}
-                              </span>
-                            </td>
-                            <td style={{ width: "200px" }}>
-                              <div 
-                                style={{ fontWeight: 600, fontSize: "0.82rem", color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "190px" }}
-                                title={l.cotizacionTitulo}
-                              >
-                                {l.cotizacionTitulo}
-                              </div>
-                              <div 
-                                style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "190px" }}
-                                title={l.agente?.nombre ?? "Agente"}
-                              >
-                                {l.agente?.nombre ?? "—"}
-                              </div>
-                            </td>
-                          </tr>
+                          <Fragment key={grupo.key}>
+                            <tr
+                              onClick={() => toggleTipoGroup(grupo.key)}
+                              style={{ cursor: "pointer", background: "#f1f5f9" }}
+                            >
+                              <td colSpan={11} style={{ padding: "0.4rem 0.75rem" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: "0.78rem", color: "#334155" }}>
+                                  {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                                  <TipoIcon iconName={grupo.icono} size={14} />
+                                  {grupo.label}
+                                  <span style={{ fontWeight: 500, color: "#94a3b8" }}>({grupo.items.length})</span>
+                                </div>
+                              </td>
+                            </tr>
+                            {!isCollapsed && grupo.items.map((l: any) => renderLineaRow(l))}
+                          </Fragment>
                         );
                       })
+                    ) : (
+                      paginated.map((l: any) => renderLineaRow(l))
                     )}
                   </tbody>
                 </>
               )}
              </table>
-             <Pagination
-               currentPage={currentPage}
-               totalItems={totalItems}
-               itemsPerPage={itemsPerPage}
-               onPageChange={setCurrentPage}
-               onItemsPerPageChange={(n) => { setItemsPerPage(n); setCurrentPage(1); }}
-             />
+             {agruparPor !== "tipo" && (
+               <Pagination
+                 currentPage={currentPage}
+                 totalItems={totalItems}
+                 itemsPerPage={itemsPerPage}
+                 onPageChange={setCurrentPage}
+                 onItemsPerPageChange={(n) => { setItemsPerPage(n); setCurrentPage(1); }}
+               />
+             )}
           </>
         )}
         <PresupuestoDetalleDrawer

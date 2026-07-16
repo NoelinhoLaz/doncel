@@ -55,6 +55,18 @@ export interface MenuBoton {
   seccionUid?: string;
 }
 
+export interface PersonaEquipo {
+  uid: string;
+  nombre?: string;
+  cargo?: string;
+  texto?: string;
+  media?: MediaItem;
+}
+
+export interface ListadoConfig {
+  formatoId?: string | null;
+}
+
 export interface Seccion {
   uid: string;
   tipo: string;
@@ -99,6 +111,10 @@ export interface Seccion {
   formularioCampos?: { uid: string; key: string; label: string; lineas: number; activo: boolean }[];
   formularioEmail?: string;
   formularioBoton?: string;
+  personas?: PersonaEquipo[];
+  equipoEstiloTarjeta?: "circular" | "tarjeta";
+  listadoFormatoId?: string | null;
+  listadoEstiloTarjeta?: "simple" | "articulo";
 }
 
 export type SeccionFavorita = Seccion & { favId: string; savedAt: number };

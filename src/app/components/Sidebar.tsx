@@ -18,12 +18,14 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
   const [expSubOpen, setExpSubOpen] = useState(false);
   const [presupSubOpen, setPresupSubOpen] = useState(false);
   const [bancoSubOpen, setBancoSubOpen] = useState(false);
-  const [contactosSubOpen, setContactosSubOpen] = useState(false);
+  const [campanasSubOpen, setCampanasSubOpen] = useState(false);
+  const [pulseSubOpen, setPulseSubOpen] = useState(false);
   const [hoveredCopiloto, setHoveredCopiloto] = useState(false);
   const expTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const presupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bancoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const contactosTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const campanasTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     async function loadUser() {
@@ -58,7 +60,8 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
       { setter: setExpSubOpen, timer: expTimer },
       { setter: setPresupSubOpen, timer: presupTimer },
       { setter: setBancoSubOpen, timer: bancoTimer },
-      { setter: setContactosSubOpen, timer: contactosTimer },
+      { setter: setCampanasSubOpen, timer: campanasTimer },
+      { setter: setPulseSubOpen, timer: pulseTimer },
     ];
     for (const sub of submenus) {
       if (sub.setter !== exceptSetter) {
@@ -102,63 +105,61 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
       </button>
  
       {showRadar && (
-        <button
-          className={`${styles.menuItem} ${isActive("/campanas") || isActive("/oportunidades") ? styles.active : ""}`}
-          title="Campañas"
-          onClick={() => router.push("/campanas")}
-          onMouseEnter={() => closeAllOthers(null)}
+        <div
+          className={styles.menuItemWrapper}
+          {...makeHover(setCampanasSubOpen, campanasTimer)}
         >
-          <Icons.Target size={20} strokeWidth={isActive("/campanas") || isActive("/oportunidades") ? 3 : 2} />
-        </button>
-      )}
+          <button
+            className={`${styles.menuItem} ${styles.moduleRadar} ${isActive("/campanas") || isActive("/oportunidades") || isActive("/contactos") ? styles.active : ""}`}
+            title="Campañas"
+            onClick={() => router.push("/campanas")}
+          >
+            <Icons.Target size={20} strokeWidth={isActive("/campanas") || isActive("/oportunidades") ? 3 : 2} />
+          </button>
 
-      <div
-        className={styles.menuItemWrapper}
-        {...makeHover(setContactosSubOpen, contactosTimer)}
-      >
-        <button
-          className={`${styles.menuItem} ${isActive("/contactos") ? styles.active : ""}`}
-          onClick={() => router.push("/contactos/clientes")}
-          title="Contactos"
-        >
-          <Icons.Users size={20} strokeWidth={isActive("/contactos") ? 3 : 2} />
-        </button>
-
-        {contactosSubOpen && (
-          <div className={styles.submenuFlyout}>
-            <button
-              className={styles.submenuItem}
-              onClick={() => { setContactosSubOpen(false); router.push("/contactos/clientes"); }}
-            >
-              <Icons.Users size={14} className={styles.submenuIcon} />
-              <span>Clientes</span>
-            </button>
-            <button
-              className={styles.submenuItem}
-              onClick={() => { setContactosSubOpen(false); router.push("/contactos/viajeros"); }}
-            >
-              <Icons.Viajeros size={14} className={styles.submenuIcon} />
-              <span>Viajeros</span>
-            </button>
-            {!isBranchUser && (
+          {campanasSubOpen && (
+            <div className={styles.submenuFlyout}>
               <button
                 className={styles.submenuItem}
-                onClick={() => { setContactosSubOpen(false); router.push("/contactos/proveedores"); }}
+                onClick={() => { setCampanasSubOpen(false); router.push("/campanas"); }}
               >
-                <Icons.Building size={14} className={styles.submenuIcon} />
-                <span>Proveedores</span>
+                <Icons.Target size={14} className={styles.submenuIcon} />
+                <span>Campañas</span>
               </button>
-            )}
-          </div>
-        )}
-      </div>
- 
+              <button
+                className={styles.submenuItem}
+                onClick={() => { setCampanasSubOpen(false); router.push("/contactos/clientes"); }}
+              >
+                <Icons.Users size={14} className={styles.submenuIcon} />
+                <span>Clientes</span>
+              </button>
+              <button
+                className={styles.submenuItem}
+                onClick={() => { setCampanasSubOpen(false); router.push("/contactos/viajeros"); }}
+              >
+                <Icons.Viajeros size={14} className={styles.submenuIcon} />
+                <span>Viajeros</span>
+              </button>
+              {!isBranchUser && (
+                <button
+                  className={styles.submenuItem}
+                  onClick={() => { setCampanasSubOpen(false); router.push("/contactos/proveedores"); }}
+                >
+                  <Icons.Building size={14} className={styles.submenuIcon} />
+                  <span>Proveedores</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div
         className={styles.menuItemWrapper}
         {...makeHover(setPresupSubOpen, presupTimer)}
       >
         <button
-          className={`${styles.menuItem} ${isActive("/presupuestos") || isActive("/cotizaciones") || isActive("/propuestas") ? styles.active : ""}`}
+          className={`${styles.menuItem} ${styles.moduleStudio} ${isActive("/presupuestos") || isActive("/cotizaciones") || isActive("/propuestas") ? styles.active : ""}`}
           onClick={() => router.push("/presupuestos")}
           title="Presupuestos"
         >
@@ -199,7 +200,7 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
         {...makeHover(setExpSubOpen, expTimer)}
       >
         <button
-          className={`${styles.menuItem} ${isActive("/expedientes") ? styles.active : ""}`}
+          className={`${styles.menuItem} ${styles.moduleCore} ${isActive("/expedientes") ? styles.active : ""}`}
           onClick={() => router.push("/expedientes")}
           title="Expedientes"
         >
@@ -238,7 +239,7 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
           {...makeHover(setBancoSubOpen, bancoTimer)}
         >
           <button 
-            className={`${styles.menuItem} ${isActive("/cobros") || isActive("/banco") ? styles.active : ""}`} 
+            className={`${styles.menuItem} ${styles.moduleAudit} ${isActive("/cobros") || isActive("/banco") ? styles.active : ""}`}
             onClick={() => router.push("/cobros")} 
             title="Contabilidad"
           >
@@ -301,14 +302,46 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
           )}
         </div>
       )}
- 
-      <button 
-        className={`${styles.menuItem} ${isActive("/mensajes") ? styles.active : ""}`} 
+
+      <div
+        className={styles.menuItemWrapper}
+        {...makeHover(setPulseSubOpen, pulseTimer)}
+      >
+        <button
+          className={`${styles.menuItem} ${styles.modulePulse} ${isActive("/web") ? styles.active : ""}`}
+          title="Fidelización"
+        >
+          <Icons.Heart size={20} strokeWidth={isActive("/web") ? 3 : 2} />
+        </button>
+
+        {pulseSubOpen && (
+          <div className={styles.submenuFlyout}>
+            <button
+              className={styles.submenuItem}
+              onClick={() => { setPulseSubOpen(false); router.push("/web"); }}
+            >
+              <Icons.Propuestas size={14} className={styles.submenuIcon} />
+              <span>Web</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      <button
+        className={`${styles.menuItem} ${isActive("/mensajes") ? styles.active : ""}`}
         onClick={() => router.push("/mensajes")} 
         title="Mensajes"
         onMouseEnter={() => closeAllOthers(null)}
       >
         <Icons.Mensajes size={20} strokeWidth={isActive("/mensajes") ? 3 : 2} />
+      </button>
+
+      <button
+        className={styles.menuItem}
+        title="Documentos"
+        disabled
+      >
+        <Icons.Documentos size={20} strokeWidth={2} />
       </button>
 
       <button

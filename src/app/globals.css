@@ -175,3 +175,86 @@ input[type="checkbox"]:not([style*="opacity: 0"]):checked::after {
     padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)) !important;
   }
 }
+
+/* Rich content (páginas web en modo simple, editor tipo Tiptap) */
+.momo-rich-content h1 {
+  font-size: 1.9rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 1.75rem 0 0.85rem 0;
+}
+.momo-rich-content h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 1.5rem 0 0.75rem 0;
+}
+.momo-rich-content h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 1.25rem 0 0.6rem 0;
+}
+.momo-rich-content p {
+  margin: 0 0 1rem 0;
+}
+.momo-rich-content img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+}
+.momo-rich-content .momo-figura {
+  margin: 1.5rem 0;
+}
+.momo-rich-content .momo-figura img {
+  margin: 0;
+}
+.momo-rich-content .momo-figura-completa {
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  width: 100vw;
+}
+.momo-rich-content .momo-figura-completa img {
+  border-radius: 0;
+}
+.momo-rich-content .momo-figura-ancha {
+  margin-left: calc(50% - 50vw + 1px);
+  margin-right: calc(50% - 50vw + 1px);
+  width: auto;
+  max-width: min(1100px, 100vw - 2rem);
+}
+.momo-rich-content .momo-figura figcaption {
+  text-align: center;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+.momo-rich-content a {
+  color: #3189F4;
+  text-decoration: underline;
+}
+.momo-rich-content blockquote {
+  border-left: 3px solid #cbd5e1;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  color: #64748b;
+  font-style: italic;
+}
+.momo-rich-content ul,
+.momo-rich-content ol {
+  margin: 0 0 1rem 0;
+  padding-left: 1.5rem;
+}
+.momo-rich-content li {
+  margin-bottom: 0.35rem;
+}
+.momo-rich-content .is-editor-empty:first-child::before,
+.momo-rich-content p.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #cbd5e1;
+  pointer-events: none;
+  height: 0;
+}

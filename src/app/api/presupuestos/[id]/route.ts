@@ -60,3 +60,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ success: false, error: err.message || String(err) }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const agencyDb = await getAgencyDbClient();
+
+    const { error } = await agencyDb
+      .from("operativa_presupuestos")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message || String(err) }, { status: 500 });
+  }
+}

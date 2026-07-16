@@ -17,7 +17,10 @@ export default function MediaSelector({ value, onChange }: { value?: Seccion["me
   const [inputVal, setInputVal] = useState(value?.url ?? "");
   const [query, setQuery] = useState("");
   const [photos, setPhotos] = useState<UnsplashPhoto[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalUnsplash, setTotalUnsplash] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -25,11 +28,27 @@ export default function MediaSelector({ value, onChange }: { value?: Seccion["me
     if (!q.trim()) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/unsplash?q=${encodeURIComponent(q)}`);
+      const res = await fetch(`/api/unsplash?q=${encodeURIComponent(q)}&page=1`);
       const data = await res.json();
       setPhotos(data.results ?? []);
+      setTotalUnsplash(data.total ?? 0);
+      setPage(1);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const cargarMas = async () => {
+    if (!query.trim()) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const res = await fetch(`/api/unsplash?q=${encodeURIComponent(query)}&page=${nextPage}`);
+      const data = await res.json();
+      setPhotos(prev => [...prev, ...(data.results ?? [])]);
+      setPage(nextPage);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -64,19 +83,31 @@ export default function MediaSelector({ value, onChange }: { value?: Seccion["me
           </div>
           {loading && <p className={styles.mediaHint}>Buscando…</p>}
           {!loading && (
-            <div className={styles.unsplashGrid}>
-              {photos.map(p => (
+            <>
+              <div className={styles.unsplashGrid}>
+                {photos.map(p => (
+                  <button
+                    key={p.id}
+                    className={`${styles.unsplashThumb} ${value?.url === p.full ? styles.unsplashThumbActive : ""}`}
+                    onClick={() => apply("unsplash", p.full)}
+                    title={p.alt || p.author}
+                  >
+                    <img src={p.thumb} alt={p.alt} loading="lazy" />
+                    <span className={styles.unsplashAuthor}>{p.author}</span>
+                  </button>
+                ))}
+              </div>
+              {photos.length > 0 && photos.length < totalUnsplash && (
                 <button
-                  key={p.id}
-                  className={`${styles.unsplashThumb} ${value?.url === p.full ? styles.unsplashThumbActive : ""}`}
-                  onClick={() => apply("unsplash", p.full)}
-                  title={p.alt || p.author}
+                  type="button"
+                  onClick={cargarMas}
+                  disabled={loadingMore}
+                  style={{ width: "100%", marginTop: "0.5rem", padding: "0.45rem", fontSize: "0.78rem", fontWeight: 600, color: "#475569", background: "#f1f5f9", border: "none", borderRadius: "0.375rem", cursor: loadingMore ? "wait" : "pointer" }}
                 >
-                  <img src={p.thumb} alt={p.alt} loading="lazy" />
-                  <span className={styles.unsplashAuthor}>{p.author}</span>
+                  {loadingMore ? "Cargando…" : "Mostrar más"}
                 </button>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       )}

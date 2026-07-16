@@ -14,6 +14,7 @@ interface Agencia {
   cif_nif: string;
   slug: string;
   plan_tipo: string | null;
+  capacidad_tipo: string | null;
   estado: string | null;
   fecha_alta: string | null;
   email_general: string | null;
@@ -47,6 +48,7 @@ interface NuevaAgenciaForm {
   direccion_central: string;
   color_corporativo: string;
   plan_tipo: string;
+  capacidad_tipo: string;
   radar_activo: boolean;
   studio_activo: boolean;
   core_activo: boolean;
@@ -67,6 +69,7 @@ const FORM_EMPTY: NuevaAgenciaForm = {
   direccion_central: "",
   color_corporativo: "#475569",
   plan_tipo: "Basic",
+  capacidad_tipo: "Starter",
   radar_activo: true,
   studio_activo: true,
   core_activo: true,
@@ -96,6 +99,13 @@ export default function AdministracionPage() {
   const [form, setForm] = useState<NuevaAgenciaForm>(FORM_EMPTY);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Owner creation state
+  const [ownerModalAgenciaId, setOwnerModalAgenciaId] = useState<string | null>(null);
+  const [ownerForm, setOwnerForm] = useState({ nombre: "", apellidos: "", email: "", telefono: "", modo: "invitar", password: "" });
+  const [ownerSaving, setOwnerSaving] = useState(false);
+  const [ownerError, setOwnerError] = useState<string | null>(null);
+  const [ownerSuccess, setOwnerSuccess] = useState<string | null>(null);
 
   // Check existing session on mount
   useEffect(() => {
@@ -132,17 +142,19 @@ export default function AdministracionPage() {
     setAuthLoading(true);
     const { data: { session } } = await supabaseAdmin.auth.getSession();
     if (session?.user) {
-      await verifyAndLoadUser(session.user.id);
+      await verifyAndLoadUser(session.user.id, session.access_token);
     } else {
       setAuthLoading(false);
     }
   }
 
   // Verifica el rol consultando la tabla usuarios por auth_user_id usando nuestra API interna para evitar RLS y bundler hangs
-  async function verifyAndLoadUser(authUserId: string) {
+  async function verifyAndLoadUser(authUserId: string, accessToken: string) {
     try {
       let data = null;
-      const res = await fetch(`/api/perfil?authUserId=${authUserId}`);
+      const res = await fetch(`/api/perfil?authUserId=${authUserId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
       if (res.ok) {
         const resData = await res.json();
         data = resData.usuario;
@@ -189,7 +201,9 @@ export default function AdministracionPage() {
 
       // Verificar rol en la tabla usuarios usando nuestra API interna para evitar RLS
       let userData = null;
-      const res = await fetch(`/api/perfil?authUserId=${data.user.id}`);
+      const res = await fetch(`/api/perfil?authUserId=${data.user.id}`, {
+        headers: { Authorization: `Bearer ${data.session?.access_token}` },
+      });
       if (res.ok) {
         const resData = await res.json();
         userData = resData.usuario;
@@ -259,6 +273,7 @@ export default function AdministracionPage() {
         direccion_central: form.direccion_central || null,
         color_corporativo: form.color_corporativo || null,
         plan_tipo: form.plan_tipo,
+        capacidad_tipo: form.capacidad_tipo,
         radar_activo: form.radar_activo,
         studio_activo: form.studio_activo,
         core_activo: form.core_activo,
@@ -322,6 +337,41 @@ export default function AdministracionPage() {
       setSaveError(err?.message || "Error al guardar la agencia.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleCreateOwner() {
+    if (!ownerModalAgenciaId) return;
+    if (!ownerForm.nombre || !ownerForm.email) {
+      setOwnerError("Nombre y email son obligatorios.");
+      return;
+    }
+    if (ownerForm.modo === "directo" && ownerForm.password.length < 6) {
+      setOwnerError("La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+    try {
+      setOwnerSaving(true);
+      setOwnerError(null);
+      const res = await fetch('/api/administracion/agencias/owner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agencia_id: ownerModalAgenciaId, ...ownerForm }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Error al crear el usuario Owner');
+
+      setOwnerSuccess(
+        ownerForm.modo === "directo"
+          ? `Usuario creado. Ya puede iniciar sesión con ${ownerForm.email} y la contraseña indicada.`
+          : `Invitación enviada a ${ownerForm.email}.`
+      );
+      setOwnerForm({ nombre: "", apellidos: "", email: "", telefono: "", modo: "invitar", password: "" });
+      await loadAgencias();
+    } catch (err: any) {
+      setOwnerError(err?.message || "Error al crear el usuario Owner.");
+    } finally {
+      setOwnerSaving(false);
     }
   }
 
@@ -560,6 +610,7 @@ export default function AdministracionPage() {
                                 direccion_central: agencia.direccion_central || "",
                                 color_corporativo: agencia.color_corporativo || "#475569",
                                 plan_tipo: agencia.plan_tipo || "Basic",
+                                capacidad_tipo: agencia.capacidad_tipo || "Starter",
                                 radar_activo: agencia.active_modules?.radar_activo ?? true,
                                 studio_activo: agencia.active_modules?.studio_activo ?? true,
                                 core_activo: agencia.active_modules?.core_activo ?? true,
@@ -572,6 +623,19 @@ export default function AdministracionPage() {
                             style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b" }}
                           >
                             <Icons.Edit size={16} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOwnerModalAgenciaId(agencia.id);
+                              setOwnerForm({ nombre: "", apellidos: "", email: "", telefono: "", modo: "invitar", password: "" });
+                              setOwnerError(null);
+                              setOwnerSuccess(null);
+                            }}
+                            title="Crear usuario Owner"
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b" }}
+                          >
+                            <Icons.Key size={16} />
                           </button>
                         </div>
                       </td>
@@ -674,6 +738,14 @@ export default function AdministracionPage() {
                         <option value="Enterprise">Enterprise</option>
                       </select>
                     </div>
+                    <div className={styles.formGroup}>
+                      <label className={styles.formLabel}>Capacidad</label>
+                      <select className={styles.formInput} value={form.capacidad_tipo}
+                        onChange={(e) => setForm(f => ({ ...f, capacidad_tipo: e.target.value }))}>
+                        <option value="Starter">Starter (sin sucursales)</option>
+                        <option value="Growth">Growth (con sucursales)</option>
+                      </select>
+                    </div>
                     <div className={styles.formGroup} style={{ gridColumn: "span 2", marginTop: "1rem" }}>
                       <label className={styles.formLabel} style={{ fontWeight: 600, borderBottom: "1px solid #e2e8f0", paddingBottom: "0.25rem", marginBottom: "0.5rem" }}>
                         Módulos Suscritos (Capa 1)
@@ -708,6 +780,77 @@ export default function AdministracionPage() {
                   <button className={styles.btnSecondary} onClick={() => setShowModal(false)}>Cancelar</button>
                   <button className={styles.btnPrimary} onClick={handleGuardar} disabled={saving}>
                     {saving ? "Guardando..." : "Guardar Agencia"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL CREAR OWNER */}
+          {ownerModalAgenciaId && (
+            <div className={styles.modalOverlay} onClick={() => setOwnerModalAgenciaId(null)}>
+              <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+                <div className={styles.modalHeader}>
+                  <h2 className={styles.modalTitle}>Crear usuario Owner</h2>
+                  <button className={styles.modalClose} onClick={() => setOwnerModalAgenciaId(null)}>
+                    <Icons.ChevronDown size={18} style={{ transform: "rotate(45deg)" }} />
+                  </button>
+                </div>
+                <div className={styles.modalBody}>
+                  <div className={styles.formGroup} style={{ marginBottom: "1rem" }}>
+                    <label className={styles.formLabel}>Modo de alta</label>
+                    <select className={styles.formInput} value={ownerForm.modo}
+                      onChange={(e) => setOwnerForm(f => ({ ...f, modo: e.target.value }))}>
+                      <option value="invitar">Invitar por email (el usuario fija su contraseña)</option>
+                      <option value="directo">Crear directo con contraseña (útil para emails ficticios de demo)</option>
+                    </select>
+                  </div>
+                  <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "1rem" }}>
+                    {ownerForm.modo === "directo"
+                      ? "El usuario se crea con el email ya confirmado y podrá iniciar sesión de inmediato con la contraseña que definas."
+                      : "Se enviará un email de invitación para que el usuario establezca su contraseña y pueda acceder como Owner de esta agencia."}
+                  </p>
+                  <div className={styles.formGrid}>
+                    <div className={styles.formGroup}>
+                      <label className={styles.formLabel}>Nombre *</label>
+                      <input className={styles.formInput} value={ownerForm.nombre}
+                        onChange={(e) => setOwnerForm(f => ({ ...f, nombre: e.target.value }))}
+                        placeholder="Nombre" />
+                    </div>
+                    <div className={styles.formGroup}>
+                      <label className={styles.formLabel}>Apellidos</label>
+                      <input className={styles.formInput} value={ownerForm.apellidos}
+                        onChange={(e) => setOwnerForm(f => ({ ...f, apellidos: e.target.value }))}
+                        placeholder="Apellidos" />
+                    </div>
+                    <div className={`${styles.formGroup} ${styles.formGroupFull}`}>
+                      <label className={styles.formLabel}>Email *</label>
+                      <input className={styles.formInput} type="email" value={ownerForm.email}
+                        onChange={(e) => setOwnerForm(f => ({ ...f, email: e.target.value }))}
+                        placeholder="owner@agencia.com" />
+                    </div>
+                    <div className={styles.formGroup}>
+                      <label className={styles.formLabel}>Teléfono</label>
+                      <input className={styles.formInput} value={ownerForm.telefono}
+                        onChange={(e) => setOwnerForm(f => ({ ...f, telefono: e.target.value }))}
+                        placeholder="+34 600 000 000" />
+                    </div>
+                    {ownerForm.modo === "directo" && (
+                      <div className={`${styles.formGroup} ${styles.formGroupFull}`}>
+                        <label className={styles.formLabel}>Contraseña *</label>
+                        <input className={styles.formInput} type="password" value={ownerForm.password}
+                          onChange={(e) => setOwnerForm(f => ({ ...f, password: e.target.value }))}
+                          placeholder="Mínimo 6 caracteres" />
+                      </div>
+                    )}
+                  </div>
+                  {ownerError && <div className={styles.formError}>{ownerError}</div>}
+                  {ownerSuccess && <div style={{ color: "#16a34a", fontSize: "0.8rem", marginTop: "0.5rem" }}>{ownerSuccess}</div>}
+                </div>
+                <div className={styles.modalFooter}>
+                  <button className={styles.btnSecondary} onClick={() => setOwnerModalAgenciaId(null)}>Cerrar</button>
+                  <button className={styles.btnPrimary} onClick={handleCreateOwner} disabled={ownerSaving}>
+                    {ownerSaving ? "Guardando..." : ownerForm.modo === "directo" ? "Crear usuario" : "Enviar invitación"}
                   </button>
                 </div>
               </div>

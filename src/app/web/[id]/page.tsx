@@ -1,18 +1,28 @@
-import { getPropuesta } from "@/actions/propuestas";
-import { PropuestaEditor } from "@/app/propuestas/nueva/page";
+import { getPaginaWeb } from "@/actions/paginaWeb";
+import { WebEditor } from "../WebEditor";
+import { SimpleEditor } from "../SimpleEditor";
 import { notFound } from "next/navigation";
 
-export default async function EditarPropuestaPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditarPaginaWebPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const propuesta = await getPropuesta(id);
+  const pagina = await getPaginaWeb(id);
 
-  if (!propuesta) return notFound();
+  if (!pagina) return notFound();
 
-  const landing = (propuesta as any).landing;
+  if (!pagina.es_landing && pagina.modo === "simple") {
+    const content = pagina.editor_content && !Array.isArray(pagina.editor_content) ? pagina.editor_content : {};
+    return (
+      <SimpleEditor
+        paginaId={pagina.id}
+        paginaTitulo={pagina.titulo}
+        paginaSlug={pagina.slug}
+        initialContenido={content.contenido ?? ""}
+      />
+    );
+  }
 
-  // Reconstruct secciones merging editor_content (contenido) + design_tokens (diseño)
-  const editorContent: any[] = Array.isArray(landing?.editor_content) ? landing.editor_content : [];
-  const designTokens: any[] = Array.isArray(landing?.design_tokens) ? landing.design_tokens : [];
+  const editorContent: any[] = Array.isArray(pagina.editor_content) ? pagina.editor_content : [];
+  const designTokens: any[] = Array.isArray(pagina.design_tokens) ? pagina.design_tokens : [];
   const globalToken = designTokens.find((d: any) => d.uid === "global");
   const initialEstilosGlobales = globalToken?.estilosGlobales ?? null;
 
@@ -41,7 +51,6 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
       estiloDescDia: d.estiloDescDia,
       colorFondo: d.colorFondo,
       anchoMax: d.anchoMax,
-      // Campos de sección menú
       menuLogo: s.menuLogo,
       menuItems: s.menuItems,
       menuBoton: s.menuBoton,
@@ -49,12 +58,10 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
       menuColorTexto: d.menuColorTexto,
       menuColorBoton: d.menuColorBoton,
       menuFijo: d.menuFijo,
-      // Precio fields
       pvp: s.pvp,
       condiciones: s.condiciones,
       estiloPvp: d.estiloPvp,
       estiloCondiciones: d.estiloCondiciones,
-      // Formulario fields
       formularioCampos: s.formularioCampos,
       formularioEmail: s.formularioEmail,
       formularioBoton: s.formularioBoton,
@@ -66,13 +73,11 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
   });
 
   return (
-    <PropuestaEditor
-      initialPropuestaId={id}
+    <WebEditor
+      paginaId={pagina.id}
+      paginaTitulo={pagina.titulo}
       initialSecciones={initialSecciones}
-      initialContactoId={propuesta.contacto_id}
-      initialContactoNombre={(propuesta as any).contabilidad_entidades?.nombre || null}
       initialEstilosGlobales={initialEstilosGlobales}
-      initialAgente={(propuesta as any).agente || null}
     />
   );
 }

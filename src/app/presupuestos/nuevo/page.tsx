@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import NuevoPresupuestoModal from "../NuevoPresupuestoModal";
 import ExpedienteActionsToolbar from "@/app/components/ExpedienteActionsToolbar";
+import { Icons } from "@/lib/icons";
+import listStyles from "../../expedientes/page.module.css";
 
 export default function NuevoPresupuestoPage() {
   const router = useRouter();
@@ -36,24 +38,30 @@ export default function NuevoPresupuestoPage() {
 
   return (
     <div style={{ width: "100%", boxSizing: "border-box" }}>
-      <div style={{ padding: "1.25rem 1.5rem 0.75rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <button
-          onClick={() => router.push("/presupuestos")}
-          style={{
-            display: "inline-flex", alignItems: "center", gap: "0.4rem",
-            color: "var(--primary-color, #475569)", fontSize: "0.82rem", fontWeight: 500,
-            background: "color-mix(in srgb, var(--primary-color, #475569) 8%, white)",
-            border: "1px solid color-mix(in srgb, var(--primary-color, #475569) 20%, white)",
-            borderRadius: "0.5rem", padding: "0.35rem 0.75rem", cursor: "pointer",
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-          Volver a Presupuestos
-        </button>
-        {editId && <ExpedienteActionsToolbar presupuestoId={editId} />}
-      </div>
+      <header className={listStyles.header} style={{ padding: "1.25rem 1.5rem 0.75rem" }}>
+        <div className={listStyles.headerRow}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <button
+              onClick={() => router.push("/presupuestos")}
+              title="Volver a Presupuestos"
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#64748b", background: "none", border: "none",
+                padding: "0.25rem", marginLeft: "-0.25rem", borderRadius: "0.4rem", cursor: "pointer",
+              }}
+            >
+              <Icons.ChevronRight size={24} style={{ transform: "rotate(180deg)" }} />
+            </button>
+            <h1 className={listStyles.title}>
+              {presupuesto ? "Editar solicitud de presupuesto" : "Nueva solicitud de presupuesto"}
+            </h1>
+          </div>
+          {editId && <ExpedienteActionsToolbar presupuestoId={editId} />}
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.75rem" }}>
+          <div id="presupuesto-header-actions" />
+        </div>
+      </header>
       <NuevoPresupuestoModal
         pageMode
         presupuesto={presupuesto ?? undefined}

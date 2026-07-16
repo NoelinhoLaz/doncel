@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Icons } from "@/lib/icons";
 import { Phone, Mail, MapPin, Check } from "lucide-react";
 import ExpedienteActionsToolbar from "@/app/components/ExpedienteActionsToolbar";
@@ -239,14 +240,16 @@ function FooterActions({ step, step1Valid, step2Valid, saving, modoEdicion, onBa
 }) {
   const nextDisabled = (step === 1 && !step1Valid) || (step === 2 && !step2Valid);
   if (pageMode) {
-    return (
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", padding: "1.25rem 0 0.5rem", borderTop: "1px solid #e2e8f0", marginTop: "0.5rem" }}>
+    const headerActionsEl = typeof document !== "undefined" ? document.getElementById("presupuesto-header-actions") : null;
+    const actions = (
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
         <button type="button" onClick={onBack} style={btnSecondary}>Cancelar</button>
         <button type="button" disabled={saving} onClick={onSubmit} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
-          {saving ? "Guardando..." : (modoEdicion ? "Guardar cambios" : "Crear presupuesto")}
+          {saving ? "Guardando..." : (modoEdicion ? "Guardar cambios" : "Crear solicitud")}
         </button>
       </div>
     );
+    return headerActionsEl ? createPortal(actions, headerActionsEl) : actions;
   }
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1rem 1.5rem", borderTop: "1px solid #f1f5f9", background: "#fafafa", borderRadius: "0 0 0.875rem 0.875rem" }}>
@@ -259,7 +262,7 @@ function FooterActions({ step, step1Valid, step2Valid, saving, modoEdicion, onBa
         </button>
       ) : (
         <button type="button" disabled={saving} onClick={onSubmit} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
-          {saving ? "Guardando..." : (modoEdicion ? "Guardar cambios" : "Crear presupuesto")}
+          {saving ? "Guardando..." : (modoEdicion ? "Guardar cambios" : "Crear solicitud")}
         </button>
       )}
     </div>
@@ -354,9 +357,13 @@ const CATEGORIA_OPTS = [
 
 const TIPO_ALOJ_OPTS = [
   { value: "hotel",      label: "Hotel" },
+  { value: "hostel",     label: "Hostel" },
+  { value: "hostal",     label: "Hostal" },
   { value: "albergue",   label: "Albergue" },
   { value: "residencia", label: "Residencia" },
+  { value: "camping",    label: "Camping" },
   { value: "indiferente",label: "Indiferente" },
+  { value: "otros",      label: "Otros" },
 ];
 
 const VISITAS_PLACEHOLDER: Record<string, string> = {
@@ -397,10 +404,10 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
   const [destinos, setDestinos] = useState<Destino[]>([]);
   const [destinoQuery, setDestinoQuery] = useState("");
   const [destinosSelected, setDestinosSelected] = useState<Destino[]>([]);
-  const [nominatimResults, setNominatimResults] = useState<any[]>([]);
-  const [searchingNominatim, setSearchingNominatim] = useState(false);
+  const [placesResults, setPlacesResults] = useState<any[]>([]);
+  const [searchingPlaces, setSearchingPlaces] = useState(false);
   const [savingDestino, setSavingDestino] = useState(false);
-  const nominatimRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const placesRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [titulo, setTitulo] = useState("");
   const [tipoPres, setTipoPres] = useState<TipoPresupuesto | "">("");
   const [plazas, setPlazas] = useState("1");
@@ -421,10 +428,12 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
   const [margenRegreso, setMargenRegreso] = useState("0");
   const [noches, setNoches] = useState("");
   const [pvp, setPvp] = useState("");
+  const [notasIniciales, setNotasIniciales] = useState("");
 
   // -- PASO 3: Preferencias ---------------------------------------------------
   const [enfoques, setEnfoques] = useState<string[]>([]);
   const [tipoAloj, setTipoAloj] = useState<string[]>(["hotel"]);
+  const [tipoAlojOtros, setTipoAlojOtros] = useState("");
   const [categoria, setCategoria] = useState<string[]>(["3"]);
   const [ubicacion, setUbicacion] = useState("centro");
   const [prefHab, setPrefHab] = useState<string[]>([]);
@@ -519,6 +528,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
     setMargenRegreso(p.margen_regreso_dias ? String(p.margen_regreso_dias) : "0");
     setNoches(p.noches_estimadas ? String(p.noches_estimadas) : "");
     setPvp(p.pvp_estimado ? String(p.pvp_estimado) : "");
+    setNotasIniciales(p.notas_iniciales || "");
     // Paso 3
     const pref = p.preferencias ?? {};
     const ef = pref.enfoque_viaje;
@@ -526,6 +536,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
     const aloj = pref.alojamiento ?? {};
     const ta = aloj.tipo;
     setTipoAloj(Array.isArray(ta) ? ta : ta ? [ta] : ["hotel"]);
+    setTipoAlojOtros(aloj.tipo_otros || "");
     const cat = aloj.categoria_minima;
     setCategoria(Array.isArray(cat) ? cat : cat ? [cat] : ["3"]);
     setUbicacion(aloj.ubicacion || "centro");
@@ -580,24 +591,24 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
       .some(v => v && v.toLowerCase().includes(q));
   }).filter(d => !destinosSelected.some(s => s.id === d.id)).slice(0, 8);
 
-  // Nominatim: buscar solo si no hay resultados en BD y query >= 3 chars
+  // Google Places: buscar solo si no hay resultados en BD y query >= 3 chars
   useEffect(() => {
     const q = destinoQuery.trim();
     if (q.length < 3 || filteredDestinosRaw.length > 0) {
-      setNominatimResults([]);
+      setPlacesResults([]);
       return;
     }
-    if (nominatimRef.current) clearTimeout(nominatimRef.current);
-    nominatimRef.current = setTimeout(async () => {
-      setSearchingNominatim(true);
+    if (placesRef.current) clearTimeout(placesRef.current);
+    placesRef.current = setTimeout(async () => {
+      setSearchingPlaces(true);
       try {
-        const { searchNominatim } = await import("@/actions/nominatim");
-        const data = await searchNominatim(q);
-        setNominatimResults(data);
-      } catch { setNominatimResults([]); }
-      finally { setSearchingNominatim(false); }
+        const { searchPlaces } = await import("@/actions/places");
+        const data = await searchPlaces(q);
+        setPlacesResults(data);
+      } catch { setPlacesResults([]); }
+      finally { setSearchingPlaces(false); }
     }, 400);
-    return () => { if (nominatimRef.current) clearTimeout(nominatimRef.current); };
+    return () => { if (placesRef.current) clearTimeout(placesRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [destinoQuery]);
 
@@ -627,6 +638,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
         viaje_anterior: viajaronAnoPasado ? viajeAnterior : null,
         alojamiento: {
           tipo: tipoAloj,
+          tipo_otros: tipoAloj.includes("otros") ? (tipoAlojOtros.trim() || null) : null,
           categoria_minima: categoria,
           ubicacion,
           preferencia_habitaciones: prefHab.length > 0 ? prefHab : null,
@@ -663,6 +675,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
         margen_regreso_dias: margenRegreso !== "0" ? parseInt(margenRegreso) : null,
         noches_estimadas: noches ? parseInt(noches) : null,
         pvp_estimado: pvp ? parseFloat(pvp) : null,
+        notas_iniciales: notasIniciales.trim() || null,
         preferencias,
       };
       const res = await fetch(
@@ -1179,13 +1192,13 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                 </div>
               </div>
 
-              {/* Destinos multiselect con fallback Nominatim */}
+              {/* Destinos multiselect con fallback Google Places */}
               <div>
                 <FL text="Destinos" />
                 {destinosSelected.length > 0 && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginBottom: "0.5rem" }}>
-                    {destinosSelected.map(d => (
-                      <span key={d.id} style={{
+                    {destinosSelected.map((d, i) => (
+                      <span key={`${d.id}-${i}`} style={{
                         display: "inline-flex", alignItems: "center", gap: "0.3rem",
                         padding: "0.2rem 0.6rem", background: "color-mix(in srgb, var(--primary-color, #475569) 12%, white)", color: "var(--primary-color, #475569)",
                         borderRadius: "99px", fontSize: "0.75rem", fontWeight: 600,
@@ -1205,7 +1218,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                   <input
                     type="text"
                     value={destinoQuery}
-                    onChange={e => { setDestinoQuery(e.target.value); setNominatimResults([]); }}
+                    onChange={e => { setDestinoQuery(e.target.value); setPlacesResults([]); }}
                     style={{ ...inp, paddingLeft: "2rem" }}
                     placeholder="Buscar destino..."
                   />
@@ -1215,7 +1228,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                 {destinoQuery.length >= 3 && filteredDestinos.length > 0 && (
                   <div style={{ border: "1px solid #e2e8f0", borderRadius: "0.5rem", overflow: "hidden", marginTop: "0.25rem", boxShadow: "0 4px 12px rgba(0,0,0,0.07)" }}>
                     {filteredDestinos.map(d => (
-                      <DI key={d.id} onClick={() => { setDestinosSelected(p => [...p, d]); setDestinoQuery(""); setNominatimResults([]); }}>
+                      <DI key={d.id} onClick={() => { setDestinosSelected(p => p.some(x => x.id === d.id) ? p : [...p, d]); setDestinoQuery(""); setPlacesResults([]); }}>
                         <span style={{ fontWeight: 600, fontSize: "0.82rem" }}>{d.nombre_comercial || d.nombre}</span>
                         {(d as any).country && <span style={{ fontSize: "0.7rem", color: "#94a3b8" }}>{(d as any).country}</span>}
                       </DI>
@@ -1223,41 +1236,45 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                   </div>
                 )}
 
-                {/* Resultados Nominatim (fallback cuando BD no tiene resultados) */}
+                {/* Resultados Google Places (fallback cuando BD no tiene resultados) */}
                 {destinoQuery.length >= 3 && filteredDestinos.length === 0 && (
                   <div style={{ marginTop: "0.25rem" }}>
-                    {searchingNominatim && (
-                      <div style={{ fontSize: "0.75rem", color: "#94a3b8", padding: "0.5rem 0" }}>Buscando en mapa...</div>
+                    {searchingPlaces && (
+                      <div style={{ fontSize: "0.75rem", color: "#94a3b8", padding: "0.5rem 0" }}>
+                        No existe el destino en la Base de datos, buscando con Google Places...
+                      </div>
                     )}
-                    {!searchingNominatim && nominatimResults.length > 0 && (
+                    {!searchingPlaces && placesResults.length > 0 && (
                       <div style={{ border: "1px solid #e2e8f0", borderRadius: "0.5rem", overflow: "hidden", boxShadow: "0 4px 12px rgba(0,0,0,0.07)" }}>
                         <div style={{ padding: "0.35rem 0.75rem", fontSize: "0.65rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #f1f5f9", background: "#fafafa" }}>
-                          Resultados de OpenStreetMap - se anadiran a tu base de datos
+                          Resultados de Google Places - se anadiran a tu base de datos
                         </div>
-                        {nominatimResults.map((r, i) => (
-                          <DI key={i} onClick={async () => {
+                        {placesResults.map((r) => (
+                          <DI key={r.placeId} onClick={async () => {
                             if (savingDestino) return;
                             setSavingDestino(true);
                             try {
-                              const { createDestinoFromNominatim } = await import("@/actions/destinos");
-                              const nuevo = await createDestinoFromNominatim(r);
-                              if (nuevo) {
-                                setDestinos(p => [...p, nuevo]);
-                                setDestinosSelected(p => [...p, nuevo]);
-                                setDestinoQuery("");
-                                setNominatimResults([]);
+                              const { getPlaceDetails } = await import("@/actions/places");
+                              const { createDestinoFromPlace } = await import("@/actions/destinos");
+                              const details = await getPlaceDetails(r.placeId);
+                              if (details) {
+                                const nuevo = await createDestinoFromPlace(details);
+                                if (nuevo) {
+                                  setDestinos(p => p.some(x => x.id === nuevo.id) ? p : [...p, nuevo]);
+                                  setDestinosSelected(p => p.some(x => x.id === nuevo.id) ? p : [...p, nuevo]);
+                                  setDestinoQuery("");
+                                  setPlacesResults([]);
+                                }
                               }
                             } catch { } finally { setSavingDestino(false); }
                           }}>
-                            <span style={{ fontWeight: 600, fontSize: "0.82rem" }}>
-                              {r.city || r.state || r.displayName.split(",")[0].trim()}
-                            </span>
-                            <span style={{ fontSize: "0.7rem", color: "#94a3b8" }}>{r.fullAddress}</span>
+                            <span style={{ fontWeight: 600, fontSize: "0.82rem" }}>{r.mainText || r.fullText}</span>
+                            <span style={{ fontSize: "0.7rem", color: "#94a3b8" }}>{r.secondaryText}</span>
                           </DI>
                         ))}
                       </div>
                     )}
-                    {!searchingNominatim && nominatimResults.length === 0 && destinoQuery.length >= 3 && (
+                    {!searchingPlaces && placesResults.length === 0 && destinoQuery.length >= 3 && (
                       <div style={{ fontSize: "0.75rem", color: "#94a3b8", padding: "0.5rem 0" }}>Sin resultados para "{destinoQuery}"</div>
                     )}
                   </div>
@@ -1307,6 +1324,14 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                   </select>
                 </div>
               </div>
+
+              {/* Notas iniciales */}
+              <div>
+                <FL text="Notas" />
+                <textarea value={notasIniciales} onChange={e => setNotasIniciales(e.target.value)}
+                  style={{ ...inp, minHeight: "80px", resize: "vertical", fontFamily: "inherit" }}
+                  placeholder="Notas internas sobre esta solicitud..." />
+              </div>
             </>
             </div>
           )}
@@ -1354,6 +1379,10 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                     selected={tipoAloj}
                     onToggle={v => setTipoAloj(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])}
                   />
+                  {tipoAloj.includes("otros") && (
+                    <input value={tipoAlojOtros} onChange={e => setTipoAlojOtros(e.target.value)} style={{ ...inp, marginTop: "0.5rem" }}
+                      placeholder="Especifica el tipo de alojamiento..." />
+                  )}
                 </div>
 
                 <div>

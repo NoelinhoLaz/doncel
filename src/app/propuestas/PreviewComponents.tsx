@@ -8,7 +8,7 @@ const RutaLeaflet = dynamic(() => import("./nueva/RutaLeaflet"), { ssr: false, l
 import {
   LayoutTemplate, Type, Map as MapPinIcon, Route, DollarSign, Calendar, PanelBottom, Image, Menu, X,
   ChevronRight, ChevronLeft, Backpack, ShoppingBag, Compass, Sailboat, TreePine, Caravan, Tent, Utensils, Anchor, Volleyball, Plane, Sun, Umbrella,
-  Camera, Map as MapIcon, Mountain, Coffee, Wine, Bike, Train, Bus, Ship, Fish, Palmtree, Flower2, Globe, Star, Heart, Ticket, Luggage,
+  Camera, Map as MapIcon, Mountain, Coffee, Wine, Bike, Train, Bus, Ship, Fish, Palmtree, Flower2, Globe, Star, Heart, Ticket, Luggage, Clock,
 } from "lucide-react";
 import styles from "./nueva/page.module.css";
 
@@ -69,6 +69,10 @@ export interface Seccion {
   formularioCampos?: { uid: string; key: string; label: string; lineas: number; activo: boolean }[];
   formularioEmail?: string;
   formularioBoton?: string;
+  personas?: { uid: string; nombre?: string; cargo?: string; texto?: string; media?: MediaItem }[];
+  equipoEstiloTarjeta?: "circular" | "tarjeta";
+  listadoFormatoId?: string | null;
+  listadoEstiloTarjeta?: "simple" | "articulo";
 }
 
 export type Dispositivo = "desktop" | "tablet" | "mobile";
@@ -1726,7 +1730,195 @@ export function PHTextoColumnas({
   );
 }
 
-export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dispositivo, allSecciones?: Seccion[], agente?: any) {
+export function PHEquipo({
+  mobile,
+  layout,
+  titulo,
+  colorFondo,
+  estiloTitulo,
+  estiloTituloDia,
+  estiloDescDia,
+  personas,
+  anchoMax,
+  estiloTarjeta,
+}: {
+  mobile?: boolean;
+  layout?: string;
+  titulo?: string;
+  colorFondo?: string;
+  estiloTitulo?: TextoEstilo;
+  estiloTituloDia?: TextoEstilo;
+  estiloDescDia?: TextoEstilo;
+  personas?: { uid: string; nombre?: string; cargo?: string; texto?: string; media?: MediaItem }[];
+  anchoMax?: string;
+  estiloTarjeta?: "circular" | "tarjeta";
+}) {
+  const lista = personas ?? [];
+  const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+
+  return (
+    <div style={{ background: colorFondo ?? "#ffffff" }}>
+      <Ph>
+        <div className={styles.phEquipo} style={{ maxWidth: customMaxWidth }}>
+          {titulo ? (
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
+          ) : (
+            <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
+          )}
+          {lista.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", padding: "1.5rem 0" }}>
+              <div style={{ width: "100px", height: "100px", borderRadius: "50%", background: "#e2e8f0" }} />
+              <div style={{ width: "35%", height: "12px", borderRadius: "6px", background: "#cbd5e1" }} />
+            </div>
+          ) : estiloTarjeta === "tarjeta" ? (
+            <div className={styles.phEquipoFila} style={mobile ? { flexWrap: "wrap" } : undefined}>
+              {lista.map((p) => (
+                <div key={p.uid} className={styles.phPersonaTarjeta}>
+                  <div className={styles.phPersonaTarjetaFoto} style={p.media?.url ? { backgroundImage: `url(${p.media.url})` } : undefined} />
+                  <div className={styles.phPersonaTarjetaOverlay}>
+                    {p.nombre && <h4 className={styles.phPersonaTarjetaNombre} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{p.nombre}</h4>}
+                    {p.cargo && <p className={styles.phPersonaTarjetaCargo}>{p.cargo}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className={styles.phEquipoFila} style={mobile ? { flexWrap: "wrap" } : undefined}>
+              {lista.map((p) => (
+                <div key={p.uid} className={styles.phPersonaCard}>
+                  <div className={styles.phPersonaFoto} style={p.media?.url ? { backgroundImage: `url(${p.media.url})` } : undefined} />
+                  {p.nombre ? (
+                    <h4 className={styles.phPersonaNombre} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{p.nombre}</h4>
+                  ) : (
+                    <div style={{ width: "60%", height: "12px", borderRadius: "6px", background: "#cbd5e1" }} />
+                  )}
+                  {p.cargo && <p className={styles.phPersonaCargo}>{p.cargo}</p>}
+                  {p.texto && <p className={styles.phPersonaTexto} style={estiloTextoCSS(estiloDescDia, "parrafo")}>{renderTextWithBold(p.texto, estiloDescDia)}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Ph>
+    </div>
+  );
+}
+
+export type ListadoItem = { id: string; titulo: string; slug: string; media?: MediaItem | null; createdAt?: string; extracto?: string };
+
+function formatFechaListado(iso?: string) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" }).replace(".", "");
+  } catch {
+    return "";
+  }
+}
+
+export function PHListado({
+  mobile,
+  layout,
+  titulo,
+  colorFondo,
+  estiloTitulo,
+  estiloTituloDia,
+  anchoMax,
+  formatoId,
+  items,
+  estiloTarjeta,
+}: {
+  mobile?: boolean;
+  layout?: string;
+  titulo?: string;
+  colorFondo?: string;
+  estiloTitulo?: TextoEstilo;
+  estiloTituloDia?: TextoEstilo;
+  anchoMax?: string;
+  formatoId?: string | null;
+  items?: ListadoItem[];
+  estiloTarjeta?: "simple" | "articulo";
+}) {
+  const gridClass = mobile
+    ? styles.phCol1
+    : layout === "2-cols"
+    ? styles.phCol2
+    : layout === "4-cols"
+    ? styles.phCol4
+    : styles.phCol3;
+
+  const lista = items ?? [];
+  const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const esArticulo = estiloTarjeta === "articulo";
+
+  return (
+    <div style={{ background: colorFondo ?? "#ffffff" }}>
+      <Ph>
+        <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
+          {titulo ? (
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
+          ) : (
+            <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
+          )}
+          {!formatoId ? (
+            <div style={{ padding: "1.5rem", textAlign: "center", fontSize: "0.8rem", color: "#94a3b8" }}>Selecciona un formato para mostrar sus páginas aquí.</div>
+          ) : lista.length === 0 ? (
+            esArticulo ? (
+              <div className={styles.phArticuloCard} style={{ cursor: "default" }}>
+                <div className={styles.phArticuloThumbWrap} />
+                <div style={{ width: "60%", height: "12px", borderRadius: "6px", background: "#cbd5e1", marginTop: "0.9rem" }} />
+              </div>
+            ) : (
+              <div className={styles.phOfertaCard} style={{ cursor: "default" }}>
+                <div className={styles.phOfertaThumb} />
+                <div className={styles.phOfertaBody}>
+                  <div style={{ width: "60%", height: "12px", borderRadius: "6px", background: "#cbd5e1" }} />
+                </div>
+              </div>
+            )
+          ) : (
+            <div className={`${esArticulo ? styles.phOfertasGrid : styles.phOfertasGrid} ${gridClass}`}>
+              {lista.map((item) => (
+                <a key={item.id} href={`/web/o/${item.slug}`} style={{ textDecoration: "none", color: "inherit" }}>
+                  {esArticulo ? (
+                    <div className={styles.phArticuloCard}>
+                      <div className={styles.phArticuloThumbWrap}>
+                        <div className={styles.phArticuloThumb} style={item.media?.url ? { backgroundImage: `url(${item.media.url})` } : undefined} />
+                        <span className={styles.phArticuloBadge}>Artículo</span>
+                      </div>
+                      {item.createdAt && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px" }} className={styles.phArticuloFecha}>
+                          <Clock size={11} />
+                          <span>{formatFechaListado(item.createdAt)}</span>
+                        </div>
+                      )}
+                      <h4 className={styles.phArticuloTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{item.titulo}</h4>
+                      {item.extracto && <p className={styles.phArticuloExtracto}>{item.extracto}</p>}
+                    </div>
+                  ) : (
+                    <div className={styles.phOfertaCard}>
+                      <div className={styles.phOfertaThumb} style={item.media?.url ? { backgroundImage: `url(${item.media.url})` } : undefined} />
+                      <div className={styles.phOfertaBody}>
+                        <h4 className={styles.phOfertaTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{item.titulo}</h4>
+                        {item.createdAt && (
+                          <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "0.75rem", color: "#94a3b8" }}>
+                            <Clock size={12} />
+                            <span>{formatFechaListado(item.createdAt)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      </Ph>
+    </div>
+  );
+}
+
+export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dispositivo, allSecciones?: Seccion[], agente?: any, listadoItemsPorSeccion?: Record<string, ListadoItem[]>) {
   const mobile = dispositivo === "mobile";
   const tablet = dispositivo === "tablet";
   switch (s.tipo) {
@@ -1737,6 +1929,8 @@ export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dis
     case "itinerario":     return <PHItinerario key={s.uid} mobile={mobile} layout={s.layout} colorFondo={s.colorFondo} fechaDesde={s.fechaDesde} fechaHasta={s.fechaHasta} dias={s.dias} titulo={s.titulo} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} anchoMax={s.anchoMax} />;
     case "mapa":           return <PHMapa key={s.uid} titulo={s.titulo} mapas={s.mapas} layout={s.layout} anchoMax={s.anchoMax} colorFondo={s.colorFondo} />;
     case "ruta":           return <PHRuta key={s.uid} titulo={s.titulo} rutas={s.rutas} layout={s.layout} anchoMax={s.anchoMax} colorFondo={s.colorFondo} />;
+    case "equipo":         return <PHEquipo key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} personas={s.personas} anchoMax={s.anchoMax} estiloTarjeta={s.equipoEstiloTarjeta} />;
+    case "ofertas":        return <PHListado key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} anchoMax={s.anchoMax} formatoId={s.listadoFormatoId} items={listadoItemsPorSeccion?.[s.uid]} estiloTarjeta={s.listadoEstiloTarjeta} />;
     case "precio":         return <PHPrecio key={s.uid} mobile={mobile} tablet={tablet} seccion={s} />;
     case "formulario":     return <PHFormulario key={s.uid} mobile={mobile} seccion={s} agente={agente} />;
     case "footer":         return <PHFooter key={s.uid} mobile={mobile} />;

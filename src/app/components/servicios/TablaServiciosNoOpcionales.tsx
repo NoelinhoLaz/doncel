@@ -251,7 +251,6 @@ export default function TablaServiciosNoOpcionales({
     return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, [agruparPor, filteredList, getTypeInfo]);
 
-  // Al activar un agrupamiento nuevo, todos los grupos arrancan colapsados.
   useEffect(() => {
     if (agruparPor && grupos) {
       setCollapsedGroups(new Set(grupos.map((g) => g.key)));
