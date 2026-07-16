@@ -189,32 +189,6 @@ export async function crearPaginaWeb({ titulo, formatoId, modo }: { titulo: stri
   }
 }
 
-export async function crearPaginaWebDesdePropuesta({
-  titulo,
-  editorContent,
-  designTokens,
-}: {
-  titulo: string;
-  editorContent: any[];
-  designTokens: any[];
-}) {
-  try {
-    const agencyDb = await getAgencyDbClient();
-    const slug = await slugUnicoEnTabla(agencyDb, "paginas_web", slugify(titulo));
-    const { data, error } = await agencyDb
-      .from("paginas_web")
-      .insert({ titulo, slug, modo: "secciones", editor_content: editorContent, design_tokens: designTokens })
-      .select("id")
-      .single();
-    if (error || !data) throw error;
-    revalidatePath("/web");
-    return { ok: true, id: data.id };
-  } catch (e: any) {
-    console.error("crearPaginaWebDesdePropuesta:", e?.message);
-    return { ok: false, error: e?.message };
-  }
-}
-
 export async function eliminarPaginaWeb(id: string) {
   try {
     const agencyDb = await getAgencyDbClient();

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
-  GripVertical, Eye, EyeOff, Trash2, ChevronRight, Heart, ExternalLink, Palette, X, Sparkles,
+  GripVertical, Eye, EyeOff, Trash2, ChevronRight, Heart, ExternalLink, Palette, X,
 } from "lucide-react";
 import styles from "./page.module.css";
 import type { Seccion, SeccionFavorita, Dispositivo } from "./types";
@@ -136,7 +136,13 @@ export function PropuestaEditor({
     updateRealVariables();
   }, [contactoId, cotizacionId, propuestaId]);
 
-  const construirContenidoWeb = useCallback(() => {
+  const guardar = useCallback(async () => {
+    setGuardando(true);
+    setGuardadoOk(false);
+
+    // Save to local storage as well for previewing
+    localStorage.setItem("momo_preview_estilos_globales", JSON.stringify(estilosGlobales));
+
     const editorContent = secciones.map(s => ({
       uid: s.uid, tipo: s.tipo, label: s.label, oculta: s.oculta,
       titulo: s.titulo, subtitulo: s.subtitulo, medias: s.medias,
@@ -182,15 +188,6 @@ export function PropuestaEditor({
         equipoEstiloTarjeta: s.equipoEstiloTarjeta,
       }))
     ];
-    return { editorContent, designTokens };
-  }, [secciones, estilosGlobales]);
-
-  const guardar = useCallback(async () => {
-    setGuardando(true);
-    setGuardadoOk(false);
-    localStorage.setItem("momo_preview_estilos_globales", JSON.stringify(estilosGlobales));
-
-    const { editorContent, designTokens } = construirContenidoWeb();
 
     try {
       const result = await guardarPropuesta({
@@ -209,28 +206,7 @@ export function PropuestaEditor({
     } finally {
       setGuardando(false);
     }
-  }, [construirContenidoWeb, propuestaId, contactoId, estilosGlobales]);
-
-  const [creandoWeb, setCreandoWeb] = useState(false);
-  const crearConAlivia = useCallback(async () => {
-    setCreandoWeb(true);
-    try {
-      const { editorContent, designTokens } = construirContenidoWeb();
-      const { crearPaginaWebDesdePropuesta } = await import("@/actions/paginaWeb");
-      const titulo = secciones.find(s => s.tipo === "portada")?.titulo || contactoNombre || "Propuesta";
-      const result = await crearPaginaWebDesdePropuesta({ titulo, editorContent, designTokens });
-      if (result.ok && result.id) {
-        window.open(`/web/${result.id}`, "_blank");
-      } else {
-        console.error("Error creando página web:", result.error);
-      }
-    } catch (e) {
-      console.error("Error creando página web:", e);
-    } finally {
-      setCreandoWeb(false);
-    }
-  }, [construirContenidoWeb, secciones, contactoNombre]);
-
+  }, [secciones, propuestaId, contactoId, estilosGlobales]);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const toggleOcultar = (uid: string) => {
@@ -662,16 +638,6 @@ export function PropuestaEditor({
             >
               <ExternalLink size={15} />
               <span>Previsualizar</span>
-            </button>
-            <div className={styles.deviceBarSep} />
-            <button
-              className={styles.previewBtn}
-              title="Crear página web a partir de esta propuesta"
-              onClick={crearConAlivia}
-              disabled={creandoWeb || secciones.length === 0}
-            >
-              <Sparkles size={15} />
-              <span>{creandoWeb ? "Creando…" : "Crear con Alivia"}</span>
             </button>
             <div className={styles.deviceBarSep} />
             <button
