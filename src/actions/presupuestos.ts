@@ -225,10 +225,18 @@ export async function getPresupuestos(filters?: { oportunidad_id?: string }) {
         if (scope === "propio") {
           q = q.eq("agente_id", currentUser.id);
         } else if (scope === "subtenant" && currentUser.oficina_id) {
-          q = q.eq("oficina_id", currentUser.oficina_id);
+          const { data: agentesOficina } = await agencyDb
+            .from("usuarios")
+            .select("id")
+            .eq("oficina_id", currentUser.oficina_id);
+          q = q.in("agente_id", (agentesOficina ?? []).map((u: any) => u.id));
         }
       } else if (currentUser.rol === "SubAdmin" && currentUser.oficina_id) {
-        q = q.eq("oficina_id", currentUser.oficina_id);
+        const { data: agentesOficina } = await agencyDb
+          .from("usuarios")
+          .select("id")
+          .eq("oficina_id", currentUser.oficina_id);
+        q = q.in("agente_id", (agentesOficina ?? []).map((u: any) => u.id));
       }
     }
 

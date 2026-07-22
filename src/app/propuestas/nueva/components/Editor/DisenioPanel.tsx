@@ -5,6 +5,7 @@ import { Map as MapPinIcon, Route } from "lucide-react";
 import styles from "../../page.module.css";
 import type { Seccion } from "../../types";
 import TextoEstiloEditor from "./TextoEstiloEditor";
+import FondoSeccionEditor from "./FondoSeccionEditor";
 
 export default function DisenioPanel({
   seccion,
@@ -64,18 +65,7 @@ export default function DisenioPanel({
               ))}
             </div>
           </div>
-          <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Color de fondo</label>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <label className={styles.colorPickerBtn} style={{ background: seccion.colorFondo ?? "#ffffff", width: 34, height: 34, borderRadius: "0.5rem" }}>
-                <input type="color" value={seccion.colorFondo ?? "#ffffff"} onChange={e => onUpdate(seccion.uid, { colorFondo: e.target.value })} />
-              </label>
-              <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondo ?? "#ffffff"}</span>
-              {seccion.colorFondo && (
-                <button onClick={() => onUpdate(seccion.uid, { colorFondo: undefined })} style={{ fontSize: "0.75rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Restablecer</button>
-              )}
-            </div>
-          </div>
+          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
           <TextoEstiloEditor
             label="Título"
             value={seccion.estiloTitulo}
@@ -189,18 +179,7 @@ export default function DisenioPanel({
               ))}
             </div>
           </div>
-          <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Color de fondo</label>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <label className={styles.colorPickerBtn} style={{ background: seccion.colorFondo ?? "#ffffff", width: 34, height: 34, borderRadius: "0.5rem" }}>
-                <input type="color" value={seccion.colorFondo ?? "#ffffff"} onChange={e => onUpdate(seccion.uid, { colorFondo: e.target.value })} />
-              </label>
-              <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondo ?? "#ffffff"}</span>
-              {seccion.colorFondo && (
-                <button onClick={() => onUpdate(seccion.uid, { colorFondo: undefined })} style={{ fontSize: "0.75rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Restablecer</button>
-              )}
-            </div>
-          </div>
+          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
           <TextoEstiloEditor
             label="Título de la sección"
             value={seccion.estiloTitulo}
@@ -218,7 +197,7 @@ export default function DisenioPanel({
           />
         </>
       )}
-      {(seccion.tipo === "equipo" || seccion.tipo === "ofertas") && (
+      {(seccion.tipo === "ofertas" || seccion.tipo === "cards") && (
         <>
           {seccion.tipo === "ofertas" && (
             <div className={styles.editorSection}>
@@ -236,51 +215,6 @@ export default function DisenioPanel({
                     onClick={() => onUpdate(seccion.uid, { listadoEstiloTarjeta: opt.id as "simple" | "articulo" })}
                   >
                     {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {seccion.tipo === "equipo" && (
-            <div className={styles.editorSection}>
-              <label className={styles.editorFieldLabel}>Estilo de tarjeta</label>
-              <div className={styles.layoutPicker}>
-                {[
-                  {
-                    id: "circular",
-                    label: "Circular",
-                    preview: (
-                      <div className={styles.layoutPreview} style={{ height: 44, alignItems: "center", justifyContent: "center", gap: 6 }}>
-                        <div style={{ width: 22, height: 22, borderRadius: "50%", background: "#cbd5e1", flexShrink: 0 }} />
-                        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                          <div style={{ width: 26, height: 4, borderRadius: 2, background: "#cbd5e1" }} />
-                          <div style={{ width: 18, height: 3, borderRadius: 2, background: "#e2e8f0" }} />
-                        </div>
-                      </div>
-                    )
-                  },
-                  {
-                    id: "tarjeta",
-                    label: "Tarjeta",
-                    preview: (
-                      <div className={styles.layoutPreview} style={{ height: 44 }}>
-                        <div style={{ flex: 1, borderRadius: 3, background: "#cbd5e1", position: "relative", overflow: "hidden", display: "flex", alignItems: "flex-end" }}>
-                          <div style={{ width: "100%", padding: "3px 4px", background: "linear-gradient(180deg, rgba(100,116,139,0) 0%, rgba(51,65,85,0.85) 100%)" }}>
-                            <div style={{ width: "70%", height: 3, borderRadius: 2, background: "#ffffff" }} />
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  },
-                ].map(opt => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    className={`${styles.layoutOption} ${(seccion.equipoEstiloTarjeta ?? "circular") === opt.id ? styles.layoutOptionActive : ""}`}
-                    onClick={() => onUpdate(seccion.uid, { equipoEstiloTarjeta: opt.id as "circular" | "tarjeta" })}
-                  >
-                    {opt.preview}
-                    <span className={styles.layoutLabel}>{opt.label}</span>
                   </button>
                 ))}
               </div>
@@ -328,35 +262,75 @@ export default function DisenioPanel({
               ))}
             </div>
           </div>
-          <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Color de fondo</label>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <label className={styles.colorPickerBtn} style={{ background: seccion.colorFondo ?? "#ffffff", width: 34, height: 34, borderRadius: "0.5rem" }}>
-                <input type="color" value={seccion.colorFondo ?? "#ffffff"} onChange={e => onUpdate(seccion.uid, { colorFondo: e.target.value })} />
-              </label>
-              <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondo ?? "#ffffff"}</span>
-              {seccion.colorFondo && (
-                <button onClick={() => onUpdate(seccion.uid, { colorFondo: undefined })} style={{ fontSize: "0.75rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Restablecer</button>
-              )}
-            </div>
-          </div>
+          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
           <TextoEstiloEditor
             label="Título de la sección"
             value={seccion.estiloTitulo}
             onChange={v => onUpdate(seccion.uid, { estiloTitulo: v })}
           />
           <TextoEstiloEditor
-            label={seccion.tipo === "equipo" ? "Nombre" : "Título de la tarjeta"}
+            label={seccion.tipo === "cards" ? "Título de la card" : "Título de la tarjeta"}
             value={seccion.estiloTituloDia}
             onChange={v => onUpdate(seccion.uid, { estiloTituloDia: v })}
           />
-          {seccion.tipo === "equipo" && (
+          {seccion.tipo === "cards" && (
             <TextoEstiloEditor
-              label="Descripción"
+              label="Subtítulo"
               value={seccion.estiloDescDia}
               onChange={v => onUpdate(seccion.uid, { estiloDescDia: v })}
             />
           )}
+        </>
+      )}
+      {seccion.tipo === "galeria" && (
+        <>
+          <div className={styles.editorSection}>
+            <label className={styles.editorFieldLabel}>Columnas</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[
+                { id: "2-cols", label: "2" },
+                { id: "3-cols", label: "3" },
+                { id: "4-cols", label: "4" },
+                { id: "5-cols", label: "5" },
+              ].map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className={`${styles.previewBtn} ${(seccion.layout ?? "3-cols") === opt.id ? styles.saveBtn : ""}`}
+                  style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.layout ?? "3-cols") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.layout ?? "3-cols") === opt.id ? "#ffffff" : "#475569" }}
+                  onClick={() => onUpdate(seccion.uid, { layout: opt.id })}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className={styles.editorSection}>
+            <label className={styles.editorFieldLabel}>Ancho de sección</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[
+                { id: "900px", label: "Pequeño" },
+                { id: "1200px", label: "Mediano" },
+                { id: "completo", label: "Ancho completo" },
+              ].map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className={`${styles.previewBtn} ${(seccion.anchoMax ?? "1200px") === opt.id ? styles.saveBtn : ""}`}
+                  style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.anchoMax ?? "1200px") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.anchoMax ?? "1200px") === opt.id ? "#ffffff" : "#475569" }}
+                  onClick={() => onUpdate(seccion.uid, { anchoMax: opt.id })}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
+          <TextoEstiloEditor
+            label="Título de la sección"
+            value={seccion.estiloTitulo}
+            onChange={v => onUpdate(seccion.uid, { estiloTitulo: v })}
+          />
         </>
       )}
       {seccion.tipo === "itinerario" && (
@@ -416,18 +390,7 @@ export default function DisenioPanel({
               ))}
             </div>
           </div>
-          <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Color de fondo</label>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <label className={styles.colorPickerBtn} style={{ background: seccion.colorFondo ?? "#ffffff", width: 34, height: 34, borderRadius: "0.5rem" }}>
-                <input type="color" value={seccion.colorFondo ?? "#ffffff"} onChange={e => onUpdate(seccion.uid, { colorFondo: e.target.value })} />
-              </label>
-              <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondo ?? "#ffffff"}</span>
-              {seccion.colorFondo && (
-                <button onClick={() => onUpdate(seccion.uid, { colorFondo: undefined })} style={{ fontSize: "0.75rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Restablecer</button>
-              )}
-            </div>
-          </div>
+          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
           <TextoEstiloEditor
             label="Título del itinerario"
             value={seccion.estiloTitulo}
@@ -592,18 +555,7 @@ export default function DisenioPanel({
               ))}
             </div>
           </div>
-          <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Color de fondo</label>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <label className={styles.colorPickerBtn} style={{ background: seccion.colorFondo ?? "#ffffff", width: 34, height: 34, borderRadius: "0.5rem" }}>
-                <input type="color" value={seccion.colorFondo ?? "#ffffff"} onChange={e => onUpdate(seccion.uid, { colorFondo: e.target.value })} />
-              </label>
-              <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondo ?? "#ffffff"}</span>
-              {seccion.colorFondo && (
-                <button onClick={() => onUpdate(seccion.uid, { colorFondo: undefined })} style={{ fontSize: "0.75rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Restablecer</button>
-              )}
-            </div>
-          </div>
+          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
         </>
       )}
       {seccion.tipo === "ruta" && (
@@ -658,18 +610,7 @@ export default function DisenioPanel({
               ))}
             </div>
           </div>
-          <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Color de fondo</label>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <label className={styles.colorPickerBtn} style={{ background: seccion.colorFondo ?? "#ffffff", width: 34, height: 34, borderRadius: "0.5rem" }}>
-                <input type="color" value={seccion.colorFondo ?? "#ffffff"} onChange={e => onUpdate(seccion.uid, { colorFondo: e.target.value })} />
-              </label>
-              <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondo ?? "#ffffff"}</span>
-              {seccion.colorFondo && (
-                <button onClick={() => onUpdate(seccion.uid, { colorFondo: undefined })} style={{ fontSize: "0.75rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Restablecer</button>
-              )}
-            </div>
-          </div>
+          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
         </>
       )}
       {seccion.tipo === "menu" && (
@@ -845,18 +786,7 @@ export default function DisenioPanel({
               ))}
             </div>
           </div>
-          <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Color de fondo</label>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <label className={styles.colorPickerBtn} style={{ background: seccion.colorFondo ?? "#ffffff", width: 34, height: 34, borderRadius: "0.5rem" }}>
-                <input type="color" value={seccion.colorFondo ?? "#ffffff"} onChange={e => onUpdate(seccion.uid, { colorFondo: e.target.value })} />
-              </label>
-              <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondo ?? "#ffffff"}</span>
-              {seccion.colorFondo && (
-                <button onClick={() => onUpdate(seccion.uid, { colorFondo: undefined })} style={{ fontSize: "0.75rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Restablecer</button>
-              )}
-            </div>
-          </div>
+          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
           <TextoEstiloEditor
             label="Estilo PVP"
             value={seccion.estiloPvp}
@@ -926,21 +856,13 @@ export default function DisenioPanel({
               ))}
             </div>
           </div>
-          <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Color de fondo</label>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <label className={styles.colorPickerBtn} style={{ background: seccion.colorFondo ?? "#ffffff", width: 34, height: 34, borderRadius: "0.5rem" }}>
-                <input type="color" value={seccion.colorFondo ?? "#ffffff"} onChange={e => onUpdate(seccion.uid, { colorFondo: e.target.value })} />
-              </label>
-              <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondo ?? "#ffffff"}</span>
-              {seccion.colorFondo && (
-                <button onClick={() => onUpdate(seccion.uid, { colorFondo: undefined })} style={{ fontSize: "0.75rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Restablecer</button>
-              )}
-            </div>
-          </div>
+          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
         </>
       )}
-      {seccion.tipo !== "texto-imagenes" && seccion.tipo !== "portada" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "itinerario" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && seccion.tipo !== "precio" && seccion.tipo !== "formulario" && (
+      {(seccion.tipo === "nego-planet-programas" || seccion.tipo === "nego-planet-destinos") && (
+        <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
+      )}
+      {seccion.tipo !== "texto-imagenes" && seccion.tipo !== "portada" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "itinerario" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && seccion.tipo !== "precio" && seccion.tipo !== "formulario" && seccion.tipo !== "ofertas" && seccion.tipo !== "cards" && seccion.tipo !== "galeria" && seccion.tipo !== "nego-planet-programas" && seccion.tipo !== "nego-planet-destinos" && (
         <p className={styles.editorEmpty}>Opciones de diseño próximamente.</p>
       )}
     </>

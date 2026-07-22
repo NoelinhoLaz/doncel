@@ -40,10 +40,13 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
       estiloTituloDia: d.estiloTituloDia,
       estiloDescDia: d.estiloDescDia,
       colorFondo: d.colorFondo,
+      imagenFondo: d.imagenFondo,
+      imagenFondoOverlay: d.imagenFondoOverlay,
       anchoMax: d.anchoMax,
       // Campos de sección menú
       menuLogo: s.menuLogo,
       menuItems: s.menuItems,
+      menuOverrides: s.menuOverrides,
       menuBoton: s.menuBoton,
       menuColorFondo: d.menuColorFondo,
       menuColorTexto: d.menuColorTexto,
@@ -58,10 +61,10 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
       formularioCampos: s.formularioCampos,
       formularioEmail: s.formularioEmail,
       formularioBoton: s.formularioBoton,
-      personas: s.personas,
+      cards: s.cards,
+      galeria: s.galeria,
       listadoFormatoId: s.listadoFormatoId,
       listadoEstiloTarjeta: d.listadoEstiloTarjeta,
-      equipoEstiloTarjeta: d.equipoEstiloTarjeta,
     };
   });
 

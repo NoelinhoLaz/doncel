@@ -36,6 +36,7 @@
     "archiver-zip-encrypted": "^2.0.0",
     "dompurify": "^3.4.8",
     "exceljs": "^4.4.0",
+    "fast-xml-parser": "^5.10.1",
     "framer-motion": "^12.40.0",
     "google-auth-library": "^10.6.2",
     "google-auth-library-nodejs": "^0.0.1-security.6",

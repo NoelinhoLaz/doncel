@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { Copy, Trash2, UserRound, X, Search, MapPin, SlidersHorizontal, ChevronRight, ChevronDown, Compass, DatabaseZap, Link2 } from "lucide-react";
 import { PresupuestoDetalleDrawer } from "@/components/modals/PresupuestoDetalleDrawer";
 import Pagination from "@/app/components/Pagination";
-import { duplicateCotizacion, deleteCotizacion, updateCotizacionLinea } from "@/actions/cotizaciones";
+import { duplicateCotizacion, deleteCotizacion, updateCotizacionLinea, tieneCotizacionPropuestasVinculadas } from "@/actions/cotizaciones";
 import TipoIcon from "@/app/components/cotizacion/TipoIcon";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
 import dynamic from "next/dynamic";
@@ -114,6 +114,7 @@ export default function CotizacionesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [duplicating, setDuplicating] = useState<string | null>(null);
+  const [duplicarModal, setDuplicarModal] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [contactoModal, setContactoModal] = useState<ContactoModal | null>(null);
   const [selectedLineIds, setSelectedLineIds] = useState<string[]>([]);
@@ -609,9 +610,31 @@ export default function CotizacionesPage() {
 
   const handleDuplicate = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
+    const check = await tieneCotizacionPropuestasVinculadas(id);
+    if (check.tienePropuestas) {
+      setDuplicarModal(id);
+      return;
+    }
     setDuplicating(id);
     try {
-      const result = await duplicateCotizacion(id);
+      const result = await duplicateCotizacion(id, false);
+      if (result.success) {
+        loadCotizaciones();
+      } else {
+        alert("Error al duplicar: " + result.error);
+      }
+    } finally {
+      setDuplicating(null);
+    }
+  };
+
+  const confirmarDuplicar = async (vincular: boolean) => {
+    if (!duplicarModal) return;
+    const id = duplicarModal;
+    setDuplicarModal(null);
+    setDuplicating(id);
+    try {
+      const result = await duplicateCotizacion(id, vincular);
       if (result.success) {
         loadCotizaciones();
       } else {
@@ -924,6 +947,27 @@ export default function CotizacionesPage() {
           onClose={() => setContactoModal(null)}
           onSelect={handleSelectContacto}
         />
+      )}
+
+      {duplicarModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.35)" }} onClick={() => setDuplicarModal(null)}>
+          <div style={{ background: "#fff", borderRadius: "0.75rem", width: 420, maxWidth: "95vw", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem 0.75rem", borderBottom: "1px solid #f1f5f9" }}>
+              <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#1e293b" }}>Duplicar cotización</span>
+              <button onClick={() => setDuplicarModal(null)} style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex" }}><X size={16} /></button>
+            </div>
+            <div style={{ padding: "1rem 1.25rem" }}>
+              <p style={{ fontSize: "0.85rem", color: "#475569", margin: 0 }}>
+                Esta cotización tiene propuestas vinculadas. ¿Deseas duplicarlas también y mantener el vínculo en las copias?
+              </p>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "0.75rem 1.25rem 1rem" }}>
+              <button onClick={() => setDuplicarModal(null)} style={{ border: "1px solid #e2e8f0", background: "#fff", borderRadius: 6, padding: "0.4rem 0.85rem", cursor: "pointer", color: "#475569", fontSize: "0.8rem", fontWeight: 600 }}>Cancelar</button>
+              <button onClick={() => confirmarDuplicar(false)} style={{ border: "1px solid #e2e8f0", background: "#fff", borderRadius: 6, padding: "0.4rem 0.85rem", cursor: "pointer", color: "#475569", fontSize: "0.8rem", fontWeight: 600 }}>Solo cotización</button>
+              <button onClick={() => confirmarDuplicar(true)} style={{ border: "none", background: "#1e293b", borderRadius: 6, padding: "0.4rem 0.85rem", cursor: "pointer", color: "#fff", fontSize: "0.8rem", fontWeight: 600 }}>Duplicar ambas</button>
+            </div>
+          </div>
+        </div>
       )}
       <header className={listStyles.header} style={{ marginBottom: "0px" }}>
         <div className={listStyles.headerRow}>

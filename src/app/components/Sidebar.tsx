@@ -53,7 +53,7 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
       !isBranchUser
     : true;
 
-  const showCotizaciones = currentUser ? !isBranchUser : true;
+  const showCotizaciones = true;
 
   const closeAllOthers = (exceptSetter: ((v: boolean) => void) | null) => {
     const submenus = [

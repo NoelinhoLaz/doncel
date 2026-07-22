@@ -155,6 +155,7 @@ export function PropuestaEditor({
       // Campos de sección menú
       menuLogo: s.menuLogo,
       menuItems: s.menuItems,
+      menuOverrides: s.menuOverrides,
       menuBoton: s.menuBoton,
       // Precio fields
       pvp: s.pvp,
@@ -163,8 +164,9 @@ export function PropuestaEditor({
       formularioCampos: s.formularioCampos,
       formularioEmail: s.formularioEmail,
       formularioBoton: s.formularioBoton,
-      // Equipo / Ofertas fields
-      personas: s.personas,
+      // Ofertas fields
+      cards: s.cards,
+      galeria: s.galeria,
       listadoFormatoId: s.listadoFormatoId,
     }));
     const designTokens = [
@@ -174,6 +176,8 @@ export function PropuestaEditor({
         estiloTitulo: s.estiloTitulo, estiloSubtitulo: s.estiloSubtitulo,
         estiloTituloDia: s.estiloTituloDia, estiloDescDia: s.estiloDescDia,
         colorFondo: s.colorFondo,
+        imagenFondo: s.imagenFondo,
+        imagenFondoOverlay: s.imagenFondoOverlay,
         anchoMax: s.anchoMax,
         // Diseño del menú
         menuColorFondo: s.menuColorFondo,
@@ -185,7 +189,6 @@ export function PropuestaEditor({
         estiloCondiciones: s.estiloCondiciones,
         // Listado styling
         listadoEstiloTarjeta: s.listadoEstiloTarjeta,
-        equipoEstiloTarjeta: s.equipoEstiloTarjeta,
       }))
     ];
 
@@ -280,11 +283,16 @@ export function PropuestaEditor({
         { uid: "observaciones", key: "observaciones", label: "Observaciones", lineas: 10, activo: true }
       ];
     }
-    if (tipo === "equipo") {
-      base.layout = "3-cols";
+    if (tipo === "cards") {
       base.anchoMax = "1200px";
-      base.titulo = "Nuestro equipo";
-      base.personas = [];
+      base.titulo = "Por qué elegirnos";
+      base.cards = [];
+      base.estiloTitulo = { fuente: "Raleway", grosor: "800", tamano: "22px", color: "#1e293b" };
+    }
+    if (tipo === "galeria") {
+      base.anchoMax = "1200px";
+      base.titulo = "Galería de fotos";
+      base.galeria = [];
       base.estiloTitulo = { fuente: "Raleway", grosor: "800", tamano: "22px", color: "#1e293b" };
     }
     if (tipo === "ofertas") {
@@ -669,7 +677,7 @@ export function PropuestaEditor({
                     )}
                     <div className={styles.canvasContent} ref={canvasContentRef}>
                       {seccionesVisibles.map(s => (
-                        <div key={s.uid} ref={el => { seccionRefs.current[s.uid] = el; }}
+                        <div key={s.uid} id={s.uid} ref={el => { seccionRefs.current[s.uid] = el; }}
                           style={s.tipo === "menu" && s.menuFijo ? { visibility: "hidden" } : undefined}>
                           {renderSeccion(s, current.height, dispositivo, secciones, agente, listadoItemsPorSeccion)}
                         </div>

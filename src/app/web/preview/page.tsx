@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { renderSeccion } from "@/app/propuestas/PreviewComponents";
 import { getStyleVars } from "@/app/propuestas/nueva/utils/style-utils";
 import { getPaginasWebPorFormato } from "@/actions/paginaWeb";
+import { resolverItemsAutoNegoPlanetSesion, obtenerArbolDestinosNegoPlanet } from "@/actions/negoplanet";
 
 export default function PreviewWebPage() {
   const [secciones, setSecciones] = useState<any[]>([]);
@@ -32,6 +33,16 @@ export default function PreviewWebPage() {
             setListadoItemsPorSeccion(prev => ({ ...prev, [s.uid]: items }));
           });
         });
+        parsed.filter((s: any) => s.tipo === "nego-planet-programas" && s.negoPlanetModo === "auto").forEach((s: any) => {
+          resolverItemsAutoNegoPlanetSesion(s.negoPlanetAutoTipo ?? "programas-destacados", s.negoPlanetAutoQuery).then(res => {
+            if (res.ok) setListadoItemsPorSeccion(prev => ({ ...prev, [s.uid]: res.data }));
+          });
+        });
+        parsed.filter((s: any) => s.tipo === "nego-planet-destinos").forEach((s: any) => {
+          obtenerArbolDestinosNegoPlanet(s.negoPlanetOverrides).then(res => {
+            if (res.ok) setListadoItemsPorSeccion(prev => ({ ...prev, [s.uid]: res.data }));
+          });
+        });
       } catch (e) {
         console.error(e);
       }
@@ -55,7 +66,7 @@ export default function PreviewWebPage() {
         </div>
       )}
       {seccionesVisibles.map(s => (
-        <div key={s.uid} style={s.tipo === "menu" && s.menuFijo ? { visibility: "hidden" } : undefined}>
+        <div key={s.uid} id={s.uid} style={s.tipo === "menu" && s.menuFijo ? { display: "none" } : undefined}>
           {renderSeccion(s, "100vh", "desktop", secciones, agente, listadoItemsPorSeccion)}
         </div>
       ))}

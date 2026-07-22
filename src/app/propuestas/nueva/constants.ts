@@ -2,7 +2,7 @@ import React from "react";
 import {
   Monitor, Tablet, Smartphone,
   LayoutTemplate, Type, Map as MapPinIcon, Route, DollarSign, Calendar, PanelBottom, Image, Menu, Columns,
-  AlignLeft, AlignCenter, AlignRight, AlignJustify, Users, Tag,
+  AlignLeft, AlignCenter, AlignRight, AlignJustify, Tag, Globe2, Plane, LayoutGrid, GalleryHorizontal,
 } from "lucide-react";
 import type { Dispositivo } from "./types";
 
@@ -22,9 +22,17 @@ export const OPCIONES_SECCION = [
   { id: "ruta",           label: "Ruta",             Icon: Route },
   { id: "precio",         label: "Precio",           Icon: DollarSign },
   { id: "formulario",     label: "Formulario",       Icon: Type },
-  { id: "equipo",         label: "Equipo",           Icon: Users },
+  { id: "cards",          label: "Cards",            Icon: LayoutGrid },
+  { id: "galeria",        label: "Galería",          Icon: GalleryHorizontal },
   { id: "ofertas",        label: "Categorías",       Icon: Tag },
   { id: "footer",         label: "Footer",           Icon: PanelBottom },
+];
+
+// Secciones exclusivas de la web de la agencia (NO usar en el editor de propuestas)
+export const OPCIONES_SECCION_WEB = [
+  ...OPCIONES_SECCION,
+  { id: "nego-planet-programas", label: "Programas NegoPlanet", Icon: Plane },
+  { id: "nego-planet-destinos",  label: "Destinos NegoPlanet",  Icon: Globe2 },
 ];
 
 export const FUENTE_FAMILY: Record<string, string> = {

@@ -42,9 +42,16 @@ export interface RutaItem {
   segmentos?: SegmentoRuta[];
 }
 
+/** @deprecated Sustituido por menuOverrides — se mantiene solo para migrar datos antiguos. */
 export interface MenuItemConfig {
   uid: string;
   etiqueta: string;
+  ocultaEnMenu?: boolean;
+}
+
+/** Ajuste editorial por sección (indexado por uid de sección) para el menú dinámico. */
+export interface MenuOverride {
+  etiqueta?: string;
   ocultaEnMenu?: boolean;
 }
 
@@ -55,16 +62,51 @@ export interface MenuBoton {
   seccionUid?: string;
 }
 
-export interface PersonaEquipo {
+export interface CardItem {
   uid: string;
-  nombre?: string;
-  cargo?: string;
-  texto?: string;
+  titulo?: string;
+  subtitulo?: string;
+  media?: MediaItem;
+  enlaceTipo?: "externo" | "pagina";
+  enlaceHref?: string;
+  enlacePaginaSlug?: string;
+}
+
+export interface GaleriaItem {
+  uid: string;
   media?: MediaItem;
 }
 
 export interface ListadoConfig {
   formatoId?: string | null;
+}
+
+export interface NegoPlanetItem {
+  uid: string;
+  origen: "destino" | "programa";
+  externalId?: string;
+  slug?: string;
+  titulo: string;
+  descripcion?: string;
+  precio?: string;
+  dias?: string;
+  imagen?: string;
+}
+
+export type NegoPlanetModo = "fijo" | "auto";
+export type NegoPlanetAutoTipo = "destinos" | "programas-destacados" | "programas-mas-vendidos" | "programas-pais";
+
+export interface NegoPlanetCategoriaDestino {
+  post_name: string;
+  post_title: string;
+  totalDestinos: number;
+  imagen?: string;
+}
+
+/** Override editorial por nodo (categoría, subcategoría o destino), indexado por su post_name/slug. */
+export interface NegoPlanetOverride {
+  oculto?: boolean;
+  imagen?: string;
 }
 
 export interface Seccion {
@@ -82,6 +124,8 @@ export interface Seccion {
   estiloTituloDia?: TextoEstilo;
   estiloDescDia?: TextoEstilo;
   colorFondo?: string;
+  imagenFondo?: MediaItem;
+  imagenFondoOverlay?: number;
   fechaDesde?: string;
   fechaHasta?: string;
   anchoMax?: string;
@@ -96,7 +140,9 @@ export interface Seccion {
     medias?: MediaItem[];
   }[];
   menuLogo?: string;
+  /** @deprecated usar menuOverrides — se conserva solo para migrar páginas/propuestas antiguas. */
   menuItems?: MenuItemConfig[];
+  menuOverrides?: Record<string, MenuOverride>;
   menuBoton?: MenuBoton | null;
   menuColorFondo?: string;
   menuColorTexto?: string;
@@ -111,10 +157,15 @@ export interface Seccion {
   formularioCampos?: { uid: string; key: string; label: string; lineas: number; activo: boolean }[];
   formularioEmail?: string;
   formularioBoton?: string;
-  personas?: PersonaEquipo[];
-  equipoEstiloTarjeta?: "circular" | "tarjeta";
+  cards?: CardItem[];
+  galeria?: GaleriaItem[];
   listadoFormatoId?: string | null;
   listadoEstiloTarjeta?: "simple" | "articulo";
+  negoPlanetItems?: NegoPlanetItem[];
+  negoPlanetModo?: NegoPlanetModo;
+  negoPlanetAutoTipo?: NegoPlanetAutoTipo;
+  negoPlanetAutoQuery?: string;
+  negoPlanetOverrides?: Record<string, NegoPlanetOverride>;
 }
 
 export type SeccionFavorita = Seccion & { favId: string; savedAt: number };

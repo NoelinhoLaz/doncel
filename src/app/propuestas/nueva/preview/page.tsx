@@ -47,7 +47,7 @@ export default function PreviewNuevaPage() {
         </div>
       )}
       {seccionesVisibles.map(s => (
-        <div key={s.uid} style={s.tipo === "menu" && s.menuFijo ? { visibility: "hidden" } : undefined}>
+        <div key={s.uid} style={s.tipo === "menu" && s.menuFijo ? { display: "none" } : undefined}>
           {renderSeccion(s, "100vh", "desktop", secciones, agente)}
         </div>
       ))}

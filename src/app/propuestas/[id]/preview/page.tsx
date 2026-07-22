@@ -87,9 +87,12 @@ export default function PreviewIdPage() {
                 estiloTituloDia: d.estiloTituloDia,
                 estiloDescDia: d.estiloDescDia,
                 colorFondo: d.colorFondo,
+                imagenFondo: d.imagenFondo,
+                imagenFondoOverlay: d.imagenFondoOverlay,
                 anchoMax: d.anchoMax,
                 menuLogo: s.menuLogo,
                 menuItems: s.menuItems,
+                menuOverrides: s.menuOverrides,
                 menuBoton: s.menuBoton,
                 menuColorFondo: d.menuColorFondo,
                 menuColorTexto: d.menuColorTexto,
@@ -103,6 +106,8 @@ export default function PreviewIdPage() {
                 // Formulario fields
                 formularioCampos: s.formularioCampos,
                 formularioEmail: s.formularioEmail,
+                cards: s.cards,
+                galeria: s.galeria,
               };
             });
             setSecciones(mapped);
@@ -133,7 +138,7 @@ export default function PreviewIdPage() {
         </div>
       )}
       {seccionesVisibles.map(s => (
-        <div key={s.uid} style={s.tipo === "menu" && s.menuFijo ? { visibility: "hidden" } : undefined}>
+        <div key={s.uid} id={s.uid} style={s.tipo === "menu" && s.menuFijo ? { display: "none" } : undefined}>
           {renderSeccion(s, "100vh", "desktop", secciones, agente)}
         </div>
       ))}

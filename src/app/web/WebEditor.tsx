@@ -7,12 +7,13 @@ import {
 } from "lucide-react";
 import styles from "../propuestas/nueva/page.module.css";
 import type { Seccion, SeccionFavorita, Dispositivo } from "../propuestas/nueva/types";
-import { DISPOSITIVOS, OPCIONES_SECCION, FUENTES, TAMANIOS, GROSORES } from "../propuestas/nueva/constants";
+import { DISPOSITIVOS, OPCIONES_SECCION_WEB, FUENTES, TAMANIOS, GROSORES } from "../propuestas/nueva/constants";
 import { useFavoritos } from "../propuestas/nueva/hooks/useFavoritos";
 import { EditorPanel } from "../propuestas/nueva/components/Editor/EditorPanel";
 import { renderSeccion } from "../propuestas/nueva/utils/section-render";
 import { getStyleVars } from "../propuestas/nueva/utils/style-utils";
 import { guardarPaginaWeb, getPaginasWebPorFormato } from "@/actions/paginaWeb";
+import { resolverItemsAutoNegoPlanetSesion, obtenerArbolDestinosNegoPlanet } from "@/actions/negoplanet";
 
 export function WebEditor({
   paginaId,
@@ -40,6 +41,24 @@ export function WebEditor({
       });
     });
   }, [secciones.map(s => `${s.uid}:${s.listadoFormatoId}`).join(",")]);
+
+  useEffect(() => {
+    const autoSecciones = secciones.filter(s => s.tipo === "nego-planet-programas" && s.negoPlanetModo === "auto");
+    autoSecciones.forEach(s => {
+      resolverItemsAutoNegoPlanetSesion(s.negoPlanetAutoTipo ?? "programas-destacados", s.negoPlanetAutoQuery).then(res => {
+        if (res.ok) setListadoItemsPorSeccion(prev => ({ ...prev, [s.uid]: res.data }));
+      });
+    });
+  }, [secciones.map(s => `${s.uid}:${s.negoPlanetModo}:${s.negoPlanetAutoTipo}:${s.negoPlanetAutoQuery}`).join(",")]);
+
+  useEffect(() => {
+    const destinoSecciones = secciones.filter(s => s.tipo === "nego-planet-destinos");
+    destinoSecciones.forEach(s => {
+      obtenerArbolDestinosNegoPlanet(s.negoPlanetOverrides).then(res => {
+        if (res.ok) setListadoItemsPorSeccion(prev => ({ ...prev, [s.uid]: res.data }));
+      });
+    });
+  }, [secciones.map(s => s.tipo === "nego-planet-destinos" ? `${s.uid}:${JSON.stringify(s.negoPlanetOverrides ?? {})}` : "").join(",")]);
 
   useEffect(() => {
     if (!agente) {
@@ -87,14 +106,21 @@ export function WebEditor({
       rutas: s.rutas,
       menuLogo: s.menuLogo,
       menuItems: s.menuItems,
+      menuOverrides: s.menuOverrides,
       menuBoton: s.menuBoton,
       pvp: s.pvp,
       condiciones: s.condiciones,
       formularioCampos: s.formularioCampos,
       formularioEmail: s.formularioEmail,
       formularioBoton: s.formularioBoton,
-      personas: s.personas,
+      cards: s.cards,
+      galeria: s.galeria,
       listadoFormatoId: s.listadoFormatoId,
+      negoPlanetItems: s.negoPlanetItems,
+      negoPlanetModo: s.negoPlanetModo,
+      negoPlanetAutoTipo: s.negoPlanetAutoTipo,
+      negoPlanetAutoQuery: s.negoPlanetAutoQuery,
+      negoPlanetOverrides: s.negoPlanetOverrides,
     }));
     const designTokens = [
       { uid: "global", estilosGlobales },
@@ -103,6 +129,8 @@ export function WebEditor({
         estiloTitulo: s.estiloTitulo, estiloSubtitulo: s.estiloSubtitulo,
         estiloTituloDia: s.estiloTituloDia, estiloDescDia: s.estiloDescDia,
         colorFondo: s.colorFondo,
+        imagenFondo: s.imagenFondo,
+        imagenFondoOverlay: s.imagenFondoOverlay,
         anchoMax: s.anchoMax,
         menuColorFondo: s.menuColorFondo,
         menuColorTexto: s.menuColorTexto,
@@ -111,7 +139,6 @@ export function WebEditor({
         estiloPvp: s.estiloPvp,
         estiloCondiciones: s.estiloCondiciones,
         listadoEstiloTarjeta: s.listadoEstiloTarjeta,
-        equipoEstiloTarjeta: s.equipoEstiloTarjeta,
       }))
     ];
 
@@ -201,11 +228,16 @@ export function WebEditor({
         { uid: "observaciones", key: "observaciones", label: "Observaciones", lineas: 10, activo: true }
       ];
     }
-    if (tipo === "equipo") {
-      base.layout = "3-cols";
+    if (tipo === "cards") {
       base.anchoMax = "1200px";
-      base.titulo = "Nuestro equipo";
-      base.personas = [];
+      base.titulo = "Por qué elegirnos";
+      base.cards = [];
+      base.estiloTitulo = { fuente: "Raleway", grosor: "800", tamano: "22px", color: "#1e293b" };
+    }
+    if (tipo === "galeria") {
+      base.anchoMax = "1200px";
+      base.titulo = "Galería de fotos";
+      base.galeria = [];
       base.estiloTitulo = { fuente: "Raleway", grosor: "800", tamano: "22px", color: "#1e293b" };
     }
     if (tipo === "ofertas") {
@@ -213,6 +245,20 @@ export function WebEditor({
       base.anchoMax = "1200px";
       base.titulo = "Nuestras ofertas";
       base.listadoFormatoId = null;
+      base.estiloTitulo = { fuente: "Raleway", grosor: "800", tamano: "22px", color: "#1e293b" };
+    }
+    if (tipo === "nego-planet-programas") {
+      base.layout = "3-cols";
+      base.anchoMax = "1200px";
+      base.titulo = "Nuestros programas";
+      base.negoPlanetItems = [];
+      base.negoPlanetModo = "fijo";
+      base.estiloTitulo = { fuente: "Raleway", grosor: "800", tamano: "22px", color: "#1e293b" };
+    }
+    if (tipo === "nego-planet-destinos") {
+      base.layout = "3-cols";
+      base.anchoMax = "1200px";
+      base.titulo = "Nuestros destinos";
       base.estiloTitulo = { fuente: "Raleway", grosor: "800", tamano: "22px", color: "#1e293b" };
     }
     setSecciones(prev => [...prev, base]);
@@ -378,7 +424,7 @@ export function WebEditor({
                         {menuAbierto && (
                           <div className={styles.seccionMenu}>
                             <p className={styles.menuLabel}>Selecciona un tipo</p>
-                            {OPCIONES_SECCION.map(({ id, label, Icon }) => (
+                            {OPCIONES_SECCION_WEB.map(({ id, label, Icon }) => (
                               <button key={id} className={styles.menuItem} onClick={() => añadirSeccion(id, label)}>
                                 <Icon size={15} className={styles.menuItemIcon} />
                                 {label}
@@ -590,7 +636,7 @@ export function WebEditor({
                     )}
                     <div className={styles.canvasContent} ref={canvasContentRef}>
                       {seccionesVisibles.map(s => (
-                        <div key={s.uid} ref={el => { seccionRefs.current[s.uid] = el; }}
+                        <div key={s.uid} id={s.uid} ref={el => { seccionRefs.current[s.uid] = el; }}
                           style={s.tipo === "menu" && s.menuFijo ? { visibility: "hidden" } : undefined}>
                           {renderSeccion(s, current.height, dispositivo, secciones, agente, listadoItemsPorSeccion)}
                         </div>

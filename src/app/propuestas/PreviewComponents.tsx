@@ -8,9 +8,10 @@ const RutaLeaflet = dynamic(() => import("./nueva/RutaLeaflet"), { ssr: false, l
 import {
   LayoutTemplate, Type, Map as MapPinIcon, Route, DollarSign, Calendar, PanelBottom, Image, Menu, X,
   ChevronRight, ChevronLeft, Backpack, ShoppingBag, Compass, Sailboat, TreePine, Caravan, Tent, Utensils, Anchor, Volleyball, Plane, Sun, Umbrella,
-  Camera, Map as MapIcon, Mountain, Coffee, Wine, Bike, Train, Bus, Ship, Fish, Palmtree, Flower2, Globe, Star, Heart, Ticket, Luggage, Clock,
+  Camera, Map as MapIcon, Mountain, Coffee, Wine, Bike, Train, Bus, Ship, Fish, Palmtree, Flower2, Globe, Star, Heart, Ticket, Luggage, Clock, Mouse,
 } from "lucide-react";
 import styles from "./nueva/page.module.css";
+import { resolverItemsMenu } from "./nueva/utils/menu-utils";
 
 export type MediaItem = { tipo: "unsplash" | "link" | "upload" | "video"; url: string };
 
@@ -39,6 +40,8 @@ export interface Seccion {
   estiloTituloDia?: TextoEstilo;
   estiloDescDia?: TextoEstilo;
   colorFondo?: string;
+  imagenFondo?: MediaItem;
+  imagenFondoOverlay?: number;
   fechaDesde?: string;
   fechaHasta?: string;
   anchoMax?: string;
@@ -69,10 +72,48 @@ export interface Seccion {
   formularioCampos?: { uid: string; key: string; label: string; lineas: number; activo: boolean }[];
   formularioEmail?: string;
   formularioBoton?: string;
-  personas?: { uid: string; nombre?: string; cargo?: string; texto?: string; media?: MediaItem }[];
-  equipoEstiloTarjeta?: "circular" | "tarjeta";
+  cards?: { uid: string; titulo?: string; subtitulo?: string; media?: MediaItem; enlaceTipo?: "externo" | "pagina"; enlaceHref?: string; enlacePaginaSlug?: string }[];
+  galeria?: { uid: string; media?: MediaItem }[];
   listadoFormatoId?: string | null;
   listadoEstiloTarjeta?: "simple" | "articulo";
+  negoPlanetItems?: NegoPlanetItem[];
+  negoPlanetModo?: "fijo" | "auto";
+  negoPlanetAutoTipo?: "destinos" | "programas-destacados" | "programas-mas-vendidos" | "programas-pais";
+  negoPlanetAutoQuery?: string;
+  negoPlanetOverrides?: Record<string, NegoPlanetOverride>;
+}
+
+export interface NegoPlanetItem {
+  uid: string;
+  origen: "destino" | "programa";
+  externalId?: string;
+  slug?: string;
+  titulo: string;
+  descripcion?: string;
+  precio?: string;
+  dias?: string;
+  imagen?: string;
+}
+
+export interface NegoPlanetCategoria {
+  post_name: string;
+  post_title: string;
+  totalDestinos: number;
+  imagen?: string;
+}
+
+export interface NegoPlanetOverride {
+  oculto?: boolean;
+  imagen?: string;
+}
+
+export interface NegoPlanetArbolNodo {
+  post_name: string;
+  post_title: string;
+  imagen?: string;
+  oculto?: boolean;
+  totalDestinos?: number;
+  hijos?: NegoPlanetArbolNodo[];
 }
 
 export type Dispositivo = "desktop" | "tablet" | "mobile";
@@ -122,19 +163,23 @@ const FUENTE_FAMILY: Record<string, string> = {
 };
 
 export function estiloTextoCSS(e?: TextoEstilo, defaultTipo?: "titulo" | "subtitulo" | "parrafo" | "negrita"): React.CSSProperties {
-  if (!defaultTipo) return {};
+  if (!defaultTipo && !e) return {};
 
-  const fuente = `var(--momo-font-${defaultTipo})`;
-  const tamano = `var(--momo-size-${defaultTipo})`;
-  const grosor = `var(--momo-weight-${defaultTipo})`;
-  const color = `var(--momo-color-${defaultTipo})`;
+  const fuente = e?.fuente
+    ? (FUENTE_FAMILY[e.fuente] ?? e.fuente)
+    : defaultTipo ? `var(--momo-font-${defaultTipo})` : undefined;
+  const tamano = e?.tamano
+    ? getResponsiveSize(e.tamano)
+    : defaultTipo ? `var(--momo-size-${defaultTipo})` : undefined;
+  const grosor = e?.grosor ?? (defaultTipo ? `var(--momo-weight-${defaultTipo})` : undefined);
+  const color = e?.color ?? (defaultTipo ? `var(--momo-color-${defaultTipo})` : undefined);
   const alineacionH = e?.alineacionH;
 
   return {
-    fontFamily: fuente,
-    fontSize: tamano,
-    fontWeight: grosor as any,
-    color: color,
+    ...(fuente ? { fontFamily: fuente } : {}),
+    ...(tamano ? { fontSize: tamano } : {}),
+    ...(grosor ? { fontWeight: grosor as any } : {}),
+    ...(color ? { color } : {}),
     ...(alineacionH ? { textAlign: alineacionH as React.CSSProperties["textAlign"] } : {}),
   };
 }
@@ -243,6 +288,25 @@ export function renderConDestacado(texto: string, colorDestacado?: string, groso
 
 export function Ph({ children }: { children: React.ReactNode }) {
   return <div className={styles.ph}>{children}</div>;
+}
+
+/** Envuelve una sección aplicando su fondo: color sólido o imagen con overlay oscuro (excluyentes entre sí). */
+export function FondoWrapper({ colorFondo, imagenFondo, imagenFondoOverlay, children }: {
+  colorFondo?: string;
+  imagenFondo?: MediaItem;
+  imagenFondoOverlay?: number;
+  children: React.ReactNode;
+}) {
+  if (imagenFondo?.url) {
+    return (
+      <div style={{ position: "relative" }}>
+        <div style={{ position: "absolute", inset: 0, backgroundImage: `url(${imagenFondo.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+        <div style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${imagenFondoOverlay ?? 0.4})` }} />
+        <div style={{ position: "relative" }}>{children}</div>
+      </div>
+    );
+  }
+  return <div style={{ background: colorFondo ?? "#ffffff" }}>{children}</div>;
 }
 export function Bar({ w }: { w: string }) {
   return <div className={styles.phBar} style={{ width: w }} />;
@@ -514,14 +578,22 @@ export function PHPortada({ height, layout, titulo, subtitulo, medias, estiloTit
           ? <div key={m.url} className={`${styles.phSlideImg} ${styles.phSlideFade}`} style={{ opacity: i === idx ? 1 : 0 }}>
               <VideoBg url={m.url} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
             </div>
-          : <div key={m.url} className={`${styles.phSlideImg} ${styles.phSlideFade}`}
-              style={{ backgroundImage: `url(${m.url})`, opacity: i === idx ? 1 : 0 }} />
+          : <div key={m.url} className={`${styles.phSlideImg} ${styles.phSlideFade}`} style={{ opacity: i === idx ? 1 : 0 }}>
+              <div
+                key={i === idx ? `${m.url}-active` : m.url}
+                className={`${styles.phKenBurnsLayer} ${styles["phKenBurns" + (i % 3)]} ${i === idx ? styles.phKenBurnsActive : ""}`}
+                style={{ backgroundImage: `url(${m.url})` }}
+              />
+            </div>
       ))}
       <div className={styles.phSlideArrowL}>‹</div>
       <div className={styles.phPortadaOverlay}>
         <PortadaTexto titulo={titulo} subtitulo={subtitulo} estiloTitulo={estiloTitulo} estiloSubtitulo={estiloSubtitulo} />
       </div>
       <div className={styles.phSlideArrowR}>›</div>
+      <div className={styles.phSlideMouse}>
+        <Mouse size={26} strokeWidth={1.5} />
+      </div>
       <div className={styles.phSlideDots}>
         {allImgs.map((_, i) => <div key={i} className={`${styles.phSlideDot} ${i === idx ? styles.phSlideDotActive : ""}`} />)}
       </div>
@@ -529,31 +601,60 @@ export function PHPortada({ height, layout, titulo, subtitulo, medias, estiloTit
   );
 }
 
-export function PHMenu({ mobile, seccion, secciones }: { mobile?: boolean; seccion?: Seccion; secciones?: Seccion[] }) {
+export function PHMenu({ mobile, seccion, secciones, landingHref }: { mobile?: boolean; seccion?: Seccion; secciones?: Seccion[]; landingHref?: string }) {
   const bg = seccion?.menuColorFondo ?? "rgba(255,255,255,0.95)";
   const colorTexto = seccion?.menuColorTexto ?? "#1e293b";
   const colorBoton = seccion?.menuColorBoton ?? "var(--primary-color, #475569)";
   const fijo = seccion?.menuFijo ?? false;
   const logo = seccion?.menuLogo;
 
-  const items = seccion?.menuItems
-    ? seccion.menuItems.filter(i => !i.ocultaEnMenu)
-    : (secciones ?? []).filter(s => s.tipo !== "menu" && !s.oculta).slice(0, 4).map(s => ({ etiqueta: s.label, uid: s.uid }));
+  const items = resolverItemsMenu(seccion, secciones);
 
   const boton = seccion?.menuBoton;
 
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const irASeccion = (uid: string) => {
+    if (typeof document === "undefined") return;
+    const el = document.getElementById(uid);
+    if (el) {
+      const offset = fijo ? (menuRef.current?.offsetHeight ?? 0) : 0;
+      const top = el.getBoundingClientRect().top + window.scrollY - offset;
+      window.scrollTo({ top, behavior: "smooth" });
+    } else if (landingHref) {
+      window.location.href = `${landingHref}#${uid}`;
+    }
+  };
+
+  const irALanding = () => {
+    if (landingHref && typeof window !== "undefined") window.location.href = landingHref;
+  };
+
+  const onClickBoton = () => {
+    if (!boton) return;
+    if (boton.tipo === "seccion" && boton.seccionUid) {
+      irASeccion(boton.seccionUid);
+    } else if (boton.tipo === "externo" && boton.href) {
+      if (typeof window !== "undefined") window.open(boton.href, "_blank", "noopener,noreferrer");
+    }
+  };
+
   return (
-    <div className={styles.phMenu} style={{ background: bg, ...(fijo ? { position: "sticky", top: 0, zIndex: 100 } : {}) }}>
+    <div ref={menuRef} className={styles.phMenu} style={{ background: bg, ...(fijo ? { position: "sticky", top: 0, zIndex: 100 } : {}) }}>
       <div className={styles.phMenuRow}>
         {logo
-          ? <img src={logo} alt="Logo" style={{ height: 32, maxWidth: 120, objectFit: "contain" }} />
-          : <div className={styles.phLogo} />
+          ? <img src={logo} alt="Logo" onClick={irALanding} style={{ height: 32, maxWidth: 120, objectFit: "contain", cursor: landingHref ? "pointer" : undefined }} />
+          : <div className={styles.phLogo} onClick={irALanding} style={{ cursor: landingHref ? "pointer" : undefined }} />
         }
         {!mobile && (
           <div className={styles.phNavLinks}>
             {items.length > 0
               ? items.map(item => (
-                  <span key={item.uid} style={{ fontSize: "0.78rem", fontWeight: 600, color: colorTexto, padding: "0 8px", cursor: "pointer" }}>
+                  <span
+                    key={item.uid}
+                    onClick={() => irASeccion(item.uid)}
+                    style={{ fontSize: "0.78rem", fontWeight: 600, color: colorTexto, padding: "0 8px", cursor: "pointer" }}
+                  >
                     {item.etiqueta}
                   </span>
                 ))
@@ -562,7 +663,7 @@ export function PHMenu({ mobile, seccion, secciones }: { mobile?: boolean; secci
           </div>
         )}
         {boton?.etiqueta
-          ? <div style={{ padding: "0.3rem 0.85rem", borderRadius: "0.4rem", background: colorBoton, color: "#fff", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>
+          ? <div onClick={onClickBoton} style={{ padding: "0.3rem 0.85rem", borderRadius: "0.4rem", background: colorBoton, color: "#fff", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>
               {boton.etiqueta}
             </div>
           : <div className={styles.phNavBtn} style={{ background: colorBoton }} />
@@ -579,6 +680,8 @@ export function PHTextoImagenes({
   subtitulo,
   medias,
   colorFondo,
+  imagenFondo,
+  imagenFondoOverlay,
   estiloTitulo,
   estiloSubtitulo,
   anchoMax
@@ -589,6 +692,8 @@ export function PHTextoImagenes({
   subtitulo?: string;
   medias?: MediaItem[];
   colorFondo?: string;
+  imagenFondo?: MediaItem;
+  imagenFondoOverlay?: number;
   estiloTitulo?: TextoEstilo;
   estiloSubtitulo?: TextoEstilo;
   anchoMax?: string;
@@ -657,13 +762,13 @@ export function PHTextoImagenes({
 
   const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
   return (
-    <div style={{ background: colorFondo ?? "#ffffff" }}>
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
       <Ph>
         <div className={`${styles.phTextoImagenes} ${mobile ? styles.phCol1 : ""}`} style={{ maxWidth: customMaxWidth }}>
           {imgIzq ? <>{img}{texto}</> : <>{texto}{img}</>}
         </div>
       </Ph>
-    </div>
+    </FondoWrapper>
   );
 }
 
@@ -817,7 +922,7 @@ export function renderTextWithBold(text?: string, estilo?: TextoEstilo, defaultT
   });
 }
 
-export function PHItinerario({ mobile, layout, colorFondo, fechaDesde, fechaHasta, dias, titulo, estiloTitulo, estiloTituloDia, estiloDescDia, anchoMax }: { mobile?: boolean; layout?: string; colorFondo?: string; fechaDesde?: string; fechaHasta?: string; dias?: { dia: number; titulo?: string; desc?: string; media?: MediaItem; medias?: MediaItem[] }[]; titulo?: string; estiloTitulo?: TextoEstilo; estiloTituloDia?: TextoEstilo; estiloDescDia?: TextoEstilo; anchoMax?: string }) {
+export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFondoOverlay, fechaDesde, fechaHasta, dias, titulo, estiloTitulo, estiloTituloDia, estiloDescDia, anchoMax }: { mobile?: boolean; layout?: string; colorFondo?: string; imagenFondo?: MediaItem; imagenFondoOverlay?: number; fechaDesde?: string; fechaHasta?: string; dias?: { dia: number; titulo?: string; desc?: string; media?: MediaItem; medias?: MediaItem[] }[]; titulo?: string; estiloTitulo?: TextoEstilo; estiloTituloDia?: TextoEstilo; estiloDescDia?: TextoEstilo; anchoMax?: string }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const esAcordeon = layout === "acordeon";
 
@@ -850,7 +955,7 @@ export function PHItinerario({ mobile, layout, colorFondo, fechaDesde, fechaHast
 
   if (esAcordeon && !mobile) {
     return (
-      <div style={{ background: colorFondo ?? "#ffffff" }}>
+      <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
         <Ph>
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%", maxWidth: customMaxWidth, margin: "0 auto" }}>
             {titulo ? (
@@ -924,12 +1029,12 @@ export function PHItinerario({ mobile, layout, colorFondo, fechaDesde, fechaHast
             </div>
           </div>
         </Ph>
-      </div>
+      </FondoWrapper>
     );
   }
 
   return (
-    <div style={{ background: colorFondo ?? "#ffffff" }}>
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
       <Ph>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", maxWidth: customMaxWidth, margin: "0 auto" }}>
           {titulo ? (
@@ -984,16 +1089,18 @@ export function PHItinerario({ mobile, layout, colorFondo, fechaDesde, fechaHast
           </div>
         </div>
       </Ph>
-    </div>
+    </FondoWrapper>
   );
 }
 
-export function PHMapa({ titulo, mapas, layout, anchoMax, colorFondo }: {
+export function PHMapa({ titulo, mapas, layout, anchoMax, colorFondo, imagenFondo, imagenFondoOverlay }: {
   titulo?: string;
   mapas?: Seccion["mapas"];
   layout?: string;
   anchoMax?: string;
   colorFondo?: string;
+  imagenFondo?: MediaItem;
+  imagenFondoOverlay?: number;
 }) {
   const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
   const mapasList = mapas ?? [];
@@ -1083,7 +1190,7 @@ export function PHMapa({ titulo, mapas, layout, anchoMax, colorFondo }: {
   );
 
   return (
-    <div style={{ background: colorFondo ?? "#ffffff" }}>
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
       <Ph>
         <div style={{ maxWidth: customMaxWidth, margin: "0 auto", padding: "1.5rem" }}>
           {titulo ? (
@@ -1127,16 +1234,18 @@ export function PHMapa({ titulo, mapas, layout, anchoMax, colorFondo }: {
           )}
         </div>
       </Ph>
-    </div>
+    </FondoWrapper>
   );
 }
 
-export function PHRuta({ titulo, rutas, layout, anchoMax, colorFondo }: {
+export function PHRuta({ titulo, rutas, layout, anchoMax, colorFondo, imagenFondo, imagenFondoOverlay }: {
   titulo?: string;
   rutas?: Seccion["rutas"];
   layout?: string;
   anchoMax?: string;
   colorFondo?: string;
+  imagenFondo?: MediaItem;
+  imagenFondoOverlay?: number;
 }) {
   const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
   const rutasList = rutas ?? [];
@@ -1206,7 +1315,7 @@ export function PHRuta({ titulo, rutas, layout, anchoMax, colorFondo }: {
   );
 
   return (
-    <div style={{ background: colorFondo ?? "#ffffff" }}>
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
       <Ph>
         <div style={{ maxWidth: customMaxWidth, margin: "0 auto", padding: "1.5rem" }}>
           {titulo ? (
@@ -1241,7 +1350,7 @@ export function PHRuta({ titulo, rutas, layout, anchoMax, colorFondo }: {
           )}
         </div>
       </Ph>
-    </div>
+    </FondoWrapper>
   );
 }
 
@@ -1268,7 +1377,6 @@ export function PHPrecio({
     maxWidth,
     margin: "0 auto",
     padding: "3rem 1.5rem",
-    background: seccion.colorFondo || "transparent",
     borderRadius: "1rem",
     width: "100%",
   };
@@ -1278,6 +1386,7 @@ export function PHPrecio({
 
   if (layout === "card-premium") {
     return (
+      <FondoWrapper colorFondo={seccion.colorFondo} imagenFondo={seccion.imagenFondo} imagenFondoOverlay={seccion.imagenFondoOverlay}>
       <Ph>
         <div style={containerStyle}>
           <div style={{
@@ -1319,11 +1428,13 @@ export function PHPrecio({
           </div>
         </div>
       </Ph>
+      </FondoWrapper>
     );
   }
 
   if (layout === "split-horizontal") {
     return (
+      <FondoWrapper colorFondo={seccion.colorFondo} imagenFondo={seccion.imagenFondo} imagenFondoOverlay={seccion.imagenFondoOverlay}>
       <Ph>
         <div style={containerStyle}>
           <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
@@ -1364,10 +1475,12 @@ export function PHPrecio({
           </div>
         </div>
       </Ph>
+      </FondoWrapper>
     );
   }
 
   return (
+    <FondoWrapper colorFondo={seccion.colorFondo} imagenFondo={seccion.imagenFondo} imagenFondoOverlay={seccion.imagenFondoOverlay}>
     <Ph>
       <div style={containerStyle}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: "2.5rem" }}>
@@ -1394,6 +1507,7 @@ export function PHPrecio({
         </div>
       </div>
     </Ph>
+    </FondoWrapper>
   );
 }
 
@@ -1435,7 +1549,6 @@ export function PHFormulario({
     maxWidth,
     margin: "0 auto",
     padding: "3rem 1.5rem",
-    background: seccion.colorFondo || "transparent",
     borderRadius: "1rem",
     width: "100%",
   };
@@ -1619,24 +1732,26 @@ export function PHFormulario({
   );
 
   return (
-    <Ph>
-      <div style={containerStyle}>
-        {layout === "form-contacto" ? (
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: mobile ? "1fr" : "1fr 1.8fr",
-            gap: "2.5rem"
-          }}>
-            {agentCard}
-            {formView}
-          </div>
-        ) : (
-          <div style={{ maxWidth: "600px", margin: "0 auto" }}>
-            {formView}
-          </div>
-        )}
-      </div>
-    </Ph>
+    <FondoWrapper colorFondo={seccion.colorFondo} imagenFondo={seccion.imagenFondo} imagenFondoOverlay={seccion.imagenFondoOverlay}>
+      <Ph>
+        <div style={containerStyle}>
+          {layout === "form-contacto" ? (
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: mobile ? "1fr" : "1fr 1.8fr",
+              gap: "2.5rem"
+            }}>
+              {agentCard}
+              {formView}
+            </div>
+          ) : (
+            <div style={{ maxWidth: "600px", margin: "0 auto" }}>
+              {formView}
+            </div>
+          )}
+        </div>
+      </Ph>
+    </FondoWrapper>
   );
 }
 
@@ -1657,6 +1772,8 @@ export function PHTextoColumnas({
   layout,
   titulo,
   colorFondo,
+  imagenFondo,
+  imagenFondoOverlay,
   estiloTitulo,
   estiloTituloDia,
   estiloDescDia,
@@ -1667,6 +1784,8 @@ export function PHTextoColumnas({
   layout?: string;
   titulo?: string;
   colorFondo?: string;
+  imagenFondo?: MediaItem;
+  imagenFondoOverlay?: number;
   estiloTitulo?: TextoEstilo;
   estiloTituloDia?: TextoEstilo;
   estiloDescDia?: TextoEstilo;
@@ -1696,7 +1815,7 @@ export function PHTextoColumnas({
   const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
 
   return (
-    <div style={{ background: colorFondo ?? "#ffffff" }}>
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
       <Ph>
         <div className={styles.phTextoColumnas} style={{ maxWidth: customMaxWidth }}>
           {titulo ? (
@@ -1726,81 +1845,144 @@ export function PHTextoColumnas({
           </div>
         </div>
       </Ph>
-    </div>
+    </FondoWrapper>
   );
 }
 
-export function PHEquipo({
+
+export function PHCards({
   mobile,
-  layout,
   titulo,
   colorFondo,
+  imagenFondo,
+  imagenFondoOverlay,
   estiloTitulo,
   estiloTituloDia,
   estiloDescDia,
-  personas,
   anchoMax,
-  estiloTarjeta,
+  cards,
 }: {
   mobile?: boolean;
-  layout?: string;
   titulo?: string;
   colorFondo?: string;
+  imagenFondo?: MediaItem;
+  imagenFondoOverlay?: number;
   estiloTitulo?: TextoEstilo;
   estiloTituloDia?: TextoEstilo;
   estiloDescDia?: TextoEstilo;
-  personas?: { uid: string; nombre?: string; cargo?: string; texto?: string; media?: MediaItem }[];
   anchoMax?: string;
-  estiloTarjeta?: "circular" | "tarjeta";
+  cards?: { uid: string; titulo?: string; subtitulo?: string; media?: MediaItem; enlaceTipo?: "externo" | "pagina"; enlaceHref?: string; enlacePaginaSlug?: string }[];
 }) {
-  const lista = personas ?? [];
+  const lista = cards ?? [];
   const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
 
   return (
-    <div style={{ background: colorFondo ?? "#ffffff" }}>
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
       <Ph>
-        <div className={styles.phEquipo} style={{ maxWidth: customMaxWidth }}>
+        <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
           {titulo ? (
             <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
           {lista.length === 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", padding: "1.5rem 0" }}>
-              <div style={{ width: "100px", height: "100px", borderRadius: "50%", background: "#e2e8f0" }} />
-              <div style={{ width: "35%", height: "12px", borderRadius: "6px", background: "#cbd5e1" }} />
-            </div>
-          ) : estiloTarjeta === "tarjeta" ? (
-            <div className={styles.phEquipoFila} style={mobile ? { flexWrap: "wrap" } : undefined}>
-              {lista.map((p) => (
-                <div key={p.uid} className={styles.phPersonaTarjeta}>
-                  <div className={styles.phPersonaTarjetaFoto} style={p.media?.url ? { backgroundImage: `url(${p.media.url})` } : undefined} />
-                  <div className={styles.phPersonaTarjetaOverlay}>
-                    {p.nombre && <h4 className={styles.phPersonaTarjetaNombre} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{p.nombre}</h4>}
-                    {p.cargo && <p className={styles.phPersonaTarjetaCargo}>{p.cargo}</p>}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <div style={{ padding: "1.5rem", textAlign: "center", fontSize: "0.8rem", color: "#94a3b8" }}>Añade cards desde el panel de edición.</div>
           ) : (
-            <div className={styles.phEquipoFila} style={mobile ? { flexWrap: "wrap" } : undefined}>
-              {lista.map((p) => (
-                <div key={p.uid} className={styles.phPersonaCard}>
-                  <div className={styles.phPersonaFoto} style={p.media?.url ? { backgroundImage: `url(${p.media.url})` } : undefined} />
-                  {p.nombre ? (
-                    <h4 className={styles.phPersonaNombre} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{p.nombre}</h4>
-                  ) : (
-                    <div style={{ width: "60%", height: "12px", borderRadius: "6px", background: "#cbd5e1" }} />
-                  )}
-                  {p.cargo && <p className={styles.phPersonaCargo}>{p.cargo}</p>}
-                  {p.texto && <p className={styles.phPersonaTexto} style={estiloTextoCSS(estiloDescDia, "parrafo")}>{renderTextWithBold(p.texto, estiloDescDia)}</p>}
+            <div style={{ display: "flex", gap: mobile ? "0.5rem" : "1rem", width: "100%", flexWrap: mobile ? "wrap" : "nowrap" }}>
+              {lista.map(card => {
+                const href = card.enlaceTipo === "pagina" && card.enlacePaginaSlug
+                  ? `/web/o/${card.enlacePaginaSlug}`
+                  : card.enlaceTipo === "externo" && card.enlaceHref
+                  ? card.enlaceHref
+                  : undefined;
+                const Wrapper = href ? "a" : "div";
+                return (
+                  <Wrapper
+                    key={card.uid}
+                    {...(href ? { href, target: card.enlaceTipo === "externo" ? "_blank" : undefined, rel: card.enlaceTipo === "externo" ? "noopener noreferrer" : undefined } : {})}
+                    className={styles.phOfertaCard}
+                    style={{ position: "relative", flex: "1 1 0%", minWidth: mobile ? "160px" : "0", aspectRatio: "4 / 3", cursor: href ? "pointer" : "default", textDecoration: "none", color: "inherit", overflow: "hidden", border: "1px solid #ffffff" }}
+                  >
+                    <div style={{ position: "absolute", inset: 0, backgroundImage: card.media?.url ? `url(${card.media.url})` : undefined, backgroundColor: card.media?.url ? undefined : "#e2e8f0", backgroundSize: "cover", backgroundPosition: "center" }} />
+                    {(card.titulo || card.subtitulo) && (
+                      <>
+                        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(15,23,42,0) 40%, rgba(15,23,42,0.75) 100%)" }} />
+                        <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 1, padding: mobile ? "0.75rem" : "1rem" }}>
+                          {card.titulo && <h4 style={{ fontSize: "0.95rem", fontWeight: 800, color: "#ffffff", margin: 0, textShadow: "0 1px 6px rgba(0,0,0,0.35)", ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{card.titulo}</h4>}
+                          {card.subtitulo && <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.9)", margin: "4px 0 0 0", textShadow: "0 1px 4px rgba(0,0,0,0.3)", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{card.subtitulo}</p>}
+                        </div>
+                      </>
+                    )}
+                  </Wrapper>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </Ph>
+    </FondoWrapper>
+  );
+}
+
+export function PHGaleria({
+  mobile,
+  layout,
+  titulo,
+  colorFondo,
+  imagenFondo,
+  imagenFondoOverlay,
+  estiloTitulo,
+  anchoMax,
+  galeria,
+}: {
+  mobile?: boolean;
+  layout?: string;
+  titulo?: string;
+  colorFondo?: string;
+  imagenFondo?: MediaItem;
+  imagenFondoOverlay?: number;
+  estiloTitulo?: TextoEstilo;
+  anchoMax?: string;
+  galeria?: { uid: string; media?: MediaItem }[];
+}) {
+  const lista = (galeria ?? []).filter(g => g.media?.url);
+  const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const columnasDeseadas = layout === "2-cols" ? 2 : layout === "4-cols" ? 4 : layout === "5-cols" ? 5 : 3;
+  const columnas = mobile ? Math.min(2, columnasDeseadas) : columnasDeseadas;
+
+  return (
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
+      <Ph>
+        <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
+          {titulo ? (
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
+          ) : (
+            <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
+          )}
+          {lista.length === 0 ? (
+            <div style={{ padding: "1.5rem", textAlign: "center", fontSize: "0.8rem", color: "#94a3b8" }}>Añade fotografías desde el panel de edición.</div>
+          ) : (
+            <div style={{ columnCount: columnas, columnGap: mobile ? "0.5rem" : "0.85rem", width: "100%" }}>
+              {lista.map(item => (
+                <div
+                  key={item.uid}
+                  style={{
+                    breakInside: "avoid",
+                    marginBottom: mobile ? "0.5rem" : "0.85rem",
+                    borderRadius: "0.65rem",
+                    overflow: "hidden",
+                    background: "#e2e8f0",
+                    border: "1px solid #ffffff",
+                  }}
+                >
+                  <img src={item.media!.url} alt="" style={{ display: "block", width: "100%", height: "auto" }} />
                 </div>
               ))}
             </div>
           )}
         </div>
       </Ph>
-    </div>
+    </FondoWrapper>
   );
 }
 
@@ -1820,6 +2002,8 @@ export function PHListado({
   layout,
   titulo,
   colorFondo,
+  imagenFondo,
+  imagenFondoOverlay,
   estiloTitulo,
   estiloTituloDia,
   anchoMax,
@@ -1831,6 +2015,8 @@ export function PHListado({
   layout?: string;
   titulo?: string;
   colorFondo?: string;
+  imagenFondo?: MediaItem;
+  imagenFondoOverlay?: number;
   estiloTitulo?: TextoEstilo;
   estiloTituloDia?: TextoEstilo;
   anchoMax?: string;
@@ -1851,7 +2037,7 @@ export function PHListado({
   const esArticulo = estiloTarjeta === "articulo";
 
   return (
-    <div style={{ background: colorFondo ?? "#ffffff" }}>
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
       <Ph>
         <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
           {titulo ? (
@@ -1865,7 +2051,10 @@ export function PHListado({
             esArticulo ? (
               <div className={styles.phArticuloCard} style={{ cursor: "default" }}>
                 <div className={styles.phArticuloThumbWrap} />
-                <div style={{ width: "60%", height: "12px", borderRadius: "6px", background: "#cbd5e1", marginTop: "0.9rem" }} />
+                <div className={styles.phArticuloOverlay} />
+                <div className={styles.phArticuloBody}>
+                  <div style={{ width: "40%", height: "12px", borderRadius: "6px", background: "rgba(255,255,255,0.4)" }} />
+                </div>
               </div>
             ) : (
               <div className={styles.phOfertaCard} style={{ cursor: "default" }}>
@@ -1883,16 +2072,18 @@ export function PHListado({
                     <div className={styles.phArticuloCard}>
                       <div className={styles.phArticuloThumbWrap}>
                         <div className={styles.phArticuloThumb} style={item.media?.url ? { backgroundImage: `url(${item.media.url})` } : undefined} />
-                        <span className={styles.phArticuloBadge}>Artículo</span>
                       </div>
-                      {item.createdAt && (
-                        <div style={{ display: "flex", alignItems: "center", gap: "4px" }} className={styles.phArticuloFecha}>
-                          <Clock size={11} />
-                          <span>{formatFechaListado(item.createdAt)}</span>
-                        </div>
-                      )}
-                      <h4 className={styles.phArticuloTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{item.titulo}</h4>
-                      {item.extracto && <p className={styles.phArticuloExtracto}>{item.extracto}</p>}
+                      <div className={styles.phArticuloOverlay} />
+                      <div className={styles.phArticuloBody}>
+                        {item.createdAt && (
+                          <div style={{ display: "flex", alignItems: "center", gap: "4px" }} className={styles.phArticuloFecha}>
+                            <Clock size={11} />
+                            <span>{formatFechaListado(item.createdAt)}</span>
+                          </div>
+                        )}
+                        <h4 className={styles.phArticuloTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{item.titulo}</h4>
+                        {item.extracto && <p className={styles.phArticuloExtracto}>{item.extracto}</p>}
+                      </div>
                     </div>
                   ) : (
                     <div className={styles.phOfertaCard}>
@@ -1914,23 +2105,319 @@ export function PHListado({
           )}
         </div>
       </Ph>
-    </div>
+    </FondoWrapper>
   );
 }
 
-export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dispositivo, allSecciones?: Seccion[], agente?: any, listadoItemsPorSeccion?: Record<string, ListadoItem[]>) {
+export function PHNegoPlanet({
+  mobile,
+  layout,
+  titulo,
+  colorFondo,
+  imagenFondo,
+  imagenFondoOverlay,
+  estiloTitulo,
+  estiloTituloDia,
+  anchoMax,
+  items,
+}: {
+  mobile?: boolean;
+  layout?: string;
+  titulo?: string;
+  colorFondo?: string;
+  imagenFondo?: MediaItem;
+  imagenFondoOverlay?: number;
+  estiloTitulo?: TextoEstilo;
+  estiloTituloDia?: TextoEstilo;
+  anchoMax?: string;
+  items?: NegoPlanetItem[];
+}) {
+  const lista = items ?? [];
+  const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+
+  return (
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
+      <Ph>
+        <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
+          {titulo ? (
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
+          ) : (
+            <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
+          )}
+          {lista.length === 0 ? (
+            <div style={{ padding: "1.5rem", textAlign: "center", fontSize: "0.8rem", color: "#94a3b8" }}>Añade destinos o programas de NegoPlanet desde el panel de edición.</div>
+          ) : (
+            <div style={{ display: "flex", gap: mobile ? "0.5rem" : "1rem", width: "100%", flexWrap: mobile ? "wrap" : "nowrap" }}>
+              {lista.map(item => (
+                <a
+                  key={item.uid}
+                  href={item.slug ? `/web/nego/${item.origen}/${item.slug}` : undefined}
+                  className={styles.phOfertaCard}
+                  style={{ textDecoration: "none", color: "inherit", cursor: item.slug ? "pointer" : "default", flex: "1 1 0%", minWidth: mobile ? "160px" : "0" }}
+                  onClick={e => { if (!item.slug) e.preventDefault(); }}
+                >
+                  <div className={styles.phOfertaThumb} style={item.imagen ? { backgroundImage: `url(${item.imagen})` } : undefined} />
+                  <div className={styles.phOfertaBody}>
+                    <h4 className={styles.phOfertaTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{item.titulo}</h4>
+                    {item.descripcion && <p style={{ fontSize: "0.78rem", color: "#64748b", margin: "4px 0 0 0" }}>{item.descripcion}</p>}
+                    {(item.precio || item.dias) && (
+                      <div style={{ display: "flex", gap: "8px", fontSize: "0.75rem", color: "#94a3b8", marginTop: "4px" }}>
+                        {item.dias && <span>{item.dias} días</span>}
+                        {item.precio && <span>{item.precio} €</span>}
+                      </div>
+                    )}
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      </Ph>
+    </FondoWrapper>
+  );
+}
+
+interface NegoPlanetArbolNodoRender {
+  post_name: string;
+  post_title: string;
+  imagen?: string;
+  totalDestinos?: number;
+  subcategorias?: NegoPlanetArbolNodoRender[];
+  destinos?: NegoPlanetArbolNodoRender[];
+  destinosDirectos?: NegoPlanetArbolNodoRender[];
+}
+
+export function PHNegoPlanetDestinos({
+  mobile,
+  titulo,
+  colorFondo,
+  imagenFondo,
+  imagenFondoOverlay,
+  estiloTitulo,
+  estiloTituloDia,
+  anchoMax,
+  arbol,
+}: {
+  mobile?: boolean;
+  layout?: string;
+  titulo?: string;
+  colorFondo?: string;
+  imagenFondo?: MediaItem;
+  imagenFondoOverlay?: number;
+  estiloTitulo?: TextoEstilo;
+  estiloTituloDia?: TextoEstilo;
+  anchoMax?: string;
+  arbol?: NegoPlanetArbolNodoRender[];
+}) {
+  const [activa, setActiva] = useState<string | null>(null);
+  const [sub, setSub] = useState<string | null>(null);
+
+  const lista = arbol ?? [];
+  const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+
+  const categoriaActiva = activa ? lista.find(c => c.post_name === activa) ?? null : null;
+  const subcategoriaActiva = categoriaActiva && sub ? (categoriaActiva.subcategorias ?? []).find(s => s.post_name === sub) ?? null : null;
+
+  const nivelHijos: NegoPlanetArbolNodoRender[] = subcategoriaActiva
+    ? (subcategoriaActiva.destinos ?? [])
+    : categoriaActiva
+    ? [...(categoriaActiva.subcategorias ?? []), ...(categoriaActiva.destinosDirectos ?? [])]
+    : [];
+
+  const imagenFondoCard = subcategoriaActiva?.imagen ?? categoriaActiva?.imagen;
+
+  const abrirCategoria = (post_name: string) => {
+    if (activa === post_name) { setActiva(null); setSub(null); }
+    else { setActiva(post_name); setSub(null); }
+  };
+  const abrirSub = (post_name: string) => setSub(prev => prev === post_name ? null : post_name);
+
+  return (
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
+      <Ph>
+        <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
+          {titulo ? (
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
+          ) : (
+            <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
+          )}
+
+          {lista.length === 0 ? (
+            <div style={{ padding: "1.5rem", textAlign: "center", fontSize: "0.8rem", color: "#94a3b8" }}>Cargando categorías de destinos…</div>
+          ) : (
+            <div style={{ display: "flex", gap: mobile ? "0.5rem" : "1rem", width: "100%", flexWrap: mobile ? "wrap" : "nowrap" }}>
+              {lista.map(cat => {
+                const esActiva = activa === cat.post_name;
+                const fondo = esActiva ? imagenFondoCard ?? cat.imagen : cat.imagen;
+
+                return (
+                  <div
+                    key={cat.post_name}
+                    style={{
+                      position: "relative",
+                      flex: "1 1 0%",
+                      minWidth: mobile ? "140px" : "0",
+                      overflow: "hidden",
+                      borderRadius: "0.9rem",
+                      aspectRatio: "3 / 4",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => abrirCategoria(cat.post_name)}
+                      style={{
+                        position: "relative",
+                        width: "100%",
+                        height: "100%",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                        display: "block",
+                        backgroundImage: fondo ? `url(${fondo})` : undefined,
+                        backgroundColor: fondo ? undefined : "#e2e8f0",
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                        transition: "background-image 0.3s ease",
+                      }}
+                    >
+                      <div style={{ position: "absolute", inset: 0, background: esActiva ? "linear-gradient(180deg, rgba(15,23,42,0.05) 0%, rgba(15,23,42,0.55) 100%)" : "linear-gradient(180deg, rgba(15,23,42,0.05) 40%, rgba(15,23,42,0.65) 100%)" }} />
+
+                      <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: mobile ? "0.6rem" : "0.85rem", textAlign: "left" }}>
+                        <h4 style={{ fontSize: "0.95rem", fontWeight: 800, color: "#ffffff", margin: 0, textShadow: "0 1px 6px rgba(0,0,0,0.35)" }}>{cat.post_title}</h4>
+                        {!esActiva && typeof cat.totalDestinos === "number" && (
+                          <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.85)", marginTop: "2px" }}>{cat.totalDestinos} destinos</div>
+                        )}
+                      </div>
+                    </button>
+
+                    {esActiva && (
+                      <div
+                        key={sub ?? "root"}
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          display: "flex",
+                          flexDirection: "column",
+                          pointerEvents: "none",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px", padding: "0.6rem 0.6rem 0", pointerEvents: "auto" }}>
+                          {sub ? (
+                            <button
+                              type="button"
+                              onClick={() => setSub(null)}
+                              style={{ display: "flex", alignItems: "center", gap: "3px", background: "rgba(255,255,255,0.16)", backdropFilter: "blur(4px)", border: "none", borderRadius: "999px", cursor: "pointer", padding: "4px 8px", fontSize: "0.65rem", fontWeight: 600, color: "#ffffff", maxWidth: "calc(100% - 30px)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                            >
+                              <ChevronLeft size={12} style={{ flexShrink: 0 }} /> <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{categoriaActiva?.post_title}</span>
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "rgba(255,255,255,0.9)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                              {(categoriaActiva?.subcategorias ?? []).length > 0 ? "Regiones" : "Destinos"}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => { setActiva(null); setSub(null); }}
+                            style={{ marginLeft: "auto", background: "rgba(255,255,255,0.16)", backdropFilter: "blur(4px)", border: "none", borderRadius: "999px", cursor: "pointer", width: "22px", height: "22px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff" }}
+                            title="Cerrar"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+
+                        <div
+                          style={{
+                            flex: 1,
+                            overflowY: "auto",
+                            margin: "0.5rem 0.6rem 0.6rem",
+                            borderRadius: "0.6rem",
+                            background: "rgba(15,23,42,0.38)",
+                            backdropFilter: "blur(10px)",
+                            pointerEvents: "auto",
+                            animation: "phNegoListaIn 0.22s ease",
+                          }}
+                        >
+                          {nivelHijos.length === 0 ? (
+                            <div style={{ padding: "0.75rem", fontSize: "0.72rem", color: "rgba(255,255,255,0.75)" }}>Sin elementos.</div>
+                          ) : (
+                            <ul style={{ listStyle: "none", margin: 0, padding: "0.3rem" }}>
+                              {nivelHijos.map(nodo => {
+                                const esSubcategoriaNodo = !sub && (categoriaActiva?.subcategorias ?? []).some(s => s.post_name === nodo.post_name);
+                                const itemProps = {
+                                  style: {
+                                    display: "flex", alignItems: "center", gap: "8px", width: "100%",
+                                    padding: "0.5rem 0.55rem",
+                                    borderRadius: "0.4rem",
+                                    color: "#ffffff",
+                                    textDecoration: "none",
+                                    border: "none",
+                                    background: "transparent",
+                                    cursor: "pointer",
+                                    textAlign: "left" as const,
+                                    fontSize: "0.72rem",
+                                  },
+                                  onMouseEnter: (e: React.MouseEvent<HTMLElement>) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.12)"; },
+                                  onMouseLeave: (e: React.MouseEvent<HTMLElement>) => { (e.currentTarget as HTMLElement).style.background = "transparent"; },
+                                };
+
+                                const contenido = (
+                                  <>
+                                    {nodo.imagen && <div style={{ width: 22, height: 22, borderRadius: "0.3rem", backgroundImage: `url(${nodo.imagen})`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />}
+                                    <span style={{ flex: 1, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nodo.post_title}</span>
+                                    {esSubcategoriaNodo && (
+                                      <span style={{ fontSize: "0.62rem", color: "rgba(255,255,255,0.7)", flexShrink: 0 }}>{(nodo.destinos ?? []).length}</span>
+                                    )}
+                                    <ChevronRight size={12} style={{ color: "rgba(255,255,255,0.6)", flexShrink: 0 }} />
+                                  </>
+                                );
+
+                                if (esSubcategoriaNodo) {
+                                  return <li key={nodo.post_name}><button type="button" {...itemProps} onClick={() => abrirSub(nodo.post_name)}>{contenido}</button></li>;
+                                }
+                                return (
+                                  <li key={nodo.post_name}>
+                                    <a href={`/web/nego/destino/${nodo.post_name}`} {...itemProps}>{contenido}</a>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </Ph>
+      <style>{`
+        @keyframes phNegoListaIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+    </FondoWrapper>
+  );
+}
+
+export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dispositivo, allSecciones?: Seccion[], agente?: any, listadoItemsPorSeccion?: Record<string, ListadoItem[]>, landingHref?: string) {
   const mobile = dispositivo === "mobile";
   const tablet = dispositivo === "tablet";
   switch (s.tipo) {
-    case "menu":           return <PHMenu key={s.uid} mobile={mobile} seccion={s} secciones={allSecciones} />;
+    case "menu":           return <PHMenu key={s.uid} mobile={mobile} seccion={s} secciones={allSecciones} landingHref={landingHref} />;
     case "portada":        return <PHPortada key={s.uid} height={canvasHeight} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} medias={s.medias} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} colorFondo={s.colorFondo} />;
-    case "texto-imagenes": return <PHTextoImagenes key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} medias={s.medias} colorFondo={s.colorFondo} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} anchoMax={s.anchoMax} />;
-    case "texto-columnas": return <PHTextoColumnas key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} columnas={s.columnas} anchoMax={s.anchoMax} />;
-    case "itinerario":     return <PHItinerario key={s.uid} mobile={mobile} layout={s.layout} colorFondo={s.colorFondo} fechaDesde={s.fechaDesde} fechaHasta={s.fechaHasta} dias={s.dias} titulo={s.titulo} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} anchoMax={s.anchoMax} />;
-    case "mapa":           return <PHMapa key={s.uid} titulo={s.titulo} mapas={s.mapas} layout={s.layout} anchoMax={s.anchoMax} colorFondo={s.colorFondo} />;
-    case "ruta":           return <PHRuta key={s.uid} titulo={s.titulo} rutas={s.rutas} layout={s.layout} anchoMax={s.anchoMax} colorFondo={s.colorFondo} />;
-    case "equipo":         return <PHEquipo key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} personas={s.personas} anchoMax={s.anchoMax} estiloTarjeta={s.equipoEstiloTarjeta} />;
-    case "ofertas":        return <PHListado key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} anchoMax={s.anchoMax} formatoId={s.listadoFormatoId} items={listadoItemsPorSeccion?.[s.uid]} estiloTarjeta={s.listadoEstiloTarjeta} />;
+    case "texto-imagenes": return <PHTextoImagenes key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} medias={s.medias} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} anchoMax={s.anchoMax} />;
+    case "texto-columnas": return <PHTextoColumnas key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} columnas={s.columnas} anchoMax={s.anchoMax} />;
+    case "itinerario":     return <PHItinerario key={s.uid} mobile={mobile} layout={s.layout} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} fechaDesde={s.fechaDesde} fechaHasta={s.fechaHasta} dias={s.dias} titulo={s.titulo} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} anchoMax={s.anchoMax} />;
+    case "mapa":           return <PHMapa key={s.uid} titulo={s.titulo} mapas={s.mapas} layout={s.layout} anchoMax={s.anchoMax} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} />;
+    case "ruta":           return <PHRuta key={s.uid} titulo={s.titulo} rutas={s.rutas} layout={s.layout} anchoMax={s.anchoMax} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} />;
+    case "cards":          return <PHCards key={s.uid} mobile={mobile} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} anchoMax={s.anchoMax} cards={s.cards} />;
+    case "galeria":        return <PHGaleria key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} estiloTitulo={s.estiloTitulo} anchoMax={s.anchoMax} galeria={s.galeria} />;
+    case "ofertas":        return <PHListado key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} anchoMax={s.anchoMax} formatoId={s.listadoFormatoId} items={listadoItemsPorSeccion?.[s.uid]} estiloTarjeta={s.listadoEstiloTarjeta} />;
+    case "nego-planet-programas": return <PHNegoPlanet key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} anchoMax={s.anchoMax} items={s.negoPlanetModo === "auto" ? (listadoItemsPorSeccion?.[s.uid] as any as NegoPlanetItem[] | undefined) : s.negoPlanetItems} />;
+    case "nego-planet-destinos":  return <PHNegoPlanetDestinos key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} anchoMax={s.anchoMax} arbol={listadoItemsPorSeccion?.[s.uid] as any} />;
     case "precio":         return <PHPrecio key={s.uid} mobile={mobile} tablet={tablet} seccion={s} />;
     case "formulario":     return <PHFormulario key={s.uid} mobile={mobile} seccion={s} agente={agente} />;
     case "footer":         return <PHFooter key={s.uid} mobile={mobile} />;

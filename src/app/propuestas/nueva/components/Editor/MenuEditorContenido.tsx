@@ -2,15 +2,30 @@
 import React, { useState, useRef } from "react";
 import { Eye, EyeOff, Image } from "lucide-react";
 import styles from "../../page.module.css";
-import type { Seccion, MenuItemConfig, MenuBoton } from "../../types";
+import type { Seccion, MenuBoton, MenuOverride } from "../../types";
 
 export default function MenuEditorContenido({ seccion, onUpdate, todasSecciones }: { seccion: Seccion; onUpdate: (uid: string, patch: Partial<Seccion>) => void; todasSecciones?: Seccion[] }) {
   const logoFileRef = useRef<HTMLInputElement>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const otrasSecciones = (todasSecciones ?? []).filter(s => s.tipo !== "menu");
-  const itemsActuales: MenuItemConfig[] = seccion.menuItems
-    ?? otrasSecciones.map(s => ({ uid: s.uid, etiqueta: s.label }));
+
+  // Compatibilidad: si el menú aún tiene el modelo antiguo (menuItems fijo), lo migramos a overrides.
+  const overrides: Record<string, MenuOverride> = seccion.menuOverrides
+    ?? Object.fromEntries((seccion.menuItems ?? []).map(i => [i.uid, { etiqueta: i.etiqueta, ocultaEnMenu: i.ocultaEnMenu }]));
+
+  // La lista de items siempre se deriva de las secciones actuales de la página — nunca es una lista fija.
+  const itemsActuales = otrasSecciones.map(s => ({
+    uid: s.uid,
+    etiqueta: overrides[s.uid]?.etiqueta || s.label,
+    ocultaEnMenu: overrides[s.uid]?.ocultaEnMenu ?? false,
+  }));
+
+  const actualizarOverride = (uid: string, patch: Partial<MenuOverride>) => {
+    const next = { ...overrides, [uid]: { ...overrides[uid], ...patch } };
+    onUpdate(seccion.uid, { menuOverrides: next, menuItems: undefined });
+  };
+
   const boton: MenuBoton = seccion.menuBoton ?? { etiqueta: "", tipo: "externo", href: "" };
 
   return (
@@ -54,22 +69,16 @@ export default function MenuEditorContenido({ seccion, onUpdate, todasSecciones 
           {itemsActuales.length === 0 && (
             <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: 0 }}>Añade secciones a la propuesta para que aparezcan aquí.</p>
           )}
-          {itemsActuales.map((item, i) => (
+          {itemsActuales.map(item => (
             <div key={item.uid} style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.45rem 0.65rem", borderRadius: "0.5rem", background: "#f8fafc", border: "1px solid #e2e8f0" }}>
               <input
                 value={item.etiqueta}
-                onChange={e => {
-                  const next = itemsActuales.map((it, j) => j === i ? { ...it, etiqueta: e.target.value } : it);
-                  onUpdate(seccion.uid, { menuItems: next });
-                }}
+                onChange={e => actualizarOverride(item.uid, { etiqueta: e.target.value })}
                 style={{ flex: 1, border: "none", background: "transparent", fontSize: "0.82rem", color: "#1e293b", outline: "none" }}
                 placeholder="Etiqueta"
               />
               <button type="button" title={item.ocultaEnMenu ? "Mostrar en menú" : "Ocultar en menú"}
-                onClick={() => {
-                  const next = itemsActuales.map((it, j) => j === i ? { ...it, ocultaEnMenu: !it.ocultaEnMenu } : it);
-                  onUpdate(seccion.uid, { menuItems: next });
-                }}
+                onClick={() => actualizarOverride(item.uid, { ocultaEnMenu: !item.ocultaEnMenu })}
                 style={{ background: "none", border: "none", cursor: "pointer", color: item.ocultaEnMenu ? "#cbd5e1" : "#64748b", display: "flex", padding: 2 }}>
                 {item.ocultaEnMenu ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>

@@ -628,7 +628,7 @@ export async function deleteCotizacion(cotizacionId: string) {
   }
 }
 
-export async function duplicateCotizacion(cotizacionId: string) {
+export async function duplicateCotizacion(cotizacionId: string, vincularPropuestas: boolean = true) {
   try {
     const agencyDb = await getAgencyDbClient();
     let user = null;
@@ -680,10 +680,55 @@ export async function duplicateCotizacion(cotizacionId: string) {
       if (e4) throw e4;
     }
 
+    if (vincularPropuestas) {
+      const { data: propuestas } = await agencyDb
+        .from("operativa_propuestas")
+        .select("id, title, contacto_id")
+        .eq("cotizacion_id", cotizacionId);
+
+      if (propuestas && propuestas.length > 0) {
+        for (const prop of propuestas) {
+          const { data: newProp, error: ep1 } = await agencyDb
+            .from("operativa_propuestas")
+            .insert({ title: `${prop.title} (copia)`, cotizacion_id: newCot.id, contacto_id: prop.contacto_id || null, proposal_data: {} })
+            .select("id")
+            .single();
+          if (ep1 || !newProp) continue;
+
+          const { data: landing } = await agencyDb
+            .from("landings")
+            .select("editor_content, design_tokens")
+            .eq("proposal_id", prop.id)
+            .eq("is_active", true)
+            .single();
+          if (landing) {
+            await agencyDb
+              .from("landings")
+              .insert({ proposal_id: newProp.id, editor_content: landing.editor_content, design_tokens: landing.design_tokens, is_active: true, version_number: 1 });
+          }
+        }
+        revalidatePath("/propuestas");
+      }
+    }
+
     revalidatePath("/cotizaciones");
     return { success: true, data: newCot };
   } catch (error: any) {
     return { success: false, error: error.message || String(error) };
+  }
+}
+
+export async function tieneCotizacionPropuestasVinculadas(cotizacionId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { data, error } = await agencyDb
+      .from("operativa_propuestas")
+      .select("id")
+      .eq("cotizacion_id", cotizacionId);
+    if (error) throw error;
+    return { ok: true, tienePropuestas: (data?.length ?? 0) > 0 };
+  } catch (e: any) {
+    return { ok: false, tienePropuestas: false, error: e?.message };
   }
 }
 

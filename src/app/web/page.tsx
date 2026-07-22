@@ -3,11 +3,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import listStyles from "../expedientes/page.module.css";
-import { Plus, Trash2, ExternalLink, ChevronDown, Tag } from "lucide-react";
+import { Plus, Trash2, ExternalLink, ChevronDown, Tag, Settings } from "lucide-react";
 import { getPaginasWeb, crearPaginaWeb, eliminarPaginaWeb, togglePublicadaPaginaWeb, getFormatosWeb, crearFormatoWeb, eliminarFormatoWeb } from "@/actions/paginaWeb";
 
 type Formato = { id: string; nombre: string; slug: string; color?: string | null };
-type PaginaRow = { id: string; es_landing: boolean; formato_id: string | null; formato: Formato | null; titulo: string; slug: string; publicada: boolean; created_at: string };
+type PaginaRow = { id: string; es_landing: boolean; formato_id: string | null; formato: Formato | null; titulo: string; slug: string; publicada: boolean; created_at: string; modo?: string };
 
 const formatFecha = (iso: string) => {
   try {
@@ -162,9 +162,10 @@ export default function PaginasWebListado() {
         (() => {
           const landing = paginas.filter(p => p.es_landing);
           const sinFormato = paginas.filter(p => !p.es_landing && !p.formato_id);
-          const grupos: { key: string; titulo: string; filas: PaginaRow[] }[] = [
+          const indicesPorFormato = new Map(paginas.filter(p => p.modo === "formato-index" && p.formato_id).map(p => [p.formato_id as string, p]));
+          const grupos: { key: string; titulo: string; filas: PaginaRow[]; formatoId?: string }[] = [
             ...(landing.length ? [{ key: "landing", titulo: "Landing", filas: landing }] : []),
-            ...formatos.map(f => ({ key: f.id, titulo: f.nombre, filas: paginas.filter(p => p.formato_id === f.id) })).filter(g => g.filas.length > 0),
+            ...formatos.map(f => ({ key: f.id, titulo: f.nombre, formatoId: f.id, filas: paginas.filter(p => p.formato_id === f.id && p.modo !== "formato-index") })),
             ...(sinFormato.length ? [{ key: "sin-formato", titulo: "Sin formato", filas: sinFormato }] : []),
           ];
 
@@ -172,8 +173,19 @@ export default function PaginasWebListado() {
             <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
               {grupos.map(grupo => (
                 <div key={grupo.key}>
-                  <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
-                    {grupo.titulo} <span style={{ fontWeight: 500, color: "#94a3b8" }}>({grupo.filas.length})</span>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+                    <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      {grupo.titulo} <span style={{ fontWeight: 500, color: "#94a3b8" }}>({grupo.filas.length})</span>
+                    </div>
+                    {grupo.formatoId && indicesPorFormato.get(grupo.formatoId) && (
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/web/${indicesPorFormato.get(grupo.formatoId!)!.id}`)}
+                        style={{ display: "flex", alignItems: "center", gap: "0.3rem", padding: "0.3rem 0.6rem", fontSize: "0.75rem", fontWeight: 600, color: "#475569", background: "#f1f5f9", border: "none", borderRadius: "0.4rem", cursor: "pointer" }}
+                      >
+                        <Settings size={12} /> Configurar formato
+                      </button>
+                    )}
                   </div>
                   <div className={listStyles.tableContainer}>
                     <table className={listStyles.table} style={{ tableLayout: "fixed", width: "100%" }}>
@@ -203,7 +215,7 @@ export default function PaginasWebListado() {
                               <div style={{ fontWeight: 600, color: "#1e293b", fontSize: "0.85rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.titulo}</div>
                             </td>
                             <td onClick={() => router.push(`/web/${p.id}`)} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>/{p.es_landing ? "" : `o/${p.slug}`}</span>
+                              <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{p.es_landing ? "/public" : `/o/${p.slug}`}</span>
                             </td>
                             <td>
                               <button
@@ -220,9 +232,9 @@ export default function PaginasWebListado() {
                             </td>
                             <td>
                               <div style={{ display: "flex", gap: "0.4rem", justifyContent: "flex-end" }}>
-                                {p.publicada && !p.es_landing && (
+                                {p.publicada && (
                                   <a
-                                    href={`/web/o/${p.slug}`}
+                                    href={p.es_landing ? "/public" : `/web/o/${p.slug}`}
                                     target="_blank"
                                     onClick={e => e.stopPropagation()}
                                     style={{ display: "flex", alignItems: "center", color: "#64748b" }}

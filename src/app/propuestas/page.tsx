@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getPropuestas, deletePropuesta, duplicarPropuesta } from "@/actions/propuestas";
+import { getPropuestas, deletePropuesta, duplicarPropuesta, tienePropuestaCotizacionVinculada } from "@/actions/propuestas";
 import { Plus, Search, Eye, Pencil, Trash2, Copy, FileText, Calendar, LayoutTemplate } from "lucide-react";
 import styles from "./page.module.css";
 
@@ -31,6 +31,7 @@ export default function PropuestasPage() {
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
   const [confirmarBorrar, setConfirmarBorrar] = useState<string | null>(null);
+  const [duplicarModal, setDuplicarModal] = useState<string | null>(null);
 
   useEffect(() => {
     cargar();
@@ -52,6 +53,24 @@ export default function PropuestasPage() {
     await deletePropuesta(id);
     setConfirmarBorrar(null);
     cargar();
+  }
+
+  async function iniciarDuplicar(id: string) {
+    const check = await tienePropuestaCotizacionVinculada(id);
+    if (check.tieneCotizacion) {
+      setDuplicarModal(id);
+    } else {
+      const r = await duplicarPropuesta(id, false);
+      if (r.ok) cargar();
+    }
+  }
+
+  async function confirmarDuplicar(vincular: boolean) {
+    if (!duplicarModal) return;
+    const id = duplicarModal;
+    setDuplicarModal(null);
+    const r = await duplicarPropuesta(id, vincular);
+    if (r.ok) cargar();
   }
 
   const filtradas = propuestas.filter(p =>
@@ -188,7 +207,7 @@ export default function PropuestasPage() {
                       <button className={styles.actionBtn} title="Previsualizar" onClick={() => window.open(`/propuestas/${p.id}/preview`, "_blank")}>
                         <Eye size={14} />
                       </button>
-                      <button className={styles.actionBtn} title="Duplicar" onClick={async () => { const r = await duplicarPropuesta(p.id); if (r.ok) cargar(); }}>
+                      <button className={styles.actionBtn} title="Duplicar" onClick={() => iniciarDuplicar(p.id)}>
                         <Copy size={14} />
                       </button>
                       <button
@@ -216,6 +235,23 @@ export default function PropuestasPage() {
             <div className={styles.modalActions}>
               <button className={styles.modalCancel} onClick={() => setConfirmarBorrar(null)}>Cancelar</button>
               <button className={styles.modalConfirm} onClick={() => borrar(confirmarBorrar)}>Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal duplicar propuesta con cotización vinculada */}
+      {duplicarModal && (
+        <div className={styles.modalOverlay} onClick={() => setDuplicarModal(null)}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <p className={styles.modalTitle}>Duplicar propuesta</p>
+            <p className={styles.modalText}>
+              Esta propuesta tiene una cotización vinculada. ¿Deseas duplicar también la cotización y mantener el vínculo en la copia?
+            </p>
+            <div className={styles.modalActions}>
+              <button className={styles.modalCancel} onClick={() => setDuplicarModal(null)}>Cancelar</button>
+              <button className={styles.modalCancel} onClick={() => confirmarDuplicar(false)}>Solo propuesta</button>
+              <button className={styles.modalConfirm} onClick={() => confirmarDuplicar(true)}>Duplicar ambas</button>
             </div>
           </div>
         </div>

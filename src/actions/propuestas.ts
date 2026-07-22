@@ -30,7 +30,7 @@ export async function getPropuestas() {
   }
 }
 
-export async function duplicarPropuesta(id: string) {
+export async function duplicarPropuesta(id: string, vincularCotizacion: boolean = true) {
   try {
     const agencyDb = await getAgencyDbClient();
     const { data: prop, error: e1 } = await agencyDb
@@ -48,9 +48,23 @@ export async function duplicarPropuesta(id: string) {
       .single();
     if (e2 || !landing) throw e2;
 
+    let newCotizacionId: string | null = null;
+    if (vincularCotizacion && prop.cotizacion_id) {
+      const { duplicateCotizacion } = await import("@/actions/cotizaciones");
+      const result = await duplicateCotizacion(prop.cotizacion_id, false);
+      if (result.success && result.data) {
+        newCotizacionId = result.data.id;
+      }
+    }
+
     const { data: newProp, error: e3 } = await agencyDb
       .from("operativa_propuestas")
-      .insert({ title: `${prop.title} (copia)`, cotizacion_id: prop.cotizacion_id || null, contacto_id: prop.contacto_id || null, proposal_data: {} })
+      .insert({
+        title: `${prop.title} (copia)`,
+        cotizacion_id: vincularCotizacion ? (newCotizacionId ?? prop.cotizacion_id ?? null) : null,
+        contacto_id: prop.contacto_id || null,
+        proposal_data: {},
+      })
       .select("id")
       .single();
     if (e3 || !newProp) throw e3;
@@ -64,6 +78,21 @@ export async function duplicarPropuesta(id: string) {
     return { ok: true, id: newProp.id };
   } catch (e: any) {
     return { ok: false, error: e?.message };
+  }
+}
+
+export async function tienePropuestaCotizacionVinculada(id: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { data, error } = await agencyDb
+      .from("operativa_propuestas")
+      .select("cotizacion_id")
+      .eq("id", id)
+      .single();
+    if (error) throw error;
+    return { ok: true, tieneCotizacion: !!data?.cotizacion_id };
+  } catch (e: any) {
+    return { ok: false, tieneCotizacion: false, error: e?.message };
   }
 }
 

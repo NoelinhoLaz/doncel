@@ -1,6 +1,6 @@
 "use server";
 
-import { getAgencyDbClient } from "@/lib/agencyDb";
+import { getAgencyDbClient, getAgencyDbClientByDomain } from "@/lib/agencyDb";
 import { revalidatePath } from "next/cache";
 
 function slugify(text: string) {
@@ -51,6 +51,19 @@ export async function crearFormatoWeb({ nombre, color }: { nombre: string; color
       .select("id, nombre, slug, color, icono")
       .single();
     if (error || !data) throw error;
+
+    // Página índice automática: lista todos los artículos de este formato en /web/o/{slug}
+    const paginaSlug = await slugUnicoEnTabla(agencyDb, "paginas_web", slug);
+    await agencyDb.from("paginas_web").insert({
+      titulo: nombre,
+      slug: paginaSlug,
+      formato_id: data.id,
+      modo: "formato-index",
+      publicada: true,
+      editor_content: [],
+      design_tokens: [],
+    });
+
     revalidatePath("/web");
     return { ok: true, formato: data };
   } catch (e: any) {
@@ -62,6 +75,7 @@ export async function crearFormatoWeb({ nombre, color }: { nombre: string; color
 export async function eliminarFormatoWeb(id: string) {
   try {
     const agencyDb = await getAgencyDbClient();
+    await agencyDb.from("paginas_web").delete().eq("formato_id", id).eq("modo", "formato-index");
     const { error } = await agencyDb.from("paginas_web_formatos").delete().eq("id", id);
     if (error) throw error;
     revalidatePath("/web");
@@ -69,6 +83,24 @@ export async function eliminarFormatoWeb(id: string) {
   } catch (e: any) {
     console.error("eliminarFormatoWeb:", e?.message);
     return { ok: false, error: e?.message };
+  }
+}
+
+/** Obtiene la página índice (listado tipo blog) de un formato, si existe. */
+export async function getPaginaIndiceFormato(formatoId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { data, error } = await agencyDb
+      .from("paginas_web")
+      .select("id, titulo, slug, publicada, design_tokens")
+      .eq("formato_id", formatoId)
+      .eq("modo", "formato-index")
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  } catch (e: any) {
+    console.error("getPaginaIndiceFormato:", e?.message);
+    return null;
   }
 }
 
@@ -98,6 +130,7 @@ export async function getPaginasWebPorFormato(formatoId: string) {
       .select("id, modo, titulo, slug, publicada, editor_content, created_at")
       .eq("formato_id", formatoId)
       .eq("publicada", true)
+      .neq("modo", "formato-index")
       .order("created_at", { ascending: false });
     if (error) throw error;
     return (data ?? []).map((p: any) => {
@@ -171,6 +204,79 @@ export async function getPaginaWebPorSlug(slug: string) {
   }
 }
 
+/**
+ * Variante pública (sin sesión de usuario) para servir la web de agencia a visitantes anónimos.
+ * Resuelve la agencia por dominio en vez de por el usuario autenticado.
+ */
+export async function getPaginaWebPorSlugPublica(slug: string, dominio: string) {
+  try {
+    const resolved = await getAgencyDbClientByDomain(dominio);
+    if (!resolved) return { pagina: null, agenciaId: null };
+    const { db, agenciaId } = resolved;
+    const { data, error } = await db
+      .from("paginas_web")
+      .select("id, es_landing, formato_id, modo, titulo, slug, publicada, editor_content, design_tokens")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (error) throw error;
+    return { pagina: data, agenciaId };
+  } catch (e: any) {
+    console.error("getPaginaWebPorSlugPublica:", e?.message);
+    return { pagina: null, agenciaId: null };
+  }
+}
+
+export async function getPaginaWebLandingPublica(dominio: string) {
+  try {
+    const resolved = await getAgencyDbClientByDomain(dominio);
+    if (!resolved) return { landing: null, agenciaId: null };
+    const { db, agenciaId } = resolved;
+    const { data, error } = await db
+      .from("paginas_web")
+      .select("id, es_landing, formato_id, modo, titulo, slug, publicada, editor_content, design_tokens")
+      .eq("es_landing", true)
+      .maybeSingle();
+    if (error) throw error;
+    return { landing: data, agenciaId };
+  } catch (e: any) {
+    console.error("getPaginaWebLandingPublica:", e?.message);
+    return { landing: null, agenciaId: null };
+  }
+}
+
+export async function getPaginasWebPorFormatoPublica(formatoId: string, agencyDbOverride: any) {
+  try {
+    const { data, error } = await agencyDbOverride
+      .from("paginas_web")
+      .select("id, modo, titulo, slug, publicada, editor_content, created_at")
+      .eq("formato_id", formatoId)
+      .eq("publicada", true)
+      .neq("modo", "formato-index")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map((p: any) => {
+      let media = null;
+      let extracto = "";
+      if (p.modo === "simple") {
+        const html: string = p.editor_content?.contenido ?? "";
+        const imgMatch = html.match(/<img[^>]+src="([^"]+)"/);
+        media = imgMatch ? { tipo: "upload", url: imgMatch[1] } : null;
+        const textoPlano = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        extracto = textoPlano.slice(0, 140);
+      } else {
+        const editorContent: any[] = Array.isArray(p.editor_content) ? p.editor_content : [];
+        const portada = editorContent.find((s: any) => s.tipo === "portada");
+        media = portada?.medias?.[0] ?? null;
+        extracto = (portada?.subtitulo ?? "").slice(0, 140);
+      }
+      return { id: p.id, titulo: p.titulo, slug: p.slug, media, createdAt: p.created_at, extracto };
+    });
+  } catch (e: any) {
+    console.error("getPaginasWebPorFormatoPublica:", e?.message);
+    return [];
+  }
+}
+
 export async function crearPaginaWeb({ titulo, formatoId, modo }: { titulo: string; formatoId?: string | null; modo?: "secciones" | "simple" }) {
   try {
     const agencyDb = await getAgencyDbClient();
@@ -217,6 +323,53 @@ export async function togglePublicadaPaginaWeb(id: string, publicada: boolean) {
   }
 }
 
+export async function guardarDisenioFormatoIndex({
+  id,
+  disenio,
+  slug,
+}: {
+  id: string;
+  disenio: {
+    layout?: string;
+    estiloTarjeta?: "simple" | "articulo";
+    colorFondo?: string;
+    anchoMax?: string;
+    estiloTitulo?: any;
+    estiloTituloDia?: any;
+  };
+  slug?: string;
+}) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const designTokens = [{ uid: "formato-index", ...disenio }];
+    const updates: any = { design_tokens: designTokens, updated_at: new Date().toISOString() };
+
+    if (slug?.trim()) {
+      const slugDeseado = slugify(slug);
+      const { data: actual } = await agencyDb.from("paginas_web").select("slug").eq("id", id).maybeSingle();
+      if (actual && actual.slug !== slugDeseado) {
+        updates.slug = await slugUnicoEnTabla(agencyDb, "paginas_web", slugDeseado, id);
+      }
+    }
+
+    const { error } = await agencyDb
+      .from("paginas_web")
+      .update(updates)
+      .eq("id", id)
+      .eq("modo", "formato-index");
+    if (error) throw error;
+
+    const { data: pagina } = await agencyDb.from("paginas_web").select("slug").eq("id", id).maybeSingle();
+    revalidatePath("/web");
+    revalidatePath(`/web/${id}`);
+    if (pagina?.slug) revalidatePath(`/web/o/${pagina.slug}`);
+    return { ok: true, slug: pagina?.slug };
+  } catch (e: any) {
+    console.error("guardarDisenioFormatoIndex:", e?.message);
+    return { ok: false, error: e?.message };
+  }
+}
+
 export async function guardarPaginaWeb({
   id,
   titulo,
@@ -243,10 +396,18 @@ export async function guardarPaginaWeb({
       }
     }
 
-    const { error } = await agencyDb.from("paginas_web").update(updates).eq("id", id);
+    const { data: paginaActualizada, error } = await agencyDb
+      .from("paginas_web")
+      .update(updates)
+      .eq("id", id)
+      .select("slug")
+      .single();
     if (error) throw error;
 
     revalidatePath("/web");
+    revalidatePath(`/web/${id}`);
+    revalidatePath("/web/preview");
+    if (paginaActualizada?.slug) revalidatePath(`/web/o/${paginaActualizada.slug}`);
     return { ok: true, id };
   } catch (e: any) {
     console.error("guardarPaginaWeb:", e?.message);
@@ -282,10 +443,17 @@ export async function guardarPaginaWebSimple({
       }
     }
 
-    const { error } = await agencyDb.from("paginas_web").update(updates).eq("id", id);
+    const { data: paginaActualizada, error } = await agencyDb
+      .from("paginas_web")
+      .update(updates)
+      .eq("id", id)
+      .select("slug")
+      .single();
     if (error) throw error;
 
     revalidatePath("/web");
+    revalidatePath(`/web/${id}`);
+    if (paginaActualizada?.slug) revalidatePath(`/web/o/${paginaActualizada.slug}`);
     return { ok: true, id };
   } catch (e: any) {
     console.error("guardarPaginaWebSimple:", e?.message);

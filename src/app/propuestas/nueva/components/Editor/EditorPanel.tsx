@@ -13,8 +13,11 @@ import EditorMapa from "./EditorMapa";
 import EditorRuta from "./EditorRuta";
 import EditorPrecio from "./EditorPrecio";
 import EditorFormulario from "./EditorFormulario";
-import EditorEquipo from "./EditorEquipo";
+import EditorCards from "./EditorCards";
+import EditorGaleria from "./EditorGaleria";
 import EditorOfertas from "./EditorOfertas";
+import EditorNegoPlanet from "./EditorNegoPlanet";
+import EditorNegoPlanetDestinos from "./EditorNegoPlanetDestinos";
 import DisenioPanel from "./DisenioPanel";
 import { GuiaFormato } from "./GuiaFormato";
 
@@ -22,12 +25,12 @@ export function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onTog
   const [tab, setTab] = useState<"contenido" | "diseño">("contenido");
   const [mediaAbierto, setMediaAbierto] = useState<boolean | number | "new" | string>(false);
   const [expandedDayIdx, setExpandedDayIdx] = useState<number | null>(null);
-  const [expandedPersonaIdx, setExpandedPersonaIdx] = useState<string | null>(null);
+  const [expandedCardIdx, setExpandedCardIdx] = useState<string | null>(null);
 
   useEffect(() => {
     setMediaAbierto(false);
     setExpandedDayIdx(null);
-    setExpandedPersonaIdx(null);
+    setExpandedCardIdx(null);
   }, [seccion.uid]);
 
   const [optimizandoIA, setOptimizandoIA] = useState<string | null>(null);
@@ -210,20 +213,34 @@ export function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onTog
         {tab === "contenido" && seccion.tipo === "formulario" && (
           <EditorFormulario seccion={seccion} onUpdate={onUpdate} />
         )}
-        {tab === "contenido" && seccion.tipo === "equipo" && (
-          <EditorEquipo
+        {tab === "contenido" && seccion.tipo === "ofertas" && (
+          <EditorOfertas seccion={seccion} onUpdate={onUpdate} />
+        )}
+        {tab === "contenido" && seccion.tipo === "cards" && (
+          <EditorCards
             seccion={seccion}
             onUpdate={onUpdate}
             mediaAbierto={mediaAbierto}
             setMediaAbierto={setMediaAbierto}
-            expandedPersonaIdx={expandedPersonaIdx}
-            setExpandedPersonaIdx={setExpandedPersonaIdx}
+            expandedCardIdx={expandedCardIdx}
+            setExpandedCardIdx={setExpandedCardIdx}
           />
         )}
-        {tab === "contenido" && seccion.tipo === "ofertas" && (
-          <EditorOfertas seccion={seccion} onUpdate={onUpdate} />
+        {tab === "contenido" && seccion.tipo === "galeria" && (
+          <EditorGaleria
+            seccion={seccion}
+            onUpdate={onUpdate}
+            mediaAbierto={mediaAbierto}
+            setMediaAbierto={setMediaAbierto}
+          />
         )}
-        {tab === "contenido" && seccion.tipo !== "portada" && seccion.tipo !== "texto-imagenes" && seccion.tipo !== "itinerario" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && seccion.tipo !== "precio" && seccion.tipo !== "formulario" && seccion.tipo !== "equipo" && seccion.tipo !== "ofertas" && (
+        {tab === "contenido" && seccion.tipo === "nego-planet-programas" && (
+          <EditorNegoPlanet seccion={seccion} onUpdate={onUpdate} />
+        )}
+        {tab === "contenido" && seccion.tipo === "nego-planet-destinos" && (
+          <EditorNegoPlanetDestinos seccion={seccion} onUpdate={onUpdate} />
+        )}
+        {tab === "contenido" && seccion.tipo !== "portada" && seccion.tipo !== "texto-imagenes" && seccion.tipo !== "itinerario" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && seccion.tipo !== "precio" && seccion.tipo !== "formulario" && seccion.tipo !== "ofertas" && seccion.tipo !== "cards" && seccion.tipo !== "galeria" && seccion.tipo !== "nego-planet-programas" && seccion.tipo !== "nego-planet-destinos" && (
           <p className={styles.editorEmpty}>Opciones de contenido próximamente.</p>
         )}
         {tab === "diseño" && (

@@ -9,6 +9,7 @@ export default function SeccionRenderer({
   allSecciones,
   agente,
   listadoItemsPorSeccion,
+  landingHref,
 }: {
   seccion: any;
   canvasHeight: string;
@@ -16,6 +17,7 @@ export default function SeccionRenderer({
   allSecciones?: any[];
   agente?: any;
   listadoItemsPorSeccion?: Record<string, any[]>;
+  landingHref?: string;
 }) {
-  return <>{renderSeccion(seccion, canvasHeight, dispositivo, allSecciones, agente, listadoItemsPorSeccion)}</>;
+  return <>{renderSeccion(seccion, canvasHeight, dispositivo, allSecciones, agente, listadoItemsPorSeccion, landingHref)}</>;
 }

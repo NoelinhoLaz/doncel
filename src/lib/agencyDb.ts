@@ -2,6 +2,24 @@ import { createClient } from "@supabase/supabase-js";
 import { createAdminServerClient, createAdminServiceClient } from "./supabaseServer";
 import { decrypt } from "./encryption";
 import { cache } from "react";
+import { headers } from "next/headers";
+
+/**
+ * Resuelve el dominio "público" actual para páginas sin sesión de usuario.
+ * En local (localhost/IP privada) usa NEXT_PUBLIC_AGENCY_DOMAIN_OVERRIDE para simular
+ * el dominio de una agencia real, igual que hace /registro/[slug].
+ */
+export async function getDominioActualPublico(): Promise<string | null> {
+  const override = process.env.NEXT_PUBLIC_AGENCY_DOMAIN_OVERRIDE;
+  if (override) return override;
+
+  const h = await headers();
+  const host = h.get("x-tenant-host") || h.get("host") || "";
+  if (!host || host.startsWith("localhost") || host.startsWith("127.0.0.1") || /^192\.168\.|^10\.|^172\.(1[6-9]|2\d|3[01])\./.test(host)) {
+    return null;
+  }
+  return host.split(":")[0];
+}
 
 // Resuelve las credenciales de agencia a partir de su dominio (para viajeros no autenticados)
 export async function getAgencyDbClientByDomain(dominio: string) {
