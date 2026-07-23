@@ -129,11 +129,90 @@ function youtubeId(url: string): string | null {
 
 function youtubeEmbed(url: string): string | null {
   const id = youtubeId(url);
-  return id ? `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}&controls=0&playsinline=1&rel=0` : null;
+  return id ? `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}&controls=0&playsinline=1&rel=0&modestbranding=1&iv_load_policy=3&disablekb=1&enablejsapi=1` : null;
 }
 
-function VideoBg({ url, className, style }: { url: string; className?: string; style?: React.CSSProperties }) {
+let youtubeApiPromise: Promise<any> | null = null;
+function loadYoutubeApi(): Promise<any> {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  if ((window as any).YT?.Player) return Promise.resolve((window as any).YT);
+  if (youtubeApiPromise) return youtubeApiPromise;
+  youtubeApiPromise = new Promise(resolve => {
+    const previous = (window as any).onYouTubeIframeAPIReady;
+    (window as any).onYouTubeIframeAPIReady = () => {
+      previous?.();
+      resolve((window as any).YT);
+    };
+    if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+      const script = document.createElement("script");
+      script.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(script);
+    }
+  });
+  return youtubeApiPromise;
+}
+
+function VideoBg({ url, className, style, onEnded }: { url: string; className?: string; style?: React.CSSProperties; onEnded?: () => void }) {
   const embed = youtubeEmbed(url);
+  const id = youtubeId(url);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<any>(null);
+  const onEndedRef = useRef(onEnded);
+  onEndedRef.current = onEnded;
+
+  useEffect(() => {
+    if (!onEnded || !id || !containerRef.current) return;
+    let disposed = false;
+    // Nodo interno creado fuera del árbol de React: YT.Player lo reemplaza por su propio
+    // iframe, y React nunca vuelve a tocarlo (evita el "removeChild" al desmontar/re-render).
+    const mount = document.createElement("div");
+    mount.style.width = "100%";
+    mount.style.height = "100%";
+    containerRef.current.appendChild(mount);
+
+    loadYoutubeApi().then(YT => {
+      if (disposed) return;
+      playerRef.current = new YT.Player(mount, {
+        videoId: id,
+        host: "https://www.youtube-nocookie.com",
+        playerVars: {
+          autoplay: 1, mute: 1, controls: 0, playsinline: 1, rel: 0,
+          modestbranding: 1, iv_load_policy: 3, disablekb: 1,
+        },
+        events: {
+          onStateChange: (e: any) => {
+            if (e.data === YT.PlayerState.ENDED) onEndedRef.current?.();
+          },
+        },
+      });
+    });
+    return () => {
+      disposed = true;
+      playerRef.current?.destroy?.();
+      playerRef.current = null;
+      mount.remove();
+    };
+  }, [id, onEnded]);
+
+  if (onEnded && id) {
+    return (
+      <div className={className} style={{ ...style, overflow: "hidden", position: "relative", containerType: "size" }}>
+        <div
+          ref={containerRef}
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            width: "max(100cqw, 177.78cqh)",
+            height: "max(100cqh, 56.25cqw)",
+            transform: "translate(-50%, -50%)",
+            pointerEvents: "none",
+          }}
+        />
+      </div>
+    );
+  }
+
   if (embed) {
     return (
       <div className={className} style={{ ...style, overflow: "hidden", position: "relative", containerType: "size" }}>
@@ -155,7 +234,18 @@ function VideoBg({ url, className, style }: { url: string; className?: string; s
       </div>
     );
   }
-  return <video src={url} className={className} style={{ ...style, objectFit: "cover" }} autoPlay muted loop playsInline />;
+  return (
+    <video
+      src={url}
+      className={className}
+      style={{ ...style, objectFit: "cover" }}
+      autoPlay
+      muted
+      loop={!onEnded}
+      playsInline
+      onEnded={onEnded}
+    />
+  );
 }
 
 const FUENTE_FAMILY: Record<string, string> = {
@@ -459,12 +549,35 @@ export function PHPortada({ height, layout, titulo, subtitulo, medias, estiloTit
   const allImgs = medias ?? [];
 
   const [idx, setIdx] = useState(0);
+  const advanceRef = useRef<() => void>(() => {});
+  advanceRef.current = () => setIdx(i => (i + 1) % allImgs.length);
+
+  useEffect(() => { setIdx(0); }, [allImgs.length]);
+
+  const currentTipo = allImgs[idx]?.tipo;
   useEffect(() => {
     if (allImgs.length < 2) return;
-    const t = setInterval(() => setIdx(i => (i + 1) % allImgs.length), 3000);
-    return () => clearInterval(t);
+    // Si el slide actual es video, no usamos temporizador — el avance llega por onEnded/postMessage.
+    if (currentTipo === "video") return;
+    const t = setTimeout(() => advanceRef.current(), 3000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx, allImgs.length, currentTipo]);
+
+  // YouTube IFrame API: escucha el fin del vídeo vía postMessage.
+  useEffect(() => {
+    if (allImgs.length < 2) return;
+    const handler = (e: MessageEvent) => {
+      try {
+        const data = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+        if (data?.event === "onStateChange" && data?.info === 0) {
+          advanceRef.current();
+        }
+      } catch {}
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
   }, [allImgs.length]);
-  useEffect(() => { setIdx(0); }, [allImgs.length]);
 
   const currentImg = allImgs[idx] ?? null;
 
@@ -486,7 +599,11 @@ export function PHPortada({ height, layout, titulo, subtitulo, medias, estiloTit
             {allImgs.map((m, i) => (
               m.tipo === "video"
                 ? <div key={m.url} className={`${styles.phWaveImgFill} ${styles.phSlideFade}`} style={{ opacity: i === idx ? 1 : 0 }}>
-                    <VideoBg url={m.url} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+                    <VideoBg
+                      url={m.url}
+                      style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+                      onEnded={allImgs.length > 1 && i === idx ? advanceRef.current : undefined}
+                    />
                   </div>
                 : <div key={m.url} className={`${styles.phWaveImgFill} ${styles.phSlideFade}`}
                     style={{ backgroundImage: `url(${m.url})`, opacity: i === idx ? 1 : 0 }} />
@@ -556,12 +673,17 @@ export function PHPortada({ height, layout, titulo, subtitulo, medias, estiloTit
     return <PillsPortada height={height} titulo={titulo} subtitulo={subtitulo} estiloTitulo={estiloTitulo} estiloSubtitulo={estiloSubtitulo} pillImgs={pillImgs} pillsBgIcons={pillsBgIcons} />;
   }
 
+  const hasMultiple = allImgs.length > 1;
   return (
     <div className={styles.phPortada} style={{ height, background: allImgs.length === 0 ? "#e2e8f0" : undefined }}>
       {allImgs.map((m, i) => (
         m.tipo === "video"
           ? <div key={m.url} className={`${styles.phSlideImg} ${styles.phSlideFade}`} style={{ opacity: i === idx ? 1 : 0 }}>
-              <VideoBg url={m.url} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+              <VideoBg
+                url={m.url}
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+                onEnded={hasMultiple && i === idx ? advanceRef.current : undefined}
+              />
             </div>
           : <div key={m.url} className={`${styles.phSlideImg} ${styles.phSlideFade}`} style={{ opacity: i === idx ? 1 : 0 }}>
               <div
