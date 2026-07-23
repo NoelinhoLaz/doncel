@@ -164,6 +164,7 @@ const FUENTE_FAMILY: Record<string, string> = {
   "Roboto":        "var(--font-roboto), sans-serif",
   "Special Elite": "var(--font-special-elite), cursive",
   "Serif":         "Georgia, serif",
+  "Pacifico":      "var(--font-pacifico), cursive",
 };
 
 export function estiloTextoCSS(e?: TextoEstilo, defaultTipo?: "titulo" | "subtitulo" | "parrafo" | "negrita"): React.CSSProperties {

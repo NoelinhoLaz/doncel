@@ -41,9 +41,10 @@ export const FUENTE_FAMILY: Record<string, string> = {
   "Roboto":        "var(--font-roboto), sans-serif",
   "Special Elite": "var(--font-special-elite), cursive",
   "Serif":         "Georgia, serif",
+  "Pacifico":      "var(--font-pacifico), cursive",
 };
 
-export const FUENTES = ["Raleway", "Montserrat", "Roboto", "Special Elite", "Serif"];
+export const FUENTES = ["Raleway", "Montserrat", "Roboto", "Special Elite", "Serif", "Pacifico"];
 export const TAMANIOS = ["12px","14px","16px","18px","20px","24px","28px","32px","40px","48px","56px","64px","72px"];
 export const GROSORES = ["300","400","500","600","700","800"];
 

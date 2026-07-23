@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Montserrat, Roboto, Raleway, Playfair_Display, Special_Elite } from "next/font/google";
+import { Geist, Geist_Mono, Montserrat, Roboto, Raleway, Playfair_Display, Special_Elite, Pacifico } from "next/font/google";
 import LayoutContent from "@/app/components/LayoutContent";
 import "./globals.css";
 
@@ -43,6 +43,12 @@ const specialElite = Special_Elite({
   weight: ["400"],
 });
 
+const pacifico = Pacifico({
+  variable: "--font-pacifico",
+  subsets: ["latin"],
+  weight: ["400"],
+});
+
 export const metadata: Metadata = {
   title: "Agencia de Viajes",
   description: "Sistema de gestión multitenant",
@@ -54,7 +60,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className={`${geistSans.variable} ${geistMono.variable} ${montserrat.variable} ${roboto.variable} ${raleway.variable} ${playfair.variable} ${specialElite.variable}`} style={{ colorScheme: 'light' }}>
+    <html lang="es" className={`${geistSans.variable} ${geistMono.variable} ${montserrat.variable} ${roboto.variable} ${raleway.variable} ${playfair.variable} ${specialElite.variable} ${pacifico.variable}`} style={{ colorScheme: 'light' }}>
       <body style={{ background: '#ffffff', color: '#0f172a' }}>
         <LayoutContent>{children}</LayoutContent>
       </body>
