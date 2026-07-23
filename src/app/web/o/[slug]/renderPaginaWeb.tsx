@@ -44,6 +44,7 @@ export async function renderPaginaWeb(pagina: any, agenciaId: string, dominio: s
             colorFondo={disenio.colorFondo}
             imagenFondo={disenio.imagenFondo}
             imagenFondoOverlay={disenio.imagenFondoOverlay}
+            altoSeccion={disenio.altoSeccion}
             estiloTitulo={disenio.estiloTitulo}
             estiloTituloDia={disenio.estiloTituloDia}
             anchoMax={disenio.anchoMax}

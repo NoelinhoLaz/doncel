@@ -129,6 +129,7 @@ export interface Seccion {
   fechaDesde?: string;
   fechaHasta?: string;
   anchoMax?: string;
+  altoSeccion?: "minimo" | "medio" | "completo";
   columnas?: { titulo?: string; texto?: string }[];
   mapas?: MapaItem[];
   rutas?: RutaItem[];
@@ -155,6 +156,8 @@ export interface Seccion {
   estiloCondiciones?: TextoEstilo;
   estiloOtrasConsideraciones?: TextoEstilo;
   formularioCampos?: { uid: string; key: string; label: string; lineas: number; activo: boolean }[];
+  formularioTitulo?: string;
+  formularioSubtitulo?: string;
   formularioEmail?: string;
   formularioBoton?: string;
   cards?: CardItem[];

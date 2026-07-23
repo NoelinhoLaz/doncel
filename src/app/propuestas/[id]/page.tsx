@@ -42,6 +42,7 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
       colorFondo: d.colorFondo,
       imagenFondo: d.imagenFondo,
       imagenFondoOverlay: d.imagenFondoOverlay,
+      altoSeccion: d.altoSeccion,
       anchoMax: d.anchoMax,
       // Campos de sección menú
       menuLogo: s.menuLogo,
@@ -59,6 +60,8 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
       estiloCondiciones: d.estiloCondiciones,
       // Formulario fields
       formularioCampos: s.formularioCampos,
+      formularioTitulo: s.formularioTitulo,
+      formularioSubtitulo: s.formularioSubtitulo,
       formularioEmail: s.formularioEmail,
       formularioBoton: s.formularioBoton,
       cards: s.cards,

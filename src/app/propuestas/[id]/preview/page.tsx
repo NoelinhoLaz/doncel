@@ -89,6 +89,7 @@ export default function PreviewIdPage() {
                 colorFondo: d.colorFondo,
                 imagenFondo: d.imagenFondo,
                 imagenFondoOverlay: d.imagenFondoOverlay,
+                altoSeccion: d.altoSeccion,
                 anchoMax: d.anchoMax,
                 menuLogo: s.menuLogo,
                 menuItems: s.menuItems,
@@ -105,6 +106,8 @@ export default function PreviewIdPage() {
                 estiloCondiciones: d.estiloCondiciones,
                 // Formulario fields
                 formularioCampos: s.formularioCampos,
+                formularioTitulo: s.formularioTitulo,
+                formularioSubtitulo: s.formularioSubtitulo,
                 formularioEmail: s.formularioEmail,
                 cards: s.cards,
                 galeria: s.galeria,

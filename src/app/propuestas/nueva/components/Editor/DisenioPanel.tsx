@@ -6,6 +6,7 @@ import styles from "../../page.module.css";
 import type { Seccion } from "../../types";
 import TextoEstiloEditor from "./TextoEstiloEditor";
 import FondoSeccionEditor from "./FondoSeccionEditor";
+import AltoSeccionEditor from "./AltoSeccionEditor";
 
 export default function DisenioPanel({
   seccion,
@@ -45,6 +46,7 @@ export default function DisenioPanel({
               </button>
             </div>
           </div>
+          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
           <div className={styles.editorSection}>
             <label className={styles.editorFieldLabel}>Ancho de sección</label>
             <div style={{ display: "flex", gap: 6 }}>
@@ -159,6 +161,7 @@ export default function DisenioPanel({
               ))}
             </div>
           </div>
+          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
           <div className={styles.editorSection}>
             <label className={styles.editorFieldLabel}>Ancho de sección</label>
             <div style={{ display: "flex", gap: 6 }}>
@@ -242,6 +245,7 @@ export default function DisenioPanel({
               </div>
             </div>
           )}
+          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
           <div className={styles.editorSection}>
             <label className={styles.editorFieldLabel}>Ancho de sección</label>
             <div style={{ display: "flex", gap: 6 }}>
@@ -305,6 +309,7 @@ export default function DisenioPanel({
               ))}
             </div>
           </div>
+          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
           <div className={styles.editorSection}>
             <label className={styles.editorFieldLabel}>Ancho de sección</label>
             <div style={{ display: "flex", gap: 6 }}>
@@ -370,6 +375,7 @@ export default function DisenioPanel({
               </button>
             </div>
           </div>
+          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
           <div className={styles.editorSection}>
             <label className={styles.editorFieldLabel}>Ancho de sección</label>
             <div style={{ display: "flex", gap: 6 }}>
@@ -535,6 +541,7 @@ export default function DisenioPanel({
               </button>
             </div>
           </div>
+          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
           <div className={styles.editorSection}>
             <label className={styles.editorFieldLabel}>Ancho de sección</label>
             <div style={{ display: "flex", gap: 6 }}>
@@ -590,6 +597,7 @@ export default function DisenioPanel({
               </button>
             </div>
           </div>
+          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
           <div className={styles.editorSection}>
             <label className={styles.editorFieldLabel}>Ancho de sección</label>
             <div style={{ display: "flex", gap: 6 }}>
@@ -766,6 +774,7 @@ export default function DisenioPanel({
               ))}
             </div>
           </div>
+          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
           <div className={styles.editorSection}>
             <label className={styles.editorFieldLabel}>Ancho de sección</label>
             <div style={{ display: "flex", gap: 6 }}>
@@ -836,6 +845,7 @@ export default function DisenioPanel({
               </button>
             </div>
           </div>
+          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
           <div className={styles.editorSection}>
             <label className={styles.editorFieldLabel}>Ancho de sección</label>
             <div style={{ display: "flex", gap: 6 }}>

@@ -2049,6 +2049,12 @@
   border: 1px solid #e2e8f0;
   cursor: pointer;
 }
+.phOfertaCardImg {
+  transition: transform 0.35s ease;
+}
+.phOfertaCard:hover .phOfertaCardImg {
+  transform: scale(1.08);
+}
 .phOfertaThumb {
   width: 100%;
   aspect-ratio: 4 / 3;

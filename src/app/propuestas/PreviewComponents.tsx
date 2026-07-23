@@ -45,6 +45,7 @@ export interface Seccion {
   fechaDesde?: string;
   fechaHasta?: string;
   anchoMax?: string;
+  altoSeccion?: "minimo" | "medio" | "completo";
   columnas?: { titulo?: string; texto?: string }[];
   mapas?: { uid: string; titulo?: string; ubicaciones?: { uid: string; placeId?: string; nombre?: string; direccion?: string; descripcion?: string; lat?: number; lng?: number; medias?: MediaItem[] }[] }[];
   rutas?: { uid: string; titulo?: string; ubicaciones?: { uid: string; placeId?: string; nombre?: string; direccion?: string; descripcion?: string; lat?: number; lng?: number; medias?: MediaItem[] }[]; segmentos?: { uid: string; modo: "foot-walking" | "driving-car"; polyline?: [number, number][] }[] }[];
@@ -70,6 +71,8 @@ export interface Seccion {
   estiloCondiciones?: TextoEstilo;
   estiloOtrasConsideraciones?: TextoEstilo;
   formularioCampos?: { uid: string; key: string; label: string; lineas: number; activo: boolean }[];
+  formularioTitulo?: string;
+  formularioSubtitulo?: string;
   formularioEmail?: string;
   formularioBoton?: string;
   cards?: { uid: string; titulo?: string; subtitulo?: string; media?: MediaItem; enlaceTipo?: "externo" | "pagina"; enlaceHref?: string; enlacePaginaSlug?: string }[];
@@ -271,14 +274,14 @@ export function renderConDestacado(texto: string, colorDestacado?: string, groso
 
     if (esVineta) {
       return (
-        <span key={index} style={{ display: "flex", gap: "8px", alignItems: "flex-start", paddingLeft: "8px", marginTop: "4px", marginBottom: "4px", textAlign: "left", ...estiloTextoCSS(undefined, tipo) }}>
+        <span key={index} style={{ display: "flex", gap: "8px", alignItems: "flex-start", paddingLeft: "8px", marginTop: "4px", marginBottom: "4px", textAlign: "left" }}>
           <span style={{ color: color, fontWeight: "bold" }}>•</span>
           <span style={{ flex: 1 }}>{lineContent}</span>
         </span>
       );
     } else {
       return (
-        <span key={index} style={{ display: "block", minHeight: linea === "" ? "0.75em" : undefined, ...estiloTextoCSS(undefined, tipo) }}>
+        <span key={index} style={{ display: "block", minHeight: linea === "" ? "0.75em" : undefined }}>
           {lineContent}
         </span>
       );
@@ -290,23 +293,38 @@ export function Ph({ children }: { children: React.ReactNode }) {
   return <div className={styles.ph}>{children}</div>;
 }
 
+export function altoSeccionMinHeight(altoSeccion?: "minimo" | "medio" | "completo", canvasHeight?: string): string | undefined {
+  const pct = altoSeccion === "completo" ? 1 : altoSeccion === "medio" ? 0.55 : undefined;
+  if (pct === undefined) return undefined;
+  if (canvasHeight && canvasHeight.endsWith("px")) {
+    const px = parseFloat(canvasHeight);
+    if (px > 0) return `${px * pct}px`;
+  }
+  return `${pct * 100}vh`;
+}
+
 /** Envuelve una sección aplicando su fondo: color sólido o imagen con overlay oscuro (excluyentes entre sí). */
-export function FondoWrapper({ colorFondo, imagenFondo, imagenFondoOverlay, children }: {
+export function FondoWrapper({ colorFondo, imagenFondo, imagenFondoOverlay, altoSeccion, canvasHeight, children }: {
   colorFondo?: string;
   imagenFondo?: MediaItem;
   imagenFondoOverlay?: number;
+  altoSeccion?: "minimo" | "medio" | "completo";
+  canvasHeight?: string;
   children: React.ReactNode;
 }) {
+  const minHeight = altoSeccionMinHeight(altoSeccion, canvasHeight);
+  const alturaStyle: React.CSSProperties = minHeight ? { minHeight, display: "flex", flexDirection: "column", justifyContent: "center" } : {};
+
   if (imagenFondo?.url) {
     return (
-      <div style={{ position: "relative" }}>
+      <div style={{ position: "relative", ...alturaStyle }}>
         <div style={{ position: "absolute", inset: 0, backgroundImage: `url(${imagenFondo.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
         <div style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${imagenFondoOverlay ?? 0.4})` }} />
-        <div style={{ position: "relative" }}>{children}</div>
+        <div style={{ position: "relative", width: "100%" }}>{children}</div>
       </div>
     );
   }
-  return <div style={{ background: colorFondo ?? "#ffffff" }}>{children}</div>;
+  return <div style={{ background: colorFondo ?? "#ffffff", ...alturaStyle }}>{children}</div>;
 }
 export function Bar({ w }: { w: string }) {
   return <div className={styles.phBar} style={{ width: w }} />;
@@ -682,6 +700,8 @@ export function PHTextoImagenes({
   colorFondo,
   imagenFondo,
   imagenFondoOverlay,
+  altoSeccion,
+  canvasHeight,
   estiloTitulo,
   estiloSubtitulo,
   anchoMax
@@ -694,6 +714,8 @@ export function PHTextoImagenes({
   colorFondo?: string;
   imagenFondo?: MediaItem;
   imagenFondoOverlay?: number;
+  altoSeccion?: "minimo" | "medio" | "completo";
+  canvasHeight?: string;
   estiloTitulo?: TextoEstilo;
   estiloSubtitulo?: TextoEstilo;
   anchoMax?: string;
@@ -762,7 +784,7 @@ export function PHTextoImagenes({
 
   const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
   return (
-    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
         <div className={`${styles.phTextoImagenes} ${mobile ? styles.phCol1 : ""}`} style={{ maxWidth: customMaxWidth }}>
           {imgIzq ? <>{img}{texto}</> : <>{texto}{img}</>}
@@ -922,7 +944,7 @@ export function renderTextWithBold(text?: string, estilo?: TextoEstilo, defaultT
   });
 }
 
-export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFondoOverlay, fechaDesde, fechaHasta, dias, titulo, estiloTitulo, estiloTituloDia, estiloDescDia, anchoMax }: { mobile?: boolean; layout?: string; colorFondo?: string; imagenFondo?: MediaItem; imagenFondoOverlay?: number; fechaDesde?: string; fechaHasta?: string; dias?: { dia: number; titulo?: string; desc?: string; media?: MediaItem; medias?: MediaItem[] }[]; titulo?: string; estiloTitulo?: TextoEstilo; estiloTituloDia?: TextoEstilo; estiloDescDia?: TextoEstilo; anchoMax?: string }) {
+export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFondoOverlay, altoSeccion, canvasHeight, fechaDesde, fechaHasta, dias, titulo, estiloTitulo, estiloTituloDia, estiloDescDia, anchoMax }: { mobile?: boolean; layout?: string; colorFondo?: string; imagenFondo?: MediaItem; imagenFondoOverlay?: number; altoSeccion?: "minimo" | "medio" | "completo"; canvasHeight?: string; fechaDesde?: string; fechaHasta?: string; dias?: { dia: number; titulo?: string; desc?: string; media?: MediaItem; medias?: MediaItem[] }[]; titulo?: string; estiloTitulo?: TextoEstilo; estiloTituloDia?: TextoEstilo; estiloDescDia?: TextoEstilo; anchoMax?: string }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const esAcordeon = layout === "acordeon";
 
@@ -955,7 +977,7 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
 
   if (esAcordeon && !mobile) {
     return (
-      <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
+      <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
         <Ph>
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%", maxWidth: customMaxWidth, margin: "0 auto" }}>
             {titulo ? (
@@ -1034,7 +1056,7 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
   }
 
   return (
-    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", maxWidth: customMaxWidth, margin: "0 auto" }}>
           {titulo ? (
@@ -1093,7 +1115,7 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
   );
 }
 
-export function PHMapa({ titulo, mapas, layout, anchoMax, colorFondo, imagenFondo, imagenFondoOverlay }: {
+export function PHMapa({ titulo, mapas, layout, anchoMax, colorFondo, imagenFondo, imagenFondoOverlay, altoSeccion, canvasHeight }: {
   titulo?: string;
   mapas?: Seccion["mapas"];
   layout?: string;
@@ -1101,6 +1123,8 @@ export function PHMapa({ titulo, mapas, layout, anchoMax, colorFondo, imagenFond
   colorFondo?: string;
   imagenFondo?: MediaItem;
   imagenFondoOverlay?: number;
+  altoSeccion?: "minimo" | "medio" | "completo";
+  canvasHeight?: string;
 }) {
   const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
   const mapasList = mapas ?? [];
@@ -1190,7 +1214,7 @@ export function PHMapa({ titulo, mapas, layout, anchoMax, colorFondo, imagenFond
   );
 
   return (
-    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
         <div style={{ maxWidth: customMaxWidth, margin: "0 auto", padding: "1.5rem" }}>
           {titulo ? (
@@ -1238,7 +1262,7 @@ export function PHMapa({ titulo, mapas, layout, anchoMax, colorFondo, imagenFond
   );
 }
 
-export function PHRuta({ titulo, rutas, layout, anchoMax, colorFondo, imagenFondo, imagenFondoOverlay }: {
+export function PHRuta({ titulo, rutas, layout, anchoMax, colorFondo, imagenFondo, imagenFondoOverlay, altoSeccion, canvasHeight }: {
   titulo?: string;
   rutas?: Seccion["rutas"];
   layout?: string;
@@ -1246,6 +1270,8 @@ export function PHRuta({ titulo, rutas, layout, anchoMax, colorFondo, imagenFond
   colorFondo?: string;
   imagenFondo?: MediaItem;
   imagenFondoOverlay?: number;
+  altoSeccion?: "minimo" | "medio" | "completo";
+  canvasHeight?: string;
 }) {
   const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
   const rutasList = rutas ?? [];
@@ -1315,7 +1341,7 @@ export function PHRuta({ titulo, rutas, layout, anchoMax, colorFondo, imagenFond
   );
 
   return (
-    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
         <div style={{ maxWidth: customMaxWidth, margin: "0 auto", padding: "1.5rem" }}>
           {titulo ? (
@@ -1358,10 +1384,12 @@ export function PHPrecio({
   mobile,
   tablet,
   seccion,
+  canvasHeight,
 }: {
   mobile?: boolean;
   tablet?: boolean;
   seccion?: Seccion;
+  canvasHeight?: string;
 }) {
   if (!seccion) return null;
 
@@ -1386,7 +1414,7 @@ export function PHPrecio({
 
   if (layout === "card-premium") {
     return (
-      <FondoWrapper colorFondo={seccion.colorFondo} imagenFondo={seccion.imagenFondo} imagenFondoOverlay={seccion.imagenFondoOverlay}>
+      <FondoWrapper colorFondo={seccion.colorFondo} imagenFondo={seccion.imagenFondo} imagenFondoOverlay={seccion.imagenFondoOverlay} altoSeccion={seccion.altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
         <div style={containerStyle}>
           <div style={{
@@ -1434,7 +1462,7 @@ export function PHPrecio({
 
   if (layout === "split-horizontal") {
     return (
-      <FondoWrapper colorFondo={seccion.colorFondo} imagenFondo={seccion.imagenFondo} imagenFondoOverlay={seccion.imagenFondoOverlay}>
+      <FondoWrapper colorFondo={seccion.colorFondo} imagenFondo={seccion.imagenFondo} imagenFondoOverlay={seccion.imagenFondoOverlay} altoSeccion={seccion.altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
         <div style={containerStyle}>
           <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
@@ -1480,7 +1508,7 @@ export function PHPrecio({
   }
 
   return (
-    <FondoWrapper colorFondo={seccion.colorFondo} imagenFondo={seccion.imagenFondo} imagenFondoOverlay={seccion.imagenFondoOverlay}>
+    <FondoWrapper colorFondo={seccion.colorFondo} imagenFondo={seccion.imagenFondo} imagenFondoOverlay={seccion.imagenFondoOverlay} altoSeccion={seccion.altoSeccion} canvasHeight={canvasHeight}>
     <Ph>
       <div style={containerStyle}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: "2.5rem" }}>
@@ -1515,10 +1543,12 @@ export function PHFormulario({
   mobile,
   seccion,
   agente,
+  canvasHeight,
 }: {
   mobile?: boolean;
   seccion?: Seccion;
   agente?: any;
+  canvasHeight?: string;
 }) {
   const [enviado, setEnviado] = React.useState(false);
   const [formData, setFormData] = React.useState<Record<string, string>>({});
@@ -1658,8 +1688,8 @@ export function PHFormulario({
       gap: "1.5rem"
     }}>
       <div>
-        <h3 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800, color: "#1e293b" }}>¿Tienes alguna duda o quieres confirmar?</h3>
-        <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.88rem", color: "#64748b" }}>Rellena el formulario y te responderemos de inmediato.</p>
+        <h3 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800, color: "#1e293b" }}>{seccion.formularioTitulo || "¿Tienes alguna duda o quieres confirmar?"}</h3>
+        <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.88rem", color: "#64748b" }}>{seccion.formularioSubtitulo || "Rellena el formulario y te responderemos de inmediato."}</p>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
@@ -1732,7 +1762,7 @@ export function PHFormulario({
   );
 
   return (
-    <FondoWrapper colorFondo={seccion.colorFondo} imagenFondo={seccion.imagenFondo} imagenFondoOverlay={seccion.imagenFondoOverlay}>
+    <FondoWrapper colorFondo={seccion.colorFondo} imagenFondo={seccion.imagenFondo} imagenFondoOverlay={seccion.imagenFondoOverlay} altoSeccion={seccion.altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
         <div style={containerStyle}>
           {layout === "form-contacto" ? (
@@ -1774,6 +1804,8 @@ export function PHTextoColumnas({
   colorFondo,
   imagenFondo,
   imagenFondoOverlay,
+  altoSeccion,
+  canvasHeight,
   estiloTitulo,
   estiloTituloDia,
   estiloDescDia,
@@ -1786,6 +1818,8 @@ export function PHTextoColumnas({
   colorFondo?: string;
   imagenFondo?: MediaItem;
   imagenFondoOverlay?: number;
+  altoSeccion?: "minimo" | "medio" | "completo";
+  canvasHeight?: string;
   estiloTitulo?: TextoEstilo;
   estiloTituloDia?: TextoEstilo;
   estiloDescDia?: TextoEstilo;
@@ -1815,7 +1849,7 @@ export function PHTextoColumnas({
   const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
 
   return (
-    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
         <div className={styles.phTextoColumnas} style={{ maxWidth: customMaxWidth }}>
           {titulo ? (
@@ -1856,6 +1890,8 @@ export function PHCards({
   colorFondo,
   imagenFondo,
   imagenFondoOverlay,
+  altoSeccion,
+  canvasHeight,
   estiloTitulo,
   estiloTituloDia,
   estiloDescDia,
@@ -1867,6 +1903,8 @@ export function PHCards({
   colorFondo?: string;
   imagenFondo?: MediaItem;
   imagenFondoOverlay?: number;
+  altoSeccion?: "minimo" | "medio" | "completo";
+  canvasHeight?: string;
   estiloTitulo?: TextoEstilo;
   estiloTituloDia?: TextoEstilo;
   estiloDescDia?: TextoEstilo;
@@ -1875,9 +1913,11 @@ export function PHCards({
 }) {
   const lista = cards ?? [];
   const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const seccionMinHeight = altoSeccionMinHeight(altoSeccion, canvasHeight);
+  const cardHeight = seccionMinHeight ? `calc(${seccionMinHeight} * 0.5)` : undefined;
 
   return (
-    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
         <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
           {titulo ? (
@@ -1901,9 +1941,9 @@ export function PHCards({
                     key={card.uid}
                     {...(href ? { href, target: card.enlaceTipo === "externo" ? "_blank" : undefined, rel: card.enlaceTipo === "externo" ? "noopener noreferrer" : undefined } : {})}
                     className={styles.phOfertaCard}
-                    style={{ position: "relative", flex: "1 1 0%", minWidth: mobile ? "160px" : "0", aspectRatio: "4 / 3", cursor: href ? "pointer" : "default", textDecoration: "none", color: "inherit", overflow: "hidden", border: "1px solid #ffffff" }}
+                    style={{ position: "relative", flex: "1 1 0%", minWidth: mobile ? "160px" : "0", ...(cardHeight ? { height: cardHeight } : { aspectRatio: "4 / 3" }), cursor: href ? "pointer" : "default", textDecoration: "none", color: "inherit", overflow: "hidden", border: "1px solid #ffffff" }}
                   >
-                    <div style={{ position: "absolute", inset: 0, backgroundImage: card.media?.url ? `url(${card.media.url})` : undefined, backgroundColor: card.media?.url ? undefined : "#e2e8f0", backgroundSize: "cover", backgroundPosition: "center" }} />
+                    <div className={styles.phOfertaCardImg} style={{ position: "absolute", inset: 0, backgroundImage: card.media?.url ? `url(${card.media.url})` : undefined, backgroundColor: card.media?.url ? undefined : "#e2e8f0", backgroundSize: "cover", backgroundPosition: "center" }} />
                     {(card.titulo || card.subtitulo) && (
                       <>
                         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(15,23,42,0) 40%, rgba(15,23,42,0.75) 100%)" }} />
@@ -1931,6 +1971,8 @@ export function PHGaleria({
   colorFondo,
   imagenFondo,
   imagenFondoOverlay,
+  altoSeccion,
+  canvasHeight,
   estiloTitulo,
   anchoMax,
   galeria,
@@ -1941,6 +1983,8 @@ export function PHGaleria({
   colorFondo?: string;
   imagenFondo?: MediaItem;
   imagenFondoOverlay?: number;
+  altoSeccion?: "minimo" | "medio" | "completo";
+  canvasHeight?: string;
   estiloTitulo?: TextoEstilo;
   anchoMax?: string;
   galeria?: { uid: string; media?: MediaItem }[];
@@ -1951,7 +1995,7 @@ export function PHGaleria({
   const columnas = mobile ? Math.min(2, columnasDeseadas) : columnasDeseadas;
 
   return (
-    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
         <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
           {titulo ? (
@@ -2004,6 +2048,8 @@ export function PHListado({
   colorFondo,
   imagenFondo,
   imagenFondoOverlay,
+  altoSeccion,
+  canvasHeight,
   estiloTitulo,
   estiloTituloDia,
   anchoMax,
@@ -2017,6 +2063,8 @@ export function PHListado({
   colorFondo?: string;
   imagenFondo?: MediaItem;
   imagenFondoOverlay?: number;
+  altoSeccion?: "minimo" | "medio" | "completo";
+  canvasHeight?: string;
   estiloTitulo?: TextoEstilo;
   estiloTituloDia?: TextoEstilo;
   anchoMax?: string;
@@ -2037,7 +2085,7 @@ export function PHListado({
   const esArticulo = estiloTarjeta === "articulo";
 
   return (
-    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
         <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
           {titulo ? (
@@ -2116,6 +2164,8 @@ export function PHNegoPlanet({
   colorFondo,
   imagenFondo,
   imagenFondoOverlay,
+  altoSeccion,
+  canvasHeight,
   estiloTitulo,
   estiloTituloDia,
   anchoMax,
@@ -2127,6 +2177,8 @@ export function PHNegoPlanet({
   colorFondo?: string;
   imagenFondo?: MediaItem;
   imagenFondoOverlay?: number;
+  altoSeccion?: "minimo" | "medio" | "completo";
+  canvasHeight?: string;
   estiloTitulo?: TextoEstilo;
   estiloTituloDia?: TextoEstilo;
   anchoMax?: string;
@@ -2136,7 +2188,7 @@ export function PHNegoPlanet({
   const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
 
   return (
-    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
         <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
           {titulo ? (
@@ -2193,6 +2245,8 @@ export function PHNegoPlanetDestinos({
   colorFondo,
   imagenFondo,
   imagenFondoOverlay,
+  altoSeccion,
+  canvasHeight,
   estiloTitulo,
   estiloTituloDia,
   anchoMax,
@@ -2204,6 +2258,8 @@ export function PHNegoPlanetDestinos({
   colorFondo?: string;
   imagenFondo?: MediaItem;
   imagenFondoOverlay?: number;
+  altoSeccion?: "minimo" | "medio" | "completo";
+  canvasHeight?: string;
   estiloTitulo?: TextoEstilo;
   estiloTituloDia?: TextoEstilo;
   anchoMax?: string;
@@ -2233,7 +2289,7 @@ export function PHNegoPlanetDestinos({
   const abrirSub = (post_name: string) => setSub(prev => prev === post_name ? null : post_name);
 
   return (
-    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay}>
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
         <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
           {titulo ? (
@@ -2408,18 +2464,18 @@ export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dis
   switch (s.tipo) {
     case "menu":           return <PHMenu key={s.uid} mobile={mobile} seccion={s} secciones={allSecciones} landingHref={landingHref} />;
     case "portada":        return <PHPortada key={s.uid} height={canvasHeight} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} medias={s.medias} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} colorFondo={s.colorFondo} />;
-    case "texto-imagenes": return <PHTextoImagenes key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} medias={s.medias} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} anchoMax={s.anchoMax} />;
-    case "texto-columnas": return <PHTextoColumnas key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} columnas={s.columnas} anchoMax={s.anchoMax} />;
-    case "itinerario":     return <PHItinerario key={s.uid} mobile={mobile} layout={s.layout} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} fechaDesde={s.fechaDesde} fechaHasta={s.fechaHasta} dias={s.dias} titulo={s.titulo} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} anchoMax={s.anchoMax} />;
-    case "mapa":           return <PHMapa key={s.uid} titulo={s.titulo} mapas={s.mapas} layout={s.layout} anchoMax={s.anchoMax} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} />;
-    case "ruta":           return <PHRuta key={s.uid} titulo={s.titulo} rutas={s.rutas} layout={s.layout} anchoMax={s.anchoMax} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} />;
-    case "cards":          return <PHCards key={s.uid} mobile={mobile} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} anchoMax={s.anchoMax} cards={s.cards} />;
-    case "galeria":        return <PHGaleria key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} estiloTitulo={s.estiloTitulo} anchoMax={s.anchoMax} galeria={s.galeria} />;
-    case "ofertas":        return <PHListado key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} anchoMax={s.anchoMax} formatoId={s.listadoFormatoId} items={listadoItemsPorSeccion?.[s.uid]} estiloTarjeta={s.listadoEstiloTarjeta} />;
-    case "nego-planet-programas": return <PHNegoPlanet key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} anchoMax={s.anchoMax} items={s.negoPlanetModo === "auto" ? (listadoItemsPorSeccion?.[s.uid] as any as NegoPlanetItem[] | undefined) : s.negoPlanetItems} />;
-    case "nego-planet-destinos":  return <PHNegoPlanetDestinos key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} anchoMax={s.anchoMax} arbol={listadoItemsPorSeccion?.[s.uid] as any} />;
-    case "precio":         return <PHPrecio key={s.uid} mobile={mobile} tablet={tablet} seccion={s} />;
-    case "formulario":     return <PHFormulario key={s.uid} mobile={mobile} seccion={s} agente={agente} />;
+    case "texto-imagenes": return <PHTextoImagenes key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} medias={s.medias} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} anchoMax={s.anchoMax} />;
+    case "texto-columnas": return <PHTextoColumnas key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} columnas={s.columnas} anchoMax={s.anchoMax} />;
+    case "itinerario":     return <PHItinerario key={s.uid} mobile={mobile} layout={s.layout} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} fechaDesde={s.fechaDesde} fechaHasta={s.fechaHasta} dias={s.dias} titulo={s.titulo} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} anchoMax={s.anchoMax} />;
+    case "mapa":           return <PHMapa key={s.uid} titulo={s.titulo} mapas={s.mapas} layout={s.layout} anchoMax={s.anchoMax} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} />;
+    case "ruta":           return <PHRuta key={s.uid} titulo={s.titulo} rutas={s.rutas} layout={s.layout} anchoMax={s.anchoMax} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} />;
+    case "cards":          return <PHCards key={s.uid} mobile={mobile} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} anchoMax={s.anchoMax} cards={s.cards} />;
+    case "galeria":        return <PHGaleria key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} anchoMax={s.anchoMax} galeria={s.galeria} />;
+    case "ofertas":        return <PHListado key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} anchoMax={s.anchoMax} formatoId={s.listadoFormatoId} items={listadoItemsPorSeccion?.[s.uid]} estiloTarjeta={s.listadoEstiloTarjeta} />;
+    case "nego-planet-programas": return <PHNegoPlanet key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} anchoMax={s.anchoMax} items={s.negoPlanetModo === "auto" ? (listadoItemsPorSeccion?.[s.uid] as any as NegoPlanetItem[] | undefined) : s.negoPlanetItems} />;
+    case "nego-planet-destinos":  return <PHNegoPlanetDestinos key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} anchoMax={s.anchoMax} arbol={listadoItemsPorSeccion?.[s.uid] as any} />;
+    case "precio":         return <PHPrecio key={s.uid} mobile={mobile} tablet={tablet} seccion={s} canvasHeight={canvasHeight} />;
+    case "formulario":     return <PHFormulario key={s.uid} mobile={mobile} seccion={s} agente={agente} canvasHeight={canvasHeight} />;
     case "footer":         return <PHFooter key={s.uid} mobile={mobile} />;
     default: return <Ph key={s.uid}><span className={styles.phLabel}>{s.label}</span></Ph>;
   }

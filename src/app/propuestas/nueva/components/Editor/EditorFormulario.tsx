@@ -25,6 +25,30 @@ export default function EditorFormulario({
   return (
     <>
       <div className={styles.editorSection}>
+        <label className={styles.editorFieldLabel}>Título</label>
+        <input
+          type="text"
+          className={styles.editorInput}
+          style={{ width: "100%", padding: "0.5rem", borderRadius: "0.375rem", border: "1px solid #e2e8f0" }}
+          value={seccion.formularioTitulo ?? ""}
+          onChange={e => onUpdate(seccion.uid, { formularioTitulo: e.target.value })}
+          placeholder="¿Tienes alguna duda o quieres confirmar?"
+        />
+      </div>
+
+      <div className={styles.editorSection}>
+        <label className={styles.editorFieldLabel}>Subtítulo</label>
+        <input
+          type="text"
+          className={styles.editorInput}
+          style={{ width: "100%", padding: "0.5rem", borderRadius: "0.375rem", border: "1px solid #e2e8f0" }}
+          value={seccion.formularioSubtitulo ?? ""}
+          onChange={e => onUpdate(seccion.uid, { formularioSubtitulo: e.target.value })}
+          placeholder="Rellena el formulario y te responderemos de inmediato."
+        />
+      </div>
+
+      <div className={styles.editorSection}>
         <label className={styles.editorFieldLabel}>Email de envío (Agente)</label>
         <input
           type="email"

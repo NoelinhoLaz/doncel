@@ -162,6 +162,8 @@ export function PropuestaEditor({
       condiciones: s.condiciones,
       // Formulario fields
       formularioCampos: s.formularioCampos,
+      formularioTitulo: s.formularioTitulo,
+      formularioSubtitulo: s.formularioSubtitulo,
       formularioEmail: s.formularioEmail,
       formularioBoton: s.formularioBoton,
       // Ofertas fields
@@ -178,6 +180,7 @@ export function PropuestaEditor({
         colorFondo: s.colorFondo,
         imagenFondo: s.imagenFondo,
         imagenFondoOverlay: s.imagenFondoOverlay,
+        altoSeccion: s.altoSeccion,
         anchoMax: s.anchoMax,
         // Diseño del menú
         menuColorFondo: s.menuColorFondo,
