@@ -1,7 +1,7 @@
 import React from "react";
 import DOMPurify from "dompurify";
 import type { TextoEstilo } from "../types";
-import { estiloTextoCSS, sustituirVariables } from "./style-utils";
+import { sustituirVariables } from "./style-utils";
 
 const ALLOWED_TAGS = ["p", "strong", "em", "s", "code", "ul", "ol", "li", "br", "a"];
 const ALLOWED_ATTR = ["href", "target", "rel"];
@@ -84,7 +84,6 @@ export function renderRichText(texto: string | undefined, opts: RenderRichTextOp
     <span
       className="momo-rich-inline"
       style={{
-        ...estiloTextoCSS(opts.estilo, tipo),
         ["--momo-color-destacado" as any]: color,
         ["--momo-grosor-destacado" as any]: grosor,
       }}
