@@ -75,6 +75,7 @@ export function WebEditor({
   const [editorUid, setEditorUid] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
+  const [titulo, setTitulo] = useState(paginaTitulo ?? "");
   const [activeTab, setActiveTab] = useState<"contenido" | "diseño">("contenido");
   const [estilosGlobales, setEstilosGlobales] = useState<any>(initialEstilosGlobales ?? {
     titulo: { fuente: "Raleway", grosor: "800", tamano: "32px", color: "#1e293b", colorDestacado: "#6366f1" },
@@ -145,10 +146,8 @@ export function WebEditor({
       }))
     ];
 
-    const portada = secciones.find(s => s.tipo === "portada");
-
     try {
-      const result = await guardarPaginaWeb({ id: paginaId, titulo: portada?.titulo, editorContent, designTokens });
+      const result = await guardarPaginaWeb({ id: paginaId, titulo, editorContent, designTokens });
       if (!result.ok) throw new Error(result.error);
       setGuardadoOk(true);
       setTimeout(() => setGuardadoOk(false), 3000);
@@ -316,7 +315,14 @@ export function WebEditor({
         >
           <ArrowLeft size={18} />
         </button>
-        <h1 className={styles.title} style={{ margin: 0 }}>{paginaTitulo || "Página web"}</h1>
+        <input
+          type="text"
+          value={titulo}
+          onChange={e => setTitulo(e.target.value)}
+          placeholder="Página web"
+          className={styles.title}
+          style={{ margin: 0, border: "none", outline: "none", background: "transparent", padding: 0, width: "100%" }}
+        />
       </div>
 
       <div className={styles.columns}>

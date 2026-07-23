@@ -3,7 +3,7 @@
 import React from "react";
 import styles from "../../page.module.css";
 import type { Seccion } from "../../types";
-import HighlightTextarea from "./HighlightTextarea";
+import InlineRichInput from "./InlineRichInput";
 
 export default function EditorPrecio({
   seccion,
@@ -16,21 +16,19 @@ export default function EditorPrecio({
     <>
       <div className={styles.editorSection}>
         <label className={styles.editorFieldLabel}>PVP (Precio Venta Público)</label>
-        <HighlightTextarea
+        <InlineRichInput
           value={seccion.pvp ?? ""}
-          onChange={e => onUpdate(seccion.uid, { pvp: e.target.value })}
+          onChange={html => onUpdate(seccion.uid, { pvp: html })}
           placeholder="Ej: 1.600 € / persona o 3.200 € total"
-          rows={2}
         />
       </div>
 
       <div className={styles.editorSection}>
         <label className={styles.editorFieldLabel}>Condiciones de Reserva</label>
-        <HighlightTextarea
+        <InlineRichInput
           value={seccion.condiciones ?? ""}
-          onChange={e => onUpdate(seccion.uid, { condiciones: e.target.value })}
-          placeholder="Ej: - Pago del 30% al confirmar la reserva..."
-          rows={4}
+          onChange={html => onUpdate(seccion.uid, { condiciones: html })}
+          placeholder="Ej: Pago del 30% al confirmar la reserva..."
         />
       </div>
     </>

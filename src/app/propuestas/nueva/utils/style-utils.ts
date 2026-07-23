@@ -62,6 +62,26 @@ export function getStyleVars(estilosGlobales: any) {
   } as React.CSSProperties;
 }
 
+export const VARIABLES_PROPUESTA: Record<string, string> = {
+  "[Nombre_Cliente]": "María",
+  "[Apellidos_Cliente]": "García López",
+  "[Nombre_Responsable]": "Carlos Martínez",
+  "[Fecha_Salida]": "15 de agosto de 2025",
+  "[Fecha_Vuelta]": "25 de agosto de 2025",
+  "[Destino]": "París",
+  "[Num_Viajeros]": "2",
+  "[Num_Noches]": "10",
+  "[Precio_Total]": "3.200 €",
+  "[Precio_Por_Persona]": "1.600 €",
+};
+
+export function sustituirVariables(texto: string): string {
+  return Object.entries(VARIABLES_PROPUESTA).reduce(
+    (t, [key, val]) => t.replaceAll(key, val),
+    texto
+  );
+}
+
 export function getMaxWidth(anchoMax?: string): string {
   if (anchoMax === "900px")  return "min(900px, 46.875cqw)";
   if (anchoMax === "1200px") return "min(1200px, 62.5cqw)";

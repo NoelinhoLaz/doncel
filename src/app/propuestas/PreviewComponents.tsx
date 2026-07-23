@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import styles from "./nueva/page.module.css";
 import { resolverItemsMenu } from "./nueva/utils/menu-utils";
+import { renderRichText } from "./nueva/utils/render-rich-text";
 
 export type MediaItem = { tipo: "unsplash" | "link" | "upload" | "video"; url: string };
 
@@ -251,42 +252,7 @@ export function sustituirVariables(texto: string): string {
 }
 
 export function renderConDestacado(texto: string, colorDestacado?: string, grosorDestacado?: string, defaultTipo?: "titulo" | "subtitulo" | "parrafo" | "negrita"): React.ReactNode {
-  if (!texto) return null;
-  const tipo = defaultTipo ?? "parrafo";
-  const color = (colorDestacado && colorDestacado !== "#ffffff" && colorDestacado !== "#1e293b" && colorDestacado !== "#64748b" && colorDestacado !== "#334155") 
-    ? colorDestacado 
-    : `var(--momo-color-destacado-${tipo})`;
-  const grosor = grosorDestacado || "bold";
-
-  const textoConVariables = sustituirVariables(texto);
-  const lineas = textoConVariables.split("\n");
-  return lineas.map((linea, index) => {
-    const trimmed = linea.trim();
-    const esVineta = trimmed.startsWith(".-");
-    const contenidoLinea = esVineta ? trimmed.slice(2).trim() : linea;
-
-    const partes = contenidoLinea.split(/(\*\*.*?\*\*)/g);
-    const lineContent = partes.map((p, i) =>
-      p.startsWith("**") && p.endsWith("**")
-        ? <strong key={i} style={{ color: color, fontWeight: grosor as any }}>{p.slice(2, -2)}</strong>
-        : p
-    );
-
-    if (esVineta) {
-      return (
-        <span key={index} style={{ display: "flex", gap: "8px", alignItems: "flex-start", paddingLeft: "8px", marginTop: "4px", marginBottom: "4px", textAlign: "left" }}>
-          <span style={{ color: color, fontWeight: "bold" }}>•</span>
-          <span style={{ flex: 1 }}>{lineContent}</span>
-        </span>
-      );
-    } else {
-      return (
-        <span key={index} style={{ display: "block", minHeight: linea === "" ? "0.75em" : undefined }}>
-          {lineContent}
-        </span>
-      );
-    }
-  });
+  return renderRichText(texto, { colorDestacado, grosorDestacado, defaultTipo });
 }
 
 export function Ph({ children }: { children: React.ReactNode }) {
@@ -1946,10 +1912,14 @@ export function PHCards({
                     <div className={styles.phOfertaCardImg} style={{ position: "absolute", inset: 0, backgroundImage: card.media?.url ? `url(${card.media.url})` : undefined, backgroundColor: card.media?.url ? undefined : "#e2e8f0", backgroundSize: "cover", backgroundPosition: "center" }} />
                     {(card.titulo || card.subtitulo) && (
                       <>
-                        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(15,23,42,0) 40%, rgba(15,23,42,0.75) 100%)" }} />
+                        <div className={styles.phOfertaCardOverlay} style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(15,23,42,0) 40%, rgba(15,23,42,0.75) 100%)" }} />
                         <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 1, padding: mobile ? "0.75rem" : "1rem" }}>
                           {card.titulo && <h4 style={{ fontSize: "0.95rem", fontWeight: 800, color: "#ffffff", margin: 0, textShadow: "0 1px 6px rgba(0,0,0,0.35)", ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{card.titulo}</h4>}
-                          {card.subtitulo && <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.9)", margin: "4px 0 0 0", textShadow: "0 1px 4px rgba(0,0,0,0.3)", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{card.subtitulo}</p>}
+                          {card.subtitulo && (
+                            <div className={styles.phOfertaCardSubtituloWrap}>
+                              <p className={styles.phOfertaCardSubtitulo} style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.9)", margin: 0, textShadow: "0 1px 4px rgba(0,0,0,0.3)", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{card.subtitulo}</p>
+                            </div>
+                          )}
                         </div>
                       </>
                     )}

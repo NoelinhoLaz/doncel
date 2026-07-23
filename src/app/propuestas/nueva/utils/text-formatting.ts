@@ -1,27 +1,13 @@
 import React from "react";
 import type { TextoEstilo } from "../types";
 import { FUENTE_FAMILY } from "../constants";
-import { estiloTextoCSS } from "./style-utils";
+import { estiloTextoCSS, sustituirVariables, VARIABLES_PROPUESTA } from "./style-utils";
+import { renderRichText } from "./render-rich-text";
 
-// Variables que se sustituyen en el previsualizador
-export const VARIABLES_PROPUESTA: Record<string, string> = {
-  "[Nombre_Cliente]": "María",
-  "[Apellidos_Cliente]": "García López",
-  "[Nombre_Responsable]": "Carlos Martínez",
-  "[Fecha_Salida]": "15 de agosto de 2025",
-  "[Fecha_Vuelta]": "25 de agosto de 2025",
-  "[Destino]": "París",
-  "[Num_Viajeros]": "2",
-  "[Num_Noches]": "10",
-  "[Precio_Total]": "3.200 €",
-  "[Precio_Por_Persona]": "1.600 €",
-};
+export { VARIABLES_PROPUESTA };
 
-function sustituirVariables(texto: string): string {
-  return Object.entries(VARIABLES_PROPUESTA).reduce(
-    (t, [key, val]) => t.replaceAll(key, val),
-    texto
-  );
+function esHTML(texto: string): boolean {
+  return /^\s*<[a-z][\s\S]*>/i.test(texto);
 }
 
 // Divide un fragmento de texto en partes: links [texto](url) y texto plano
@@ -105,6 +91,10 @@ export function parseFormattedText(
   defaultTipo?: "titulo" | "subtitulo" | "parrafo" | "negrita"
 ): React.ReactNode {
   if (!texto) return null;
+
+  if (esHTML(texto)) {
+    return renderRichText(texto, { colorDestacado, grosorDestacado, estilo, defaultTipo });
+  }
 
   const tipo = defaultTipo ?? "parrafo";
   const localColor = colorDestacado ?? estilo?.colorDestacado;

@@ -5,7 +5,7 @@ import { Video, X, Sparkles } from "lucide-react";
 import styles from "../../page.module.css";
 import type { Seccion } from "../../types";
 import MediaSelector from "./MediaSelector";
-import HighlightTextarea from "./HighlightTextarea";
+import InlineRichInput from "./InlineRichInput";
 import { youtubeId } from "../../utils/video-utils";
 
 export default function EditorPortada({
@@ -111,11 +111,10 @@ export default function EditorPortada({
             <span className={styles.aiAssistText}>Generar</span>
           </button>
         </div>
-        <HighlightTextarea
+        <InlineRichInput
           value={seccion.titulo ?? ""}
-          onChange={e => onUpdate(seccion.uid, { titulo: e.target.value })}
+          onChange={html => onUpdate(seccion.uid, { titulo: html })}
           placeholder="Título principal…"
-          rows={2}
         />
       </div>
       <div className={styles.editorSection}>
@@ -132,11 +131,10 @@ export default function EditorPortada({
             <span className={styles.aiAssistText}>Generar</span>
           </button>
         </div>
-        <HighlightTextarea
+        <InlineRichInput
           value={seccion.subtitulo ?? ""}
-          onChange={e => onUpdate(seccion.uid, { subtitulo: e.target.value })}
+          onChange={html => onUpdate(seccion.uid, { subtitulo: html })}
           placeholder="Subtítulo o descripción…"
-          rows={3}
         />
       </div>
     </>

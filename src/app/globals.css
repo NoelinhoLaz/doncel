@@ -258,3 +258,34 @@ input[type="checkbox"]:not([style*="opacity: 0"]):checked::after {
   pointer-events: none;
   height: 0;
 }
+
+.momo-rich-inline p {
+  margin: 0;
+}
+.momo-rich-inline strong {
+  color: var(--momo-color-destacado, inherit);
+  font-weight: var(--momo-grosor-destacado, bold);
+}
+.momo-rich-inline ul,
+.momo-rich-inline ol {
+  margin: 0.25rem 0 0 0;
+  padding-left: 1.25rem;
+}
+.momo-rich-inline li::marker {
+  color: var(--momo-color-destacado, inherit);
+  font-weight: bold;
+}
+.momo-rich-inline code {
+  background: rgba(0,0,0,0.08);
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.9em;
+}
+.momo-rich-inline .is-editor-empty:first-child::before,
+.momo-rich-inline p.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #cbd5e1;
+  pointer-events: none;
+  height: 0;
+}

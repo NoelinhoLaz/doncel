@@ -47,8 +47,11 @@ export function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onTog
   }, [seccion.uid]);
 
   const mejorarConIA = async (campo: "titulo" | "subtitulo") => {
-    const valorActual = seccion[campo] ?? "";
-    if (!valorActual.trim()) return;
+    const valorActualRaw = seccion[campo] ?? "";
+    if (!valorActualRaw.trim()) return;
+    // El campo puede contener HTML (editor Tiptap); se analiza el texto plano.
+    const valorActual = valorActualRaw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (!valorActual) return;
 
     setOptimizandoIA(campo);
     await new Promise(resolve => setTimeout(resolve, 1200));
@@ -104,7 +107,8 @@ export function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onTog
       nuevoValor = filtrados[Math.floor(Math.random() * filtrados.length)] ?? parrafos[0];
     }
 
-    onUpdate(seccion.uid, { [campo]: nuevoValor });
+    const html = `<p>${nuevoValor.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")}</p>`;
+    onUpdate(seccion.uid, { [campo]: html });
     setOptimizandoIA(null);
   };
 
