@@ -122,6 +122,8 @@ export interface NegoPlanetArbolNodo {
 
 export type Dispositivo = "desktop" | "tablet" | "mobile";
 
+const RECORTE_SEGUNDOS = 3;
+
 function youtubeId(url: string): string | null {
   const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
   return m ? m[1] : null;
@@ -163,6 +165,8 @@ function VideoBg({ url, className, style, onEnded }: { url: string; className?: 
   useEffect(() => {
     if (!onEnded || !id || !containerRef.current) return;
     let disposed = false;
+    let recorteCheck: ReturnType<typeof setInterval> | null = null;
+    let dispararon = false;
     // Nodo interno creado fuera del árbol de React: YT.Player lo reemplaza por su propio
     // iframe, y React nunca vuelve a tocarlo (evita el "removeChild" al desmontar/re-render).
     const mount = document.createElement("div");
@@ -178,16 +182,34 @@ function VideoBg({ url, className, style, onEnded }: { url: string; className?: 
         playerVars: {
           autoplay: 1, mute: 1, controls: 0, playsinline: 1, rel: 0,
           modestbranding: 1, iv_load_policy: 3, disablekb: 1,
+          start: RECORTE_SEGUNDOS,
         },
         events: {
+          onReady: () => {
+            // Recorta los últimos segundos del vídeo: avanza al siguiente slide antes de que termine.
+            recorteCheck = setInterval(() => {
+              const player = playerRef.current;
+              if (!player?.getDuration || dispararon) return;
+              const duracion = player.getDuration();
+              const actual = player.getCurrentTime();
+              if (duracion > 0 && actual >= duracion - RECORTE_SEGUNDOS) {
+                dispararon = true;
+                onEndedRef.current?.();
+              }
+            }, 250);
+          },
           onStateChange: (e: any) => {
-            if (e.data === YT.PlayerState.ENDED) onEndedRef.current?.();
+            if (e.data === YT.PlayerState.ENDED && !dispararon) {
+              dispararon = true;
+              onEndedRef.current?.();
+            }
           },
         },
       });
     });
     return () => {
       disposed = true;
+      if (recorteCheck) clearInterval(recorteCheck);
       playerRef.current?.destroy?.();
       playerRef.current = null;
       mount.remove();
@@ -234,6 +256,20 @@ function VideoBg({ url, className, style, onEnded }: { url: string; className?: 
       </div>
     );
   }
+  const handleLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    if (!onEnded) return;
+    const video = e.currentTarget;
+    if (video.duration > RECORTE_SEGUNDOS) video.currentTime = RECORTE_SEGUNDOS;
+  };
+
+  const handleTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    if (!onEnded) return;
+    const video = e.currentTarget;
+    if (video.duration > 0 && video.currentTime >= video.duration - RECORTE_SEGUNDOS) {
+      onEnded();
+    }
+  };
+
   return (
     <video
       src={url}
@@ -243,6 +279,8 @@ function VideoBg({ url, className, style, onEnded }: { url: string; className?: 
       muted
       loop={!onEnded}
       playsInline
+      onLoadedMetadata={handleLoadedMetadata}
+      onTimeUpdate={onEnded ? handleTimeUpdate : undefined}
       onEnded={onEnded}
     />
   );
@@ -401,14 +439,14 @@ export function PortadaTexto({ titulo, subtitulo, estiloTitulo, estiloSubtitulo,
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", ...wrapStyle }}>
       {titulo
-        ? <p className={styles.phPortadaTitulo} style={{ whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloTitulo, "titulo") }}>
+        ? <div className={styles.phPortadaTitulo} style={{ whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloTitulo, "titulo") }}>
             {renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo")}
-          </p>
+          </div>
         : <Title w="55%" />}
       {subtitulo
-        ? <p className={styles.phPortadaSubtitulo} style={{ whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloSubtitulo, "subtitulo") }}>
+        ? <div className={styles.phPortadaSubtitulo} style={{ whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloSubtitulo, "subtitulo") }}>
             {renderConDestacado(subtitulo, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado, "subtitulo")}
-          </p>
+          </div>
         : <><Bar w="40%" /><Bar w="30%" /></>}
     </div>
   );
@@ -825,16 +863,16 @@ export function PHTextoImagenes({
   const texto = (
     <div className={styles.phTexto} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       {titulo ? (
-        <h3 className={styles.phPortadaTitulo} style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloTitulo, "titulo") }}>
+        <div className={styles.phPortadaTitulo} style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloTitulo, "titulo") }}>
           {renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo")}
-        </h3>
+        </div>
       ) : (
         <Title w="65%" />
       )}
       {subtitulo ? (
-        <p className={styles.phPortadaSubtitulo} style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloSubtitulo, "parrafo") }}>
+        <div className={styles.phPortadaSubtitulo} style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloSubtitulo, "parrafo") }}>
           {renderConDestacado(subtitulo, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado, "parrafo")}
-        </p>
+        </div>
       ) : (
         <><Bar w="100%" /><Bar w="92%" /><Bar w="88%" /><Bar w="95%" /><Bar w="78%" /><Bar w="83%" /><Bar w="60%" /></>
       )}
@@ -1528,17 +1566,17 @@ export function PHPrecio({
               border: "1px dashed #c084fc"
             }}>
               <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>Precio Final</span>
-              <h2 style={{ margin: 0, fontSize: "2.2rem", fontWeight: 900, color: "#1e1b4b", ...stylePvp }}>
+              <div style={{ margin: 0, fontSize: "2.2rem", fontWeight: 900, color: "#1e1b4b", ...stylePvp }}>
                 {formattedPvp}
-              </h2>
+              </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
               {condiciones && (
                 <div>
                   <h4 style={{ fontSize: "1rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.5rem", borderBottom: "2px solid #e2e8f0", paddingBottom: "0.25rem" }}>Condiciones de Reserva</h4>
-                  <p style={{ margin: 0, fontSize: "0.95rem", color: "#475569", whiteSpace: "pre-wrap", ...styleCondiciones }}>
+                  <div style={{ margin: 0, fontSize: "0.95rem", color: "#475569", whiteSpace: "pre-wrap", ...styleCondiciones }}>
                     {formattedCondiciones}
-                  </p>
+                  </div>
                 </div>
               )}
             </div>
@@ -1576,17 +1614,17 @@ export function PHPrecio({
                 borderTop: mobile ? "1px solid rgba(255,255,255,0.1)" : "none",
                 paddingTop: mobile ? "1rem" : 0
               }}>
-                <h2 style={{ margin: 0, fontSize: "2.4rem", fontWeight: 900, color: "#fbbf24", ...stylePvp }}>
+                <div style={{ margin: 0, fontSize: "2.4rem", fontWeight: 900, color: "#fbbf24", ...stylePvp }}>
                   {formattedPvp}
-                </h2>
+                </div>
               </div>
             </div>
             {condiciones && (
               <div style={{ background: "#ffffff", padding: "1.75rem", borderRadius: "1rem", border: "1px solid #f1f5f9", boxShadow: "0 4px 12px rgba(0,0,0,0.02)" }}>
                 <h4 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.75rem" }}>Condiciones de Reserva</h4>
-                <p style={{ margin: 0, fontSize: "0.95rem", color: "#475569", whiteSpace: "pre-wrap", ...styleCondiciones }}>
+                <div style={{ margin: 0, fontSize: "0.95rem", color: "#475569", whiteSpace: "pre-wrap", ...styleCondiciones }}>
                   {formattedCondiciones}
-                </p>
+                </div>
               </div>
             )}
           </div>
@@ -1608,17 +1646,17 @@ export function PHPrecio({
             padding: "1rem"
           }}>
             <span style={{ fontSize: "0.95rem", color: "#6366f1", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.5rem" }}>Valor Total de la Propuesta</span>
-            <h1 style={{ margin: 0, fontSize: "3rem", fontWeight: 900, color: "#1e293b", ...stylePvp }}>
+            <div style={{ margin: 0, fontSize: "3rem", fontWeight: 900, color: "#1e293b", ...stylePvp }}>
               {formattedPvp}
-            </h1>
+            </div>
             <div style={{ width: "80px", height: "4px", background: "#8b5cf6", borderRadius: "2px", marginTop: "1.5rem" }} />
           </div>
           {condiciones && (
             <div style={{ width: "100%", textAlign: "left", background: "#ffffff", padding: "2rem", borderRadius: "1rem", border: "1px solid #f1f5f9" }}>
               <h4 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.75rem", borderLeft: "4px solid #8b5cf6", paddingLeft: "0.75rem" }}>Condiciones de Reserva</h4>
-              <p style={{ margin: 0, fontSize: "0.95rem", color: "#475569", whiteSpace: "pre-wrap", ...styleCondiciones }}>
+              <div style={{ margin: 0, fontSize: "0.95rem", color: "#475569", whiteSpace: "pre-wrap", ...styleCondiciones }}>
                 {formattedCondiciones}
-              </p>
+              </div>
             </div>
           )}
         </div>

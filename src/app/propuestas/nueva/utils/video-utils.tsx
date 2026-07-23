@@ -2,6 +2,8 @@
 import React, { useEffect, useRef } from "react";
 import type { Seccion } from "../types";
 
+const RECORTE_SEGUNDOS = 3;
+
 export function youtubeId(url: string): string | null {
   const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
   return m ? m[1] : null;
@@ -43,6 +45,8 @@ export function VideoBg({ url, className, style, onEnded }: { url: string; class
   useEffect(() => {
     if (!onEnded || !id || !containerRef.current) return;
     let disposed = false;
+    let recorteCheck: ReturnType<typeof setInterval> | null = null;
+    let dispararon = false;
     // Nodo interno creado fuera del árbol de React: YT.Player lo reemplaza por su propio
     // iframe, y React nunca vuelve a tocarlo (evita el "removeChild" al desmontar/re-render).
     const mount = document.createElement("div");
@@ -58,16 +62,34 @@ export function VideoBg({ url, className, style, onEnded }: { url: string; class
         playerVars: {
           autoplay: 1, mute: 1, controls: 0, playsinline: 1, rel: 0,
           modestbranding: 1, iv_load_policy: 3, disablekb: 1,
+          start: RECORTE_SEGUNDOS,
         },
         events: {
+          onReady: () => {
+            // Recorta los últimos segundos del vídeo: avanza al siguiente slide antes de que termine.
+            recorteCheck = setInterval(() => {
+              const player = playerRef.current;
+              if (!player?.getDuration || dispararon) return;
+              const duracion = player.getDuration();
+              const actual = player.getCurrentTime();
+              if (duracion > 0 && actual >= duracion - RECORTE_SEGUNDOS) {
+                dispararon = true;
+                onEndedRef.current?.();
+              }
+            }, 250);
+          },
           onStateChange: (e: any) => {
-            if (e.data === YT.PlayerState.ENDED) onEndedRef.current?.();
+            if (e.data === YT.PlayerState.ENDED && !dispararon) {
+              dispararon = true;
+              onEndedRef.current?.();
+            }
           },
         },
       });
     });
     return () => {
       disposed = true;
+      if (recorteCheck) clearInterval(recorteCheck);
       playerRef.current?.destroy?.();
       playerRef.current = null;
       mount.remove();
@@ -114,6 +136,20 @@ export function VideoBg({ url, className, style, onEnded }: { url: string; class
       </div>
     );
   }
+  const handleLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    if (!onEnded) return;
+    const video = e.currentTarget;
+    if (video.duration > RECORTE_SEGUNDOS) video.currentTime = RECORTE_SEGUNDOS;
+  };
+
+  const handleTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    if (!onEnded) return;
+    const video = e.currentTarget;
+    if (video.duration > 0 && video.currentTime >= video.duration - RECORTE_SEGUNDOS) {
+      onEnded();
+    }
+  };
+
   return (
     <video
       src={url}
@@ -123,6 +159,8 @@ export function VideoBg({ url, className, style, onEnded }: { url: string; class
       muted
       loop={!onEnded}
       playsInline
+      onLoadedMetadata={handleLoadedMetadata}
+      onTimeUpdate={onEnded ? handleTimeUpdate : undefined}
       onEnded={onEnded}
     />
   );

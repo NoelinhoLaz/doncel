@@ -1,13 +1,32 @@
 import React from "react";
-import DOMPurify from "dompurify";
 import type { TextoEstilo } from "../types";
 import { sustituirVariables } from "./style-utils";
 
-const ALLOWED_TAGS = ["p", "strong", "em", "s", "code", "ul", "ol", "li", "br", "a"];
-const ALLOWED_ATTR = ["href", "target", "rel"];
+const ALLOWED_TAGS = new Set(["p", "strong", "em", "s", "code", "ul", "ol", "li", "br", "a"]);
+const ALLOWED_ATTR = new Set(["href", "target", "rel"]);
+
+/**
+ * Sanitiza el HTML generado por el editor Tiptap (whitelist de tags/atributos),
+ * sin depender de un DOM real — funciona igual en servidor y en cliente, evitando
+ * mismatches de hidratación. No es un sanitizador de propósito general: solo
+ * se usa sobre HTML producido por nuestro propio editor, nunca sobre input externo.
+ */
+function sanitizarHTML(html: string): string {
+  return html.replace(/<\/?([a-zA-Z0-9]+)((?:\s+[a-zA-Z-]+(?:="[^"]*")?)*)\s*\/?>/g, (match, tag, attrs) => {
+    const tagLower = tag.toLowerCase();
+    if (!ALLOWED_TAGS.has(tagLower)) return "";
+    const isClosing = match.startsWith("</");
+    if (isClosing || !attrs) return match.startsWith("</") ? `</${tagLower}>` : `<${tagLower}>`;
+    const attrMatches = attrs.match(/[a-zA-Z-]+(?:="[^"]*")?/g) ?? [];
+    const keptAttrs = attrMatches.filter((a: string) => ALLOWED_ATTR.has(a.split("=")[0].toLowerCase()));
+    return `<${tagLower}${keptAttrs.length ? " " + keptAttrs.join(" ") : ""}>`;
+  });
+}
 
 function esHTML(texto: string): boolean {
-  return /^\s*<[a-z][\s\S]*>/i.test(texto);
+  // Tolera espacios en blanco "invisibles" (zero-width, etc.) que \s no cubre, y
+  // basta con que aparezca una tag de apertura cerca del inicio, no exactamente en la posición 0.
+  return /<(p|strong|em|s|code|ul|ol|li|br|a)(\s[^>]*)?>/i.test(texto.slice(0, 20));
 }
 
 /** Renderiza texto legacy (marcado ** / .- / \n) — se mantiene para datos guardados antes de migrar a HTML. */
@@ -78,7 +97,7 @@ export function renderRichText(texto: string | undefined, opts: RenderRichTextOp
   const grosor = grosorDestacado || "bold";
 
   const conVariables = sustituirVariables(texto);
-  const sanitizado = DOMPurify.sanitize(conVariables, { ALLOWED_TAGS, ALLOWED_ATTR });
+  const sanitizado = sanitizarHTML(conVariables);
 
   return (
     <span
