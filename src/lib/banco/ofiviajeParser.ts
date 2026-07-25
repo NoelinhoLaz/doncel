@@ -56,9 +56,11 @@ export function parseOfiviajePagosXml(xml: string): OfiviajePago[] {
   const gruposProveedor = asArray(nivel0.FormattedAreaPair).filter((g: any) => g?.["@_Level"] === "1");
 
   for (const grupo of gruposProveedor) {
+    // grupo.FormattedArea puede ser un único objeto o un array (Header + Footer(s)
+    // hermanos bajo el mismo Level 1): seleccionar explícitamente el de Type="Header".
+    const areaHeader = asArray(grupo?.FormattedArea).find((a: any) => a?.["@_Type"] === "Header");
     const headerFields = fieldsByObjectName(
-      grupo?.FormattedArea?.FormattedSections?.FormattedSection?.FormattedReportObjects
-        ?.FormattedReportObject
+      areaHeader?.FormattedSections?.FormattedSection?.FormattedReportObjects?.FormattedReportObject
     );
     const proveedorNombre = headerFields["Nombre1"] || "";
     const proveedorCuentaContable = headerFields["CuentaContable1"] || "";

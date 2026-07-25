@@ -910,7 +910,7 @@ export default function MovimientosAppPage() {
                 {ofiviajePreview.ficherosNuevos} fichero(s) nuevo(s), {ofiviajePreview.procesados} pago(s) leído(s).
                 Se proponen <strong>{ofiviajePreview.matches.length}</strong> movimiento(s) a conciliar
                 {ofiviajePreview.revisarNombre?.length > 0 && (
-                  <> · <strong>{ofiviajePreview.revisarNombre.length}</strong> con nombre de proveedor a revisar</>
+                  <> · <strong>{ofiviajePreview.revisarNombre.length}</strong> a revisar en OFI</>
                 )}
                 {ofiviajePreview.sinMatch?.length > 0 && (
                   <> · <strong>{ofiviajePreview.sinMatch.length}</strong> sin movimiento bancario encontrado</>
@@ -944,7 +944,7 @@ export default function MovimientosAppPage() {
                           </span>
                         </div>
                         <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
-                          Doc. cobro/pago: {m.pago.documentoCobroPago} · Pasajero: {m.pago.nombrePasajero}
+                          Doc: {m.pago.documento} · Doc. cobro/pago: {m.pago.documentoCobroPago} · Pasajero: {m.pago.nombrePasajero}
                         </div>
                       </li>
                     ))}
@@ -955,7 +955,7 @@ export default function MovimientosAppPage() {
               {ofiviajePreview.revisarNombre?.length > 0 && (
                 <>
                   <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#dc2626", textTransform: "uppercase", marginBottom: "0.4rem" }}>
-                    Nombre de proveedor no coincide — revisar en Nego
+                    Mismo importe, proveedor distinto — revisar en OFI
                   </div>
                   <ul style={{ listStyle: "none", margin: 0, padding: 0, marginBottom: "1.25rem" }}>
                     {ofiviajePreview.revisarNombre.map((m: any, i: number) => (
@@ -968,16 +968,19 @@ export default function MovimientosAppPage() {
                         }}
                       >
                         <div style={{ fontWeight: 600, color: "#0f172a" }}>
-                          {m.movimientoConcepto || "Movimiento sin concepto"}
+                          Banco: {m.movimientoConcepto || "Movimiento sin concepto"}
+                        </div>
+                        <div style={{ color: "#64748b", marginTop: "0.1rem" }}>
+                          OFI: {m.pago.proveedorNombre}
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b", marginTop: "0.15rem" }}>
-                          <span>{m.movimientoFecha} · OFIviaje: {m.pago.proveedorNombre}</span>
+                          <span>{m.movimientoFecha}</span>
                           <span style={{ fontWeight: 700, color: "#dc2626" }}>
                             {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(Math.abs(m.movimientoImporte))}
                           </span>
                         </div>
                         <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
-                          Doc: {m.pago.documento} · Corrige el proveedor en Nego para que el próximo XML lo detecte
+                          Doc: {m.pago.documento} · Revisa/corrige el proveedor en OFI para que el próximo XML lo detecte correctamente
                         </div>
                       </li>
                     ))}
