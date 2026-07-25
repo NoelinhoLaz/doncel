@@ -6,6 +6,10 @@ import { getMovimientosBanco as fetchMovimientosBanco, deleteMovimientoBanco as 
 import { processBankMovementMatch, executeMatchRecalculation, executeReembolsoRecalculation } from "@/lib/banco/matchEngine";
 import { sanitizeDocumentStates } from "@/lib/banco/dataSanitizer";
 import { conciliarPagoProveedor as ejecutarConciliarPagoProveedor, ejecutarConciliacionMovimiento, ejecutarConciliacionTutor } from "@/lib/banco/contabilidadService";
+import { createBridgeConnectSession, syncBridgeTransactions } from "@/lib/banco/bridgeApi";
+import { getCurrentAgenciaSlug } from "@/actions/agencias";
+import { createAdminServerClient } from "@/lib/supabaseServer";
+import { previsualizarOfiviajeUsuarioActual, confirmarConciliacionOfiviaje as confirmarConciliacionOfiviajeLib, type OfiviajeMatchPropuesto } from "@/lib/banco/ofiviajeMatch";
 
 export async function getMovimientosBanco(options?: any) {
   return fetchMovimientosBanco(options);
@@ -177,4 +181,34 @@ export async function conciliarIngresoTutor(movimientoId: string, expedienteId: 
   } catch (err: any) {
     return { success: false, error: err?.message || String(err) };
   }
+}
+
+export async function connectBridgeBank(): Promise<{ connectUrl?: string; error?: string }> {
+  const agenciaSlug = await getCurrentAgenciaSlug();
+  if (!agenciaSlug) return { error: "No se pudo identificar la agencia del usuario actual." };
+
+  const adminSupabase = await createAdminServerClient();
+  const { data: { user } } = await adminSupabase.auth.getUser();
+  if (!user?.email) return { error: "No se pudo identificar el email del usuario actual." };
+
+  return createBridgeConnectSession(agenciaSlug, user.email);
+}
+
+export async function syncBridgeBankMovements(): Promise<{ insertados: number; error?: string }> {
+  const agenciaSlug = await getCurrentAgenciaSlug();
+  if (!agenciaSlug) return { insertados: 0, error: "No se pudo identificar la agencia del usuario actual." };
+
+  const result = await syncBridgeTransactions(agenciaSlug);
+  if (result.insertados > 0) revalidatePath("/banco");
+  return result;
+}
+
+export async function previsualizarConciliacionOfiviaje() {
+  return previsualizarOfiviajeUsuarioActual();
+}
+
+export async function confirmarConciliacionOfiviaje(matches: OfiviajeMatchPropuesto[]) {
+  const result = await confirmarConciliacionOfiviajeLib(matches);
+  if (result.conciliados > 0) revalidatePath("/banco");
+  return result;
 }

@@ -35,6 +35,43 @@ export async function encryptAnonKey(anonKey: string) {
   };
 }
 
+export async function getCurrentAgenciaId(): Promise<string | null> {
+  try {
+    const adminSupabase = await createAdminServerClient();
+    const { data: { user }, error: userError } = await adminSupabase.auth.getUser();
+    if (userError || !user) return null;
+
+    const adminServiceSupabase = createAdminServiceClient();
+    const { data: usuario } = await adminServiceSupabase
+      .from("usuarios")
+      .select("agencia_id")
+      .eq("auth_user_id", user.id)
+      .single();
+
+    return usuario?.agencia_id || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getCurrentAgenciaSlug(): Promise<string | null> {
+  try {
+    const agenciaId = await getCurrentAgenciaId();
+    if (!agenciaId) return null;
+
+    const adminServiceSupabase = createAdminServiceClient();
+    const { data: agencia } = await adminServiceSupabase
+      .from("agencias")
+      .select("slug")
+      .eq("id", agenciaId)
+      .single();
+
+    return agencia?.slug || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getCurrentAgencyDetails() {
   try {
     const adminSupabase = await createAdminServerClient();

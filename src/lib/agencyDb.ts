@@ -81,6 +81,41 @@ export async function getAgencyDbClientByDomain(dominio: string) {
   };
 }
 
+// Resuelve las credenciales de una agencia directamente por su ID (sin depender
+// de la sesión del usuario actual). Uso: webhooks, crons, o cualquier contexto
+// server-to-server que ya conoce el agencia_id de antemano.
+export async function getAgencyDbClientById(agenciaId: string) {
+  const adminServiceSupabase = createAdminServiceClient();
+
+  const { data: agencia, error } = await adminServiceSupabase
+    .from("agencias")
+    .select("supabase_url, supabase_service_role_key_enc, iv, auth_tag")
+    .eq("id", agenciaId)
+    .single();
+
+  if (error || !agencia) {
+    throw new Error("No se encontraron los datos de la agencia.");
+  }
+
+  if (!agencia.supabase_service_role_key_enc || !agencia.iv || !agencia.auth_tag) {
+    throw new Error("Las credenciales de la agencia están incompletas o no están configuradas.");
+  }
+
+  const serviceRoleKey = decrypt(
+    agencia.supabase_service_role_key_enc,
+    agencia.iv,
+    agencia.auth_tag
+  );
+
+  if (!serviceRoleKey) {
+    throw new Error("Error al desencriptar las credenciales de la agencia.");
+  }
+
+  return createClient(agencia.supabase_url, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}
+
 export const getAgencyDbClient = cache(async () => {
   const adminSupabase = await createAdminServerClient();
 

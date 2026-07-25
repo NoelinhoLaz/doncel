@@ -55,3 +55,4 @@ test_script.js
 !package-lock.json
 !tsconfig.json
 !manifest.json
+!vercel.json

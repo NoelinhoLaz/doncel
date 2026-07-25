@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/ofiviaje-check",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/bridge-sync",
+      "schedule": "0 5 * * *"
+    }
+  ]
+}

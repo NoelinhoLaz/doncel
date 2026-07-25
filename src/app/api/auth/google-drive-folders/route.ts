@@ -105,9 +105,43 @@ export async function GET(req: NextRequest) {
       fields: "files(id,name,parents)",
       orderBy: "name",
       pageSize: 100,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      corpora: "allDrives",
     });
 
-    return NextResponse.json({ folders: response.data.files || [] }, { status: 200 });
+    const folders = response.data.files || [];
+
+    // En la raíz ("root"), además de las subcarpetas propias, listar también:
+    // 1) las unidades compartidas (Shared Drives) a las que el usuario tiene acceso
+    // 2) las carpetas que otras personas han compartido directamente con el usuario
+    //    ("Compartidos conmigo"), que no cuelgan de "root" como hijas normales.
+    if (parentId === "root") {
+      const sharedDrives = await drive.drives.list({ pageSize: 100, fields: "drives(id,name)" });
+      const sharedDriveFolders = (sharedDrives.data.drives || []).map((d) => ({
+        id: d.id,
+        name: `📁 ${d.name} (unidad compartida)`,
+        parents: [],
+      }));
+
+      const sharedWithMe = await drive.files.list({
+        q: "sharedWithMe = true and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+        fields: "files(id,name,parents)",
+        orderBy: "name",
+        pageSize: 100,
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+      });
+      const sharedWithMeFolders = (sharedWithMe.data.files || []).map((f) => ({
+        id: f.id,
+        name: `🤝 ${f.name} (compartida conmigo)`,
+        parents: [],
+      }));
+
+      folders.push(...sharedDriveFolders, ...sharedWithMeFolders);
+    }
+
+    return NextResponse.json({ folders }, { status: 200 });
   } catch (error: any) {
     console.error("[Drive Folders] Error:", error?.message || error);
     return NextResponse.json(

@@ -29,9 +29,10 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
   const isRegistro = pathname.startsWith("/registro");
   const isPreview = pathname.endsWith("/preview");
   const isPaginaWebPublica = pathname.startsWith("/web/o/") || pathname.startsWith("/web/nego/") || pathname === "/public";
+  const isMovimientosApp = pathname.startsWith("/movimientos-app");
 
-  // Portal, auth, registro, preview and published web pages don't use the main layout
-  if (isLoginPage || isAdministracionPage || isPortal || isRegistro || isPreview || isPaginaWebPublica) {
+  // Portal, auth, registro, preview, published web pages and movimientos-app don't use the main layout
+  if (isLoginPage || isAdministracionPage || isPortal || isRegistro || isPreview || isPaginaWebPublica || isMovimientosApp) {
     return <>{children}</>;
   }
 
