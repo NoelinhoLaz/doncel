@@ -4,6 +4,10 @@ const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
   trimValues: true,
+  // Sin esto, fast-xml-parser convierte valores numéricos-con-ceros-a-la-izquierda
+  // (ej. "001260304") a number, perdiendo los ceros. Mantenemos todo como texto y
+  // parseamos explícitamente donde hace falta un número real (importes).
+  parseTagValue: false,
 });
 
 export interface OfiviajePago {
@@ -33,6 +37,9 @@ function fieldsByObjectName(reportObjects: any): Record<string, string> {
   for (const obj of objects) {
     const name = obj?.ObjectName;
     if (!name) continue;
+    // Con parseTagValue:false, tanto Value como FormattedValue llegan como texto
+    // sin perder ceros a la izquierda. Value es el más "técnico" (para importes,
+    // sin separador de miles); se usa como preferido, con fallback a FormattedValue.
     const value = obj?.Value ?? obj?.TextValue ?? obj?.FormattedValue;
     if (value !== undefined) result[name] = String(value);
   }

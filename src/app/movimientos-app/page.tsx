@@ -473,6 +473,10 @@ export default function MovimientosAppPage() {
             padding-right: 1rem !important;
           }
         }
+        .ofiviajeTagWrapper:hover .ofiviajeTooltip {
+          opacity: 1 !important;
+          visibility: visible !important;
+        }
       `}</style>
 
       {/* BUSCADOR + FILTRO + ETIQUETAS DE ESTADO (fijos, no hacen scroll) */}
@@ -834,19 +838,60 @@ export default function MovimientosAppPage() {
                           </span>
                         )}
                         {mov.conciliado_externo && (
-                          <span
-                            title="Conciliado con OFIviaje"
-                            style={{
-                              fontSize: "0.6rem",
-                              fontWeight: 400,
-                              textTransform: "uppercase",
-                              color: "#0e7490",
-                              background: "#cffafe",
-                              borderRadius: "0.25rem",
-                              padding: "0.1rem 0.35rem",
-                            }}
-                          >
-                            OFIviaje
+                          <span className="ofiviajeTagWrapper" style={{ position: "relative", display: "inline-block" }}>
+                            <span
+                              style={{
+                                fontSize: "0.6rem",
+                                fontWeight: 400,
+                                textTransform: "uppercase",
+                                color: "#0e7490",
+                                background: "#cffafe",
+                                borderRadius: "0.25rem",
+                                padding: "0.1rem 0.35rem",
+                                cursor: "default",
+                              }}
+                            >
+                              OFIviaje
+                            </span>
+                            {mov.conciliado_externo_datos && (
+                              <div
+                                className="ofiviajeTooltip"
+                                style={{
+                                  position: "absolute",
+                                  bottom: "calc(100% + 6px)",
+                                  left: 0,
+                                  zIndex: 20,
+                                  minWidth: "220px",
+                                  background: "#0f172a",
+                                  color: "#e2e8f0",
+                                  borderRadius: "0.5rem",
+                                  padding: "0.6rem 0.75rem",
+                                  fontSize: "0.72rem",
+                                  fontWeight: 400,
+                                  textTransform: "none",
+                                  boxShadow: "0 10px 15px -3px rgba(0,0,0,0.3)",
+                                  opacity: 0,
+                                  visibility: "hidden",
+                                  transition: "opacity 0.15s",
+                                  pointerEvents: "none",
+                                }}
+                              >
+                                <div style={{ fontWeight: 700, marginBottom: "0.3rem" }}>
+                                  {mov.conciliado_externo_datos.proveedorNombre}
+                                </div>
+                                <div>Doc: {mov.conciliado_externo_datos.documento}</div>
+                                <div>Expediente OFI: {mov.conciliado_externo_datos.referenciaProvCte}</div>
+                                <div>Doc. cobro/pago: {mov.conciliado_externo_datos.documentoCobroPago}</div>
+                                <div>
+                                  Importe:{" "}
+                                  {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(
+                                    mov.conciliado_externo_datos.importePendiente
+                                  )}
+                                </div>
+                                <div>Fecha vencto: {mov.conciliado_externo_datos.fechaVencto}</div>
+                                <div>Pasajero: {mov.conciliado_externo_datos.nombrePasajero}</div>
+                              </div>
+                            )}
                           </span>
                         )}
                       </span>
@@ -944,7 +989,7 @@ export default function MovimientosAppPage() {
                           </span>
                         </div>
                         <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
-                          Doc: {m.pago.documento} · Doc. cobro/pago: {m.pago.documentoCobroPago} · Pasajero: {m.pago.nombrePasajero}
+                          Doc: {m.pago.documento} · Expediente OFI: {m.pago.referenciaProvCte} · Doc. cobro/pago: {m.pago.documentoCobroPago} · Pasajero: {m.pago.nombrePasajero}
                         </div>
                       </li>
                     ))}

@@ -171,7 +171,11 @@ async function upsertBridgeTransactions(
         fecha_transaccion: (tx.transaction_date || tx.date || "").slice(0, 10),
         fecha_contable: (tx.booking_date || tx.date || "").slice(0, 10),
         importe: tx.amount,
-        concepto_original: tx.clean_description || tx.provider_description || tx.description || "",
+        // provider_description es el texto completo tal como lo da el banco;
+        // clean_description es una versión "limpiada" por Bridge que a veces
+        // recorta números/códigos de referencia (ej. "World 2 Meet" -> "World Meet").
+        // Usamos el texto completo como concepto_original y guardamos el limpio aparte.
+        concepto_original: tx.provider_description || tx.clean_description || tx.description || "",
         concepto_limpio: tx.clean_description || tx.provider_description || "",
         moneda: tx.currency_code || "EUR",
         origen: "bridge",
