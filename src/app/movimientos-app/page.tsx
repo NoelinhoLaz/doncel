@@ -214,11 +214,14 @@ export default function MovimientosAppPage() {
     setCheckingOfiviaje(true);
     try {
       const res = await previsualizarConciliacionOfiviaje();
+      const hayAlgoQueMostrar =
+        res.matches.length > 0 || (res.revisarNombre?.length || 0) > 0 || (res.sinMatch?.length || 0) > 0;
+
       if (res.error) {
         alert(res.error);
       } else if (res.ficherosNuevos === 0) {
         alert("No hay ficheros nuevos de OFIviaje en la carpeta de Drive.");
-      } else if (res.matches.length === 0) {
+      } else if (!hayAlgoQueMostrar) {
         alert(`Comprobados ${res.procesados} pagos en ${res.ficherosNuevos} fichero(s) nuevo(s). No se encontró ningún movimiento para conciliar.`);
       } else {
         setOfiviajePreview(res);
@@ -1081,26 +1084,28 @@ export default function MovimientosAppPage() {
                   cursor: confirmingOfiviaje ? "default" : "pointer",
                 }}
               >
-                Cancelar
+                {ofiviajePreview.matches.length > 0 ? "Cancelar" : "Cerrar"}
               </button>
-              <button
-                onClick={handleConfirmOfiviaje}
-                disabled={confirmingOfiviaje}
-                style={{
-                  flex: 1,
-                  padding: "0.6rem",
-                  background: "#10b981",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "0.5rem",
-                  fontWeight: 700,
-                  fontSize: "0.85rem",
-                  cursor: confirmingOfiviaje ? "default" : "pointer",
-                  opacity: confirmingOfiviaje ? 0.7 : 1,
-                }}
-              >
-                {confirmingOfiviaje ? "Aplicando..." : "Aceptar y conciliar"}
-              </button>
+              {ofiviajePreview.matches.length > 0 && (
+                <button
+                  onClick={handleConfirmOfiviaje}
+                  disabled={confirmingOfiviaje}
+                  style={{
+                    flex: 1,
+                    padding: "0.6rem",
+                    background: "#10b981",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "0.5rem",
+                    fontWeight: 700,
+                    fontSize: "0.85rem",
+                    cursor: confirmingOfiviaje ? "default" : "pointer",
+                    opacity: confirmingOfiviaje ? 0.7 : 1,
+                  }}
+                >
+                  {confirmingOfiviaje ? "Aplicando..." : "Aceptar y conciliar"}
+                </button>
+              )}
             </div>
           </div>
         </div>
