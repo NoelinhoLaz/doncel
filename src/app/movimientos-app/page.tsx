@@ -221,6 +221,8 @@ export default function MovimientosAppPage() {
         alert(res.error);
       } else if (res.ficherosNuevos === 0) {
         alert("No hay ficheros nuevos de OFIviaje en la carpeta de Drive.");
+      } else if (!hayAlgoQueMostrar && res.yaConciliados > 0) {
+        alert(`Comprobados ${res.procesados} pagos en ${res.ficherosNuevos} fichero(s) nuevo(s). Los ${res.yaConciliados} ya estaban conciliados previamente.`);
       } else if (!hayAlgoQueMostrar) {
         alert(`Comprobados ${res.procesados} pagos en ${res.ficherosNuevos} fichero(s) nuevo(s). No se encontró ningún movimiento para conciliar.`);
       } else {
@@ -962,7 +964,11 @@ export default function MovimientosAppPage() {
                 )}
                 {ofiviajePreview.sinMatch?.length > 0 && (
                   <> · <strong>{ofiviajePreview.sinMatch.length}</strong> sin movimiento bancario encontrado</>
-                )}.
+                )}
+                {!!ofiviajePreview.yaConciliados && (
+                  <> · <strong>{ofiviajePreview.yaConciliados}</strong> ya conciliado(s) previamente</>
+                )}
+                .
               </p>
             </div>
 

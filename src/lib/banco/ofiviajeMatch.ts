@@ -108,9 +108,10 @@ async function calcularMatchesXmlContenido(
   matches: OfiviajeMatchPropuesto[];
   revisarNombre: OfiviajeMatchPropuesto[];
   sinMatch: OfiviajePago[];
+  yaConciliados: number;
 }> {
   const pagos = parseOfiviajePagosXml(xmlContent);
-  if (pagos.length === 0) return { procesados: 0, matches: [], revisarNombre: [], sinMatch: [] };
+  if (pagos.length === 0) return { procesados: 0, matches: [], revisarNombre: [], sinMatch: [], yaConciliados: 0 };
 
   const mapaCuentaContable = await getMapaCuentaContable(agencyDb);
 
@@ -120,7 +121,9 @@ async function calcularMatchesXmlContenido(
     ...new Set(pagos.map((p) => mapaCuentaContable[p.cuentaTesoreria]).filter((id): id is string => !!id)),
   ];
 
-  if (cuentaBancariaIds.length === 0) return { procesados: pagos.length, matches: [], revisarNombre: [], sinMatch: pagos };
+  if (cuentaBancariaIds.length === 0) {
+    return { procesados: pagos.length, matches: [], revisarNombre: [], sinMatch: pagos, yaConciliados: 0 };
+  }
 
   const { data: movimientos, error } = await agencyDb
     .from("contabilidad_movimientos_banco")
@@ -131,7 +134,9 @@ async function calcularMatchesXmlContenido(
     .lt("importe", 0)
     .gte("fecha_operacion", FECHA_MINIMA_BUSQUEDA);
 
-  if (error || !movimientos) return { procesados: pagos.length, matches: [], revisarNombre: [], sinMatch: pagos };
+  if (error || !movimientos) {
+    return { procesados: pagos.length, matches: [], revisarNombre: [], sinMatch: pagos, yaConciliados: 0 };
+  }
 
   const matches: OfiviajeMatchPropuesto[] = [];
   const revisarNombre: OfiviajeMatchPropuesto[] = [];
@@ -163,9 +168,35 @@ async function calcularMatchesXmlContenido(
     }
   }
 
-  const sinMatch = pagos.filter((p) => !pagosConMatch.has(p));
+  const pagosSinMatchInicial = pagos.filter((p) => !pagosConMatch.has(p));
 
-  return { procesados: pagos.length, matches, revisarNombre, sinMatch };
+  // De los que no encontraron candidato "pendiente", comprobar si en realidad
+  // ya están conciliados (por eso quedaron fuera del filtro conciliado_externo=false)
+  // para no mostrarlos como "sin movimiento bancario" cuando sí lo tienen.
+  let yaConciliados = 0;
+  let sinMatch = pagosSinMatchInicial;
+
+  if (pagosSinMatchInicial.length > 0) {
+    const { data: movimientosConciliados } = await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .select("importe, fecha_operacion, fecha_valor")
+      .eq("conciliado_externo", true)
+      .in("cuenta_bancaria_id", cuentaBancariaIds)
+      .lt("importe", 0)
+      .gte("fecha_operacion", FECHA_MINIMA_BUSQUEDA);
+
+    if (movimientosConciliados && movimientosConciliados.length > 0) {
+      const pagosYaConciliados = new Set<OfiviajePago>();
+      for (const mov of movimientosConciliados) {
+        const pagoMatch = pagosSinMatchInicial.find((p) => !pagosYaConciliados.has(p) && coincide(mov, p));
+        if (pagoMatch) pagosYaConciliados.add(pagoMatch);
+      }
+      yaConciliados = pagosYaConciliados.size;
+      sinMatch = pagosSinMatchInicial.filter((p) => !pagosYaConciliados.has(p));
+    }
+  }
+
+  return { procesados: pagos.length, matches, revisarNombre, sinMatch, yaConciliados };
 }
 
 export interface OfiviajePreview {
@@ -174,6 +205,7 @@ export interface OfiviajePreview {
   matches: OfiviajeMatchPropuesto[];
   revisarNombre: OfiviajeMatchPropuesto[];
   sinMatch: OfiviajePago[];
+  yaConciliados: number;
   error?: string;
 }
 
@@ -189,7 +221,7 @@ export async function previsualizarOfiviajeUsuarioActual(): Promise<OfiviajePrev
 
     const ficheros = await listarXmlEnCarpeta(tokens);
     if (ficheros.length === 0) {
-      return { ficherosNuevos: 0, procesados: 0, matches: [], revisarNombre: [], sinMatch: [] };
+      return { ficherosNuevos: 0, procesados: 0, matches: [], revisarNombre: [], sinMatch: [], yaConciliados: 0 };
     }
 
     const { data: yaProcesados } = await agencyDb
@@ -206,6 +238,7 @@ export async function previsualizarOfiviajeUsuarioActual(): Promise<OfiviajePrev
     const nuevos = ficheros.filter((f) => !procesadosSet.has(`${f.id}::${new Date(f.modifiedTime).toISOString()}`));
 
     let procesados = 0;
+    let yaConciliados = 0;
     const matches: OfiviajeMatchPropuesto[] = [];
     const revisarNombre: OfiviajeMatchPropuesto[] = [];
     const sinMatch: OfiviajePago[] = [];
@@ -217,11 +250,20 @@ export async function previsualizarOfiviajeUsuarioActual(): Promise<OfiviajePrev
       matches.push(...result.matches);
       revisarNombre.push(...result.revisarNombre);
       sinMatch.push(...result.sinMatch);
+      yaConciliados += result.yaConciliados;
     }
 
-    return { ficherosNuevos: nuevos.length, procesados, matches, revisarNombre, sinMatch };
+    return { ficherosNuevos: nuevos.length, procesados, matches, revisarNombre, sinMatch, yaConciliados };
   } catch (error: any) {
-    return { ficherosNuevos: 0, procesados: 0, matches: [], revisarNombre: [], sinMatch: [], error: error.message || "Error al comprobar OFIviaje." };
+    return {
+      ficherosNuevos: 0,
+      procesados: 0,
+      matches: [],
+      revisarNombre: [],
+      sinMatch: [],
+      yaConciliados: 0,
+      error: error.message || "Error al comprobar OFIviaje.",
+    };
   }
 }
 
