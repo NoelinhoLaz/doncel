@@ -102,10 +102,49 @@ export async function POST(request: NextRequest) {
       file.name
     );
 
+    // Deduplicación cruzada con otros orígenes (ej. Bridge): un mismo movimiento
+    // real puede llegar tanto por N43 como por Bridge sin compartir ningún ID común
+    // entre ambos formatos, así que se compara por cuenta+importe+fecha_operacion.
+    const fechas = movimientos.map(m => m.fecha_operacion).filter(Boolean) as string[];
+    const fechaMin = fechas.length ? fechas.reduce((a, b) => (a < b ? a : b)) : null;
+    const fechaMax = fechas.length ? fechas.reduce((a, b) => (a > b ? a : b)) : null;
+
+    let existentesSet = new Set<string>();
+    if (fechaMin && fechaMax) {
+      const { data: existentes } = await agencyDb
+        .from('contabilidad_movimientos_banco')
+        .select('importe, fecha_operacion')
+        .eq('cuenta_bancaria_id', cuenta_bancaria_id)
+        .eq('deleted', false)
+        .gte('fecha_operacion', fechaMin)
+        .lte('fecha_operacion', fechaMax);
+
+      existentesSet = new Set((existentes || []).map((e: any) => `${e.importe}|${e.fecha_operacion}`));
+    }
+
+    const movimientosNuevos = movimientos.filter(
+      (m) => !existentesSet.has(`${m.importe}|${m.fecha_operacion}`)
+    );
+    const omitidosPorDuplicado = movimientos.length - movimientosNuevos.length;
+
+    if (movimientosNuevos.length === 0) {
+      return NextResponse.json(
+        {
+          success: true,
+          movimientos_importados: 0,
+          omitidos_por_duplicado: omitidosPorDuplicado,
+          matches_encontrados: 0,
+          movimientos: [],
+          matches: [],
+        },
+        { status: 201 }
+      );
+    }
+
     // Guardar en la base de datos de la agencia
     const { error: insertError } = await agencyDb
       .from('contabilidad_movimientos_banco')
-      .insert(movimientos.map(m => ({
+      .insert(movimientosNuevos.map(m => ({
         id: m.id,
         cuenta_bancaria_id: m.cuenta_bancaria_id,
         fecha_operacion: m.fecha_operacion,
@@ -133,10 +172,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Ejecutar matching automático
-    const matches = await matchMovimientos(movimientos, agencyDb);
+    const matches = await matchMovimientos(movimientosNuevos, agencyDb);
 
     // Ejecutar matching automático para pagos de proveedores (importes negativos)
-    const negativeMovs = movimientos.filter((m) => m.importe < 0);
+    const negativeMovs = movimientosNuevos.filter((m) => m.importe < 0);
     for (const mov of negativeMovs) {
       matchMovimientoBancarioConPagos(mov.id).catch((err) =>
         console.error(`[N43 Import] Error matching negative movement ${mov.id}:`, err)
@@ -146,9 +185,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        movimientos_importados: movimientos.length,
+        movimientos_importados: movimientosNuevos.length,
+        omitidos_por_duplicado: omitidosPorDuplicado,
         matches_encontrados: matches.length,
-        movimientos: movimientos.map((m) => ({
+        movimientos: movimientosNuevos.map((m) => ({
           id: m.id,
           concepto: m.concepto_original,
           metadatos: m.metadatos,

@@ -257,6 +257,14 @@ export default function ImportarN43({
                   📄 Fichero importado: <span className={styles.summaryHighlight}>{selectedFile?.name}</span>
                   <br />
                   Se han registrado <span className={styles.summaryHighlight}>{state.resultado.movimientos_importados}</span> movimientos y se detectaron <span className={styles.summaryHighlight}>{state.resultado.matches_encontrados}</span> propuestas de conciliación.
+                  {!!state.resultado.omitidos_por_duplicado && (
+                    <>
+                      <br />
+                      <span style={{ color: "#b45309" }}>
+                        {state.resultado.omitidos_por_duplicado} movimiento(s) omitido(s) por ya existir (mismo importe y fecha ya registrados, ej. vía Bridge).
+                      </span>
+                    </>
+                  )}
                 </div>
                 <div className={styles.summaryBadge}>
                   {state.resultado.matches.length} Pendientes

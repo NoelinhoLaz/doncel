@@ -192,9 +192,40 @@ async function upsertBridgeTransactions(
 
   if (movimientos.length === 0) return { insertados: 0 };
 
+  // Deduplicación cruzada con otros orígenes (ej. N43 importado manualmente):
+  // un mismo movimiento real puede existir ya sin bridge_id, así que además del
+  // upsert por bridge_id se descartan candidatos que coincidan en cuenta+importe+fecha
+  // con un movimiento ya existente de cualquier origen.
+  const cuentaIds = [...new Set(movimientos.map((m) => m.cuenta_bancaria_id))];
+  const fechas = movimientos.map((m) => m.fecha_operacion).filter(Boolean);
+  const fechaMin = fechas.length ? fechas.reduce((a, b) => (a < b ? a : b)) : null;
+  const fechaMax = fechas.length ? fechas.reduce((a, b) => (a > b ? a : b)) : null;
+
+  let existentesSet = new Set<string>();
+  if (fechaMin && fechaMax) {
+    const { data: existentes } = await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .select("cuenta_bancaria_id, importe, fecha_operacion")
+      .in("cuenta_bancaria_id", cuentaIds)
+      .eq("deleted", false)
+      .is("bridge_id", null)
+      .gte("fecha_operacion", fechaMin)
+      .lte("fecha_operacion", fechaMax);
+
+    existentesSet = new Set(
+      (existentes || []).map((e: any) => `${e.cuenta_bancaria_id}|${e.importe}|${e.fecha_operacion}`)
+    );
+  }
+
+  const movimientosSinDuplicar = movimientos.filter(
+    (m) => !existentesSet.has(`${m.cuenta_bancaria_id}|${m.importe}|${m.fecha_operacion}`)
+  );
+
+  if (movimientosSinDuplicar.length === 0) return { insertados: 0 };
+
   const { error, data } = await agencyDb
     .from("contabilidad_movimientos_banco")
-    .upsert(movimientos, {
+    .upsert(movimientosSinDuplicar, {
       onConflict: "bridge_id",
       ignoreDuplicates: true,
     })
