@@ -7,7 +7,7 @@ import {
   type DriveTokens,
 } from "./ofiviajeDrive";
 
-const TOLERANCIA_DIAS = 3;
+const TOLERANCIA_DIAS = 5;
 const TOLERANCIA_IMPORTE = 0.01;
 
 // Solo se buscan candidatos de conciliación OFIviaje a partir de esta fecha.
@@ -34,6 +34,37 @@ function coincide(movimiento: any, pago: OfiviajePago): boolean {
     }
   }
   return false;
+}
+
+const STOP_WORDS_NOMBRE = new Set([
+  "sa", "sl", "sau", "slu", "sociedad", "anonima", "limitada", "compra",
+  "internet", "en", "de", "la", "el", "los", "las", "y", "tarj", "tarjeta",
+  "comision", "transferencia", "favor", "inmediata", "concepto", "pago", "referencia",
+]);
+
+function tokenizarNombre(texto: string): string[] {
+  return (texto || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .split(/[\s,.\-_/;:!?]+/)
+    .map((t) => t.replace(/[^a-z0-9]/g, ""))
+    .filter((t) => t.length > 2 && !STOP_WORDS_NOMBRE.has(t));
+}
+
+/**
+ * Compara el concepto del movimiento bancario contra el nombre del proveedor
+ * de OFIviaje: exige al menos un token compartido (ignorando genéricos tipo
+ * SA/SL/tarjeta/comisión). Si no comparten ningún token, es señal de que el
+ * proveedor está mal registrado en origen (Nego) — no se debe conciliar
+ * automáticamente aunque importe y fecha coincidan.
+ */
+function nombreCoincide(movimiento: any, pago: OfiviajePago): boolean {
+  const tokensConcepto = new Set(tokenizarNombre(movimiento.concepto_original || ""));
+  const tokensProveedor = tokenizarNombre(pago.proveedorNombre);
+  if (tokensProveedor.length === 0) return true; // sin nombre de proveedor, no se puede evaluar: no bloquear
+
+  return tokensProveedor.some((t) => tokensConcepto.has(t));
 }
 
 export interface OfiviajeMatchPropuesto {
@@ -72,9 +103,14 @@ async function calcularMatchesXmlContenido(
   agencyDb: any,
   xmlContent: string,
   fichero: { id: string; nombre: string; modifiedTime: string }
-): Promise<{ procesados: number; matches: OfiviajeMatchPropuesto[] }> {
+): Promise<{
+  procesados: number;
+  matches: OfiviajeMatchPropuesto[];
+  revisarNombre: OfiviajeMatchPropuesto[];
+  sinMatch: OfiviajePago[];
+}> {
   const pagos = parseOfiviajePagosXml(xmlContent);
-  if (pagos.length === 0) return { procesados: 0, matches: [] };
+  if (pagos.length === 0) return { procesados: 0, matches: [], revisarNombre: [], sinMatch: [] };
 
   const mapaCuentaContable = await getMapaCuentaContable(agencyDb);
 
@@ -84,7 +120,7 @@ async function calcularMatchesXmlContenido(
     ...new Set(pagos.map((p) => mapaCuentaContable[p.cuentaTesoreria]).filter((id): id is string => !!id)),
   ];
 
-  if (cuentaBancariaIds.length === 0) return { procesados: pagos.length, matches: [] };
+  if (cuentaBancariaIds.length === 0) return { procesados: pagos.length, matches: [], revisarNombre: [], sinMatch: pagos };
 
   const { data: movimientos, error } = await agencyDb
     .from("contabilidad_movimientos_banco")
@@ -95,14 +131,18 @@ async function calcularMatchesXmlContenido(
     .lt("importe", 0)
     .gte("fecha_operacion", FECHA_MINIMA_BUSQUEDA);
 
-  if (error || !movimientos) return { procesados: pagos.length, matches: [] };
+  if (error || !movimientos) return { procesados: pagos.length, matches: [], revisarNombre: [], sinMatch: pagos };
 
   const matches: OfiviajeMatchPropuesto[] = [];
+  const revisarNombre: OfiviajeMatchPropuesto[] = [];
+  const pagosConMatch = new Set<OfiviajePago>();
+
   for (const mov of movimientos) {
-    const pagoMatch = pagos.find((p) => coincide(mov, p));
+    const pagoMatch = pagos.find((p) => !pagosConMatch.has(p) && coincide(mov, p));
     if (!pagoMatch) continue;
 
-    matches.push({
+    pagosConMatch.add(pagoMatch);
+    const propuesta: OfiviajeMatchPropuesto = {
       movimientoId: mov.id,
       movimientoImporte: Number(mov.importe),
       movimientoFecha: mov.fecha_operacion,
@@ -111,16 +151,29 @@ async function calcularMatchesXmlContenido(
       ficheroId: fichero.id,
       ficheroNombre: fichero.nombre,
       ficheroModifiedTime: fichero.modifiedTime,
-    });
+    };
+
+    // Importe y fecha coinciden, pero el nombre del proveedor en OFIviaje no se
+    // parece al concepto bancario: probable dato mal registrado en origen (Nego).
+    // No se propone conciliar automáticamente — se marca para revisión manual.
+    if (nombreCoincide(mov, pagoMatch)) {
+      matches.push(propuesta);
+    } else {
+      revisarNombre.push(propuesta);
+    }
   }
 
-  return { procesados: pagos.length, matches };
+  const sinMatch = pagos.filter((p) => !pagosConMatch.has(p));
+
+  return { procesados: pagos.length, matches, revisarNombre, sinMatch };
 }
 
 export interface OfiviajePreview {
   ficherosNuevos: number;
   procesados: number;
   matches: OfiviajeMatchPropuesto[];
+  revisarNombre: OfiviajeMatchPropuesto[];
+  sinMatch: OfiviajePago[];
   error?: string;
 }
 
@@ -136,7 +189,7 @@ export async function previsualizarOfiviajeUsuarioActual(): Promise<OfiviajePrev
 
     const ficheros = await listarXmlEnCarpeta(tokens);
     if (ficheros.length === 0) {
-      return { ficherosNuevos: 0, procesados: 0, matches: [] };
+      return { ficherosNuevos: 0, procesados: 0, matches: [], revisarNombre: [], sinMatch: [] };
     }
 
     const { data: yaProcesados } = await agencyDb
@@ -154,17 +207,21 @@ export async function previsualizarOfiviajeUsuarioActual(): Promise<OfiviajePrev
 
     let procesados = 0;
     const matches: OfiviajeMatchPropuesto[] = [];
+    const revisarNombre: OfiviajeMatchPropuesto[] = [];
+    const sinMatch: OfiviajePago[] = [];
 
     for (const fichero of nuevos) {
       const contenido = await descargarContenidoXml(tokens, fichero.id);
       const result = await calcularMatchesXmlContenido(agencyDb, contenido, fichero);
       procesados += result.procesados;
       matches.push(...result.matches);
+      revisarNombre.push(...result.revisarNombre);
+      sinMatch.push(...result.sinMatch);
     }
 
-    return { ficherosNuevos: nuevos.length, procesados, matches };
+    return { ficherosNuevos: nuevos.length, procesados, matches, revisarNombre, sinMatch };
   } catch (error: any) {
-    return { ficherosNuevos: 0, procesados: 0, matches: [], error: error.message || "Error al comprobar OFIviaje." };
+    return { ficherosNuevos: 0, procesados: 0, matches: [], revisarNombre: [], sinMatch: [], error: error.message || "Error al comprobar OFIviaje." };
   }
 }
 

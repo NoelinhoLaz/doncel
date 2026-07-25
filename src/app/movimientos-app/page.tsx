@@ -79,15 +79,19 @@ export default function MovimientosAppPage() {
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
+  const FECHA_DESDE_DEFECTO = "2026-07-01";
+
   const [filtros, setFiltros] = useState({
     bancosIds: [] as string[],
     tipoMovimiento: "todos" as "todos" | "debe" | "haber",
-    fechaDesde: "",
+    fechaDesde: FECHA_DESDE_DEFECTO,
     fechaHasta: "",
     importeMin: "",
     importeMax: "",
     estados: [] as string[],
   });
+
+  const [soloOfiviaje, setSoloOfiviaje] = useState(false);
 
   const updateFiltro = <K extends keyof typeof filtros>(key: K, value: (typeof filtros)[K]) => {
     setFiltros((prev) => ({ ...prev, [key]: value }));
@@ -153,7 +157,7 @@ export default function MovimientosAppPage() {
       setLoading(true);
       const result = await getMovimientosBanco({
         page: 1,
-        limit: 100,
+        limit: 500,
         search,
         tipoMovimiento: filters.tipoMovimiento === "todos" ? undefined : filters.tipoMovimiento,
         fechaDesde: filters.fechaDesde || undefined,
@@ -271,7 +275,9 @@ export default function MovimientosAppPage() {
     return val >= 0 ? `+${formatted}` : `-${formatted}`;
   };
 
-  const grupos = movimientos.reduce((acc: Record<string, any[]>, mov) => {
+  const movimientosVisibles = soloOfiviaje ? movimientos.filter((m) => m.conciliado_externo) : movimientos;
+
+  const grupos = movimientosVisibles.reduce((acc: Record<string, any[]>, mov) => {
     const key = mov.fecha_operacion || "sin-fecha";
     if (!acc[key]) acc[key] = [];
     acc[key].push(mov);
@@ -285,7 +291,7 @@ export default function MovimientosAppPage() {
   const filtrosActivos =
     filtros.bancosIds.length > 0 ||
     filtros.tipoMovimiento !== "todos" ||
-    filtros.fechaDesde ||
+    filtros.fechaDesde !== FECHA_DESDE_DEFECTO ||
     filtros.fechaHasta ||
     filtros.importeMin ||
     filtros.importeMax ||
@@ -536,6 +542,22 @@ export default function MovimientosAppPage() {
               </button>
             );
           })}
+          <button
+            onClick={() => setSoloOfiviaje((v) => !v)}
+            style={{
+              fontSize: "0.72rem",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              padding: "0.25rem 0.6rem",
+              borderRadius: "999px",
+              cursor: "pointer",
+              color: soloOfiviaje ? "#0e7490" : "#94a3b8",
+              background: soloOfiviaje ? "#cffafe" : "#f8fafc",
+              border: `1px solid ${soloOfiviaje ? "#0e7490" : "#e2e8f0"}`,
+            }}
+          >
+            OFIviaje
+          </button>
         </div>
 
       {/* PANEL DE FILTROS */}
@@ -692,7 +714,7 @@ export default function MovimientosAppPage() {
                 setFiltros({
                   bancosIds: [],
                   tipoMovimiento: "todos",
-                  fechaDesde: "",
+                  fechaDesde: FECHA_DESDE_DEFECTO,
                   fechaHasta: "",
                   importeMin: "",
                   importeMax: "",
@@ -728,8 +750,10 @@ export default function MovimientosAppPage() {
       >
       {loading ? (
         <p style={{ textAlign: "center", color: "#64748b" }}>Cargando movimientos...</p>
-      ) : movimientos.length === 0 ? (
-        <p style={{ textAlign: "center", color: "#64748b" }}>No se encontraron movimientos.</p>
+      ) : movimientosVisibles.length === 0 ? (
+        <p style={{ textAlign: "center", color: "#64748b" }}>
+          {soloOfiviaje ? "No hay movimientos conciliados con OFIviaje." : "No se encontraron movimientos."}
+        </p>
       ) : (
         fechasOrdenadas.map((fecha) => (
           <div key={fecha} style={{ marginBottom: "1.25rem" }}>
@@ -884,36 +908,113 @@ export default function MovimientosAppPage() {
               </h2>
               <p style={{ margin: "0.35rem 0 0", fontSize: "0.8rem", color: "#64748b" }}>
                 {ofiviajePreview.ficherosNuevos} fichero(s) nuevo(s), {ofiviajePreview.procesados} pago(s) leído(s).
-                Se proponen <strong>{ofiviajePreview.matches.length}</strong> movimiento(s) a conciliar.
+                Se proponen <strong>{ofiviajePreview.matches.length}</strong> movimiento(s) a conciliar
+                {ofiviajePreview.revisarNombre?.length > 0 && (
+                  <> · <strong>{ofiviajePreview.revisarNombre.length}</strong> con nombre de proveedor a revisar</>
+                )}
+                {ofiviajePreview.sinMatch?.length > 0 && (
+                  <> · <strong>{ofiviajePreview.sinMatch.length}</strong> sin movimiento bancario encontrado</>
+                )}.
               </p>
             </div>
 
             <div style={{ padding: "0.75rem 1.5rem", overflowY: "auto", flex: 1 }}>
-              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                {ofiviajePreview.matches.map((m: any, i: number) => (
-                  <li
-                    key={i}
-                    style={{
-                      padding: "0.6rem 0",
-                      borderBottom: "1px solid #f1f5f9",
-                      fontSize: "0.8rem",
-                    }}
-                  >
-                    <div style={{ fontWeight: 600, color: "#0f172a" }}>
-                      {m.movimientoConcepto || "Movimiento sin concepto"}
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b", marginTop: "0.15rem" }}>
-                      <span>{m.movimientoFecha} · {m.pago.proveedorNombre}</span>
-                      <span style={{ fontWeight: 700, color: m.movimientoImporte >= 0 ? "#10b981" : "#ef4444" }}>
-                        {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(Math.abs(m.movimientoImporte))}
-                      </span>
-                    </div>
-                    <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
-                      Doc. cobro/pago: {m.pago.documentoCobroPago} · Pasajero: {m.pago.nombrePasajero}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              {ofiviajePreview.matches.length > 0 && (
+                <>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#15803d", textTransform: "uppercase", marginBottom: "0.4rem" }}>
+                    Se van a conciliar
+                  </div>
+                  <ul style={{ listStyle: "none", margin: 0, padding: 0, marginBottom: "1.25rem" }}>
+                    {ofiviajePreview.matches.map((m: any, i: number) => (
+                      <li
+                        key={i}
+                        style={{
+                          padding: "0.6rem 0",
+                          borderBottom: "1px solid #f1f5f9",
+                          fontSize: "0.8rem",
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, color: "#0f172a" }}>
+                          {m.movimientoConcepto || "Movimiento sin concepto"}
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b", marginTop: "0.15rem" }}>
+                          <span>{m.movimientoFecha} · {m.pago.proveedorNombre}</span>
+                          <span style={{ fontWeight: 700, color: m.movimientoImporte >= 0 ? "#10b981" : "#ef4444" }}>
+                            {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(Math.abs(m.movimientoImporte))}
+                          </span>
+                        </div>
+                        <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
+                          Doc. cobro/pago: {m.pago.documentoCobroPago} · Pasajero: {m.pago.nombrePasajero}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              {ofiviajePreview.revisarNombre?.length > 0 && (
+                <>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#dc2626", textTransform: "uppercase", marginBottom: "0.4rem" }}>
+                    Nombre de proveedor no coincide — revisar en Nego
+                  </div>
+                  <ul style={{ listStyle: "none", margin: 0, padding: 0, marginBottom: "1.25rem" }}>
+                    {ofiviajePreview.revisarNombre.map((m: any, i: number) => (
+                      <li
+                        key={i}
+                        style={{
+                          padding: "0.6rem 0",
+                          borderBottom: "1px solid #f1f5f9",
+                          fontSize: "0.8rem",
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, color: "#0f172a" }}>
+                          {m.movimientoConcepto || "Movimiento sin concepto"}
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b", marginTop: "0.15rem" }}>
+                          <span>{m.movimientoFecha} · OFIviaje: {m.pago.proveedorNombre}</span>
+                          <span style={{ fontWeight: 700, color: "#dc2626" }}>
+                            {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(Math.abs(m.movimientoImporte))}
+                          </span>
+                        </div>
+                        <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
+                          Doc: {m.pago.documento} · Corrige el proveedor en Nego para que el próximo XML lo detecte
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              {ofiviajePreview.sinMatch?.length > 0 && (
+                <>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#b45309", textTransform: "uppercase", marginBottom: "0.4rem" }}>
+                    Sin movimiento bancario encontrado
+                  </div>
+                  <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                    {ofiviajePreview.sinMatch.map((p: any, i: number) => (
+                      <li
+                        key={i}
+                        style={{
+                          padding: "0.6rem 0",
+                          borderBottom: "1px solid #f1f5f9",
+                          fontSize: "0.8rem",
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, color: "#0f172a" }}>{p.proveedorNombre}</div>
+                        <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b", marginTop: "0.15rem" }}>
+                          <span>{p.fechaVencto} · {p.nombrePasajero}</span>
+                          <span style={{ fontWeight: 700, color: "#b45309" }}>
+                            {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(p.importePendiente)}
+                          </span>
+                        </div>
+                        <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
+                          Doc: {p.documento} · Doc. cobro/pago: {p.documentoCobroPago}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
 
             <div style={{ padding: "1rem 1.5rem", borderTop: "1px solid #f1f5f9", display: "flex", gap: "0.5rem" }}>
