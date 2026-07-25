@@ -10,6 +10,9 @@ import {
 const TOLERANCIA_DIAS = 3;
 const TOLERANCIA_IMPORTE = 0.01;
 
+// Solo se buscan candidatos de conciliación OFIviaje a partir de esta fecha.
+const FECHA_MINIMA_BUSQUEDA = "2026-07-01";
+
 function diasEntre(fechaA: string, fechaB: string): number {
   const a = new Date(fechaA).getTime();
   const b = new Date(fechaB).getTime();
@@ -89,7 +92,8 @@ async function calcularMatchesXmlContenido(
     .in("estado", ["pendiente", "propuesto", "parcial"])
     .eq("conciliado_externo", false)
     .in("cuenta_bancaria_id", cuentaBancariaIds)
-    .lt("importe", 0);
+    .lt("importe", 0)
+    .gte("fecha_operacion", FECHA_MINIMA_BUSQUEDA);
 
   if (error || !movimientos) return { procesados: pagos.length, matches: [] };
 
