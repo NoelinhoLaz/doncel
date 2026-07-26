@@ -23,7 +23,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
     }
   }, []);
 
-  const isLoginPage = pathname === "/login";
+  const isLoginPage = pathname === "/login" || pathname === "/concilia_login";
   const isAdministracionPage = pathname === "/administracion";
   const isPortal = pathname.startsWith("/portal") || pathname.startsWith("/proveedor");
   const isRegistro = pathname.startsWith("/registro");

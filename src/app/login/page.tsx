@@ -122,7 +122,7 @@ export default function LoginPage() {
       <main className={styles.container} style={styleVars}>
         <section className={styles.leftColumn}>
           <div className={styles.formBox}>
-            <img src={branding?.logo_url || "/logo_alivia.png"} alt={branding?.nombre_comercial || "Alivia"} className={styles.logo} />
+            <img src="/logo_alivia.png" alt="Alivia" className={styles.logo} />
             <h1 className={styles.title}>Recuperar contraseña</h1>
             {forgotSent ? (
               <div style={{ textAlign: "center", display: "grid", gap: "1rem" }}>
@@ -166,7 +166,7 @@ export default function LoginPage() {
     <main className={styles.container} style={styleVars}>
       <section className={styles.leftColumn}>
         <div className={styles.formBox}>
-          <img src={branding?.logo_url || "/logo_alivia.png"} alt={branding?.nombre_comercial || "Alivia"} className={styles.logo} />
+          <img src="/logo_alivia.png" alt="Alivia" className={styles.logo} />
           <form className={styles.form} onSubmit={handleSubmit}>
             {error && <p className={styles.error}>{error}</p>}
             <label className={styles.label} htmlFor="email">
