@@ -676,18 +676,6 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
           )}
         </div>
       </header>
-      <div
-        style={{
-          padding: "0.6rem 1.5rem 0.4rem",
-          color: "#475569",
-          fontSize: "1.1rem",
-          fontWeight: 600,
-          textTransform: "uppercase",
-          letterSpacing: "0.03em",
-        }}
-      >
-        {agencyDetails?.nombre_comercial || ""}
-      </div>
 
       <div
         className="movimientosAppContainer"
@@ -702,6 +690,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
           margin: "0 auto",
           boxSizing: "border-box",
           overflowX: "hidden",
+          background: "#f8fafc",
         }}
       >
       <style jsx>{`
@@ -727,10 +716,24 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
         style={{
           flexShrink: 0,
           background: "#ffffff",
-          padding: "1.5rem 1.5rem 0.75rem",
+          padding: "0.6rem 1.5rem 0.75rem",
           boxSizing: "border-box",
         }}
       >
+        <div
+          style={{
+            textAlign: "center",
+            color: "#475569",
+            fontSize: "1.1rem",
+            fontWeight: 300,
+            fontFamily: "var(--font-raleway), sans-serif",
+            textTransform: "uppercase",
+            letterSpacing: "0.03em",
+            marginBottom: "0.6rem",
+          }}
+        >
+          {agencyDetails?.nombre_comercial || ""}
+        </div>
         <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.6rem" }}>
           <div style={{ position: "relative", flex: 1 }}>
             <input
