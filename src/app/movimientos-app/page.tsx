@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Landmark, ChevronDown, Menu, Link2, HardDrive, FileCheck2 } from "lucide-react";
-import { getMovimientosBanco, connectBridgeBank, syncBridgeBankMovements, previsualizarConciliacionOfiviaje, confirmarConciliacionOfiviaje } from "@/actions/banco";
+import { Landmark, ChevronDown, Menu, Link2, HardDrive, FileCheck2, BarChart3 } from "lucide-react";
+import { getMovimientosBanco, connectBridgeBank, syncBridgeBankMovements, previsualizarConciliacionOfiviaje, confirmarConciliacionOfiviaje, enviarInformeOfiviaje, getInformeMensualPendientesOfi, getUltimaConciliacionOfiviaje, enviarInformeMensualPorEmail, actualizarIncluirEnInformeAutomatico } from "@/actions/banco";
 import { getCuentasBancarias } from "@/actions/cuentasBancarias";
 import { getCurrentAgencyDetails } from "@/actions/agencias";
 import DriveAuthModal from "@/app/components/DriveAuthModal";
@@ -60,8 +60,60 @@ const labelStyle: React.CSSProperties = {
   display: "block",
 };
 
+const PAGE_SIZE = 200;
+
+const formatEURGlobal = (v: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(v);
+const formatFechaCorta = (f: string) => {
+  if (!f) return "";
+  const iso = /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : null;
+  const d = iso ? new Date(f) : (() => {
+    const m = f.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    return m ? new Date(`${m[3]}-${m[2]}-${m[1]}`) : new Date(f);
+  })();
+  return d.toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" });
+};
+
+/**
+ * Fila estándar para las categorías de "Revisar en OFI": muestra "Banco:" con
+ * los movimientos bancarios implicados (fecha DD/MM/AA, concepto, importe en
+ * 3 columnas) y "OfiViaje:" con los pagos del XML (proveedor, fecha, importe).
+ */
+function FilaBancoOfi({
+  movimientos,
+  pagos,
+}: {
+  movimientos: Array<{ fecha: string; concepto: string; importe: number }>;
+  pagos: Array<{ proveedorNombre: string; fechaVencto: string; importePendiente: number }>;
+}) {
+  return (
+    <>
+      <div style={{ color: "#64748b", marginTop: "0.15rem" }}>Banco:</div>
+      {movimientos.map((mov, idx) => (
+        <div key={idx} style={{ display: "flex", gap: "0.6rem", alignItems: "center", color: "#64748b", marginTop: "0.1rem" }}>
+          <span style={{ flex: "0 0 auto", fontSize: "0.72rem", whiteSpace: "nowrap" }}>{formatFechaCorta(mov.fecha)}</span>
+          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={mov.concepto || "Movimiento sin concepto"}>
+            {mov.concepto || "Movimiento sin concepto"}
+          </span>
+          <span style={{ flex: "0 0 auto", fontWeight: 700, color: "#dc2626", whiteSpace: "nowrap" }}>{formatEURGlobal(Math.abs(mov.importe))}</span>
+        </div>
+      ))}
+      <div style={{ borderTop: "1px solid #f1f5f9", margin: "0.35rem 0" }} />
+      <div style={{ color: "#94a3b8", fontSize: "0.72rem" }}>OfiViaje:</div>
+      {pagos.map((p, idx) => (
+        <div key={idx} style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.1rem" }}>
+          <span>{p.proveedorNombre} · {p.fechaVencto}</span>
+          <span>{formatEURGlobal(p.importePendiente)}</span>
+        </div>
+      ))}
+    </>
+  );
+}
+
 export default function MovimientosAppPage() {
   const [movimientos, setMovimientos] = useState<any[]>([]);
+  const [totalItems, setTotalItems] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [cuentasBancarias, setCuentasBancarias] = useState<any[]>([]);
   const [agencyDetails, setAgencyDetails] = useState<{ logo_url: string | null; nombre_comercial: string; color_corporativo?: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,6 +126,16 @@ export default function MovimientosAppPage() {
   const [checkingOfiviaje, setCheckingOfiviaje] = useState(false);
   const [ofiviajePreview, setOfiviajePreview] = useState<any | null>(null);
   const [confirmingOfiviaje, setConfirmingOfiviaje] = useState(false);
+  const [informeEmail, setInformeEmail] = useState("");
+  const [sendingInforme, setSendingInforme] = useState(false);
+  const [loadingInformeMensual, setLoadingInformeMensual] = useState(false);
+  const [informeMensualData, setInformeMensualData] = useState<any[] | null>(null);
+  const [ultimaConciliacion, setUltimaConciliacion] = useState<any | null>(null);
+  const [informeBancoFiltro, setInformeBancoFiltro] = useState<string>("todos");
+  const [informeRevisarPreview, setInformeRevisarPreview] = useState<any | null>(null);
+  const [conciliadosVisibles, setConciliadosVisibles] = useState(5);
+  const [informeMensualEmail, setInformeMensualEmail] = useState("");
+  const [sendingInformeMensual, setSendingInformeMensual] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const [searchInput, setSearchInput] = useState("");
@@ -152,12 +214,14 @@ export default function MovimientosAppPage() {
     loadAgency();
   }, []);
 
-  const loadData = useCallback(async (filters: typeof filtros, search: string) => {
+const loadData = useCallback(async (filters: typeof filtros, search: string, page: number = 1, append: boolean = false) => {
     try {
-      setLoading(true);
+      if (append) setLoadingMore(true);
+      else setLoading(true);
+
       const result = await getMovimientosBanco({
-        page: 1,
-        limit: 500,
+        page,
+        limit: PAGE_SIZE,
         search,
         tipoMovimiento: filters.tipoMovimiento === "todos" ? undefined : filters.tipoMovimiento,
         fechaDesde: filters.fechaDesde || undefined,
@@ -167,16 +231,23 @@ export default function MovimientosAppPage() {
         estados: filters.estados.length > 0 ? filters.estados : undefined,
         cuentaIds: filters.bancosIds.length > 0 ? filters.bancosIds : undefined,
       });
-      setMovimientos(result.data || []);
+      setMovimientos((prev) => (append ? [...prev, ...(result.data || [])] : result.data || []));
+      setTotalItems(result.count || 0);
+      setCurrentPage(page);
     } catch (error) {
       console.error("Error loading bank movements:", error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, []);
 
+  const loadMore = useCallback(() => {
+    loadData(filtros, searchQuery, currentPage + 1, true);
+  }, [loadData, filtros, searchQuery, currentPage]);
+
   useEffect(() => {
-    loadData(filtros, searchQuery);
+    loadData(filtros, searchQuery, 1, false);
   }, [loadData, filtros, searchQuery]);
 
   const handleConnectBank = async () => {
@@ -215,7 +286,12 @@ export default function MovimientosAppPage() {
     try {
       const res = await previsualizarConciliacionOfiviaje();
       const hayAlgoQueMostrar =
-        res.matches.length > 0 || (res.revisarNombre?.length || 0) > 0 || (res.sinMatch?.length || 0) > 0;
+        res.matches.length > 0 ||
+        (res.revisarNombre?.length || 0) > 0 ||
+        (res.revisarImporte?.length || 0) > 0 ||
+        (res.revisarSuma?.length || 0) > 0 ||
+        (res.revisarDivision?.length || 0) > 0 ||
+        (res.sinMatch?.length || 0) > 0;
 
       if (res.error) {
         alert(res.error);
@@ -236,6 +312,47 @@ export default function MovimientosAppPage() {
     }
   };
 
+  const handleInformeMensual = async () => {
+    setShowMenu(false);
+    setInformeBancoFiltro("todos");
+    setConciliadosVisibles(5);
+    setLoadingInformeMensual(true);
+    try {
+      const [pendientes, ultimaConc, revisarPreview] = await Promise.all([
+        getInformeMensualPendientesOfi(),
+        getUltimaConciliacionOfiviaje(),
+        previsualizarConciliacionOfiviaje(),
+      ]);
+      setInformeMensualData(pendientes);
+      setUltimaConciliacion(ultimaConc);
+      setInformeRevisarPreview(revisarPreview);
+    } catch (error) {
+      console.error("Error cargando informe mensual:", error);
+      alert("Error al cargar el informe mensual.");
+    } finally {
+      setLoadingInformeMensual(false);
+    }
+  };
+
+  const handleEnviarInformeMensual = async () => {
+    if (!informeMensualEmail.trim()) return;
+    setSendingInformeMensual(true);
+    try {
+      const res = await enviarInformeMensualPorEmail(informeMensualEmail.trim(), informeBancoFiltro, informeRevisarPreview);
+      if (!res.success) {
+        alert(res.error || "Error al enviar el informe.");
+      } else {
+        alert(`Informe enviado a ${informeMensualEmail.trim()}.`);
+        setInformeMensualEmail("");
+      }
+    } catch (error) {
+      console.error("Error enviando informe mensual:", error);
+      alert("Error al enviar el informe.");
+    } finally {
+      setSendingInformeMensual(false);
+    }
+  };
+
   const handleConfirmOfiviaje = async () => {
     if (!ofiviajePreview) return;
     setConfirmingOfiviaje(true);
@@ -253,6 +370,25 @@ export default function MovimientosAppPage() {
     } finally {
       setConfirmingOfiviaje(false);
       setOfiviajePreview(null);
+    }
+  };
+
+  const handleEnviarInformeOfiviaje = async () => {
+    if (!ofiviajePreview || !informeEmail.trim()) return;
+    setSendingInforme(true);
+    try {
+      const res = await enviarInformeOfiviaje(ofiviajePreview, informeEmail.trim());
+      if (res.error) {
+        alert(res.error);
+      } else {
+        alert(`Informe enviado a ${informeEmail.trim()}.`);
+        setInformeEmail("");
+      }
+    } catch (error) {
+      console.error("Error enviando informe OFIviaje:", error);
+      alert("Error al enviar el informe.");
+    } finally {
+      setSendingInforme(false);
     }
   };
 
@@ -446,6 +582,30 @@ export default function MovimientosAppPage() {
               >
                 <FileCheck2 size={16} />
                 <span>{checkingOfiviaje ? "Comprobando..." : "Comprobar OFIviaje"}</span>
+              </button>
+
+              <button
+                onClick={handleInformeMensual}
+                disabled={loadingInformeMensual}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  padding: "0.5rem 0.75rem",
+                  fontSize: "0.85rem",
+                  fontWeight: 500,
+                  color: "#334155",
+                  background: "none",
+                  border: "none",
+                  borderRadius: "0.375rem",
+                  textAlign: "left",
+                  cursor: loadingInformeMensual ? "default" : "pointer",
+                  opacity: loadingInformeMensual ? 0.6 : 1,
+                }}
+              >
+                <BarChart3 size={16} />
+                <span>{loadingInformeMensual ? "Cargando..." : "Informe mensual"}</span>
               </button>
             </div>
           )}
@@ -919,6 +1079,27 @@ export default function MovimientosAppPage() {
           </div>
         ))
       )}
+      {!loading && movimientos.length < totalItems && (
+        <div style={{ textAlign: "center", padding: "1rem 0" }}>
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            style={{
+              padding: "0.5rem 1.25rem",
+              background: "#f1f5f9",
+              color: "#475569",
+              border: "1px solid #e2e8f0",
+              borderRadius: "0.375rem",
+              fontWeight: 600,
+              fontSize: "0.8rem",
+              cursor: loadingMore ? "default" : "pointer",
+              opacity: loadingMore ? 0.6 : 1,
+            }}
+          >
+            {loadingMore ? "Cargando..." : `Mostrar más (${movimientos.length} de ${totalItems})`}
+          </button>
+        </div>
+      )}
       </div>
       </div>
 
@@ -959,8 +1140,21 @@ export default function MovimientosAppPage() {
               <p style={{ margin: "0.35rem 0 0", fontSize: "0.8rem", color: "#64748b" }}>
                 {ofiviajePreview.ficherosNuevos} fichero(s) nuevo(s), {ofiviajePreview.procesados} pago(s) leído(s).
                 Se proponen <strong>{ofiviajePreview.matches.length}</strong> movimiento(s) a conciliar
-                {ofiviajePreview.revisarNombre?.length > 0 && (
-                  <> · <strong>{ofiviajePreview.revisarNombre.length}</strong> a revisar en OFI</>
+                {((ofiviajePreview.revisarNombre?.length || 0) +
+                  (ofiviajePreview.revisarImporte?.length || 0) +
+                  (ofiviajePreview.revisarSuma?.length || 0) +
+                  (ofiviajePreview.revisarDivision?.length || 0)) > 0 && (
+                  <>
+                    {" "}
+                    ·{" "}
+                    <strong>
+                      {(ofiviajePreview.revisarNombre?.length || 0) +
+                        (ofiviajePreview.revisarImporte?.length || 0) +
+                        (ofiviajePreview.revisarSuma?.length || 0) +
+                        (ofiviajePreview.revisarDivision?.length || 0)}
+                    </strong>{" "}
+                    a revisar en OFI
+                  </>
                 )}
                 {ofiviajePreview.sinMatch?.length > 0 && (
                   <> · <strong>{ofiviajePreview.sinMatch.length}</strong> sin movimiento bancario encontrado</>
@@ -1006,36 +1200,57 @@ export default function MovimientosAppPage() {
                 </>
               )}
 
-              {ofiviajePreview.revisarNombre?.length > 0 && (
+              {((ofiviajePreview.revisarNombre?.length || 0) +
+                (ofiviajePreview.revisarImporte?.length || 0) +
+                (ofiviajePreview.revisarSuma?.length || 0) +
+                (ofiviajePreview.revisarDivision?.length || 0)) > 0 && (
                 <>
                   <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#dc2626", textTransform: "uppercase", marginBottom: "0.4rem" }}>
-                    Mismo importe, proveedor distinto — revisar en OFI
+                    Revisar en OFI
+                  </div>
+                  <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginBottom: "0.5rem", fontStyle: "italic" }}>
+                    Los datos contables de OFIviaje deben adaptarse al extracto bancario para garantizar el correcto punteado de las cuentas.
                   </div>
                   <ul style={{ listStyle: "none", margin: 0, padding: 0, marginBottom: "1.25rem" }}>
-                    {ofiviajePreview.revisarNombre.map((m: any, i: number) => (
-                      <li
-                        key={i}
-                        style={{
-                          padding: "0.6rem 0",
-                          borderBottom: "1px solid #f1f5f9",
-                          fontSize: "0.8rem",
-                        }}
-                      >
-                        <div style={{ fontWeight: 600, color: "#0f172a" }}>
-                          Banco: {m.movimientoConcepto || "Movimiento sin concepto"}
-                        </div>
-                        <div style={{ color: "#64748b", marginTop: "0.1rem" }}>
-                          OFI: {m.pago.proveedorNombre}
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b", marginTop: "0.15rem" }}>
-                          <span>{m.movimientoFecha}</span>
-                          <span style={{ fontWeight: 700, color: "#dc2626" }}>
-                            {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(Math.abs(m.movimientoImporte))}
-                          </span>
-                        </div>
+                    {ofiviajePreview.revisarNombre?.map((m: any, i: number) => (
+                      <li key={`nombre-${i}`} style={{ padding: "0.6rem 0", borderBottom: "1px solid #f1f5f9", fontSize: "0.8rem" }}>
+                        <div style={{ fontWeight: 600, color: "#0f172a" }}>Proveedor distinto</div>
+                        <FilaBancoOfi movimientos={[{ fecha: m.movimientoFecha, concepto: m.movimientoConcepto, importe: m.movimientoImporte }]} pagos={[m.pago]} />
                         <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
-                          Doc: {m.pago.documento} · Revisa/corrige el proveedor en OFI para que el próximo XML lo detecte correctamente
+                          Doc: {m.pago.documento} · Expediente OFI: {m.pago.referenciaProvCte} · Doc. cobro/pago: {m.pago.documentoCobroPago} · Pasajero: {m.pago.nombrePasajero}
                         </div>
+                      </li>
+                    ))}
+                    {ofiviajePreview.revisarImporte?.map((m: any, i: number) => (
+                      <li key={`importe-${i}`} style={{ padding: "0.6rem 0", borderBottom: "1px solid #f1f5f9", fontSize: "0.8rem" }}>
+                        <div style={{ fontWeight: 600, color: "#0f172a" }}>Importe distinto</div>
+                        <FilaBancoOfi movimientos={[{ fecha: m.movimientoFecha, concepto: m.movimientoConcepto, importe: m.movimientoImporte }]} pagos={[m.pago]} />
+                        <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
+                          Doc: {m.pago.documento} · Expediente OFI: {m.pago.referenciaProvCte} · Doc. cobro/pago: {m.pago.documentoCobroPago}
+                        </div>
+                      </li>
+                    ))}
+                    {ofiviajePreview.revisarSuma?.map((m: any, i: number) => (
+                      <li key={`suma-${i}`} style={{ padding: "0.6rem 0", borderBottom: "1px solid #f1f5f9", fontSize: "0.8rem" }}>
+                        <div style={{ fontWeight: 600, color: "#0f172a" }}>Un pago OFI = 2 movimientos bancarios</div>
+                        <FilaBancoOfi
+                          movimientos={[0, 1].map((idx) => ({ fecha: m.movimientoFechas[idx], concepto: m.movimientoConceptos[idx], importe: m.movimientoImportes[idx] }))}
+                          pagos={[m.pago]}
+                        />
+                        <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
+                          Doc: {m.pago.documento} · Expediente OFI: {m.pago.referenciaProvCte} · Doc. cobro/pago: {m.pago.documentoCobroPago}
+                        </div>
+                      </li>
+                    ))}
+                    {ofiviajePreview.revisarDivision?.map((m: any, i: number) => (
+                      <li key={`division-${i}`} style={{ padding: "0.6rem 0", borderBottom: "1px solid #f1f5f9", fontSize: "0.8rem" }}>
+                        <div style={{ fontWeight: 600, color: "#0f172a" }}>Un movimiento bancario = {m.pagos.length} pagos OFI</div>
+                        <FilaBancoOfi movimientos={[{ fecha: m.movimientoFecha, concepto: m.movimientoConcepto, importe: m.movimientoImporte }]} pagos={m.pagos} />
+                        {m.pagos.map((p: any, pIdx: number) => (
+                          <div key={pIdx} style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.1rem" }}>
+                            Doc: {p.documento} · Expediente OFI: {p.referenciaProvCte}
+                          </div>
+                        ))}
                       </li>
                     ))}
                   </ul>
@@ -1072,6 +1287,41 @@ export default function MovimientosAppPage() {
                   </ul>
                 </>
               )}
+            </div>
+
+            <div style={{ padding: "0.85rem 1.5rem", borderTop: "1px solid #f1f5f9", display: "flex", gap: "0.5rem" }}>
+              <input
+                type="email"
+                placeholder="Email para enviar el informe"
+                value={informeEmail}
+                onChange={(e) => setInformeEmail(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: "0.5rem 0.65rem",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "0.5rem",
+                  fontSize: "0.8rem",
+                  color: "#0f172a",
+                }}
+              />
+              <button
+                onClick={handleEnviarInformeOfiviaje}
+                disabled={sendingInforme || !informeEmail.trim()}
+                style={{
+                  padding: "0.5rem 0.9rem",
+                  background: "#0f172a",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "0.5rem",
+                  fontWeight: 600,
+                  fontSize: "0.8rem",
+                  cursor: sendingInforme || !informeEmail.trim() ? "default" : "pointer",
+                  opacity: sendingInforme || !informeEmail.trim() ? 0.6 : 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {sendingInforme ? "Enviando..." : "Enviar informe"}
+              </button>
             </div>
 
             <div style={{ padding: "1rem 1.5rem", borderTop: "1px solid #f1f5f9", display: "flex", gap: "0.5rem" }}>
@@ -1116,6 +1366,377 @@ export default function MovimientosAppPage() {
           </div>
         </div>
       )}
+
+      {informeMensualData && (() => {
+        const formatEUR = (v: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(v);
+        const bancos = informeMensualData.map((c: any) => ({ id: c.cuentaId, nombre: c.banco }));
+        const cuentasFiltradas = informeBancoFiltro === "todos"
+          ? informeMensualData
+          : informeMensualData.filter((c: any) => c.cuentaId === informeBancoFiltro);
+        const totalPendienteGlobal = cuentasFiltradas.reduce((acc: number, c: any) => acc + c.totalPendiente, 0);
+        const totalMovGlobal = cuentasFiltradas.reduce((acc: number, c: any) => acc + c.numMovimientos, 0);
+
+        const conciliadosFiltrados = ultimaConciliacion
+          ? (informeBancoFiltro === "todos"
+              ? ultimaConciliacion.movimientos
+              : ultimaConciliacion.movimientos.filter((m: any) => m.cuentaId === informeBancoFiltro))
+          : [];
+
+        return (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(15,23,42,0.5)",
+              zIndex: 200,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "1rem",
+            }}
+            onClick={() => setInformeMensualData(null)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: "#fff",
+                borderRadius: "0.75rem",
+                width: "100%",
+                maxWidth: "680px",
+                maxHeight: "85vh",
+                display: "flex",
+                flexDirection: "column",
+                boxShadow: "0 20px 25px -5px rgba(0,0,0,0.15)",
+              }}
+            >
+              <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #f1f5f9" }}>
+                <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>
+                  Informe de conciliación
+                </h2>
+                <p style={{ margin: "0.35rem 0 0.75rem", fontSize: "0.75rem", color: "#94a3b8" }}>
+                  Pendientes: últimos 30 días · Conciliados: última lectura de OFIviaje
+                  {ultimaConciliacion?.procesadoEn && ` (${new Date(ultimaConciliacion.procesadoEn).toLocaleString("es-ES")})`}
+                </p>
+                <select
+                  value={informeBancoFiltro}
+                  onChange={(e) => setInformeBancoFiltro(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "0.45rem 0.6rem",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "0.5rem",
+                    fontSize: "0.8rem",
+                    color: "#0f172a",
+                    background: "#fff",
+                  }}
+                >
+                  <option value="todos">Todos los bancos</option>
+                  {bancos.map((b: any) => (
+                    <option key={b.id} value={b.id}>
+                      {b.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ padding: "1rem 1.5rem", overflowY: "auto", flex: 1 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1.25rem" }}>
+                  <div style={{ padding: "0.85rem", borderRadius: "0.5rem", border: "2px solid #c4b5fd", background: "#f5f3ff", textAlign: "center" }}>
+                    <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "#64748b" }}>PENDIENTES EN BANCO</div>
+                    <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#7c3aed" }}>{totalMovGlobal}</div>
+                    <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{formatEUR(totalPendienteGlobal)}</div>
+                  </div>
+                  <div style={{ padding: "0.85rem", borderRadius: "0.5rem", border: "2px solid #93c5fd", background: "#eff6ff", textAlign: "center" }}>
+                    <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "#64748b" }}>CONCILIADOS ÚLTIMA LECTURA</div>
+                    <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#2563eb" }}>{conciliadosFiltrados.length}</div>
+                    <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                      {formatEUR(conciliadosFiltrados.reduce((acc: number, m: any) => acc + m.importe, 0))}
+                    </div>
+                  </div>
+                </div>
+
+                {cuentasFiltradas.length === 0 ? (
+                  <p style={{ fontSize: "0.85rem", color: "#64748b" }}>No hay cuentas bancarias activas.</p>
+                ) : (
+                  cuentasFiltradas.map((cuenta: any) => (
+                    <div key={cuenta.cuentaId} style={{ marginBottom: "1.5rem" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+                        <p style={{ fontSize: "0.85rem", color: "#0f172a", margin: 0 }}>
+                          <strong>{cuenta.banco}</strong> <strong>{formatEUR(cuenta.totalPendiente)}</strong> ({cuenta.numMovimientos} mov.) pendientes de conciliar.
+                        </p>
+                        <label style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.72rem", color: "#64748b", whiteSpace: "nowrap", cursor: "pointer" }}>
+                          <input
+                            type="checkbox"
+                            checked={cuenta.incluirEnInformeAutomatico}
+                            onChange={async (e) => {
+                              const nuevoValor = e.target.checked;
+                              setInformeMensualData((prev: any[] | null) =>
+                                prev ? prev.map((c) => (c.cuentaId === cuenta.cuentaId ? { ...c, incluirEnInformeAutomatico: nuevoValor } : c)) : prev
+                              );
+                              const res = await actualizarIncluirEnInformeAutomatico(cuenta.cuentaId, nuevoValor);
+                              if (!res.success) {
+                                alert(res.error || "Error al actualizar la configuración.");
+                                setInformeMensualData((prev: any[] | null) =>
+                                  prev ? prev.map((c) => (c.cuentaId === cuenta.cuentaId ? { ...c, incluirEnInformeAutomatico: !nuevoValor } : c)) : prev
+                                );
+                              }
+                            }}
+                          />
+                          Email automático diario
+                        </label>
+                      </div>
+                      {cuenta.topDestinatarios.length > 0 && (
+                        <>
+                          <p style={{ fontSize: "0.8rem", color: "#334155", margin: "0 0 0.4rem" }}>
+                            El TOP 5 de destinatarios pendientes de conciliar es:
+                          </p>
+                          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                            {cuenta.topDestinatarios.map((d: any, i: number) => (
+                              <li
+                                key={i}
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  padding: "0.35rem 0",
+                                  borderBottom: "1px solid #f8fafc",
+                                  fontSize: "0.8rem",
+                                  color: "#334155",
+                                }}
+                              >
+                                <span>{d.nombre}</span>
+                                <span style={{ fontWeight: 600, color: "#0f172a" }}>
+                                  {formatEUR(d.total)} ({d.numMovimientos} mov.)
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+                    </div>
+                  ))
+                )}
+
+                {ultimaConciliacion && conciliadosFiltrados.length > 0 && (
+                  <div style={{ marginBottom: "1.5rem" }}>
+                    <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#15803d", textTransform: "uppercase", marginBottom: "0.4rem" }}>
+                      Conciliados en la última lectura
+                    </div>
+                    <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                      {conciliadosFiltrados.slice(0, conciliadosVisibles).map((m: any) => (
+                        <li
+                          key={m.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.6rem",
+                            padding: "0.4rem 0",
+                            borderBottom: "1px solid #f8fafc",
+                            fontSize: "0.78rem",
+                          }}
+                        >
+                          <span style={{ flex: "0 0 auto", color: "#94a3b8", fontSize: "0.72rem", whiteSpace: "nowrap" }}>
+                            {new Date(m.fecha).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                          </span>
+                          <span
+                            style={{
+                              flex: 1,
+                              minWidth: 0,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              color: "#334155",
+                            }}
+                            title={`${m.proveedorNombre || m.concepto} · ${m.banco}`}
+                          >
+                            {m.proveedorNombre || m.concepto} · {m.banco}
+                          </span>
+                          <span style={{ flex: "0 0 auto", marginLeft: "0.05rem", fontWeight: 600, color: "#15803d", whiteSpace: "nowrap" }}>
+                            {formatEUR(m.importe)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    {conciliadosFiltrados.length > conciliadosVisibles && (
+                      <button
+                        onClick={() => setConciliadosVisibles((n) => n + 5)}
+                        style={{
+                          marginTop: "0.5rem",
+                          padding: "0.35rem 0.75rem",
+                          background: "#f1f5f9",
+                          color: "#475569",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "0.375rem",
+                          fontWeight: 600,
+                          fontSize: "0.75rem",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Mostrar más ({conciliadosFiltrados.length - conciliadosVisibles} restantes)
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {informeRevisarPreview && (() => {
+                  // Nota: revisarNombre/revisarImporte/revisarSuma/revisarDivision/sinMatch no
+                  // llevan cuenta bancaria asociada (solo datos del pago XML), por lo que estas
+                  // secciones muestran siempre el total global, sin aplicar el filtro de banco.
+                  const revisarNombre = informeRevisarPreview.revisarNombre || [];
+                  const revisarImporte = informeRevisarPreview.revisarImporte || [];
+                  const revisarSuma = informeRevisarPreview.revisarSuma || [];
+                  const revisarDivision = informeRevisarPreview.revisarDivision || [];
+                  const totalRevisar = revisarNombre.length + revisarImporte.length + revisarSuma.length + revisarDivision.length;
+                  const sinMatch = informeRevisarPreview.sinMatch || [];
+
+                  return (
+                    <>
+                      {totalRevisar > 0 && (
+                        <>
+                          <div style={{ borderTop: "1px solid #e2e8f0", marginBottom: "0.75rem" }} />
+                          <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#0f172a", textAlign: "center", marginBottom: "0.35rem" }}>
+                            TAREAS PROPUESTAS PARA REVISIÓN EN OFIVIAJE
+                          </div>
+                          <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginBottom: "0.75rem", fontStyle: "italic", textAlign: "center" }}>
+                            Los datos contables de OFIviaje deben adaptarse al extracto bancario para garantizar el correcto punteado de las cuentas.
+                          </div>
+                          <ul style={{ listStyle: "none", margin: 0, padding: 0, marginBottom: "1.25rem" }}>
+                            {revisarNombre.map((m: any, i: number) => (
+                              <li key={`nombre-${i}`} style={{ padding: "0.6rem 0", borderBottom: "1px solid #f1f5f9", fontSize: "0.8rem" }}>
+                                <div style={{ fontWeight: 600, color: "#0f172a" }}>Proveedor distinto</div>
+                                <FilaBancoOfi movimientos={[{ fecha: m.movimientoFecha, concepto: m.movimientoConcepto, importe: m.movimientoImporte }]} pagos={[m.pago]} />
+                                <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
+                                  Doc: {m.pago.documento} · Expediente OFI: {m.pago.referenciaProvCte} · Doc. cobro/pago: {m.pago.documentoCobroPago} · Pasajero: {m.pago.nombrePasajero}
+                                </div>
+                              </li>
+                            ))}
+                            {revisarImporte.map((m: any, i: number) => (
+                              <li key={`importe-${i}`} style={{ padding: "0.6rem 0", borderBottom: "1px solid #f1f5f9", fontSize: "0.8rem" }}>
+                                <div style={{ fontWeight: 600, color: "#0f172a" }}>Importe distinto</div>
+                                <FilaBancoOfi movimientos={[{ fecha: m.movimientoFecha, concepto: m.movimientoConcepto, importe: m.movimientoImporte }]} pagos={[m.pago]} />
+                                <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
+                                  Doc: {m.pago.documento} · Expediente OFI: {m.pago.referenciaProvCte} · Doc. cobro/pago: {m.pago.documentoCobroPago}
+                                </div>
+                              </li>
+                            ))}
+                            {revisarSuma.map((m: any, i: number) => (
+                              <li key={`suma-${i}`} style={{ padding: "0.6rem 0", borderBottom: "1px solid #f1f5f9", fontSize: "0.8rem" }}>
+                                <div style={{ fontWeight: 600, color: "#0f172a" }}>Un pago OFI = 2 movimientos bancarios</div>
+                                <FilaBancoOfi
+                                  movimientos={[0, 1].map((idx) => ({ fecha: m.movimientoFechas[idx], concepto: m.movimientoConceptos[idx], importe: m.movimientoImportes[idx] }))}
+                                  pagos={[m.pago]}
+                                />
+                                <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
+                                  Doc: {m.pago.documento} · Expediente OFI: {m.pago.referenciaProvCte} · Doc. cobro/pago: {m.pago.documentoCobroPago}
+                                </div>
+                              </li>
+                            ))}
+                            {revisarDivision.map((m: any, i: number) => (
+                              <li key={`division-${i}`} style={{ padding: "0.6rem 0", borderBottom: "1px solid #f1f5f9", fontSize: "0.8rem" }}>
+                                <div style={{ fontWeight: 600, color: "#0f172a" }}>Un movimiento bancario = {m.pagos.length} pagos OFI</div>
+                                <FilaBancoOfi movimientos={[{ fecha: m.movimientoFecha, concepto: m.movimientoConcepto, importe: m.movimientoImporte }]} pagos={m.pagos} />
+                                {m.pagos.map((p: any, pIdx: number) => (
+                                  <div key={pIdx} style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.1rem" }}>
+                                    Doc: {p.documento} · Expediente OFI: {p.referenciaProvCte}
+                                  </div>
+                                ))}
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+
+                      {sinMatch.length > 0 && (
+                        <>
+                          <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#b45309", textTransform: "uppercase", marginBottom: "0.4rem" }}>
+                            Sin movimiento bancario encontrado
+                          </div>
+                          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                            {sinMatch.map((p: any, i: number) => (
+                              <li
+                                key={i}
+                                style={{
+                                  padding: "0.6rem 0",
+                                  borderBottom: "1px solid #f1f5f9",
+                                  fontSize: "0.8rem",
+                                }}
+                              >
+                                <div style={{ fontWeight: 600, color: "#0f172a" }}>{p.proveedorNombre}</div>
+                                <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b", marginTop: "0.15rem" }}>
+                                  <span>{p.fechaVencto} · {p.nombrePasajero}</span>
+                                  <span style={{ fontWeight: 700, color: "#b45309" }}>
+                                    {formatEUR(p.importePendiente)}
+                                  </span>
+                                </div>
+                                <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
+                                  Doc: {p.documento} · Doc. cobro/pago: {p.documentoCobroPago}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+
+              <div style={{ padding: "0.85rem 1.5rem", borderTop: "1px solid #f1f5f9", display: "flex", gap: "0.5rem" }}>
+                <input
+                  type="email"
+                  placeholder="Email para enviar el informe"
+                  value={informeMensualEmail}
+                  onChange={(e) => setInformeMensualEmail(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: "0.5rem 0.65rem",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "0.5rem",
+                    fontSize: "0.8rem",
+                    color: "#0f172a",
+                  }}
+                />
+                <button
+                  onClick={handleEnviarInformeMensual}
+                  disabled={sendingInformeMensual || !informeMensualEmail.trim()}
+                  style={{
+                    padding: "0.5rem 0.9rem",
+                    background: "#0f172a",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "0.5rem",
+                    fontWeight: 600,
+                    fontSize: "0.8rem",
+                    cursor: sendingInformeMensual || !informeMensualEmail.trim() ? "default" : "pointer",
+                    opacity: sendingInformeMensual || !informeMensualEmail.trim() ? 0.6 : 1,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {sendingInformeMensual ? "Enviando..." : "Enviar informe"}
+                </button>
+              </div>
+
+              <div style={{ padding: "1rem 1.5rem", borderTop: "1px solid #f1f5f9" }}>
+                <button
+                  onClick={() => setInformeMensualData(null)}
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem",
+                    background: "#f1f5f9",
+                    color: "#475569",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "0.5rem",
+                    fontWeight: 600,
+                    fontSize: "0.85rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

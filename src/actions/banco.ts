@@ -2,17 +2,36 @@
 
 import { getAgencyDbClient } from "@/lib/agencyDb";
 import { revalidatePath } from "next/cache";
-import { getMovimientosBanco as fetchMovimientosBanco, deleteMovimientoBanco as removeMovimientoBanco, getPagosDocumento as fetchPagosDocumento, getDocumentosExpediente as fetchDocumentosExpediente, getMatchesPendientesPorExpediente as fetchMatchesPendientes, regenerarPoolsBanco as regeneratePoolsBanco } from "@/lib/banco/bancoService";
+import { getMovimientosBanco as fetchMovimientosBanco, deleteMovimientoBanco as removeMovimientoBanco, getPagosDocumento as fetchPagosDocumento, getDocumentosExpediente as fetchDocumentosExpediente, getMatchesPendientesPorExpediente as fetchMatchesPendientes, regenerarPoolsBanco as regeneratePoolsBanco, getInformeMensualPendientesOfi as fetchInformeMensualPendientesOfi, getUltimaConciliacionOfiviaje as fetchUltimaConciliacionOfiviaje, enviarInformeMensualPorEmail as sendInformeMensualPorEmail, actualizarIncluirEnInformeAutomatico as updateIncluirEnInformeAutomatico } from "@/lib/banco/bancoService";
+import { getCurrentAgentePublic } from "@/actions/crm";
 import { processBankMovementMatch, executeMatchRecalculation, executeReembolsoRecalculation } from "@/lib/banco/matchEngine";
 import { sanitizeDocumentStates } from "@/lib/banco/dataSanitizer";
 import { conciliarPagoProveedor as ejecutarConciliarPagoProveedor, ejecutarConciliacionMovimiento, ejecutarConciliacionTutor } from "@/lib/banco/contabilidadService";
 import { createBridgeConnectSession, syncBridgeTransactions } from "@/lib/banco/bridgeApi";
 import { getCurrentAgenciaSlug } from "@/actions/agencias";
 import { createAdminServerClient } from "@/lib/supabaseServer";
-import { previsualizarOfiviajeUsuarioActual, confirmarConciliacionOfiviaje as confirmarConciliacionOfiviajeLib, type OfiviajeMatchPropuesto } from "@/lib/banco/ofiviajeMatch";
+import { previsualizarOfiviajeUsuarioActual, confirmarConciliacionOfiviaje as confirmarConciliacionOfiviajeLib, enviarInformeOfiviajePorEmail, type OfiviajeMatchPropuesto, type OfiviajePreview } from "@/lib/banco/ofiviajeMatch";
 
 export async function getMovimientosBanco(options?: any) {
   return fetchMovimientosBanco(options);
+}
+
+export async function getInformeMensualPendientesOfi() {
+  return fetchInformeMensualPendientesOfi();
+}
+
+export async function getUltimaConciliacionOfiviaje() {
+  return fetchUltimaConciliacionOfiviaje();
+}
+
+export async function enviarInformeMensualPorEmail(destinatarioEmail: string, cuentaBancariaId?: string, revisarPreview?: any) {
+  return sendInformeMensualPorEmail(destinatarioEmail, cuentaBancariaId, revisarPreview);
+}
+
+export async function actualizarIncluirEnInformeAutomatico(cuentaBancariaId: string, incluir: boolean) {
+  const { rol } = await getCurrentAgentePublic();
+  if (rol !== "Owner") return { success: false, error: "Solo el propietario de la agencia puede modificar esta configuración." };
+  return updateIncluirEnInformeAutomatico(cuentaBancariaId, incluir);
 }
 
 export async function deleteMovimientoBanco(id: string) {
@@ -211,4 +230,8 @@ export async function confirmarConciliacionOfiviaje(matches: OfiviajeMatchPropue
   const result = await confirmarConciliacionOfiviajeLib(matches);
   if (result.conciliados > 0) revalidatePath("/banco");
   return result;
+}
+
+export async function enviarInformeOfiviaje(preview: OfiviajePreview, destinatarioEmail: string) {
+  return enviarInformeOfiviajePorEmail(preview, destinatarioEmail);
 }

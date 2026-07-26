@@ -332,14 +332,12 @@ export async function getCurrentUsuario() {
   }
 }
 
-export async function getCurrentUserEmailConfig() {
+/**
+ * Resuelve la configuración SMTP de un usuario por su id de fila en `usuarios`
+ * (Admin DB), sin depender de sesión — para uso server-to-server (cron).
+ */
+export async function getUserEmailConfigById(usuarioId: string) {
   try {
-    const adminSupabase = await createAdminServerClient();
-    const { data: { user }, error: userError } = await adminSupabase.auth.getUser();
-    if (userError || !user) {
-      return { success: false, error: "No authenticated user" };
-    }
-
     const adminServiceSupabase = createAdminServiceClient();
     const { data: usuario, error: usuarioError } = await adminServiceSupabase
       .from("usuarios")
@@ -349,15 +347,13 @@ export async function getCurrentUserEmailConfig() {
         email_imap_host, email_imap_port, email_smtp_host,
         email_smtp_port, email_use_ssl
       `)
-      .eq("auth_user_id", user.id)
+      .eq("id", usuarioId)
       .single();
 
     if (usuarioError || !usuario) {
-      console.error("Error al obtener config de email:", usuarioError);
       return { success: false, error: "User record not found in Admin DB" };
     }
 
-    // Try dedicated columns first
     if (usuario.email_provider) {
       return {
         success: true,
@@ -374,16 +370,39 @@ export async function getCurrentUserEmailConfig() {
       };
     }
 
-    // Gracefully fallback to JSONB metadata if present
     const meta = usuario.metadata || {};
     if (meta.email_config) {
-      return {
-        success: true,
-        data: meta.email_config
-      };
+      return { success: true, data: meta.email_config };
     }
 
     return { success: true, data: null };
+  } catch (err: any) {
+    console.error("Error loading email configuration:", err);
+    return { success: false, error: err.message || "Failed to load email configuration" };
+  }
+}
+
+export async function getCurrentUserEmailConfig() {
+  try {
+    const adminSupabase = await createAdminServerClient();
+    const { data: { user }, error: userError } = await adminSupabase.auth.getUser();
+    if (userError || !user) {
+      return { success: false, error: "No authenticated user" };
+    }
+
+    const adminServiceSupabase = createAdminServiceClient();
+    const { data: usuario, error: usuarioError } = await adminServiceSupabase
+      .from("usuarios")
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .single();
+
+    if (usuarioError || !usuario) {
+      console.error("Error al obtener config de email:", usuarioError);
+      return { success: false, error: "User record not found in Admin DB" };
+    }
+
+    return getUserEmailConfigById(usuario.id);
   } catch (err: any) {
     console.error("Error loading email configuration:", err);
     return { success: false, error: err.message || "Failed to load email configuration" };

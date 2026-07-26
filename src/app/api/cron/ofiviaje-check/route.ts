@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminServiceClient } from "@/lib/supabaseServer";
 import { getAgencyDbClientById } from "@/lib/agencyDb";
 import { comprobarOfiviajeParaAgencia } from "@/lib/banco/ofiviajeMatch";
+import { enviarInformeAutomaticoOfiviajeAlOwner } from "@/lib/banco/bancoService";
 import type { DriveTokens } from "@/lib/banco/ofiviajeDrive";
 
 // Recorre todos los usuarios con Google Drive conectado y carpeta seleccionada,
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
   }
 
   const resultados: any[] = [];
+  const agenciasYaComunicadas = new Set<string>();
 
   for (const usuario of usuarios || []) {
     const driveConfig = usuario.metadata?.drive_config;
@@ -41,6 +43,24 @@ export async function GET(request: NextRequest) {
       const agencyDb = await getAgencyDbClientById(usuario.agencia_id);
       const result = await comprobarOfiviajeParaAgencia(agencyDb, tokens);
       resultados.push({ agencia_id: usuario.agencia_id, usuario_id: usuario.id, ...result });
+
+      // Informe automático al Owner: una sola vez por agencia (el bucle es
+      // por usuario con Drive conectado, puede haber varios por agencia).
+      if (!agenciasYaComunicadas.has(usuario.agencia_id)) {
+        agenciasYaComunicadas.add(usuario.agencia_id);
+        const { data: owner } = await adminDb
+          .from("usuarios")
+          .select("id, email")
+          .eq("agencia_id", usuario.agencia_id)
+          .eq("rol", "Owner")
+          .eq("esta_activo", true)
+          .single();
+
+        if (owner?.id && owner.email) {
+          const informe = await enviarInformeAutomaticoOfiviajeAlOwner(agencyDb, owner.id, owner.email);
+          resultados.push({ agencia_id: usuario.agencia_id, informeOwner: informe });
+        }
+      }
     } catch (err: any) {
       resultados.push({ agencia_id: usuario.agencia_id, usuario_id: usuario.id, error: err.message });
     }
