@@ -472,6 +472,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
           flexShrink: 0,
           background: "#1D2441",
           boxSizing: "border-box",
+          paddingTop: "env(safe-area-inset-top)",
         }}
       >
         <div

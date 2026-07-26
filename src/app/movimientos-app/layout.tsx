@@ -6,6 +6,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#1D2441",
+  viewportFit: "cover",
 };
 
 export default function MovimientosAppLayout({ children }: { children: React.ReactNode }) {
