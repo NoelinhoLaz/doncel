@@ -623,17 +623,19 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
             </div>
           )}
         </div>
-        <div
-          style={{
-            padding: "0 1.5rem 0.5rem",
-            color: "rgba(255,255,255,0.75)",
-            fontSize: "0.8rem",
-            fontWeight: 500,
-          }}
-        >
-          {agencyDetails?.nombre_comercial || ""}
-        </div>
       </header>
+      <div
+        style={{
+          padding: "0.5rem 1.5rem 0.35rem",
+          color: "#475569",
+          fontSize: "0.8rem",
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.03em",
+        }}
+      >
+        {agencyDetails?.nombre_comercial || ""}
+      </div>
 
       <div
         className="movimientosAppContainer"
