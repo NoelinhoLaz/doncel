@@ -463,15 +463,16 @@ export async function previsualizarOfiviajeUsuarioActual(): Promise<OfiviajePrev
 
     const ficheros = await listarXmlEnCarpeta(tokens);
     if (ficheros.length === 0) {
+      const persistidas = await leerTareasPendientesPersistidas(agencyDb);
       return {
         ficherosNuevos: 0,
         procesados: 0,
         matches: [],
-        revisarNombre: [],
-        revisarImporte: [],
-        revisarSuma: [],
-        revisarDivision: [],
-        sinMatch: [],
+        revisarNombre: persistidas.revisarNombre,
+        revisarImporte: persistidas.revisarImporte,
+        revisarSuma: persistidas.revisarSuma,
+        revisarDivision: persistidas.revisarDivision,
+        sinMatch: persistidas.sinMatch,
         yaConciliados: 0,
       };
     }
@@ -509,17 +510,25 @@ export async function previsualizarOfiviajeUsuarioActual(): Promise<OfiviajePrev
       revisarDivision.push(...result.revisarDivision);
       sinMatch.push(...result.sinMatch);
       yaConciliados += result.yaConciliados;
+
+      // Persistir lo que no se resolvió, para que no se pierda cuando el
+      // fichero se marque como procesado más abajo.
+      await persistirTareasPendientes(agencyDb, fichero, result);
     }
+
+    // Fusionar con tareas de ejecuciones anteriores (cron u otras
+    // comprobaciones) que quedaron sin resolver y cuyo fichero ya no es "nuevo".
+    const persistidas = await leerTareasPendientesPersistidas(agencyDb);
 
     return {
       ficherosNuevos: nuevos.length,
       procesados,
       matches,
-      revisarNombre,
-      revisarImporte,
-      revisarSuma,
-      revisarDivision,
-      sinMatch,
+      revisarNombre: [...revisarNombre, ...persistidas.revisarNombre],
+      revisarImporte: [...revisarImporte, ...persistidas.revisarImporte],
+      revisarSuma: [...revisarSuma, ...persistidas.revisarSuma],
+      revisarDivision: [...revisarDivision, ...persistidas.revisarDivision],
+      sinMatch: [...sinMatch, ...persistidas.sinMatch],
       yaConciliados,
     };
   } catch (error: any) {
@@ -536,6 +545,69 @@ export async function previsualizarOfiviajeUsuarioActual(): Promise<OfiviajePrev
       error: error.message || "Error al comprobar OFIviaje.",
     };
   }
+}
+
+/**
+ * Guarda en `ofiviaje_tareas_pendientes` las tareas propuestas de un fichero
+ * (revisarNombre/revisarImporte/revisarSuma/revisarDivision/sinMatch) que no
+ * se resolvieron automáticamente, para que sigan siendo visibles aunque el
+ * fichero ya se marque como "procesado" y no vuelva a analizarse.
+ */
+async function persistirTareasPendientes(
+  agencyDb: any,
+  fichero: { id: string; nombre: string },
+  result: {
+    revisarNombre: OfiviajeMatchPropuesto[];
+    revisarImporte: OfiviajeRevisarImporte[];
+    revisarSuma: OfiviajeRevisarSuma[];
+    revisarDivision: OfiviajeRevisarDivision[];
+    sinMatch: OfiviajePago[];
+  }
+): Promise<void> {
+  const filas: any[] = [];
+  for (const datos of result.revisarNombre) filas.push({ tipo: "revisarNombre", datos });
+  for (const datos of result.revisarImporte) filas.push({ tipo: "revisarImporte", datos });
+  for (const datos of result.revisarSuma) filas.push({ tipo: "revisarSuma", datos });
+  for (const datos of result.revisarDivision) filas.push({ tipo: "revisarDivision", datos });
+  for (const datos of result.sinMatch) filas.push({ tipo: "sinMatch", datos });
+
+  if (filas.length === 0) return;
+
+  await agencyDb.from("ofiviaje_tareas_pendientes").insert(
+    filas.map((f) => ({
+      tipo: f.tipo,
+      datos: f.datos,
+      drive_file_id: fichero.id,
+      drive_file_nombre: fichero.nombre,
+    }))
+  );
+}
+
+/**
+ * Lee las tareas pendientes ya persistidas (no resueltas) y las agrupa por
+ * tipo, en el mismo shape que devuelve calcularMatchesXmlContenido, para
+ * fusionarlas con lo recién calculado sobre ficheros nuevos.
+ */
+async function leerTareasPendientesPersistidas(agencyDb: any): Promise<{
+  revisarNombre: OfiviajeMatchPropuesto[];
+  revisarImporte: OfiviajeRevisarImporte[];
+  revisarSuma: OfiviajeRevisarSuma[];
+  revisarDivision: OfiviajeRevisarDivision[];
+  sinMatch: OfiviajePago[];
+}> {
+  const vacio = { revisarNombre: [], revisarImporte: [], revisarSuma: [], revisarDivision: [], sinMatch: [] };
+  const { data } = await agencyDb
+    .from("ofiviaje_tareas_pendientes")
+    .select("tipo, datos")
+    .eq("resuelta", false);
+
+  if (!data || data.length === 0) return vacio;
+
+  const resultado = { revisarNombre: [], revisarImporte: [], revisarSuma: [], revisarDivision: [], sinMatch: [] } as any;
+  for (const fila of data) {
+    if (resultado[fila.tipo]) resultado[fila.tipo].push(fila.datos);
+  }
+  return resultado;
 }
 
 export interface OfiviajeConfirmResult {
@@ -635,6 +707,10 @@ export async function comprobarOfiviajeParaAgencia(
           .eq("id", match.movimientoId);
         if (!updateError) conciliados++;
       }
+
+      // Persistir lo que no se resolvió automáticamente, para que siga
+      // siendo visible en el informe una vez el fichero se marque procesado.
+      await persistirTareasPendientes(agencyDb, fichero, result);
 
       await agencyDb.from("ofiviaje_ficheros_procesados").insert({
         drive_file_id: fichero.id,
