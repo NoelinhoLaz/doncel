@@ -6,7 +6,7 @@ import { getMovimientosBanco as fetchMovimientosBanco, deleteMovimientoBanco as 
 import { getCurrentAgentePublic } from "@/actions/crm";
 import { processBankMovementMatch, executeMatchRecalculation, executeReembolsoRecalculation } from "@/lib/banco/matchEngine";
 import { sanitizeDocumentStates } from "@/lib/banco/dataSanitizer";
-import { conciliarPagoProveedor as ejecutarConciliarPagoProveedor, ejecutarConciliacionMovimiento, ejecutarConciliacionTutor } from "@/lib/banco/contabilidadService";
+import { conciliarPagoProveedor as ejecutarConciliarPagoProveedor, ejecutarConciliacionMovimiento, ejecutarConciliacionTutor, ejecutarConciliacionManual } from "@/lib/banco/contabilidadService";
 import { createBridgeConnectSession, syncBridgeTransactions } from "@/lib/banco/bridgeApi";
 import { getCurrentAgenciaSlug } from "@/actions/agencias";
 import { createAdminServerClient } from "@/lib/supabaseServer";
@@ -53,6 +53,35 @@ export async function conciliarPagoProveedor(pagoId: string, movimientoBancoId: 
 
 export async function getDocumentosExpediente(expedienteId: string) {
   return fetchDocumentosExpediente(expedienteId);
+}
+
+export async function conciliarManualmente(movimientoBancoId: string, importe: number, expedienteOfi?: string) {
+  const agencyDb = await getAgencyDbClient();
+  const result = await ejecutarConciliacionManual(agencyDb, movimientoBancoId, importe, expedienteOfi);
+  if (result.success) revalidatePath("/banco");
+  return result;
+}
+
+export async function getImportePendienteConciliar(movimientoBancoId: string): Promise<{ importePendiente: number }> {
+  const agencyDb = await getAgencyDbClient();
+
+  const { data: movimiento } = await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .select("importe")
+    .eq("id", movimientoBancoId)
+    .maybeSingle();
+
+  const { data: pagos } = await agencyDb
+    .from("contabilidad_movimientos")
+    .select("importe_total")
+    .eq("movimiento_banco_id", movimientoBancoId)
+    .eq("estado", "confirmado");
+
+  const yaConciliado = (pagos || []).reduce((sum: number, p: any) => sum + Number(p.importe_total || 0), 0);
+  const importeMovimiento = Math.abs(Number(movimiento?.importe || 0));
+  const importePendiente = Math.max(0, importeMovimiento - yaConciliado);
+
+  return { importePendiente };
 }
 
 export async function matchMovimientoBancarioConPagos(movimientoBancoId: string, pagosPendientesPrecalculados?: any[]) {

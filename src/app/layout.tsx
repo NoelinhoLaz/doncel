@@ -50,9 +50,27 @@ const pacifico = Pacifico({
 });
 
 export const metadata: Metadata = {
-  title: "Agencia de Viajes",
-  description: "Sistema de gestión multitenant",
+  title: "Alivia",
+  description: "Solución integral de agencias de viaje",
   manifest: "/manifest.json",
+  openGraph: {
+    title: "Alivia",
+    description: "Solución integral de agencias de viaje",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Alivia",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Alivia",
+    description: "Solución integral de agencias de viaje",
+    images: ["/og-image.png"],
+  },
 };
 
 export default function RootLayout({

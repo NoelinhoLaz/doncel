@@ -388,6 +388,75 @@ export async function ejecutarConciliacionMovimiento(
   return { success: true, documento_id: lastResult?.documento_id, proveedor_id: lastResult?.proveedor_id || null, expediente_id: lastResult?.expediente_id || null, entidad_id: lastResult?.entidad_id || null };
 }
 
+/**
+ * Conciliación manual libre: el agente introduce un importe (por defecto el
+ * pendiente del movimiento bancario) y opcionalmente un expediente OFI de
+ * referencia, sin necesidad de un documento/proveedor concreto. Si el
+ * importe no cubre el total del movimiento, queda en estado "parcial" y se
+ * puede volver a conciliar más adelante con el resto (mismo mecanismo que
+ * las demás conciliaciones, vía recalcularEstadoMovimientoBanco).
+ */
+export async function ejecutarConciliacionManual(
+  agencyDb: any,
+  movimientoBancoId: string,
+  importe: number,
+  expedienteOfi?: string
+): Promise<{ success: boolean; error?: string; estado?: "conciliado" | "parcial" }> {
+  const { data: movimiento, error: movError } = await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .select("importe, fecha_operacion, moneda, concepto_original")
+    .eq("id", movimientoBancoId)
+    .maybeSingle();
+
+  if (movError || !movimiento) {
+    return { success: false, error: "Movimiento bancario no encontrado" };
+  }
+
+  if (!importe || importe <= 0) {
+    return { success: false, error: "El importe debe ser mayor que 0" };
+  }
+
+  const { data: pagosExistentes } = await agencyDb
+    .from("contabilidad_movimientos")
+    .select("importe_total")
+    .eq("movimiento_banco_id", movimientoBancoId)
+    .eq("estado", "confirmado");
+
+  const yaConciliado = (pagosExistentes || []).reduce((sum: number, p: any) => sum + Number(p.importe_total || 0), 0);
+  const importeMovimiento = Math.abs(Number(movimiento.importe || 0));
+  const exceso = yaConciliado + importe - importeMovimiento;
+  if (exceso > 0.01) {
+    return { success: false, error: `El importe supera lo pendiente por conciliar (quedan ${(importeMovimiento - yaConciliado).toFixed(2)}€)` };
+  }
+
+  const { error: mcError } = await agencyDb.from("contabilidad_movimientos").insert([
+    {
+      entidad_id: null,
+      usuario_id: "550e8400-e29b-41d4-a716-446655440000",
+      tipo: "pago",
+      importe_total: importe,
+      moneda: movimiento.moneda || "EUR",
+      medio_pago: "banco",
+      tipo_servicio: "Conciliación manual",
+      fecha: movimiento.fecha_operacion || new Date().toISOString().split("T")[0],
+      concepto: expedienteOfi
+        ? `Conciliación manual · Expediente OFI: ${expedienteOfi}`
+        : movimiento.concepto_original || "Conciliación manual",
+      estado: "confirmado",
+      movimiento_banco_id: movimientoBancoId,
+      expediente_id: null,
+    },
+  ]);
+
+  if (mcError) {
+    return { success: false, error: `Error al registrar la conciliación: ${mcError.message}` };
+  }
+
+  const nuevoEstado = await recalcularEstadoMovimientoBanco(agencyDb, movimientoBancoId, "manual");
+
+  return { success: true, estado: nuevoEstado };
+}
+
 export async function ejecutarConciliacionTutor(
   movimientoId: string,
   expedienteId: string,

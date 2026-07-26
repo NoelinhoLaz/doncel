@@ -3,6 +3,7 @@ import {
   generarApuntesPagoProveedor,
   ejecutarConciliacionMovimiento as ejecutarConciliacionMovimientoLegacy,
   ejecutarConciliacionTutor as ejecutarConciliacionTutorLegacy,
+  ejecutarConciliacionManual as ejecutarConciliacionManualLegacy,
 } from "@/lib/conciliacion/contabilidadService";
 
 export type ConciliationResult =
@@ -50,6 +51,21 @@ export async function ejecutarConciliacionTutor(movimientoId: string, expediente
   } catch (err: any) {
     console.error("[CONCILIATION_FAILURE ejecutarConciliacionTutor]:", err?.message ?? err);
     return { success: false, error: err?.message ?? "Error interno en ejecutarConciliacionTutor" };
+  }
+}
+
+export async function ejecutarConciliacionManual(
+  agencyDb: any,
+  movimientoBancoId: string,
+  importe: number,
+  expedienteOfi?: string
+): Promise<ConciliationResult> {
+  try {
+    const legacy = await ejecutarConciliacionManualLegacy(agencyDb, movimientoBancoId, importe, expedienteOfi);
+    return normalizeLegacyResult(legacy);
+  } catch (err: any) {
+    console.error("[CONCILIATION_FAILURE ejecutarConciliacionManual]:", err?.message ?? err);
+    return { success: false, error: err?.message ?? "Error interno en ejecutarConciliacionManual" };
   }
 }
 

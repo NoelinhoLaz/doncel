@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Landmark, ChevronDown, Menu, Link2, HardDrive, FileCheck2, BarChart3 } from "lucide-react";
-import { getMovimientosBanco, connectBridgeBank, syncBridgeBankMovements, previsualizarConciliacionOfiviaje, confirmarConciliacionOfiviaje, enviarInformeOfiviaje, getInformeMensualPendientesOfi, getUltimaConciliacionOfiviaje, enviarInformeMensualPorEmail, actualizarIncluirEnInformeAutomatico } from "@/actions/banco";
+import { getMovimientosBanco, connectBridgeBank, syncBridgeBankMovements, previsualizarConciliacionOfiviaje, confirmarConciliacionOfiviaje, enviarInformeOfiviaje, getInformeMensualPendientesOfi, getUltimaConciliacionOfiviaje, enviarInformeMensualPorEmail, actualizarIncluirEnInformeAutomatico, conciliarManualmente, getImportePendienteConciliar } from "@/actions/banco";
 import { getCuentasBancarias } from "@/actions/cuentasBancarias";
 import { getCurrentAgencyDetails } from "@/actions/agencias";
 import { getCurrentAgentePublic } from "@/actions/crm";
@@ -118,6 +118,11 @@ export default function MovimientosAppPage() {
   const [cuentasBancarias, setCuentasBancarias] = useState<any[]>([]);
   const [agencyDetails, setAgencyDetails] = useState<{ logo_url: string | null; nombre_comercial: string; color_corporativo?: string | null } | null>(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [conciliacionManualMov, setConciliacionManualMov] = useState<any | null>(null);
+  const [conciliacionManualImporte, setConciliacionManualImporte] = useState("");
+  const [conciliacionManualExpediente, setConciliacionManualExpediente] = useState("");
+  const [conciliacionManualLoading, setConciliacionManualLoading] = useState(false);
+  const [conciliacionManualPendiente, setConciliacionManualPendiente] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [showBancoDropdown, setShowBancoDropdown] = useState(false);
@@ -321,6 +326,53 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
       alert("Error al comprobar la conciliación con OFIviaje.");
     } finally {
       setCheckingOfiviaje(false);
+    }
+  };
+
+  const abrirModalConciliacionManual = async (mov: any) => {
+    setConciliacionManualMov(mov);
+    setConciliacionManualExpediente("");
+    setConciliacionManualPendiente(null);
+    try {
+      const { importePendiente } = await getImportePendienteConciliar(mov.id);
+      setConciliacionManualPendiente(importePendiente);
+      setConciliacionManualImporte(importePendiente.toFixed(2));
+    } catch (error) {
+      console.error("Error obteniendo importe pendiente:", error);
+      const fallback = Math.abs(Number(mov.importe));
+      setConciliacionManualPendiente(fallback);
+      setConciliacionManualImporte(fallback.toFixed(2));
+    }
+  };
+
+  const cerrarModalConciliacionManual = () => {
+    setConciliacionManualMov(null);
+    setConciliacionManualImporte("");
+    setConciliacionManualExpediente("");
+    setConciliacionManualPendiente(null);
+  };
+
+  const handleConciliarManual = async () => {
+    if (!conciliacionManualMov) return;
+    const importe = Number(conciliacionManualImporte.replace(",", "."));
+    if (!importe || importe <= 0) {
+      alert("Introduce un importe válido.");
+      return;
+    }
+    setConciliacionManualLoading(true);
+    try {
+      const res = await conciliarManualmente(conciliacionManualMov.id, importe, conciliacionManualExpediente.trim() || undefined);
+      if (!res.success) {
+        alert(res.error || "Error al conciliar el movimiento.");
+      } else {
+        cerrarModalConciliacionManual();
+        loadData(filtros, searchQuery);
+      }
+    } catch (error) {
+      console.error("Error conciliando manualmente:", error);
+      alert("Error al conciliar el movimiento.");
+    } finally {
+      setConciliacionManualLoading(false);
     }
   };
 
@@ -1018,6 +1070,12 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                       <span style={{ display: "flex", gap: "0.3rem" }}>
                         {(!mov.conciliado_externo || mov.estado === "parcial") && (
                           <span
+                            onClick={(e) => {
+                              if (mov.estado === "pendiente" || mov.estado === "parcial") {
+                                e.stopPropagation();
+                                abrirModalConciliacionManual(mov);
+                              }
+                            }}
                             style={{
                               fontSize: "0.6rem",
                               fontWeight: 400,
@@ -1026,6 +1084,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                               background: estado.bg,
                               borderRadius: "0.25rem",
                               padding: "0.1rem 0.35rem",
+                              cursor: (mov.estado === "pendiente" || mov.estado === "parcial") ? "pointer" : "default",
                             }}
                           >
                             {estado.label}
@@ -1766,6 +1825,110 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
           </div>
         );
       })()}
+
+      {conciliacionManualMov && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.5)",
+            zIndex: 200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+          onClick={() => !conciliacionManualLoading && cerrarModalConciliacionManual()}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: "0.75rem",
+              width: "100%",
+              maxWidth: "380px",
+              boxShadow: "0 20px 25px -5px rgba(0,0,0,0.15)",
+            }}
+          >
+            <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #f1f5f9" }}>
+              <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>
+                Conciliar manualmente
+              </h2>
+              <p style={{ margin: "0.35rem 0 0", fontSize: "0.8rem", color: "#64748b" }}>
+                {conciliacionManualMov.concepto_original || "Movimiento sin concepto"}
+              </p>
+            </div>
+
+            <div style={{ padding: "1.25rem 1.5rem", display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+              <div>
+                <span style={labelStyle}>Importe</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={conciliacionManualImporte}
+                  onChange={(e) => setConciliacionManualImporte(e.target.value)}
+                  style={inputStyle}
+                  autoFocus
+                />
+                {conciliacionManualPendiente !== null && (
+                  <p style={{ margin: "0.3rem 0 0", fontSize: "0.72rem", color: "#94a3b8" }}>
+                    Pendiente por conciliar: {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(conciliacionManualPendiente)}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <span style={labelStyle}>Expediente OFI (opcional)</span>
+                <input
+                  type="text"
+                  placeholder="Ej. 001260012"
+                  value={conciliacionManualExpediente}
+                  onChange={(e) => setConciliacionManualExpediente(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            <div style={{ padding: "1rem 1.5rem", borderTop: "1px solid #f1f5f9", display: "flex", gap: "0.5rem" }}>
+              <button
+                onClick={cerrarModalConciliacionManual}
+                disabled={conciliacionManualLoading}
+                style={{
+                  flex: 1,
+                  padding: "0.6rem",
+                  background: "#f1f5f9",
+                  color: "#475569",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "0.5rem",
+                  fontWeight: 600,
+                  fontSize: "0.85rem",
+                  cursor: conciliacionManualLoading ? "default" : "pointer",
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConciliarManual}
+                disabled={conciliacionManualLoading}
+                style={{
+                  flex: 1,
+                  padding: "0.6rem",
+                  background: "#10b981",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "0.5rem",
+                  fontWeight: 700,
+                  fontSize: "0.85rem",
+                  cursor: conciliacionManualLoading ? "default" : "pointer",
+                  opacity: conciliacionManualLoading ? 0.7 : 1,
+                }}
+              >
+                {conciliacionManualLoading ? "Conciliando..." : "Conciliar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
