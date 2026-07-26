@@ -484,7 +484,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
           }}
         >
           <img
-            src="/logo_alivia.png"
+            src="/alivia_logo_no_text.png"
             alt="Alivia"
             style={{ height: "24px", maxWidth: "150px", objectFit: "contain" }}
           />
