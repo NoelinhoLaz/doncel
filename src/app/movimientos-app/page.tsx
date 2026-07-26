@@ -643,7 +643,24 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
             alt="Alivia"
             style={{ height: "24px", maxWidth: "150px", objectFit: "contain" }}
           />
-          {isOwner && (
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <span
+              style={{
+                color: "rgba(255,255,255,0.85)",
+                fontSize: "0.85rem",
+                fontWeight: 300,
+                fontFamily: "var(--font-raleway), sans-serif",
+                textTransform: "uppercase",
+                letterSpacing: "0.03em",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: "180px",
+              }}
+            >
+              {agencyDetails?.nombre_comercial || ""}
+            </span>
+            {isOwner && (
             <div ref={menuRef} style={{ position: "relative" }}>
               <button
                 title="Menú"
@@ -806,6 +823,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
               )}
             </div>
           )}
+          </div>
         </div>
       </header>
 
@@ -852,20 +870,6 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
           boxSizing: "border-box",
         }}
       >
-        <div
-          style={{
-            textAlign: "center",
-            color: "#475569",
-            fontSize: "1.4rem",
-            fontWeight: 300,
-            fontFamily: "var(--font-raleway), sans-serif",
-            textTransform: "uppercase",
-            letterSpacing: "0.03em",
-            marginBottom: "0.6rem",
-          }}
-        >
-          {agencyDetails?.nombre_comercial || ""}
-        </div>
         <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.6rem" }}>
           <div style={{ position: "relative", flex: 1 }}>
             <input
