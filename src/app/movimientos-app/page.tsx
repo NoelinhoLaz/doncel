@@ -330,18 +330,17 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
   };
 
   const abrirModalConciliacionManual = async (mov: any) => {
+    const fallback = Math.abs(Number(mov.importe));
     setConciliacionManualMov(mov);
     setConciliacionManualExpediente("");
-    setConciliacionManualPendiente(null);
+    setConciliacionManualPendiente(fallback);
+    setConciliacionManualImporte(fallback.toFixed(2));
     try {
       const { importePendiente } = await getImportePendienteConciliar(mov.id);
       setConciliacionManualPendiente(importePendiente);
       setConciliacionManualImporte(importePendiente.toFixed(2));
     } catch (error) {
       console.error("Error obteniendo importe pendiente:", error);
-      const fallback = Math.abs(Number(mov.importe));
-      setConciliacionManualPendiente(fallback);
-      setConciliacionManualImporte(fallback.toFixed(2));
     }
   };
 
@@ -1847,10 +1846,13 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
               borderRadius: "0.75rem",
               width: "100%",
               maxWidth: "380px",
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column",
               boxShadow: "0 20px 25px -5px rgba(0,0,0,0.15)",
             }}
           >
-            <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #f1f5f9" }}>
+            <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #f1f5f9", flexShrink: 0 }}>
               <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>
                 Conciliar manualmente
               </h2>
@@ -1859,7 +1861,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
               </p>
             </div>
 
-            <div style={{ padding: "1.25rem 1.5rem", display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+            <div style={{ padding: "1.25rem 1.5rem", display: "flex", flexDirection: "column", gap: "0.9rem", overflowY: "auto" }}>
               <div>
                 <span style={labelStyle}>Importe</span>
                 <input
@@ -1868,7 +1870,6 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                   value={conciliacionManualImporte}
                   onChange={(e) => setConciliacionManualImporte(e.target.value)}
                   style={inputStyle}
-                  autoFocus
                 />
                 {conciliacionManualPendiente !== null && (
                   <p style={{ margin: "0.3rem 0 0", fontSize: "0.72rem", color: "#94a3b8" }}>
@@ -1889,7 +1890,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
               </div>
             </div>
 
-            <div style={{ padding: "1rem 1.5rem", borderTop: "1px solid #f1f5f9", display: "flex", gap: "0.5rem" }}>
+            <div style={{ padding: "1rem 1.5rem", borderTop: "1px solid #f1f5f9", display: "flex", gap: "0.5rem", flexShrink: 0 }}>
               <button
                 onClick={cerrarModalConciliacionManual}
                 disabled={conciliacionManualLoading}
