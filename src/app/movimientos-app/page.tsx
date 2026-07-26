@@ -462,6 +462,9 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
       setInformeMensualData(pendientes);
       setUltimaConciliacion(ultimaConc);
       setInformeRevisarPreview(revisarPreview);
+      if (revisarPreview?.error) {
+        console.warn("No se pudieron calcular las tareas propuestas:", revisarPreview.error);
+      }
     } catch (error) {
       console.error("Error cargando informe mensual:", error);
       alert("Error al cargar el informe mensual.");

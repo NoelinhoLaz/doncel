@@ -1,5 +1,5 @@
 import { google } from "googleapis";
-import { getCurrentUserDriveConfig } from "@/actions/usuarios";
+import { getAnyDriveConfigForCurrentAgency } from "@/actions/usuarios";
 
 export interface DriveTokens {
   drive_access_token?: string | null;
@@ -73,13 +73,16 @@ export async function descargarContenidoXml(tokens: DriveTokens, fileId: string)
 }
 
 /**
- * Obtiene las credenciales de Drive + carpeta seleccionada del usuario
- * actualmente autenticado (flujo manual desde la UI).
+ * Obtiene las credenciales de Drive + carpeta seleccionada para el flujo
+ * manual desde la UI: usa las del usuario actual si tiene Drive conectado,
+ * o si no las de cualquier otro usuario de la misma agencia que sí lo tenga
+ * (misma fuente que usa el cron), para que no haga falta que cada agente
+ * conecte su propio Drive solo para ver el informe.
  */
 export async function getDriveTokensUsuarioActual(): Promise<DriveTokens> {
-  const driveConfigRes = await getCurrentUserDriveConfig();
+  const driveConfigRes = await getAnyDriveConfigForCurrentAgency();
   if (!driveConfigRes.success || !driveConfigRes.data?.drive_access_token) {
-    throw new Error("Google Drive no está conectado.");
+    throw new Error(driveConfigRes.error || "Google Drive no está conectado.");
   }
   return driveConfigRes.data;
 }

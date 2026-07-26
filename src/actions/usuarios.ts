@@ -534,6 +534,79 @@ export async function getCurrentUserDriveConfig() {
   }
 }
 
+/**
+ * Config de Drive para previsualizar/comprobar OFIviaje desde la UI: usa la
+ * del usuario actual si tiene Drive conectado, o si no la de cualquier otro
+ * usuario de la misma agencia que sí lo tenga (misma carpeta/credenciales
+ * que usa el cron) — evita exigir que cada agente conecte su propio Drive
+ * solo para ver el informe.
+ */
+export async function getAnyDriveConfigForCurrentAgency() {
+  try {
+    const adminSupabase = await createAdminServerClient();
+    const { data: { user }, error: userError } = await adminSupabase.auth.getUser();
+    if (userError || !user) {
+      return { success: false, error: "No authenticated user" };
+    }
+
+    const adminServiceSupabase = createAdminServiceClient();
+    const { data: usuario, error: usuarioError } = await adminServiceSupabase
+      .from("usuarios")
+      .select(`
+        id, agencia_id, metadata,
+        drive_access_token, drive_refresh_token, drive_token_expiry
+      `)
+      .eq("auth_user_id", user.id)
+      .single();
+
+    if (usuarioError || !usuario) {
+      return { success: false, error: "User record not found" };
+    }
+
+    if (usuario.drive_access_token && usuario.drive_refresh_token) {
+      return {
+        success: true,
+        data: {
+          drive_access_token: usuario.drive_access_token,
+          drive_refresh_token: usuario.drive_refresh_token,
+          drive_token_expiry: usuario.drive_token_expiry,
+          drive_folder: usuario.metadata?.drive_config?.drive_folder || null,
+        },
+      };
+    }
+
+    if (!usuario.agencia_id) {
+      return { success: false, error: "Google Drive no está conectado." };
+    }
+
+    const { data: otroUsuario } = await adminServiceSupabase
+      .from("usuarios")
+      .select("metadata, drive_access_token, drive_refresh_token, drive_token_expiry")
+      .eq("agencia_id", usuario.agencia_id)
+      .not("drive_access_token", "is", null)
+      .not("drive_refresh_token", "is", null)
+      .limit(1)
+      .maybeSingle();
+
+    if (!otroUsuario) {
+      return { success: false, error: "Google Drive no está conectado en esta agencia." };
+    }
+
+    return {
+      success: true,
+      data: {
+        drive_access_token: otroUsuario.drive_access_token,
+        drive_refresh_token: otroUsuario.drive_refresh_token,
+        drive_token_expiry: otroUsuario.drive_token_expiry,
+        drive_folder: otroUsuario.metadata?.drive_config?.drive_folder || null,
+      },
+    };
+  } catch (err: any) {
+    console.error("Error loading agency Drive configuration:", err);
+    return { success: false, error: err.message || "Failed to load Drive configuration" };
+  }
+}
+
 export async function saveDriveConfiguration(payload: any) {
   try {
     const adminSupabase = await createAdminServerClient();
