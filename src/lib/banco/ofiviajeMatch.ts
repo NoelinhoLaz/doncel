@@ -518,7 +518,13 @@ export async function previsualizarOfiviajeUsuarioActual(): Promise<OfiviajePrev
 
     // Fusionar con tareas de ejecuciones anteriores (cron u otras
     // comprobaciones) que quedaron sin resolver y cuyo fichero ya no es "nuevo".
-    const persistidas = await leerTareasPendientesPersistidas(agencyDb);
+    // Se excluyen los ficheros recién procesados en este mismo bucle: sus
+    // tareas ya están en las listas en memoria de arriba y también se acaban
+    // de persistir, así que releerlas aquí las duplicaría.
+    const persistidas = await leerTareasPendientesPersistidas(
+      agencyDb,
+      nuevos.map((f) => f.id)
+    );
 
     return {
       ficherosNuevos: nuevos.length,
@@ -571,6 +577,11 @@ async function persistirTareasPendientes(
   for (const datos of result.revisarDivision) filas.push({ tipo: "revisarDivision", datos });
   for (const datos of result.sinMatch) filas.push({ tipo: "sinMatch", datos });
 
+  // Reemplaza las tareas previas de este mismo fichero (si se re-analiza en
+  // la misma pasada, o si ya se habían persistido en una llamada anterior),
+  // en vez de acumular filas duplicadas cada vez que se procesa.
+  await agencyDb.from("ofiviaje_tareas_pendientes").delete().eq("drive_file_id", fichero.id);
+
   if (filas.length === 0) return;
 
   await agencyDb.from("ofiviaje_tareas_pendientes").insert(
@@ -588,7 +599,10 @@ async function persistirTareasPendientes(
  * tipo, en el mismo shape que devuelve calcularMatchesXmlContenido, para
  * fusionarlas con lo recién calculado sobre ficheros nuevos.
  */
-async function leerTareasPendientesPersistidas(agencyDb: any): Promise<{
+async function leerTareasPendientesPersistidas(
+  agencyDb: any,
+  excluirDriveFileIds: string[] = []
+): Promise<{
   revisarNombre: OfiviajeMatchPropuesto[];
   revisarImporte: OfiviajeRevisarImporte[];
   revisarSuma: OfiviajeRevisarSuma[];
@@ -596,10 +610,14 @@ async function leerTareasPendientesPersistidas(agencyDb: any): Promise<{
   sinMatch: OfiviajePago[];
 }> {
   const vacio = { revisarNombre: [], revisarImporte: [], revisarSuma: [], revisarDivision: [], sinMatch: [] };
-  const { data } = await agencyDb
+  let query = agencyDb
     .from("ofiviaje_tareas_pendientes")
     .select("tipo, datos")
     .eq("resuelta", false);
+  if (excluirDriveFileIds.length > 0) {
+    query = query.not("drive_file_id", "in", `(${excluirDriveFileIds.join(",")})`);
+  }
+  const { data } = await query;
 
   if (!data || data.length === 0) return vacio;
 
