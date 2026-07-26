@@ -55,4 +55,5 @@ test_script.js
 !package-lock.json
 !tsconfig.json
 !manifest.json
+!concilia-manifest.json
 !vercel.json

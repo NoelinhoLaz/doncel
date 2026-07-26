@@ -52,6 +52,7 @@ const pacifico = Pacifico({
 export const metadata: Metadata = {
   title: "Agencia de Viajes",
   description: "Sistema de gestión multitenant",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
