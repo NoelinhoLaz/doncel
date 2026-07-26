@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Landmark, ChevronDown, Menu, Link2, HardDrive, FileCheck2, BarChart3 } from "lucide-react";
+import { Landmark, ChevronDown, Menu, Link2, HardDrive, FileCheck2, BarChart3, Bell, BellOff } from "lucide-react";
 import { getMovimientosBanco, connectBridgeBank, syncBridgeBankMovements, previsualizarConciliacionOfiviaje, confirmarConciliacionOfiviaje, enviarInformeOfiviaje, getInformeMensualPendientesOfi, getUltimaConciliacionOfiviaje, enviarInformeMensualPorEmail, actualizarIncluirEnInformeAutomatico, conciliarManualmente, getImportePendienteConciliar } from "@/actions/banco";
 import { getCuentasBancarias } from "@/actions/cuentasBancarias";
 import { getCurrentAgencyDetails } from "@/actions/agencias";
 import { getCurrentAgentePublic } from "@/actions/crm";
+import { suscribirNotificacionesPush, desuscribirNotificacionesPush } from "@/actions/pushNotifications";
 import DriveAuthModal from "@/app/components/DriveAuthModal";
 
 // Colores espaciados en el círculo cromático para que sean fácilmente distinguibles
@@ -123,6 +124,9 @@ export default function MovimientosAppPage() {
   const [conciliacionManualExpediente, setConciliacionManualExpediente] = useState("");
   const [conciliacionManualLoading, setConciliacionManualLoading] = useState(false);
   const [conciliacionManualPendiente, setConciliacionManualPendiente] = useState<number | null>(null);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushSupported, setPushSupported] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [showBancoDropdown, setShowBancoDropdown] = useState(false);
@@ -230,6 +234,75 @@ export default function MovimientosAppPage() {
     }
     loadRol();
   }, []);
+
+  useEffect(() => {
+    async function initPush() {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+      setPushSupported(true);
+      try {
+        const registration = await navigator.serviceWorker.register("/sw.js");
+        const existing = await registration.pushManager.getSubscription();
+        setPushSubscribed(!!existing);
+      } catch (error) {
+        console.error("Error registering service worker:", error);
+      }
+    }
+    initPush();
+  }, []);
+
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = window.atob(base64);
+    return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+  };
+
+  const handleTogglePush = async () => {
+    setPushLoading(true);
+    try {
+      const registration = await navigator.serviceWorker.ready;
+
+      if (pushSubscribed) {
+        const existing = await registration.pushManager.getSubscription();
+        if (existing) {
+          await desuscribirNotificacionesPush(existing.endpoint);
+          await existing.unsubscribe();
+        }
+        setPushSubscribed(false);
+      } else {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          alert("Debes conceder permiso de notificaciones para activarlas.");
+          return;
+        }
+        const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+        if (!vapidKey) {
+          alert("Configuración de notificaciones no disponible.");
+          return;
+        }
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidKey),
+        });
+        const subJson = subscription.toJSON();
+        const res = await suscribirNotificacionesPush({
+          endpoint: subJson.endpoint!,
+          keys: { p256dh: subJson.keys!.p256dh, auth: subJson.keys!.auth },
+        });
+        if (!res.success) {
+          alert(res.error || "Error al activar las notificaciones.");
+          await subscription.unsubscribe();
+          return;
+        }
+        setPushSubscribed(true);
+      }
+    } catch (error) {
+      console.error("Error toggling push notifications:", error);
+      alert("Error al gestionar las notificaciones.");
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
 const loadData = useCallback(async (filters: typeof filtros, search: string, page: number = 1, append: boolean = false) => {
     try {
@@ -670,6 +743,35 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                     <BarChart3 size={16} />
                     <span>{loadingInformeMensual ? "Cargando..." : "Informe mensual"}</span>
                   </button>
+
+                  {pushSupported && (
+                    <button
+                      onClick={async () => {
+                        setShowMenu(false);
+                        await handleTogglePush();
+                      }}
+                      disabled={pushLoading}
+                      style={{
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        padding: "0.5rem 0.75rem",
+                        fontSize: "0.85rem",
+                        fontWeight: 500,
+                        color: "#334155",
+                        background: "none",
+                        border: "none",
+                        borderRadius: "0.375rem",
+                        textAlign: "left",
+                        cursor: pushLoading ? "default" : "pointer",
+                        opacity: pushLoading ? 0.6 : 1,
+                      }}
+                    >
+                      {pushSubscribed ? <BellOff size={16} /> : <Bell size={16} />}
+                      <span>{pushLoading ? "Procesando..." : pushSubscribed ? "Desactivar notificaciones" : "Activar notificaciones"}</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>

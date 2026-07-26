@@ -3,6 +3,7 @@ import { createAdminServiceClient } from "@/lib/supabaseServer";
 import { getAgencyDbClientById } from "@/lib/agencyDb";
 import { comprobarOfiviajeParaAgencia } from "@/lib/banco/ofiviajeMatch";
 import { enviarInformeAutomaticoOfiviajeAlOwner } from "@/lib/banco/bancoService";
+import { enviarPushAUsuario } from "@/lib/pushNotifications";
 import type { DriveTokens } from "@/lib/banco/ofiviajeDrive";
 
 // Recorre todos los usuarios con Google Drive conectado y carpeta seleccionada,
@@ -59,6 +60,15 @@ export async function GET(request: NextRequest) {
         if (owner?.id && owner.email) {
           const informe = await enviarInformeAutomaticoOfiviajeAlOwner(agencyDb, owner.id, owner.email);
           resultados.push({ agencia_id: usuario.agencia_id, informeOwner: informe });
+
+          if (informe.success) {
+            const push = await enviarPushAUsuario(agencyDb, owner.id, {
+              title: "Informe de conciliación OFIviaje",
+              body: "Se ha generado el informe diario de conciliación.",
+              url: "/concilia_login",
+            });
+            resultados.push({ agencia_id: usuario.agencia_id, push });
+          }
         }
       }
     } catch (err: any) {
