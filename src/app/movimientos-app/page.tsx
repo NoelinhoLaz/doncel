@@ -627,9 +627,9 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
       </header>
       <div
         style={{
-          padding: "0.5rem 1.5rem 0.35rem",
+          padding: "0.6rem 1.5rem 0.4rem",
           color: "#475569",
-          fontSize: "0.8rem",
+          fontSize: "1.1rem",
           fontWeight: 600,
           textTransform: "uppercase",
           letterSpacing: "0.03em",
