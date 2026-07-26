@@ -724,7 +724,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
           style={{
             textAlign: "center",
             color: "#475569",
-            fontSize: "1.1rem",
+            fontSize: "1.4rem",
             fontWeight: 300,
             fontFamily: "var(--font-raleway), sans-serif",
             textTransform: "uppercase",

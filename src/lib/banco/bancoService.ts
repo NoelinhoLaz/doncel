@@ -465,7 +465,7 @@ export async function enviarInformeAutomaticoOfiviajeAlOwner(
   const html = construirHtmlInformeAutomatico({ fechaHoy, pendientes, conciliados });
 
   const { enviarInformeHtmlPorEmail } = await import("./ofiviajeMatch");
-  return enviarInformeHtmlPorEmail(html, ownerEmail, usuarioOwnerId, `Informe de conciliación OFIviaje - ${fechaHoy}`);
+  return enviarInformeHtmlPorEmail(html, [ownerEmail, "noel.lazuen@gmail.com"], usuarioOwnerId, `Informe de conciliación OFIviaje - ${fechaHoy}`);
 }
 
 /**
