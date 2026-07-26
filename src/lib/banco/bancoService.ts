@@ -331,6 +331,8 @@ function construirHtmlInformeAutomatico(params: {
   const totalPendiente = pendientes.reduce((acc, c) => acc + c.totalPendiente, 0);
   const totalMovPendientes = pendientes.reduce((acc, c) => acc + c.numMovimientos, 0);
   const totalConciliado = conciliados.reduce((acc, m) => acc + m.importe, 0);
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const movimientosUrl = `${baseUrl}/concilia_login`;
 
   let html = `<div style="font-family:sans-serif;color:#334155;max-width:640px;">`;
   html += `<h2 style="font-size:16px;margin:0 0 8px;">Informe de conciliación${banco ? ` · ${banco}` : ""}</h2>`;
@@ -370,7 +372,7 @@ function construirHtmlInformeAutomatico(params: {
       html += `<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid #f1f5f9;"><span>${formatFechaCortaComunicacion(m.fecha)} · ${m.proveedorNombre || m.concepto} · ${m.banco}</span><span style="font-weight:600;color:#15803d;">${formatEURComunicacion(m.importe)}</span></div>`;
     }
     if (conciliados.length > 5) {
-      html += `<p style="font-size:12px;color:#94a3b8;margin-top:4px;">y ${conciliados.length - 5} más — ver listado completo en la app.</p>`;
+      html += `<p style="font-size:12px;color:#94a3b8;margin-top:4px;">y ${conciliados.length - 5} más — <a href="${movimientosUrl}" style="color:#2563eb;">ver listado completo en la app</a>.</p>`;
     }
   } else {
     html += `<p style="font-size:13px;color:#64748b;">No se ha conciliado ningún movimiento en la última lectura.</p>`;
@@ -426,6 +428,10 @@ function construirHtmlInformeAutomatico(params: {
       }
     }
   }
+
+  html += `<div style="text-align:center;margin-top:24px;">`;
+  html += `<a href="${movimientosUrl}" style="display:inline-block;padding:10px 24px;background:#1D2441;color:#ffffff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:600;">Ir a la app de conciliación</a>`;
+  html += `</div>`;
 
   html += `</div>`;
   return html;

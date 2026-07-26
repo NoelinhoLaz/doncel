@@ -5,6 +5,7 @@ import { Landmark, ChevronDown, Menu, Link2, HardDrive, FileCheck2, BarChart3 } 
 import { getMovimientosBanco, connectBridgeBank, syncBridgeBankMovements, previsualizarConciliacionOfiviaje, confirmarConciliacionOfiviaje, enviarInformeOfiviaje, getInformeMensualPendientesOfi, getUltimaConciliacionOfiviaje, enviarInformeMensualPorEmail, actualizarIncluirEnInformeAutomatico } from "@/actions/banco";
 import { getCuentasBancarias } from "@/actions/cuentasBancarias";
 import { getCurrentAgencyDetails } from "@/actions/agencias";
+import { getCurrentAgentePublic } from "@/actions/crm";
 import DriveAuthModal from "@/app/components/DriveAuthModal";
 
 // Colores espaciados en el círculo cromático para que sean fácilmente distinguibles
@@ -116,6 +117,7 @@ export default function MovimientosAppPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [cuentasBancarias, setCuentasBancarias] = useState<any[]>([]);
   const [agencyDetails, setAgencyDetails] = useState<{ logo_url: string | null; nombre_comercial: string; color_corporativo?: string | null } | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [showBancoDropdown, setShowBancoDropdown] = useState(false);
@@ -212,6 +214,16 @@ export default function MovimientosAppPage() {
       }
     }
     loadAgency();
+
+    async function loadRol() {
+      try {
+        const { rol } = await getCurrentAgentePublic();
+        setIsOwner(rol === "Owner");
+      } catch (error) {
+        console.error("Error loading current user role:", error);
+      }
+    }
+    loadRol();
   }, []);
 
 const loadData = useCallback(async (filters: typeof filtros, search: string, page: number = 1, append: boolean = false) => {
@@ -458,157 +470,168 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
       <header
         style={{
           flexShrink: 0,
-          height: "44px",
-          background: "var(--primary-color, #475569)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 1.5rem",
+          background: "#1D2441",
           boxSizing: "border-box",
         }}
       >
-        {agencyDetails?.logo_url ? (
+        <div
+          style={{
+            height: "44px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 1.5rem",
+          }}
+        >
           <img
-            src={agencyDetails.logo_url}
-            alt={agencyDetails.nombre_comercial}
-            style={{ height: "24px", maxWidth: "150px", objectFit: "contain", borderRadius: "4px" }}
+            src="/logo_alivia.png"
+            alt="Alivia"
+            style={{ height: "24px", maxWidth: "150px", objectFit: "contain" }}
           />
-        ) : (
-          <span style={{ color: "#fff", fontWeight: 600, fontSize: "1.1rem", letterSpacing: "-0.015em" }}>
-            {agencyDetails?.nombre_comercial || "Momo"}
-          </span>
-        )}
-        <div ref={menuRef} style={{ position: "relative" }}>
-          <button
-            title="Menú"
-            onClick={() => setShowMenu((v) => !v)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "transparent",
-              border: "none",
-              color: "#fff",
-              cursor: "pointer",
-              padding: "0.4rem",
-            }}
-          >
-            <Menu size={22} />
-          </button>
-
-          {showMenu && (
-            <div
-              style={{
-                position: "absolute",
-                top: "calc(100% + 8px)",
-                right: 0,
-                minWidth: "180px",
-                background: "#ffffff",
-                borderRadius: "0.5rem",
-                boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)",
-                border: "1px solid #e2e8f0",
-                padding: "0.35rem",
-                zIndex: 1010,
-              }}
-            >
+          {isOwner && (
+            <div ref={menuRef} style={{ position: "relative" }}>
               <button
-                onClick={handleConnectBank}
-                disabled={connectingBank}
+                title="Menú"
+                onClick={() => setShowMenu((v) => !v)}
                 style={{
-                  width: "100%",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.5rem 0.75rem",
-                  fontSize: "0.85rem",
-                  fontWeight: 500,
-                  color: "#334155",
-                  background: "none",
+                  justifyContent: "center",
+                  background: "transparent",
                   border: "none",
-                  borderRadius: "0.375rem",
-                  textAlign: "left",
-                  cursor: connectingBank ? "default" : "pointer",
-                  opacity: connectingBank ? 0.6 : 1,
-                }}
-              >
-                <Link2 size={16} />
-                <span>{connectingBank ? "Conectando..." : "Conectar Banco"}</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setShowMenu(false);
-                  setShowDriveModal(true);
-                }}
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.5rem 0.75rem",
-                  fontSize: "0.85rem",
-                  fontWeight: 500,
-                  color: "#334155",
-                  background: "none",
-                  border: "none",
-                  borderRadius: "0.375rem",
-                  textAlign: "left",
+                  color: "#fff",
                   cursor: "pointer",
+                  padding: "0.4rem",
                 }}
               >
-                <HardDrive size={16} />
-                <span>Conectar Drive</span>
+                <Menu size={22} />
               </button>
 
-              <button
-                onClick={handleCheckOfiviaje}
-                disabled={checkingOfiviaje}
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.5rem 0.75rem",
-                  fontSize: "0.85rem",
-                  fontWeight: 500,
-                  color: "#334155",
-                  background: "none",
-                  border: "none",
-                  borderRadius: "0.375rem",
-                  textAlign: "left",
-                  cursor: checkingOfiviaje ? "default" : "pointer",
-                  opacity: checkingOfiviaje ? 0.6 : 1,
-                }}
-              >
-                <FileCheck2 size={16} />
-                <span>{checkingOfiviaje ? "Comprobando..." : "Comprobar OFIviaje"}</span>
-              </button>
+              {showMenu && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 8px)",
+                    right: 0,
+                    minWidth: "180px",
+                    background: "#ffffff",
+                    borderRadius: "0.5rem",
+                    boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)",
+                    border: "1px solid #e2e8f0",
+                    padding: "0.35rem",
+                    zIndex: 1010,
+                  }}
+                >
+                  <button
+                    onClick={handleConnectBank}
+                    disabled={connectingBank}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.5rem 0.75rem",
+                      fontSize: "0.85rem",
+                      fontWeight: 500,
+                      color: "#334155",
+                      background: "none",
+                      border: "none",
+                      borderRadius: "0.375rem",
+                      textAlign: "left",
+                      cursor: connectingBank ? "default" : "pointer",
+                      opacity: connectingBank ? 0.6 : 1,
+                    }}
+                  >
+                    <Link2 size={16} />
+                    <span>{connectingBank ? "Conectando..." : "Conectar Banco"}</span>
+                  </button>
 
-              <button
-                onClick={handleInformeMensual}
-                disabled={loadingInformeMensual}
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.5rem 0.75rem",
-                  fontSize: "0.85rem",
-                  fontWeight: 500,
-                  color: "#334155",
-                  background: "none",
-                  border: "none",
-                  borderRadius: "0.375rem",
-                  textAlign: "left",
-                  cursor: loadingInformeMensual ? "default" : "pointer",
-                  opacity: loadingInformeMensual ? 0.6 : 1,
-                }}
-              >
-                <BarChart3 size={16} />
-                <span>{loadingInformeMensual ? "Cargando..." : "Informe mensual"}</span>
-              </button>
+                  <button
+                    onClick={() => {
+                      setShowMenu(false);
+                      setShowDriveModal(true);
+                    }}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.5rem 0.75rem",
+                      fontSize: "0.85rem",
+                      fontWeight: 500,
+                      color: "#334155",
+                      background: "none",
+                      border: "none",
+                      borderRadius: "0.375rem",
+                      textAlign: "left",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <HardDrive size={16} />
+                    <span>Conectar Drive</span>
+                  </button>
+
+                  <button
+                    onClick={handleCheckOfiviaje}
+                    disabled={checkingOfiviaje}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.5rem 0.75rem",
+                      fontSize: "0.85rem",
+                      fontWeight: 500,
+                      color: "#334155",
+                      background: "none",
+                      border: "none",
+                      borderRadius: "0.375rem",
+                      textAlign: "left",
+                      cursor: checkingOfiviaje ? "default" : "pointer",
+                      opacity: checkingOfiviaje ? 0.6 : 1,
+                    }}
+                  >
+                    <FileCheck2 size={16} />
+                    <span>{checkingOfiviaje ? "Comprobando..." : "Comprobar OFIviaje"}</span>
+                  </button>
+
+                  <button
+                    onClick={handleInformeMensual}
+                    disabled={loadingInformeMensual}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.5rem 0.75rem",
+                      fontSize: "0.85rem",
+                      fontWeight: 500,
+                      color: "#334155",
+                      background: "none",
+                      border: "none",
+                      borderRadius: "0.375rem",
+                      textAlign: "left",
+                      cursor: loadingInformeMensual ? "default" : "pointer",
+                      opacity: loadingInformeMensual ? 0.6 : 1,
+                    }}
+                  >
+                    <BarChart3 size={16} />
+                    <span>{loadingInformeMensual ? "Cargando..." : "Informe mensual"}</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
+        </div>
+        <div
+          style={{
+            padding: "0 1.5rem 0.5rem",
+            color: "rgba(255,255,255,0.75)",
+            fontSize: "0.8rem",
+            fontWeight: 500,
+          }}
+        >
+          {agencyDetails?.nombre_comercial || ""}
         </div>
       </header>
 
@@ -686,49 +709,6 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
           </button>
         </div>
 
-        {/* Etiquetas de filtro por estado */}
-        <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
-          {ESTADO_OPTIONS.map((opt) => {
-            const active = filtros.estados.includes(opt.value);
-            const estadoStyle = getEstadoLabel(opt.value);
-            return (
-              <button
-                key={opt.value}
-                onClick={() => toggleEstadoFilter(opt.value)}
-                style={{
-                  fontSize: "0.72rem",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  padding: "0.25rem 0.6rem",
-                  borderRadius: "999px",
-                  cursor: "pointer",
-                  color: active ? estadoStyle.color : "#94a3b8",
-                  background: active ? estadoStyle.bg : "#f8fafc",
-                  border: `1px solid ${active ? estadoStyle.color : "#e2e8f0"}`,
-                }}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
-          <button
-            onClick={() => setSoloOfiviaje((v) => !v)}
-            style={{
-              fontSize: "0.72rem",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              padding: "0.25rem 0.6rem",
-              borderRadius: "999px",
-              cursor: "pointer",
-              color: soloOfiviaje ? "#0e7490" : "#94a3b8",
-              background: soloOfiviaje ? "#cffafe" : "#f8fafc",
-              border: `1px solid ${soloOfiviaje ? "#0e7490" : "#e2e8f0"}`,
-            }}
-          >
-            OFIviaje
-          </button>
-        </div>
-
       {/* PANEL DE FILTROS */}
       {showFilters && (
         <div
@@ -743,6 +723,52 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
             gap: "0.9rem",
           }}
         >
+          {/* Etiquetas de filtro por estado */}
+          <div>
+            <span style={labelStyle}>Estado</span>
+            <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginTop: "0.3rem" }}>
+              {ESTADO_OPTIONS.map((opt) => {
+                const active = filtros.estados.includes(opt.value);
+                const estadoStyle = getEstadoLabel(opt.value);
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => toggleEstadoFilter(opt.value)}
+                    style={{
+                      fontSize: "0.72rem",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      padding: "0.25rem 0.6rem",
+                      borderRadius: "999px",
+                      cursor: "pointer",
+                      color: active ? estadoStyle.color : "#94a3b8",
+                      background: active ? estadoStyle.bg : "#f8fafc",
+                      border: `1px solid ${active ? estadoStyle.color : "#e2e8f0"}`,
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setSoloOfiviaje((v) => !v)}
+                style={{
+                  fontSize: "0.72rem",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  padding: "0.25rem 0.6rem",
+                  borderRadius: "999px",
+                  cursor: "pointer",
+                  color: soloOfiviaje ? "#0e7490" : "#94a3b8",
+                  background: soloOfiviaje ? "#cffafe" : "#f8fafc",
+                  border: `1px solid ${soloOfiviaje ? "#0e7490" : "#e2e8f0"}`,
+                }}
+              >
+                OFIviaje
+              </button>
+            </div>
+          </div>
+
           {/* Banco */}
           <div ref={bancoDropdownRef} style={{ position: "relative" }}>
             <span style={labelStyle}>Banco</span>
