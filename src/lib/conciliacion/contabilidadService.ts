@@ -400,7 +400,8 @@ export async function ejecutarConciliacionManual(
   agencyDb: any,
   movimientoBancoId: string,
   importe: number,
-  expedienteOfi?: string
+  expedienteOfi?: string,
+  usuarioId?: string
 ): Promise<{ success: boolean; error?: string; estado?: "conciliado" | "parcial" }> {
   const { data: movimiento, error: movError } = await agencyDb
     .from("contabilidad_movimientos_banco")
@@ -432,7 +433,7 @@ export async function ejecutarConciliacionManual(
   const { error: mcError } = await agencyDb.from("contabilidad_movimientos").insert([
     {
       entidad_id: null,
-      usuario_id: "550e8400-e29b-41d4-a716-446655440000",
+      usuario_id: usuarioId || "550e8400-e29b-41d4-a716-446655440000",
       tipo: "pago",
       importe_total: importe,
       moneda: movimiento.moneda || "EUR",

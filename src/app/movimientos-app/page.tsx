@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Landmark, ChevronDown, Menu, Link2, HardDrive, FileCheck2, BarChart3, Bell, BellOff } from "lucide-react";
-import { getMovimientosBanco, connectBridgeBank, syncBridgeBankMovements, previsualizarConciliacionOfiviaje, confirmarConciliacionOfiviaje, enviarInformeOfiviaje, getInformeMensualPendientesOfi, getUltimaConciliacionOfiviaje, enviarInformeMensualPorEmail, actualizarIncluirEnInformeAutomatico, conciliarManualmente, getImportePendienteConciliar } from "@/actions/banco";
+import { getMovimientosBanco, connectBridgeBank, syncBridgeBankMovements, previsualizarConciliacionOfiviaje, confirmarConciliacionOfiviaje, enviarInformeOfiviaje, getInformeMensualPendientesOfi, getUltimaConciliacionOfiviaje, enviarInformeMensualPorEmail, actualizarIncluirEnInformeAutomatico, conciliarManualmente, getImportePendienteConciliar, getConciliacionesManuales } from "@/actions/banco";
 import { getCuentasBancarias } from "@/actions/cuentasBancarias";
 import { getCurrentAgencyDetails } from "@/actions/agencias";
 import { getCurrentAgentePublic } from "@/actions/crm";
@@ -124,6 +124,8 @@ export default function MovimientosAppPage() {
   const [conciliacionManualExpediente, setConciliacionManualExpediente] = useState("");
   const [conciliacionManualLoading, setConciliacionManualLoading] = useState(false);
   const [conciliacionManualPendiente, setConciliacionManualPendiente] = useState<number | null>(null);
+  const [conciliacionesHistorico, setConciliacionesHistorico] = useState<any[]>([]);
+  const [conciliacionesHistoricoLoading, setConciliacionesHistoricoLoading] = useState(false);
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
   const [pushSupported, setPushSupported] = useState(false);
@@ -408,12 +410,22 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
     setConciliacionManualExpediente("");
     setConciliacionManualPendiente(fallback);
     setConciliacionManualImporte(fallback.toFixed(2));
+    setConciliacionesHistorico([]);
+    setConciliacionesHistoricoLoading(true);
     try {
       const { importePendiente } = await getImportePendienteConciliar(mov.id);
       setConciliacionManualPendiente(importePendiente);
       setConciliacionManualImporte(importePendiente.toFixed(2));
     } catch (error) {
       console.error("Error obteniendo importe pendiente:", error);
+    }
+    try {
+      const historico = await getConciliacionesManuales(mov.id);
+      setConciliacionesHistorico(historico);
+    } catch (error) {
+      console.error("Error obteniendo histórico de conciliaciones:", error);
+    } finally {
+      setConciliacionesHistoricoLoading(false);
     }
   };
 
@@ -422,6 +434,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
     setConciliacionManualImporte("");
     setConciliacionManualExpediente("");
     setConciliacionManualPendiente(null);
+    setConciliacionesHistorico([]);
   };
 
   const handleConciliarManual = async () => {
@@ -1178,7 +1191,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                         {(!mov.conciliado_externo || mov.estado === "parcial") && (
                           <span
                             onClick={(e) => {
-                              if (mov.estado === "pendiente" || mov.estado === "parcial") {
+                              if (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") {
                                 e.stopPropagation();
                                 abrirModalConciliacionManual(mov);
                               }
@@ -1191,7 +1204,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                               background: estado.bg,
                               borderRadius: "0.25rem",
                               padding: "0.1rem 0.35rem",
-                              cursor: (mov.estado === "pendiente" || mov.estado === "parcial") ? "pointer" : "default",
+                              cursor: (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") ? "pointer" : "default",
                             }}
                           >
                             {estado.label}
@@ -1962,7 +1975,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
           >
             <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #f1f5f9", flexShrink: 0 }}>
               <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>
-                Conciliar manualmente
+                {conciliacionManualMov.estado === "conciliado" ? "Conciliación" : "Conciliar manualmente"}
               </h2>
               <p style={{ margin: "0.35rem 0 0", fontSize: "0.8rem", color: "#64748b" }}>
                 {conciliacionManualMov.concepto_original || "Movimiento sin concepto"}
@@ -1970,32 +1983,72 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
             </div>
 
             <div style={{ padding: "1.25rem 1.5rem", display: "flex", flexDirection: "column", gap: "0.9rem", overflowY: "auto" }}>
-              <div>
-                <span style={labelStyle}>Importe</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={conciliacionManualImporte}
-                  onChange={(e) => setConciliacionManualImporte(e.target.value)}
-                  style={inputStyle}
-                />
-                {conciliacionManualPendiente !== null && (
-                  <p style={{ margin: "0.3rem 0 0", fontSize: "0.72rem", color: "#94a3b8" }}>
-                    Pendiente por conciliar: {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(conciliacionManualPendiente)}
-                  </p>
-                )}
-              </div>
+              {conciliacionesHistoricoLoading ? (
+                <p style={{ fontSize: "0.8rem", color: "#94a3b8", margin: 0 }}>Cargando histórico...</p>
+              ) : (
+                conciliacionesHistorico.length > 0 && (
+                  <div>
+                    <span style={labelStyle}>Conciliado por</span>
+                    <ul style={{ listStyle: "none", margin: "0.3rem 0 0", padding: 0, display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                      {conciliacionesHistorico.map((c: any) => (
+                        <li
+                          key={c.id}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "0.5rem 0.65rem",
+                            background: "#f8fafc",
+                            borderRadius: "0.375rem",
+                            fontSize: "0.78rem",
+                          }}
+                        >
+                          <span style={{ color: "#334155" }}>
+                            {c.usuarioNombre}
+                            <span style={{ display: "block", color: "#94a3b8", fontSize: "0.7rem" }}>
+                              {new Date(c.fecha).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </span>
+                          <span style={{ fontWeight: 600, color: "#0f172a" }}>
+                            {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(c.importe)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )
+              )}
 
-              <div>
-                <span style={labelStyle}>Expediente OFI (opcional)</span>
-                <input
-                  type="text"
-                  placeholder="Ej. 001260012"
-                  value={conciliacionManualExpediente}
-                  onChange={(e) => setConciliacionManualExpediente(e.target.value)}
-                  style={inputStyle}
-                />
-              </div>
+              {conciliacionManualMov.estado !== "conciliado" && (
+                <>
+                  <div>
+                    <span style={labelStyle}>Importe</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={conciliacionManualImporte}
+                      onChange={(e) => setConciliacionManualImporte(e.target.value)}
+                      style={inputStyle}
+                    />
+                    {conciliacionManualPendiente !== null && (
+                      <p style={{ margin: "0.3rem 0 0", fontSize: "0.72rem", color: "#94a3b8" }}>
+                        Pendiente por conciliar: {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(conciliacionManualPendiente)}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <span style={labelStyle}>Expediente OFI (opcional)</span>
+                    <input
+                      type="text"
+                      placeholder="Ej. 001260012"
+                      value={conciliacionManualExpediente}
+                      onChange={(e) => setConciliacionManualExpediente(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             <div style={{ padding: "1rem 1.5rem", borderTop: "1px solid #f1f5f9", display: "flex", gap: "0.5rem", flexShrink: 0 }}>
@@ -2014,26 +2067,28 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                   cursor: conciliacionManualLoading ? "default" : "pointer",
                 }}
               >
-                Cancelar
+                {conciliacionManualMov.estado === "conciliado" ? "Cerrar" : "Cancelar"}
               </button>
-              <button
-                onClick={handleConciliarManual}
-                disabled={conciliacionManualLoading}
-                style={{
-                  flex: 1,
-                  padding: "0.6rem",
-                  background: "#10b981",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "0.5rem",
-                  fontWeight: 700,
-                  fontSize: "0.85rem",
-                  cursor: conciliacionManualLoading ? "default" : "pointer",
-                  opacity: conciliacionManualLoading ? 0.7 : 1,
-                }}
-              >
-                {conciliacionManualLoading ? "Conciliando..." : "Conciliar"}
-              </button>
+              {conciliacionManualMov.estado !== "conciliado" && (
+                <button
+                  onClick={handleConciliarManual}
+                  disabled={conciliacionManualLoading}
+                  style={{
+                    flex: 1,
+                    padding: "0.6rem",
+                    background: "#10b981",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "0.5rem",
+                    fontWeight: 700,
+                    fontSize: "0.85rem",
+                    cursor: conciliacionManualLoading ? "default" : "pointer",
+                    opacity: conciliacionManualLoading ? 0.7 : 1,
+                  }}
+                >
+                  {conciliacionManualLoading ? "Conciliando..." : "Conciliar"}
+                </button>
+              )}
             </div>
           </div>
         </div>

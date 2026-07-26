@@ -9,7 +9,7 @@ import { sanitizeDocumentStates } from "@/lib/banco/dataSanitizer";
 import { conciliarPagoProveedor as ejecutarConciliarPagoProveedor, ejecutarConciliacionMovimiento, ejecutarConciliacionTutor, ejecutarConciliacionManual } from "@/lib/banco/contabilidadService";
 import { createBridgeConnectSession, syncBridgeTransactions } from "@/lib/banco/bridgeApi";
 import { getCurrentAgenciaSlug } from "@/actions/agencias";
-import { createAdminServerClient } from "@/lib/supabaseServer";
+import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { previsualizarOfiviajeUsuarioActual, confirmarConciliacionOfiviaje as confirmarConciliacionOfiviajeLib, enviarInformeOfiviajePorEmail, type OfiviajeMatchPropuesto, type OfiviajePreview } from "@/lib/banco/ofiviajeMatch";
 
 export async function getMovimientosBanco(options?: any) {
@@ -57,9 +57,50 @@ export async function getDocumentosExpediente(expedienteId: string) {
 
 export async function conciliarManualmente(movimientoBancoId: string, importe: number, expedienteOfi?: string) {
   const agencyDb = await getAgencyDbClient();
-  const result = await ejecutarConciliacionManual(agencyDb, movimientoBancoId, importe, expedienteOfi);
+  const { usuarioId } = await getCurrentAgentePublic();
+  const result = await ejecutarConciliacionManual(agencyDb, movimientoBancoId, importe, expedienteOfi, usuarioId);
   if (result.success) revalidatePath("/banco");
   return result;
+}
+
+export interface ConciliacionManualDetalle {
+  id: string;
+  importe: number;
+  fecha: string;
+  usuarioNombre: string;
+}
+
+/**
+ * Detalle de cada conciliación manual registrada para un movimiento
+ * bancario (para mostrar quién conciló el total, o cada parcial).
+ */
+export async function getConciliacionesManuales(movimientoBancoId: string): Promise<ConciliacionManualDetalle[]> {
+  const agencyDb = await getAgencyDbClient();
+
+  const { data: pagos } = await agencyDb
+    .from("contabilidad_movimientos")
+    .select("id, importe_total, created_at, usuario_id")
+    .eq("movimiento_banco_id", movimientoBancoId)
+    .eq("estado", "confirmado")
+    .order("created_at", { ascending: true });
+
+  if (!pagos || pagos.length === 0) return [];
+
+  const usuarioIds = [...new Set(pagos.map((p: any) => p.usuario_id).filter(Boolean))];
+  const adminServiceClient = createAdminServiceClient();
+  const { data: usuarios } = await adminServiceClient
+    .from("usuarios")
+    .select("id, nombre, apellidos")
+    .in("id", usuarioIds);
+
+  const nombrePorId = new Map((usuarios || []).map((u: any) => [u.id, `${u.nombre || ""} ${u.apellidos || ""}`.trim() || "Usuario desconocido"]));
+
+  return pagos.map((p: any) => ({
+    id: p.id,
+    importe: Number(p.importe_total || 0),
+    fecha: p.created_at,
+    usuarioNombre: nombrePorId.get(p.usuario_id) || "Usuario desconocido",
+  }));
 }
 
 export async function getImportePendienteConciliar(movimientoBancoId: string): Promise<{ importePendiente: number }> {
