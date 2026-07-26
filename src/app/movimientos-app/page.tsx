@@ -6,7 +6,7 @@ import { getMovimientosBanco, connectBridgeBank, syncBridgeBankMovements, previs
 import { getCuentasBancarias } from "@/actions/cuentasBancarias";
 import { getCurrentAgencyDetails } from "@/actions/agencias";
 import { getCurrentAgentePublic } from "@/actions/crm";
-import { suscribirNotificacionesPush, desuscribirNotificacionesPush } from "@/actions/pushNotifications";
+import { suscribirNotificacionesPush, desuscribirNotificacionesPush, notificarComprobacionOfiviaje } from "@/actions/pushNotifications";
 import DriveAuthModal from "@/app/components/DriveAuthModal";
 
 // Colores espaciados en el círculo cromático para que sean fácilmente distinguibles
@@ -395,6 +395,20 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
         alert(`Comprobados ${res.procesados} pagos en ${res.ficherosNuevos} fichero(s) nuevo(s). No se encontró ningún movimiento para conciliar.`);
       } else {
         setOfiviajePreview(res);
+      }
+
+      if (!res.error) {
+        const totalRevisar =
+          (res.revisarNombre?.length || 0) +
+          (res.revisarImporte?.length || 0) +
+          (res.revisarSuma?.length || 0) +
+          (res.revisarDivision?.length || 0) +
+          (res.sinMatch?.length || 0);
+        notificarComprobacionOfiviaje({
+          title: "Comprobación de OFIviaje completada",
+          body: `${res.matches.length} para conciliar · ${totalRevisar} a revisar en OFI.`,
+          url: "/movimientos-app",
+        }).catch((err) => console.error("Error enviando notificación push:", err));
       }
     } catch (error) {
       console.error("Error comprobando OFIviaje:", error);

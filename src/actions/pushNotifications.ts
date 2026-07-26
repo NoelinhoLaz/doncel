@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
-import { guardarPushSubscription, eliminarPushSubscription } from "@/lib/pushNotifications";
+import { guardarPushSubscription, eliminarPushSubscription, enviarPushATodaLaAgencia } from "@/lib/pushNotifications";
 
 // Devuelve el id de fila en `usuarios` (Admin DB) del usuario de la sesión
 // actual — el mismo identificador que usa el cron para el Owner, no el
@@ -34,4 +34,8 @@ export async function suscribirNotificacionesPush(subscription: {
 
 export async function desuscribirNotificacionesPush(endpoint: string) {
   return eliminarPushSubscription(endpoint);
+}
+
+export async function notificarComprobacionOfiviaje(payload: { title: string; body: string; url?: string }) {
+  return enviarPushATodaLaAgencia(payload);
 }

@@ -75,3 +75,34 @@ export async function enviarPushAUsuario(
 
   return { enviados };
 }
+
+/**
+ * Envía una notificación push a todas las suscripciones registradas en la
+ * agencia (todos los usuarios/dispositivos que la hayan activado), usado
+ * tras una comprobación manual de OFIviaje desde la UI.
+ */
+export async function enviarPushATodaLaAgencia(payload: { title: string; body: string; url?: string }): Promise<{ enviados: number }> {
+  const agencyDb = await getAgencyDbClient();
+
+  const { data: subs } = await agencyDb.from("config_push_subscriptions").select("id, endpoint, p256dh, auth");
+  if (!subs || subs.length === 0) return { enviados: 0 };
+
+  let enviados = 0;
+  for (const sub of subs) {
+    try {
+      await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        JSON.stringify(payload)
+      );
+      enviados++;
+    } catch (err: any) {
+      if (err?.statusCode === 410 || err?.statusCode === 404) {
+        await agencyDb.from("config_push_subscriptions").delete().eq("id", sub.id);
+      } else {
+        console.error("Error enviando push:", err?.message || err);
+      }
+    }
+  }
+
+  return { enviados };
+}
