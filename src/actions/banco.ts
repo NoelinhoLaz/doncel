@@ -10,7 +10,7 @@ import { conciliarPagoProveedor as ejecutarConciliarPagoProveedor, ejecutarConci
 import { createBridgeConnectSession, syncBridgeTransactions } from "@/lib/banco/bridgeApi";
 import { getCurrentAgenciaSlug } from "@/actions/agencias";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
-import { previsualizarOfiviajeUsuarioActual, confirmarConciliacionOfiviaje as confirmarConciliacionOfiviajeLib, enviarInformeOfiviajePorEmail, type OfiviajeMatchPropuesto, type OfiviajePreview } from "@/lib/banco/ofiviajeMatch";
+import { previsualizarOfiviajeUsuarioActual, confirmarConciliacionOfiviaje as confirmarConciliacionOfiviajeLib, enviarInformeOfiviajePorEmail, guardarAliasProveedorOfi, type OfiviajeMatchPropuesto, type OfiviajePreview } from "@/lib/banco/ofiviajeMatch";
 
 export async function getMovimientosBanco(options?: any) {
   return fetchMovimientosBanco(options);
@@ -61,6 +61,10 @@ export async function conciliarManualmente(movimientoBancoId: string, importe: n
   const result = await ejecutarConciliacionManual(agencyDb, movimientoBancoId, importe, expedienteOfi, usuarioId);
   if (result.success) revalidatePath("/banco");
   return result;
+}
+
+export async function guardarAliasProveedor(proveedorOfi: string, aliasBanco: string) {
+  return guardarAliasProveedorOfi(proveedorOfi, aliasBanco);
 }
 
 export interface ConciliacionManualDetalle {

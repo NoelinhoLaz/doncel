@@ -122,13 +122,60 @@ function tokenizarNombre(texto: string): string[] {
  * SA/SL/tarjeta/comisión). Si no comparten ningún token, es señal de que el
  * proveedor está mal registrado en origen (Nego) — no se debe conciliar
  * automáticamente aunque importe y fecha coincidan.
+ *
+ * `aliasPorProveedor` recoge alias bancarios confirmados manualmente por el
+ * usuario en conciliaciones anteriores (ej. proveedor OFI "Aerolíneas
+ * Españolas S.A." con alias bancario "IBERIA"): si el concepto contiene un
+ * alias conocido de este proveedor, se da por coincidente sin más.
  */
-function nombreCoincide(movimiento: any, pago: OfiviajePago): boolean {
+function nombreCoincide(
+  movimiento: any,
+  pago: OfiviajePago,
+  aliasPorProveedor?: Map<string, string[]>
+): boolean {
   const tokensConcepto = new Set(tokenizarNombre(movimiento.concepto_original || ""));
   const tokensProveedor = tokenizarNombre(pago.proveedorNombre);
   if (tokensProveedor.length === 0) return true; // sin nombre de proveedor, no se puede evaluar: no bloquear
 
-  return tokensProveedor.some((t) => tokensConcepto.has(t));
+  if (tokensProveedor.some((t) => tokensConcepto.has(t))) return true;
+
+  const alias = aliasPorProveedor?.get(pago.proveedorNombre.trim().toUpperCase()) || [];
+  return alias.some((a) => tokenizarNombre(a).some((t) => tokensConcepto.has(t)));
+}
+
+/**
+ * Carga los alias proveedor OFI → nombre bancario confirmados por la agencia
+ * (tabla ofiviaje_alias_proveedor), agrupados por proveedor.
+ */
+async function getAliasProveedorPorAgencia(agencyDb: any): Promise<Map<string, string[]>> {
+  const { data } = await agencyDb.from("ofiviaje_alias_proveedor").select("proveedor_ofi, alias_banco");
+  const mapa = new Map<string, string[]>();
+  for (const fila of data || []) {
+    const key = (fila.proveedor_ofi || "").trim().toUpperCase();
+    if (!key) continue;
+    if (!mapa.has(key)) mapa.set(key, []);
+    mapa.get(key)!.push(fila.alias_banco);
+  }
+  return mapa;
+}
+
+/**
+ * Registra que el concepto bancario dado corresponde al proveedor OFI
+ * indicado (ej. proveedor OFI "Aerolíneas Españolas S.A." con concepto
+ * bancario "COMPRA IBERIA..."), para que futuros pagos del mismo proveedor
+ * con ese mismo destinatario bancario concilien automáticamente. Se llama al
+ * conciliar manualmente una tarea de "Proveedor distinto".
+ */
+export async function guardarAliasProveedorOfi(proveedorOfi: string, aliasBanco: string): Promise<void> {
+  const proveedor = proveedorOfi.trim();
+  const alias = aliasBanco.trim();
+  if (!proveedor || !alias) return;
+
+  const agencyDb = await getAgencyDbClient();
+  await agencyDb.from("ofiviaje_alias_proveedor").upsert(
+    { proveedor_ofi: proveedor, alias_banco: alias },
+    { onConflict: "proveedor_ofi,alias_banco", ignoreDuplicates: true }
+  );
 }
 
 export interface OfiviajeMatchPropuesto {
@@ -233,6 +280,7 @@ async function calcularMatchesXmlContenido(
 
   const fechaMinimaBusqueda = calcularFechaMinimaBusqueda(pagos);
   const mapaCuentaContable = await getMapaCuentaContable(agencyDb);
+  const aliasPorProveedor = await getAliasProveedorPorAgencia(agencyDb);
 
   // Solo pagos (XML de OFIviaje en esta carpeta son siempre salidas/pagos, no ingresos):
   // los movimientos candidatos se restringen a importe negativo.
@@ -281,7 +329,7 @@ async function calcularMatchesXmlContenido(
     // Importe y fecha coinciden, pero el nombre del proveedor en OFIviaje no se
     // parece al concepto bancario: probable dato mal registrado en origen (Nego).
     // No se propone conciliar automáticamente — se marca para revisión manual.
-    if (nombreCoincide(mov, pagoMatch)) {
+    if (nombreCoincide(mov, pagoMatch, aliasPorProveedor)) {
       matches.push(propuesta);
     } else {
       revisarNombre.push(propuesta);
@@ -393,7 +441,7 @@ async function calcularMatchesXmlContenido(
       continue;
     }
     const pagoAproximado = pagos.find(
-      (p) => !pagosConMatch.has(p) && coincideImporteAproximado(mov, p) && nombreCoincide(mov, p)
+      (p) => !pagosConMatch.has(p) && coincideImporteAproximado(mov, p) && nombreCoincide(mov, p, aliasPorProveedor)
     );
     if (!pagoAproximado) continue;
 

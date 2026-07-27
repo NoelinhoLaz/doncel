@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Landmark, ChevronDown, Menu, Link2, HardDrive, FileCheck2, BarChart3, Bell, BellOff } from "lucide-react";
-import { getMovimientosBanco, connectBridgeBank, syncBridgeBankMovements, previsualizarConciliacionOfiviaje, confirmarConciliacionOfiviaje, enviarInformeOfiviaje, getInformeMensualPendientesOfi, getUltimaConciliacionOfiviaje, enviarInformeMensualPorEmail, actualizarIncluirEnInformeAutomatico, conciliarManualmente, getImportePendienteConciliar, getConciliacionesManuales, type ConciliacionManualDetalle } from "@/actions/banco";
+import { getMovimientosBanco, connectBridgeBank, syncBridgeBankMovements, previsualizarConciliacionOfiviaje, confirmarConciliacionOfiviaje, enviarInformeOfiviaje, getInformeMensualPendientesOfi, getUltimaConciliacionOfiviaje, enviarInformeMensualPorEmail, actualizarIncluirEnInformeAutomatico, conciliarManualmente, getImportePendienteConciliar, getConciliacionesManuales, guardarAliasProveedor, type ConciliacionManualDetalle } from "@/actions/banco";
 import { getCuentasBancarias } from "@/actions/cuentasBancarias";
 import { getCurrentAgencyDetails } from "@/actions/agencias";
 import { getCurrentAgentePublic } from "@/actions/crm";
@@ -599,7 +599,8 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
     movimientoId: string,
     importe: number,
     expedienteOfi: string | undefined,
-    tareaKey: string
+    tareaKey: string,
+    aliasProveedor?: { proveedorOfi: string; conceptoBanco: string }
   ) => {
     setConciliandoTareaKey(tareaKey);
     try {
@@ -607,6 +608,11 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
       if (!res.success) {
         alert(res.error || "Error al conciliar el movimiento.");
         return;
+      }
+      if (aliasProveedor) {
+        guardarAliasProveedor(aliasProveedor.proveedorOfi, aliasProveedor.conceptoBanco).catch((err) =>
+          console.error("Error guardando alias de proveedor:", err)
+        );
       }
       const quitarTarea = (lista: any[] | undefined) =>
         (lista || []).filter((m: any) =>
@@ -1630,7 +1636,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                         </div>
                         <BotonConciliarTarea
                           loading={conciliandoTareaKey === `ov-nombre-${m.movimientoId}`}
-                          onClick={() => handleConciliarTarea(m.movimientoId, m.movimientoImporte, m.pago.referenciaProvCte, `ov-nombre-${m.movimientoId}`)}
+                          onClick={() => handleConciliarTarea(m.movimientoId, m.movimientoImporte, m.pago.referenciaProvCte, `ov-nombre-${m.movimientoId}`, { proveedorOfi: m.pago.proveedorNombre, conceptoBanco: m.movimientoConcepto })}
                         />
                       </li>
                     ))}
@@ -2040,7 +2046,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                                 </div>
                                 <BotonConciliarTarea
                                   loading={conciliandoTareaKey === `im-nombre-${m.movimientoId}`}
-                                  onClick={() => handleConciliarTarea(m.movimientoId, m.movimientoImporte, m.pago.referenciaProvCte, `im-nombre-${m.movimientoId}`)}
+                                  onClick={() => handleConciliarTarea(m.movimientoId, m.movimientoImporte, m.pago.referenciaProvCte, `im-nombre-${m.movimientoId}`, { proveedorOfi: m.pago.proveedorNombre, conceptoBanco: m.movimientoConcepto })}
                                 />
                               </li>
                             ))}
