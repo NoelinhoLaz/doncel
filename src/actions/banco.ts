@@ -68,6 +68,7 @@ export interface ConciliacionManualDetalle {
   importe: number;
   fecha: string;
   usuarioNombre: string;
+  expedienteOfi: string | null;
 }
 
 /**
@@ -79,7 +80,7 @@ export async function getConciliacionesManuales(movimientoBancoId: string): Prom
 
   const { data: pagos } = await agencyDb
     .from("contabilidad_movimientos")
-    .select("id, importe_total, created_at, usuario_id")
+    .select("id, importe_total, created_at, usuario_id, concepto")
     .eq("movimiento_banco_id", movimientoBancoId)
     .eq("estado", "confirmado")
     .order("created_at", { ascending: true });
@@ -100,6 +101,7 @@ export async function getConciliacionesManuales(movimientoBancoId: string): Prom
     importe: Number(p.importe_total || 0),
     fecha: p.created_at,
     usuarioNombre: nombrePorId.get(p.usuario_id) || "Usuario desconocido",
+    expedienteOfi: p.concepto?.match(/Expediente OFI: (.+)$/)?.[1] || null,
   }));
 }
 

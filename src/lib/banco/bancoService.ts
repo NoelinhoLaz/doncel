@@ -52,7 +52,13 @@ export async function getMovimientosBanco(options?: {
   if (fechaHasta) query = query.lte("fecha_operacion", fechaHasta);
   if (importeMin != null) query = query.gte("importe", importeMin);
   if (importeMax != null) query = query.lte("importe", importeMax);
-  if (estados.length) query = query.in("estado", estados);
+  // "manual" no es un valor de la columna `estado` (que solo distingue
+  // pendiente/parcial/conciliado/etc.) sino conciliado + conciliacion_tipo
+  // "manual" — se traduce aquí al filtro real.
+  const estadosReales = estados.filter((e) => e !== "manual");
+  if (estados.includes("manual") && !estados.includes("conciliado")) estadosReales.push("conciliado");
+  if (estadosReales.length) query = query.in("estado", estadosReales);
+  if (estados.includes("manual") && !estados.includes("conciliado")) query = query.eq("conciliacion_tipo", "manual");
   // "Pendiente" es un estado de matching interno (facturas/proveedores); si el
   // movimiento ya se resolvió externamente vía OFIviaje, no debe seguir
   // apareciendo como pendiente aunque el estado interno no se haya actualizado.
@@ -454,18 +460,28 @@ export async function enviarInformeAutomaticoOfiviajeAlOwner(
   ]);
 
   // Solo se incluyen en el email automático diario las cuentas marcadas para
-  // ello (campo config_cuentas_bancarias.incluir_en_informe_automatico).
-  const cuentasIncluidas = new Set(pendientesTodas.filter((c) => c.incluirEnInformeAutomatico).map((c) => c.cuentaId));
-  if (cuentasIncluidas.size === 0) return { success: true }; // ninguna cuenta marcada: no se envía nada
-
-  const pendientes = pendientesTodas.filter((c) => cuentasIncluidas.has(c.cuentaId));
-  const conciliados = ultimaConciliacion.movimientos.filter((m) => cuentasIncluidas.has(m.cuentaId || ""));
+  // ello (campo config_cuentas_bancarias.incluir_en_informe_automatico), y se
+  // manda un email independiente por cada una en vez de un único email
+  // combinado con los totales de todas.
+  const pendientesIncluidos = pendientesTodas.filter((c) => c.incluirEnInformeAutomatico);
+  if (pendientesIncluidos.length === 0) return { success: true }; // ninguna cuenta marcada: no se envía nada
 
   const fechaHoy = new Date().toLocaleDateString("es-ES");
-  const html = construirHtmlInformeAutomatico({ fechaHoy, pendientes, conciliados });
-
   const { enviarInformeHtmlPorEmail } = await import("./ofiviajeMatch");
-  return enviarInformeHtmlPorEmail(html, [ownerEmail, "noel.lazuen@gmail.com"], usuarioOwnerId, `Informe de conciliación OFIviaje - ${fechaHoy}`);
+
+  for (const pendiente of pendientesIncluidos) {
+    const conciliados = ultimaConciliacion.movimientos.filter((m) => m.cuentaId === pendiente.cuentaId);
+    const html = construirHtmlInformeAutomatico({ fechaHoy, banco: pendiente.banco, pendientes: [pendiente], conciliados });
+    const resultado = await enviarInformeHtmlPorEmail(
+      html,
+      [ownerEmail, "noel.lazuen@gmail.com"],
+      usuarioOwnerId,
+      `Informe de conciliación OFIviaje · ${pendiente.banco} - ${fechaHoy}`
+    );
+    if (!resultado.success) return resultado;
+  }
+
+  return { success: true };
 }
 
 /**

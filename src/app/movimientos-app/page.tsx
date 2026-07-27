@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Landmark, ChevronDown, Menu, Link2, HardDrive, FileCheck2, BarChart3, Bell, BellOff } from "lucide-react";
-import { getMovimientosBanco, connectBridgeBank, syncBridgeBankMovements, previsualizarConciliacionOfiviaje, confirmarConciliacionOfiviaje, enviarInformeOfiviaje, getInformeMensualPendientesOfi, getUltimaConciliacionOfiviaje, enviarInformeMensualPorEmail, actualizarIncluirEnInformeAutomatico, conciliarManualmente, getImportePendienteConciliar, getConciliacionesManuales } from "@/actions/banco";
+import { getMovimientosBanco, connectBridgeBank, syncBridgeBankMovements, previsualizarConciliacionOfiviaje, confirmarConciliacionOfiviaje, enviarInformeOfiviaje, getInformeMensualPendientesOfi, getUltimaConciliacionOfiviaje, enviarInformeMensualPorEmail, actualizarIncluirEnInformeAutomatico, conciliarManualmente, getImportePendienteConciliar, getConciliacionesManuales, type ConciliacionManualDetalle } from "@/actions/banco";
 import { getCuentasBancarias } from "@/actions/cuentasBancarias";
 import { getCurrentAgencyDetails } from "@/actions/agencias";
 import { getCurrentAgentePublic } from "@/actions/crm";
@@ -32,10 +33,14 @@ const getCuentaColor = (cuentaId: string | undefined, cuentasOrdenadas: string[]
   return CUENTA_COLOR_PALETTE[idx % CUENTA_COLOR_PALETTE.length];
 };
 
-const getEstadoLabel = (estado: string) => {
+const getEstadoLabel = (estado: string, conciliacionTipo?: string | null) => {
   switch (estado) {
+    case "manual":
+      return { label: "Manual", color: "#15803d", bg: "#dcfce7" };
     case "conciliado":
-      return { label: "Conciliado", color: "#15803d", bg: "#dcfce7" };
+      return conciliacionTipo === "manual"
+        ? { label: "Manual", color: "#15803d", bg: "#dcfce7" }
+        : { label: "Conciliado", color: "#15803d", bg: "#dcfce7" };
     case "propuesto":
       return { label: "Matching", color: "#6d28d9", bg: "#ede9fe" };
     case "parcial":
@@ -111,6 +116,103 @@ function FilaBancoOfi({
   );
 }
 
+/**
+ * Botón para conciliar manualmente una tarea propuesta (proveedor/importe
+ * distinto, suma o división) directamente desde la lista de "Revisar en
+ * OFI", sin abrir el modal de conciliación manual.
+ */
+/**
+ * Tooltip que se renderiza vía Portal en <body>, posicionado por JS según
+ * la posición real del trigger en pantalla. Evita que el contenedor del
+ * listado (que tiene overflow-y: auto) recorte el tooltip cuando la fila
+ * está cerca del borde superior o inferior del scroll.
+ */
+function HoverTooltip({
+  trigger,
+  onShow,
+  children,
+}: {
+  trigger: React.ReactNode;
+  onShow?: () => void;
+  children: React.ReactNode;
+}) {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const anchorRef = useRef<HTMLSpanElement>(null);
+
+  const mostrar = () => {
+    const rect = anchorRef.current?.getBoundingClientRect();
+    if (rect) setPos({ top: rect.bottom + 6, left: rect.left });
+    onShow?.();
+  };
+
+  const ocultar = () => setPos(null);
+
+  return (
+    <span
+      ref={anchorRef}
+      style={{ position: "relative", display: "inline-block" }}
+      onMouseEnter={mostrar}
+      onMouseLeave={ocultar}
+    >
+      {trigger}
+      {pos &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              top: pos.top,
+              left: pos.left,
+              zIndex: 9999,
+              minWidth: "200px",
+              background: "#0f172a",
+              color: "#e2e8f0",
+              borderRadius: "0.5rem",
+              padding: "0.6rem 0.75rem",
+              fontSize: "0.72rem",
+              fontWeight: 400,
+              textTransform: "none",
+              boxShadow: "0 10px 15px -3px rgba(0,0,0,0.3)",
+              pointerEvents: "none",
+            }}
+          >
+            {children}
+          </div>,
+          document.body
+        )}
+    </span>
+  );
+}
+
+function BotonConciliarTarea({
+  loading,
+  onClick,
+}: {
+  loading: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={loading}
+      onClick={onClick}
+      style={{
+        marginTop: "0.4rem",
+        fontSize: "0.72rem",
+        fontWeight: 600,
+        color: "#15803d",
+        background: "#dcfce7",
+        border: "none",
+        borderRadius: "0.3rem",
+        padding: "0.25rem 0.6rem",
+        cursor: loading ? "default" : "pointer",
+        opacity: loading ? 0.6 : 1,
+      }}
+    >
+      {loading ? "Conciliando…" : "Conciliar"}
+    </button>
+  );
+}
+
 export default function MovimientosAppPage() {
   const [movimientos, setMovimientos] = useState<any[]>([]);
   const [totalItems, setTotalItems] = useState(0);
@@ -125,6 +227,8 @@ export default function MovimientosAppPage() {
   const [conciliacionManualLoading, setConciliacionManualLoading] = useState(false);
   const [conciliacionManualPendiente, setConciliacionManualPendiente] = useState<number | null>(null);
   const [conciliacionesHistorico, setConciliacionesHistorico] = useState<any[]>([]);
+  const [conciliandoTareaKey, setConciliandoTareaKey] = useState<string | null>(null);
+  const [conciliacionesManualesPorMov, setConciliacionesManualesPorMov] = useState<Record<string, ConciliacionManualDetalle[]>>({});
   const [conciliacionesHistoricoLoading, setConciliacionesHistoricoLoading] = useState(false);
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
@@ -418,6 +522,16 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
     }
   };
 
+  const cargarConciliacionesManualesTooltip = async (movimientoId: string) => {
+    if (conciliacionesManualesPorMov[movimientoId]) return;
+    try {
+      const detalle = await getConciliacionesManuales(movimientoId);
+      setConciliacionesManualesPorMov((prev) => ({ ...prev, [movimientoId]: detalle }));
+    } catch (error) {
+      console.error("Error obteniendo conciliaciones manuales:", error);
+    }
+  };
+
   const abrirModalConciliacionManual = async (mov: any) => {
     const fallback = Math.abs(Number(mov.importe));
     setConciliacionManualMov(mov);
@@ -472,6 +586,60 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
       alert("Error al conciliar el movimiento.");
     } finally {
       setConciliacionManualLoading(false);
+    }
+  };
+
+  /**
+   * Concilia manualmente una tarea propuesta directamente desde la lista de
+   * "Revisar en OFI" (proveedor/importe distinto, suma o división), sin pasar
+   * por el modal: usa el importe y expediente del pago/movimiento tal cual
+   * los detectó OFIviaje. Queda marcado como conciliación "manual".
+   */
+  const handleConciliarTarea = async (
+    movimientoId: string,
+    importe: number,
+    expedienteOfi: string | undefined,
+    tareaKey: string
+  ) => {
+    setConciliandoTareaKey(tareaKey);
+    try {
+      const res = await conciliarManualmente(movimientoId, Math.abs(importe), expedienteOfi || undefined);
+      if (!res.success) {
+        alert(res.error || "Error al conciliar el movimiento.");
+        return;
+      }
+      const quitarTarea = (lista: any[] | undefined) =>
+        (lista || []).filter((m: any) =>
+          m.movimientoIds ? !m.movimientoIds.includes(movimientoId) : m.movimientoId !== movimientoId
+        );
+      setOfiviajePreview((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              revisarNombre: quitarTarea(prev.revisarNombre),
+              revisarImporte: quitarTarea(prev.revisarImporte),
+              revisarSuma: quitarTarea(prev.revisarSuma),
+              revisarDivision: quitarTarea(prev.revisarDivision),
+            }
+          : prev
+      );
+      setInformeRevisarPreview((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              revisarNombre: quitarTarea(prev.revisarNombre),
+              revisarImporte: quitarTarea(prev.revisarImporte),
+              revisarSuma: quitarTarea(prev.revisarSuma),
+              revisarDivision: quitarTarea(prev.revisarDivision),
+            }
+          : prev
+      );
+      loadData(filtros, searchQuery);
+    } catch (error) {
+      console.error("Error conciliando tarea:", error);
+      alert("Error al conciliar el movimiento.");
+    } finally {
+      setConciliandoTareaKey(null);
     }
   };
 
@@ -609,6 +777,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
     { value: "propuesto", label: "Matching" },
     { value: "parcial", label: "Parcial" },
     { value: "conciliado", label: "Conciliado" },
+    { value: "manual", label: "Manual" },
   ];
 
   return (
@@ -854,10 +1023,6 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
             padding-right: 1rem !important;
           }
         }
-        .ofiviajeTagWrapper:hover .ofiviajeTooltip {
-          opacity: 1 !important;
-          visibility: visible !important;
-        }
       `}</style>
 
       {/* BUSCADOR + FILTRO + ETIQUETAS DE ESTADO (fijos, no hacen scroll) */}
@@ -999,7 +1164,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                   boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
                   maxHeight: "180px",
                   overflowY: "auto",
-                  zIndex: 20,
+                  zIndex: 9999,
                 }}
               >
                 {cuentasBancarias.filter((c: any) => c.iban).length === 0 ? (
@@ -1153,7 +1318,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
             </div>
             <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
               {grupos[fecha].map((mov) => {
-                const estado = getEstadoLabel(mov.estado);
+                const estado = getEstadoLabel(mov.estado, mov.conciliacion_tipo);
                 const bankName = mov.config_cuentas_bancarias?.banco || "Banco";
                 const bankColor = getCuentaColor(mov.cuenta_bancaria_id, cuentasIdsOrdenadas);
                 return (
@@ -1206,67 +1371,85 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                       }}
                     >
                       <span style={{ display: "flex", gap: "0.3rem" }}>
-                        {(!mov.conciliado_externo || mov.estado === "parcial") && (
-                          <span
-                            onClick={(e) => {
-                              if (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") {
-                                e.stopPropagation();
-                                abrirModalConciliacionManual(mov);
-                              }
-                            }}
-                            style={{
-                              fontSize: "0.6rem",
-                              fontWeight: 400,
-                              textTransform: "uppercase",
-                              color: estado.color,
-                              background: estado.bg,
-                              borderRadius: "0.25rem",
-                              padding: "0.1rem 0.35rem",
-                              cursor: (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") ? "pointer" : "default",
-                            }}
+                        {(!mov.conciliado_externo || mov.estado === "parcial") && mov.estado === "conciliado" && mov.conciliacion_tipo === "manual" ? (
+                          <HoverTooltip
+                            onShow={() => cargarConciliacionesManualesTooltip(mov.id)}
+                            trigger={
+                              <span
+                                style={{
+                                  fontSize: "0.6rem",
+                                  fontWeight: 400,
+                                  textTransform: "uppercase",
+                                  color: estado.color,
+                                  background: estado.bg,
+                                  borderRadius: "0.25rem",
+                                  padding: "0.1rem 0.35rem",
+                                  cursor: "default",
+                                }}
+                              >
+                                {estado.label}
+                              </span>
+                            }
                           >
-                            {estado.label}
-                          </span>
-                        )}
-                        {mov.conciliado_externo && (
-                          <span className="ofiviajeTagWrapper" style={{ position: "relative", display: "inline-block" }}>
+                            {!conciliacionesManualesPorMov[mov.id] ? (
+                              <div>Cargando…</div>
+                            ) : conciliacionesManualesPorMov[mov.id].length === 0 ? (
+                              <div>Sin detalle disponible.</div>
+                            ) : (
+                              conciliacionesManualesPorMov[mov.id].map((c, i) => (
+                                <div key={c.id} style={{ marginBottom: i < conciliacionesManualesPorMov[mov.id].length - 1 ? "0.4rem" : 0 }}>
+                                  <div>Expediente OFI: {c.expedienteOfi || "—"}</div>
+                                  <div>Importe: {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(c.importe)}</div>
+                                  <div>Por: {c.usuarioNombre}</div>
+                                </div>
+                              ))
+                            )}
+                          </HoverTooltip>
+                        ) : (
+                          (!mov.conciliado_externo || mov.estado === "parcial") && (
                             <span
+                              onClick={(e) => {
+                                if (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") {
+                                  e.stopPropagation();
+                                  abrirModalConciliacionManual(mov);
+                                }
+                              }}
                               style={{
                                 fontSize: "0.6rem",
                                 fontWeight: 400,
                                 textTransform: "uppercase",
-                                color: "#0e7490",
-                                background: "#cffafe",
+                                color: estado.color,
+                                background: estado.bg,
                                 borderRadius: "0.25rem",
                                 padding: "0.1rem 0.35rem",
-                                cursor: "default",
+                                cursor: (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") ? "pointer" : "default",
                               }}
                             >
-                              OFIviaje
+                              {estado.label}
                             </span>
-                            {mov.conciliado_externo_datos && (
-                              <div
-                                className="ofiviajeTooltip"
+                          )
+                        )}
+                        {mov.conciliado_externo && (
+                          <HoverTooltip
+                            trigger={
+                              <span
                                 style={{
-                                  position: "absolute",
-                                  bottom: "calc(100% + 6px)",
-                                  left: 0,
-                                  zIndex: 20,
-                                  minWidth: "220px",
-                                  background: "#0f172a",
-                                  color: "#e2e8f0",
-                                  borderRadius: "0.5rem",
-                                  padding: "0.6rem 0.75rem",
-                                  fontSize: "0.72rem",
+                                  fontSize: "0.6rem",
                                   fontWeight: 400,
-                                  textTransform: "none",
-                                  boxShadow: "0 10px 15px -3px rgba(0,0,0,0.3)",
-                                  opacity: 0,
-                                  visibility: "hidden",
-                                  transition: "opacity 0.15s",
-                                  pointerEvents: "none",
+                                  textTransform: "uppercase",
+                                  color: "#0e7490",
+                                  background: "#cffafe",
+                                  borderRadius: "0.25rem",
+                                  padding: "0.1rem 0.35rem",
+                                  cursor: "default",
                                 }}
                               >
+                                OFIviaje
+                              </span>
+                            }
+                          >
+                            {mov.conciliado_externo_datos && (
+                              <>
                                 <div style={{ fontWeight: 700, marginBottom: "0.3rem" }}>
                                   {mov.conciliado_externo_datos.proveedorNombre}
                                 </div>
@@ -1281,9 +1464,9 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                                 </div>
                                 <div>Fecha vencto: {mov.conciliado_externo_datos.fechaVencto}</div>
                                 <div>Pasajero: {mov.conciliado_externo_datos.nombrePasajero}</div>
-                              </div>
+                              </>
                             )}
-                          </span>
+                          </HoverTooltip>
                         )}
                       </span>
                       <span
@@ -1445,6 +1628,10 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                         <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
                           Doc: {m.pago.documento} · Expediente OFI: {m.pago.referenciaProvCte} · Doc. cobro/pago: {m.pago.documentoCobroPago} · Pasajero: {m.pago.nombrePasajero}
                         </div>
+                        <BotonConciliarTarea
+                          loading={conciliandoTareaKey === `ov-nombre-${m.movimientoId}`}
+                          onClick={() => handleConciliarTarea(m.movimientoId, m.movimientoImporte, m.pago.referenciaProvCte, `ov-nombre-${m.movimientoId}`)}
+                        />
                       </li>
                     ))}
                     {ofiviajePreview.revisarImporte?.map((m: any, i: number) => (
@@ -1454,6 +1641,10 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                         <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
                           Doc: {m.pago.documento} · Expediente OFI: {m.pago.referenciaProvCte} · Doc. cobro/pago: {m.pago.documentoCobroPago}
                         </div>
+                        <BotonConciliarTarea
+                          loading={conciliandoTareaKey === `ov-importe-${m.movimientoId}`}
+                          onClick={() => handleConciliarTarea(m.movimientoId, m.movimientoImporte, m.pago.referenciaProvCte, `ov-importe-${m.movimientoId}`)}
+                        />
                       </li>
                     ))}
                     {ofiviajePreview.revisarSuma?.map((m: any, i: number) => (
@@ -1466,6 +1657,16 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                         <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
                           Doc: {m.pago.documento} · Expediente OFI: {m.pago.referenciaProvCte} · Doc. cobro/pago: {m.pago.documentoCobroPago}
                         </div>
+                        <div style={{ display: "flex", gap: "0.4rem" }}>
+                          <BotonConciliarTarea
+                            loading={conciliandoTareaKey === `ov-suma-0-${m.movimientoIds[0]}`}
+                            onClick={() => handleConciliarTarea(m.movimientoIds[0], m.movimientoImportes[0], m.pago.referenciaProvCte, `ov-suma-0-${m.movimientoIds[0]}`)}
+                          />
+                          <BotonConciliarTarea
+                            loading={conciliandoTareaKey === `ov-suma-1-${m.movimientoIds[1]}`}
+                            onClick={() => handleConciliarTarea(m.movimientoIds[1], m.movimientoImportes[1], m.pago.referenciaProvCte, `ov-suma-1-${m.movimientoIds[1]}`)}
+                          />
+                        </div>
                       </li>
                     ))}
                     {ofiviajePreview.revisarDivision?.map((m: any, i: number) => (
@@ -1477,6 +1678,10 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                             Doc: {p.documento} · Expediente OFI: {p.referenciaProvCte}
                           </div>
                         ))}
+                        <BotonConciliarTarea
+                          loading={conciliandoTareaKey === `ov-division-${m.movimientoId}`}
+                          onClick={() => handleConciliarTarea(m.movimientoId, m.movimientoImporte, m.pagos[0]?.referenciaProvCte, `ov-division-${m.movimientoId}`)}
+                        />
                       </li>
                     ))}
                   </ul>
@@ -1833,6 +2038,10 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                                 <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
                                   Doc: {m.pago.documento} · Expediente OFI: {m.pago.referenciaProvCte} · Doc. cobro/pago: {m.pago.documentoCobroPago} · Pasajero: {m.pago.nombrePasajero}
                                 </div>
+                                <BotonConciliarTarea
+                                  loading={conciliandoTareaKey === `im-nombre-${m.movimientoId}`}
+                                  onClick={() => handleConciliarTarea(m.movimientoId, m.movimientoImporte, m.pago.referenciaProvCte, `im-nombre-${m.movimientoId}`)}
+                                />
                               </li>
                             ))}
                             {revisarImporte.map((m: any, i: number) => (
@@ -1842,6 +2051,10 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                                 <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
                                   Doc: {m.pago.documento} · Expediente OFI: {m.pago.referenciaProvCte} · Doc. cobro/pago: {m.pago.documentoCobroPago}
                                 </div>
+                                <BotonConciliarTarea
+                                  loading={conciliandoTareaKey === `im-importe-${m.movimientoId}`}
+                                  onClick={() => handleConciliarTarea(m.movimientoId, m.movimientoImporte, m.pago.referenciaProvCte, `im-importe-${m.movimientoId}`)}
+                                />
                               </li>
                             ))}
                             {revisarSuma.map((m: any, i: number) => (
@@ -1854,6 +2067,16 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                                 <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
                                   Doc: {m.pago.documento} · Expediente OFI: {m.pago.referenciaProvCte} · Doc. cobro/pago: {m.pago.documentoCobroPago}
                                 </div>
+                                <div style={{ display: "flex", gap: "0.4rem" }}>
+                                  <BotonConciliarTarea
+                                    loading={conciliandoTareaKey === `im-suma-0-${m.movimientoIds[0]}`}
+                                    onClick={() => handleConciliarTarea(m.movimientoIds[0], m.movimientoImportes[0], m.pago.referenciaProvCte, `im-suma-0-${m.movimientoIds[0]}`)}
+                                  />
+                                  <BotonConciliarTarea
+                                    loading={conciliandoTareaKey === `im-suma-1-${m.movimientoIds[1]}`}
+                                    onClick={() => handleConciliarTarea(m.movimientoIds[1], m.movimientoImportes[1], m.pago.referenciaProvCte, `im-suma-1-${m.movimientoIds[1]}`)}
+                                  />
+                                </div>
                               </li>
                             ))}
                             {revisarDivision.map((m: any, i: number) => (
@@ -1865,6 +2088,10 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                                     Doc: {p.documento} · Expediente OFI: {p.referenciaProvCte}
                                   </div>
                                 ))}
+                                <BotonConciliarTarea
+                                  loading={conciliandoTareaKey === `im-division-${m.movimientoId}`}
+                                  onClick={() => handleConciliarTarea(m.movimientoId, m.movimientoImporte, m.pagos[0]?.referenciaProvCte, `im-division-${m.movimientoId}`)}
+                                />
                               </li>
                             ))}
                           </ul>
