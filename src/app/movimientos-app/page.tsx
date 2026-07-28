@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Landmark, ChevronDown, Menu, Link2, HardDrive, FileCheck2, BarChart3, Bell, BellOff } from "lucide-react";
-import { getMovimientosBanco, connectBridgeBank, syncBridgeBankMovements, previsualizarConciliacionOfiviaje, confirmarConciliacionOfiviaje, enviarInformeOfiviaje, getInformeMensualPendientesOfi, getUltimaConciliacionOfiviaje, enviarInformeMensualPorEmail, actualizarIncluirEnInformeAutomatico, conciliarManualmente, getImportePendienteConciliar, getConciliacionesManuales, guardarAliasProveedor, type ConciliacionManualDetalle } from "@/actions/banco";
+import { getMovimientosBanco, connectBridgeBank, syncBridgeBankMovements, previsualizarConciliacionOfiviaje, confirmarConciliacionOfiviaje, enviarInformeOfiviaje, getInformeMensualPendientesOfi, getUltimaConciliacionOfiviaje, enviarInformeMensualPorEmail, actualizarIncluirEnInformeAutomatico, conciliarManualmente, getImportePendienteConciliar, getConciliacionesManuales, guardarAliasProveedor, previsualizarCobrosXmlManualAction, type ConciliacionManualDetalle } from "@/actions/banco";
 import { getCuentasBancarias } from "@/actions/cuentasBancarias";
 import { getCurrentAgencyDetails } from "@/actions/agencias";
 import { getCurrentAgentePublic } from "@/actions/crm";
@@ -243,6 +243,12 @@ export default function MovimientosAppPage() {
   const [checkingOfiviaje, setCheckingOfiviaje] = useState(false);
   const [ofiviajePreview, setOfiviajePreview] = useState<any | null>(null);
   const [confirmingOfiviaje, setConfirmingOfiviaje] = useState(false);
+  // TEMPORAL: true cuando el preview viene de "Subir cobros (test)" — solo
+  // lectura, sin botones de conciliar/confirmar, para probar el matching de
+  // cobros por transferencia sin escribir nada en BD.
+  const [previewSoloLectura, setPreviewSoloLectura] = useState(false);
+  const [subiendoCobrosTest, setSubiendoCobrosTest] = useState(false);
+  const cobrosTestInputRef = useRef<HTMLInputElement>(null);
   const [informeEmail, setInformeEmail] = useState("");
   const [sendingInforme, setSendingInforme] = useState(false);
   const [loadingInformeMensual, setLoadingInformeMensual] = useState(false);
@@ -473,6 +479,42 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
     } catch (error) {
       console.error("Error conectando banco:", error);
       setConnectingBank(false);
+    }
+  };
+
+  // TEMPORAL: sube a mano un XML de cobros (Liquidación de Cajas) para probar
+  // el matching en local sin tocar Drive ni escribir nada en BD.
+  const handleSubirCobrosTest = () => {
+    setShowMenu(false);
+    cobrosTestInputRef.current?.click();
+  };
+
+  const handleCobrosTestFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setSubiendoCobrosTest(true);
+    try {
+      const xmlContent = await file.text();
+      const res = await previsualizarCobrosXmlManualAction(xmlContent);
+      if (res.error) {
+        alert(res.error);
+        return;
+      }
+      const hayAlgoQueMostrar =
+        res.matches.length > 0 || (res.revisarNombre?.length || 0) > 0 || (res.sinMatch?.length || 0) > 0;
+      if (!hayAlgoQueMostrar) {
+        alert(`Procesados ${res.procesados} cobro(s) del XML. No se encontró ningún movimiento para conciliar.`);
+        return;
+      }
+      setPreviewSoloLectura(true);
+      setOfiviajePreview(res);
+    } catch (error) {
+      console.error("Error procesando XML de cobros de prueba:", error);
+      alert("Error al procesar el XML de cobros.");
+    } finally {
+      setSubiendoCobrosTest(false);
     }
   };
 
@@ -710,6 +752,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
     } finally {
       setConfirmingOfiviaje(false);
       setOfiviajePreview(null);
+      setPreviewSoloLectura(false);
     }
   };
 
@@ -964,6 +1007,31 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                   >
                     <BarChart3 size={16} />
                     <span>{loadingInformeMensual ? "Cargando..." : "Informe mensual"}</span>
+                  </button>
+
+                  {/* TEMPORAL: solo para probar en local el matching de cobros por transferencia */}
+                  <button
+                    onClick={handleSubirCobrosTest}
+                    disabled={subiendoCobrosTest}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.5rem 0.75rem",
+                      fontSize: "0.85rem",
+                      fontWeight: 500,
+                      color: "#334155",
+                      background: "none",
+                      border: "none",
+                      borderRadius: "0.375rem",
+                      textAlign: "left",
+                      cursor: subiendoCobrosTest ? "default" : "pointer",
+                      opacity: subiendoCobrosTest ? 0.6 : 1,
+                    }}
+                  >
+                    <FileCheck2 size={16} />
+                    <span>{subiendoCobrosTest ? "Procesando..." : "Subir cobros (test)"}</span>
                   </button>
 
                   {pushSupported && (
@@ -1520,6 +1588,15 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
 
       <DriveAuthModal isOpen={showDriveModal} onClose={() => setShowDriveModal(false)} />
 
+      {/* TEMPORAL: input oculto para "Subir cobros (test)" */}
+      <input
+        ref={cobrosTestInputRef}
+        type="file"
+        accept=".xml"
+        style={{ display: "none" }}
+        onChange={handleCobrosTestFileChange}
+      />
+
       {/* INFORME DE CONCILIACIÓN OFIVIAJE (previo a aplicar cambios) */}
       {ofiviajePreview && (
         <div
@@ -1533,7 +1610,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
             zIndex: 3000,
             padding: "1rem",
           }}
-          onClick={() => !confirmingOfiviaje && setOfiviajePreview(null)}
+          onClick={() => !confirmingOfiviaje && (setOfiviajePreview(null), setPreviewSoloLectura(false))}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -1629,15 +1706,17 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                   <ul style={{ listStyle: "none", margin: 0, padding: 0, marginBottom: "1.25rem" }}>
                     {ofiviajePreview.revisarNombre?.map((m: any, i: number) => (
                       <li key={`nombre-${i}`} style={{ padding: "0.6rem 0", borderBottom: "1px solid #f1f5f9", fontSize: "0.8rem" }}>
-                        <div style={{ fontWeight: 600, color: "#0f172a" }}>Proveedor distinto</div>
+                        <div style={{ fontWeight: 600, color: "#0f172a" }}>Cliente/Proveedor distinto</div>
                         <FilaBancoOfi movimientos={[{ fecha: m.movimientoFecha, concepto: m.movimientoConcepto, importe: m.movimientoImporte }]} pagos={[m.pago]} />
                         <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
                           Doc: {m.pago.documento} · Expediente OFI: {m.pago.referenciaProvCte} · Doc. cobro/pago: {m.pago.documentoCobroPago} · Pasajero: {m.pago.nombrePasajero}
                         </div>
-                        <BotonConciliarTarea
-                          loading={conciliandoTareaKey === `ov-nombre-${m.movimientoId}`}
-                          onClick={() => handleConciliarTarea(m.movimientoId, m.movimientoImporte, m.pago.referenciaProvCte, `ov-nombre-${m.movimientoId}`, { proveedorOfi: m.pago.proveedorNombre, conceptoBanco: m.movimientoConcepto })}
-                        />
+                        {!previewSoloLectura && (
+                          <BotonConciliarTarea
+                            loading={conciliandoTareaKey === `ov-nombre-${m.movimientoId}`}
+                            onClick={() => handleConciliarTarea(m.movimientoId, m.movimientoImporte, m.pago.referenciaProvCte, `ov-nombre-${m.movimientoId}`, { proveedorOfi: m.pago.proveedorNombre, conceptoBanco: m.movimientoConcepto })}
+                          />
+                        )}
                       </li>
                     ))}
                     {ofiviajePreview.revisarImporte?.map((m: any, i: number) => (
@@ -1647,10 +1726,12 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                         <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
                           Doc: {m.pago.documento} · Expediente OFI: {m.pago.referenciaProvCte} · Doc. cobro/pago: {m.pago.documentoCobroPago}
                         </div>
-                        <BotonConciliarTarea
-                          loading={conciliandoTareaKey === `ov-importe-${m.movimientoId}`}
-                          onClick={() => handleConciliarTarea(m.movimientoId, m.movimientoImporte, m.pago.referenciaProvCte, `ov-importe-${m.movimientoId}`)}
-                        />
+                        {!previewSoloLectura && (
+                          <BotonConciliarTarea
+                            loading={conciliandoTareaKey === `ov-importe-${m.movimientoId}`}
+                            onClick={() => handleConciliarTarea(m.movimientoId, m.movimientoImporte, m.pago.referenciaProvCte, `ov-importe-${m.movimientoId}`)}
+                          />
+                        )}
                       </li>
                     ))}
                     {ofiviajePreview.revisarSuma?.map((m: any, i: number) => (
@@ -1663,16 +1744,18 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                         <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
                           Doc: {m.pago.documento} · Expediente OFI: {m.pago.referenciaProvCte} · Doc. cobro/pago: {m.pago.documentoCobroPago}
                         </div>
-                        <div style={{ display: "flex", gap: "0.4rem" }}>
-                          <BotonConciliarTarea
-                            loading={conciliandoTareaKey === `ov-suma-0-${m.movimientoIds[0]}`}
-                            onClick={() => handleConciliarTarea(m.movimientoIds[0], m.movimientoImportes[0], m.pago.referenciaProvCte, `ov-suma-0-${m.movimientoIds[0]}`)}
-                          />
-                          <BotonConciliarTarea
-                            loading={conciliandoTareaKey === `ov-suma-1-${m.movimientoIds[1]}`}
-                            onClick={() => handleConciliarTarea(m.movimientoIds[1], m.movimientoImportes[1], m.pago.referenciaProvCte, `ov-suma-1-${m.movimientoIds[1]}`)}
-                          />
-                        </div>
+                        {!previewSoloLectura && (
+                          <div style={{ display: "flex", gap: "0.4rem" }}>
+                            <BotonConciliarTarea
+                              loading={conciliandoTareaKey === `ov-suma-0-${m.movimientoIds[0]}`}
+                              onClick={() => handleConciliarTarea(m.movimientoIds[0], m.movimientoImportes[0], m.pago.referenciaProvCte, `ov-suma-0-${m.movimientoIds[0]}`)}
+                            />
+                            <BotonConciliarTarea
+                              loading={conciliandoTareaKey === `ov-suma-1-${m.movimientoIds[1]}`}
+                              onClick={() => handleConciliarTarea(m.movimientoIds[1], m.movimientoImportes[1], m.pago.referenciaProvCte, `ov-suma-1-${m.movimientoIds[1]}`)}
+                            />
+                          </div>
+                        )}
                       </li>
                     ))}
                     {ofiviajePreview.revisarDivision?.map((m: any, i: number) => (
@@ -1684,10 +1767,12 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                             Doc: {p.documento} · Expediente OFI: {p.referenciaProvCte}
                           </div>
                         ))}
-                        <BotonConciliarTarea
-                          loading={conciliandoTareaKey === `ov-division-${m.movimientoId}`}
-                          onClick={() => handleConciliarTarea(m.movimientoId, m.movimientoImporte, m.pagos[0]?.referenciaProvCte, `ov-division-${m.movimientoId}`)}
-                        />
+                        {!previewSoloLectura && (
+                          <BotonConciliarTarea
+                            loading={conciliandoTareaKey === `ov-division-${m.movimientoId}`}
+                            onClick={() => handleConciliarTarea(m.movimientoId, m.movimientoImporte, m.pagos[0]?.referenciaProvCte, `ov-division-${m.movimientoId}`)}
+                          />
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -1763,7 +1848,10 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
 
             <div style={{ padding: "1rem 1.5rem", borderTop: "1px solid #f1f5f9", display: "flex", gap: "0.5rem" }}>
               <button
-                onClick={() => setOfiviajePreview(null)}
+                onClick={() => {
+                  setOfiviajePreview(null);
+                  setPreviewSoloLectura(false);
+                }}
                 disabled={confirmingOfiviaje}
                 style={{
                   flex: 1,
@@ -1777,9 +1865,9 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                   cursor: confirmingOfiviaje ? "default" : "pointer",
                 }}
               >
-                {ofiviajePreview.matches.length > 0 ? "Cancelar" : "Cerrar"}
+                {ofiviajePreview.matches.length > 0 && !previewSoloLectura ? "Cancelar" : "Cerrar"}
               </button>
-              {ofiviajePreview.matches.length > 0 && (
+              {ofiviajePreview.matches.length > 0 && !previewSoloLectura && (
                 <button
                   onClick={handleConfirmOfiviaje}
                   disabled={confirmingOfiviaje}
@@ -2039,7 +2127,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                           <ul style={{ listStyle: "none", margin: 0, padding: 0, marginBottom: "1.25rem" }}>
                             {revisarNombre.map((m: any, i: number) => (
                               <li key={`nombre-${i}`} style={{ padding: "0.6rem 0", borderBottom: "1px solid #f1f5f9", fontSize: "0.8rem" }}>
-                                <div style={{ fontWeight: 600, color: "#0f172a" }}>Proveedor distinto</div>
+                                <div style={{ fontWeight: 600, color: "#0f172a" }}>Cliente/Proveedor distinto</div>
                                 <FilaBancoOfi movimientos={[{ fecha: m.movimientoFecha, concepto: m.movimientoConcepto, importe: m.movimientoImporte }]} pagos={[m.pago]} />
                                 <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
                                   Doc: {m.pago.documento} · Expediente OFI: {m.pago.referenciaProvCte} · Doc. cobro/pago: {m.pago.documentoCobroPago} · Pasajero: {m.pago.nombrePasajero}

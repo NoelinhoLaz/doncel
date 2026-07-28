@@ -10,7 +10,7 @@ import { conciliarPagoProveedor as ejecutarConciliarPagoProveedor, ejecutarConci
 import { createBridgeConnectSession, syncBridgeTransactions } from "@/lib/banco/bridgeApi";
 import { getCurrentAgenciaSlug } from "@/actions/agencias";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
-import { previsualizarOfiviajeUsuarioActual, confirmarConciliacionOfiviaje as confirmarConciliacionOfiviajeLib, enviarInformeOfiviajePorEmail, guardarAliasProveedorOfi, type OfiviajeMatchPropuesto, type OfiviajePreview } from "@/lib/banco/ofiviajeMatch";
+import { previsualizarOfiviajeUsuarioActual, previsualizarCobrosXmlManual, confirmarConciliacionOfiviaje as confirmarConciliacionOfiviajeLib, enviarInformeOfiviajePorEmail, guardarAliasProveedorOfi, type OfiviajeMatchPropuesto, type OfiviajePreview } from "@/lib/banco/ofiviajeMatch";
 
 export async function getMovimientosBanco(options?: any) {
   return fetchMovimientosBanco(options);
@@ -65,6 +65,12 @@ export async function conciliarManualmente(movimientoBancoId: string, importe: n
 
 export async function guardarAliasProveedor(proveedorOfi: string, aliasBanco: string) {
   return guardarAliasProveedorOfi(proveedorOfi, aliasBanco);
+}
+
+// TEMPORAL: previsualiza el matching de un XML de cobros pegado a mano, sin
+// tocar Drive ni escribir nada en BD. Solo para pruebas en local.
+export async function previsualizarCobrosXmlManualAction(xmlContent: string) {
+  return previsualizarCobrosXmlManual(xmlContent);
 }
 
 export interface ConciliacionManualDetalle {

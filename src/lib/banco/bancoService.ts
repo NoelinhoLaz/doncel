@@ -337,7 +337,7 @@ function construirHtmlInformeAutomatico(params: {
   const totalPendiente = pendientes.reduce((acc, c) => acc + c.totalPendiente, 0);
   const totalMovPendientes = pendientes.reduce((acc, c) => acc + c.numMovimientos, 0);
   const totalConciliado = conciliados.reduce((acc, m) => acc + m.importe, 0);
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://doncel.vercel.app";
   const movimientosUrl = `${baseUrl}/concilia_login`;
 
   let html = `<div style="font-family:sans-serif;color:#334155;max-width:640px;">`;

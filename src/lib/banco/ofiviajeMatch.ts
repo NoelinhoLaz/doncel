@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import { getAgencyDbClient } from "@/lib/agencyDb";
-import { parseOfiviajePagosXml, parseOfiviajeFecha, type OfiviajePago } from "./ofiviajeParser";
+import { parseOfiviajePagosXml, parseOfiviajeCobrosXml, parseOfiviajeFecha, parseOfiviajeFechaCorta, type OfiviajePago, type OfiviajeCobro } from "./ofiviajeParser";
 import {
   listarXmlEnCarpeta,
   descargarContenidoXml,
@@ -486,6 +486,168 @@ async function calcularMatchesXmlContenido(
   return { procesados: pagos.length, matches, revisarNombre, revisarImporte, revisarSuma, revisarDivision, sinMatch, yaConciliados };
 }
 
+/**
+ * Adapta un cobro (Liquidación de Cajas, grupo Transferencias) al shape de
+ * OfiviajePago para poder reutilizar coincide()/fechaCoincide()/nombreCoincide(),
+ * que operan sobre proveedorNombre/importePendiente/fechaVencto/fechaDoc.
+ */
+function cobroComoPago(cobro: OfiviajeCobro): OfiviajePago {
+  const fecha = parseOfiviajeFechaCorta(cobro.fechaMovimiento);
+  const fechaDDMMYYYY = fecha ? `${fecha.slice(8, 10)}/${fecha.slice(5, 7)}/${fecha.slice(0, 4)}` : "";
+  return {
+    documento: cobro.factura,
+    fechaVencto: fechaDDMMYYYY,
+    fechaDoc: fechaDDMMYYYY,
+    referenciaProvCte: cobro.factura,
+    documentoCobroPago: "",
+    tipoOperacion: "",
+    cuentaTesoreria: "",
+    nombrePasajero: cobro.nombrePagador,
+    apunte: "",
+    importePendiente: cobro.importeCobro,
+    situacion: "",
+    proveedorNombre: cobro.nombrePagador,
+    proveedorCuentaContable: "",
+  };
+}
+
+/**
+ * Igual que calcularMatchesXmlContenido pero para cobros de clientes por
+ * transferencia (fichero TSRLiquidacionCajas_*, grupo "Transferencias"). Los
+ * movimientos bancarios candidatos son de importe positivo (entrada), sin
+ * restricción sobre el texto del concepto (aplica igual a "TRANSFERENCIA...",
+ * "INGRESO EN EFECTIVO..." o "INGRESO ANONIMO EN CAJERO...": lo único que
+ * decide si concilia es que el nombre del pagador coincida con el concepto).
+ * No contempla suma/división (mucho menos frecuente en cobros de clientes que
+ * en pagos a proveedores): solo match exacto y revisarNombre.
+ */
+async function calcularMatchesCobrosXmlContenido(
+  agencyDb: any,
+  xmlContent: string,
+  fichero: { id: string; nombre: string; modifiedTime: string }
+): Promise<{
+  procesados: number;
+  matches: OfiviajeMatchPropuesto[];
+  revisarNombre: OfiviajeMatchPropuesto[];
+  revisarImporte: OfiviajeRevisarImporte[];
+  revisarSuma: OfiviajeRevisarSuma[];
+  revisarDivision: OfiviajeRevisarDivision[];
+  sinMatch: OfiviajePago[];
+  yaConciliados: number;
+}> {
+  const vacio = {
+    procesados: 0,
+    matches: [],
+    revisarNombre: [],
+    revisarImporte: [],
+    revisarSuma: [],
+    revisarDivision: [],
+    sinMatch: [],
+    yaConciliados: 0,
+  };
+  const cobros = parseOfiviajeCobrosXml(xmlContent);
+  if (cobros.length === 0) return vacio;
+
+  const pagos = cobros.map(cobroComoPago);
+  const fechaMinimaBusqueda = calcularFechaMinimaBusqueda(pagos);
+  const aliasPorProveedor = await getAliasProveedorPorAgencia(agencyDb);
+
+  // A diferencia de los pagos (donde CuentaTesoreria del XML resuelve la
+  // cuenta bancaria exacta), el fichero de cobros no indica cuenta por fila:
+  // se busca en todas las cuentas bancarias activas de la agencia.
+  const { data: cuentas } = await agencyDb.from("config_cuentas_bancarias").select("id").eq("activa", true);
+  const cuentaBancariaIds = (cuentas || []).map((c: any) => c.id);
+
+  if (cuentaBancariaIds.length === 0) {
+    return { ...vacio, procesados: pagos.length, sinMatch: pagos };
+  }
+
+  // Un cobro con importe negativo en el XML (devolución al cliente) debe
+  // conciliar contra un movimiento bancario de salida, no de entrada: se
+  // consultan ambos signos y luego coincide() compara valores absolutos.
+  const { data: movimientos, error } = await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .select("id, importe, fecha_operacion, fecha_valor, concepto_original, estado, conciliado_externo")
+    .in("estado", ["pendiente", "propuesto", "parcial"])
+    .eq("conciliado_externo", false)
+    .in("cuenta_bancaria_id", cuentaBancariaIds)
+    .neq("importe", 0)
+    .gte("fecha_operacion", fechaMinimaBusqueda);
+
+  if (error || !movimientos) {
+    return { ...vacio, procesados: pagos.length, sinMatch: pagos };
+  }
+
+  const matches: OfiviajeMatchPropuesto[] = [];
+  const revisarNombre: OfiviajeMatchPropuesto[] = [];
+  const pagosConMatch = new Set<OfiviajePago>();
+
+  for (const mov of movimientos) {
+    const movEsEntrada = Number(mov.importe) > 0;
+    const pagoMatch = pagos.find(
+      (p) => !pagosConMatch.has(p) && (p.importePendiente >= 0) === movEsEntrada && coincide(mov, p)
+    );
+    if (!pagoMatch) continue;
+
+    pagosConMatch.add(pagoMatch);
+    const propuesta: OfiviajeMatchPropuesto = {
+      movimientoId: mov.id,
+      movimientoImporte: Number(mov.importe),
+      movimientoFecha: mov.fecha_operacion,
+      movimientoConcepto: mov.concepto_original || "",
+      pago: pagoMatch,
+      ficheroId: fichero.id,
+      ficheroNombre: fichero.nombre,
+      ficheroModifiedTime: fichero.modifiedTime,
+    };
+
+    if (nombreCoincide(mov, pagoMatch, aliasPorProveedor)) {
+      matches.push(propuesta);
+    } else {
+      revisarNombre.push(propuesta);
+    }
+  }
+
+  const pagosSinMatchInicial = pagos.filter((p) => !pagosConMatch.has(p));
+
+  let yaConciliados = 0;
+  let sinMatch = pagosSinMatchInicial;
+
+  if (pagosSinMatchInicial.length > 0) {
+    const { data: movimientosConciliados } = await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .select("importe, fecha_operacion, fecha_valor")
+      .eq("conciliado_externo", true)
+      .in("cuenta_bancaria_id", cuentaBancariaIds)
+      .neq("importe", 0)
+      .gte("fecha_operacion", fechaMinimaBusqueda);
+
+    if (movimientosConciliados && movimientosConciliados.length > 0) {
+      const pagosYaConciliados = new Set<OfiviajePago>();
+      for (const mov of movimientosConciliados) {
+        const movEsEntrada = Number(mov.importe) > 0;
+        const pagoMatch = pagosSinMatchInicial.find(
+          (p) => !pagosYaConciliados.has(p) && (p.importePendiente >= 0) === movEsEntrada && coincide(mov, p)
+        );
+        if (pagoMatch) pagosYaConciliados.add(pagoMatch);
+      }
+      yaConciliados = pagosYaConciliados.size;
+      sinMatch = pagosSinMatchInicial.filter((p) => !pagosYaConciliados.has(p));
+    }
+  }
+
+  return {
+    procesados: pagos.length,
+    matches,
+    revisarNombre,
+    revisarImporte: [],
+    revisarSuma: [],
+    revisarDivision: [],
+    sinMatch,
+    yaConciliados,
+  };
+}
+
 export interface OfiviajePreview {
   ficherosNuevos: number;
   procesados: number;
@@ -500,10 +662,57 @@ export interface OfiviajePreview {
 }
 
 /**
+ * Despacha al parser/matching correcto según el nombre del fichero: pagos a
+ * proveedores (TSRLstVPagos_*) o cobros de clientes por transferencia
+ * (TSRLiquidacionCajas_*). Ambos tipos conviven en la misma carpeta de Drive.
+ */
+function calcularMatchesFicheroXml(
+  agencyDb: any,
+  xmlContent: string,
+  fichero: { id: string; nombre: string; modifiedTime: string }
+) {
+  if (fichero.nombre.startsWith("TSRLiquidacionCajas_")) {
+    return calcularMatchesCobrosXmlContenido(agencyDb, xmlContent, fichero);
+  }
+  return calcularMatchesXmlContenido(agencyDb, xmlContent, fichero);
+}
+
+/**
  * Calcula (sin escribir nada en BD) qué movimientos se conciliarían con los
  * pagos de los ficheros XML nuevos de la carpeta de Drive del usuario actual.
  * El resultado se muestra al usuario para que confirme antes de aplicar cambios.
  */
+/**
+ * TEMPORAL (solo para pruebas en local): calcula el matching de un XML de
+ * cobros (Liquidación de Cajas) pegado/subido a mano, sin tocar Drive ni
+ * escribir nada en BD (ni ofiviaje_ficheros_procesados ni conciliaciones).
+ * Sirve para verificar el resultado antes de dar por buena la función.
+ */
+export async function previsualizarCobrosXmlManual(xmlContent: string): Promise<OfiviajePreview> {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const result = await calcularMatchesCobrosXmlContenido(agencyDb, xmlContent, {
+      id: "manual",
+      nombre: "manual",
+      modifiedTime: new Date().toISOString(),
+    });
+    return { ficherosNuevos: 1, ...result };
+  } catch (error: any) {
+    return {
+      ficherosNuevos: 0,
+      procesados: 0,
+      matches: [],
+      revisarNombre: [],
+      revisarImporte: [],
+      revisarSuma: [],
+      revisarDivision: [],
+      sinMatch: [],
+      yaConciliados: 0,
+      error: error.message || "Error al procesar el XML de cobros.",
+    };
+  }
+}
+
 export async function previsualizarOfiviajeUsuarioActual(): Promise<OfiviajePreview> {
   try {
     const tokens = await getDriveTokensUsuarioActual();
@@ -549,7 +758,7 @@ export async function previsualizarOfiviajeUsuarioActual(): Promise<OfiviajePrev
 
     for (const fichero of nuevos) {
       const contenido = await descargarContenidoXml(tokens, fichero.id);
-      const result = await calcularMatchesXmlContenido(agencyDb, contenido, fichero);
+      const result = await calcularMatchesFicheroXml(agencyDb, contenido, fichero);
       procesados += result.procesados;
       matches.push(...result.matches);
       revisarNombre.push(...result.revisarNombre);
@@ -758,7 +967,7 @@ export async function comprobarOfiviajeParaAgencia(
 
     for (const fichero of nuevos) {
       const contenido = await descargarContenidoXml(tokens, fichero.id);
-      const result = await calcularMatchesXmlContenido(agencyDb, contenido, fichero);
+      const result = await calcularMatchesFicheroXml(agencyDb, contenido, fichero);
       procesados += result.procesados;
 
       for (const match of result.matches) {
