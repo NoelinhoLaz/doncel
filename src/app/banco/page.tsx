@@ -103,6 +103,7 @@ export default function BancoPage() {
   const [isOwner, setIsOwner] = useState(false);
   const [conciliacionManualMov, setConciliacionManualMov] = useState<ConciliacionManualMov | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [exportando, setExportando] = useState(false);
   const [matchReport, setMatchReport] = useState<{
     procesados: number;
     bajos: number;
@@ -215,6 +216,56 @@ export default function BancoPage() {
     }
   }, [currentPage, rowsPerPage, searchQuery]);
 
+  const handleExportar = async () => {
+    if (totalItems === 0) {
+      alert("No hay movimientos que exportar con los filtros actuales.");
+      return;
+    }
+    const confirmado = window.confirm(
+      `Se va a generar un Excel con ${totalItems.toLocaleString("es-ES")} movimiento(s). ¿Continuar?`
+    );
+    if (!confirmado) return;
+
+    setExportando(true);
+    try {
+      const response = await fetch("/api/banco/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          search: searchQuery,
+          matchScoreFilters: filtros.matchRanges,
+          tipoMovimiento: filtros.tipoMovimiento === "todos" ? undefined : filtros.tipoMovimiento,
+          fechaDesde: filtros.fechaDesde || undefined,
+          fechaHasta: filtros.fechaHasta || undefined,
+          importeMin: filtros.importeMin ? Number(filtros.importeMin) : undefined,
+          importeMax: filtros.importeMax ? Number(filtros.importeMax) : undefined,
+          estados: filtros.estados.length > 0 ? filtros.estados : undefined,
+          cuentaIds: filtros.bancosIds.length > 0 ? filtros.bancosIds : undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || "Error al exportar movimientos.");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "movimientos_bancarios.xlsx";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error: any) {
+      console.error("Error exportando movimientos:", error);
+      alert(error.message || "Error al exportar movimientos.");
+    } finally {
+      setExportando(false);
+    }
+  };
+
   useEffect(() => {
     loadData(filtros);
   }, [loadData, filtros]);
@@ -325,7 +376,12 @@ export default function BancoPage() {
             >
               <Icons.Download size={18} />
             </button>
-            <button className={styles.actionIconButton} title="Exportar movimientos">
+            <button
+              className={styles.actionIconButton}
+              title="Exportar movimientos"
+              onClick={handleExportar}
+              disabled={exportando}
+            >
               <Icons.Upload size={18} />
             </button>
           </div>

@@ -2,9 +2,7 @@ import { getAgencyDbClient } from "@/lib/agencyDb";
 
 const escapeSearch = (value?: string) => value?.trim().replace(/[%_\\]/g, "\\$&");
 
-export async function getMovimientosBanco(options?: {
-  page?: number;
-  limit?: number;
+export interface MovimientosBancoFiltros {
   search?: string;
   matchScoreFilters?: string[];
   tipoMovimiento?: "debe" | "haber";
@@ -14,20 +12,19 @@ export async function getMovimientosBanco(options?: {
   importeMax?: number;
   estados?: string[];
   cuentaIds?: string[];
-}) {
-  const page = options?.page ?? 1;
-  const limit = options?.limit ?? 20;
-  const search = escapeSearch(options?.search);
-  const matchScoreFilters = options?.matchScoreFilters ?? [];
-  const tipoMovimiento = options?.tipoMovimiento;
-  const fechaDesde = options?.fechaDesde;
-  const fechaHasta = options?.fechaHasta;
-  const importeMin = options?.importeMin;
-  const importeMax = options?.importeMax;
-  const estados = options?.estados ?? [];
-  const cuentaIds = options?.cuentaIds;
+}
 
-  const agencyDb = await getAgencyDbClient();
+function construirQueryMovimientosBanco(agencyDb: any, filtros: MovimientosBancoFiltros) {
+  const search = escapeSearch(filtros.search);
+  const matchScoreFilters = filtros.matchScoreFilters ?? [];
+  const tipoMovimiento = filtros.tipoMovimiento;
+  const fechaDesde = filtros.fechaDesde;
+  const fechaHasta = filtros.fechaHasta;
+  const importeMin = filtros.importeMin;
+  const importeMax = filtros.importeMax;
+  const estados = filtros.estados ?? [];
+  const cuentaIds = filtros.cuentaIds;
+
   let query = agencyDb
     .from("contabilidad_movimientos_banco")
     .select("*, config_cuentas_bancarias(banco, iban)", { count: "exact" })
@@ -75,9 +72,34 @@ export async function getMovimientosBanco(options?: {
   if (matchScoreFilters.includes("altos")) scoreConditions.push("match_score.gt.90");
   if (scoreConditions.length) query = query.or(scoreConditions.join(","));
 
+  return query;
+}
+
+export async function getMovimientosBanco(options?: MovimientosBancoFiltros & { page?: number; limit?: number }) {
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 20;
+  const agencyDb = await getAgencyDbClient();
+  const query = construirQueryMovimientosBanco(agencyDb, options ?? {});
+
   const from = (page - 1) * limit;
   const to = page * limit - 1;
   const { data, error, count } = await query.order("fecha_operacion", { ascending: false }).order("created_at", { ascending: false }).range(from, to);
+  if (error) throw error;
+  return { data: data || [], count: count || 0 };
+}
+
+/**
+ * Igual que getMovimientosBanco pero sin paginación (para exportación): trae
+ * todos los movimientos que cumplan los filtros, hasta un máximo de
+ * seguridad razonable.
+ */
+export async function getMovimientosBancoSinPaginar(filtros: MovimientosBancoFiltros, limiteMaximo = 50000) {
+  const agencyDb = await getAgencyDbClient();
+  const query = construirQueryMovimientosBanco(agencyDb, filtros);
+  const { data, error, count } = await query
+    .order("fecha_operacion", { ascending: false })
+    .order("created_at", { ascending: false })
+    .range(0, limiteMaximo - 1);
   if (error) throw error;
   return { data: data || [], count: count || 0 };
 }
