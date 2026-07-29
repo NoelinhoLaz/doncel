@@ -10,7 +10,7 @@ import { conciliarPagoProveedor as ejecutarConciliarPagoProveedor, ejecutarConci
 import { createBridgeConnectSession, syncBridgeTransactions } from "@/lib/banco/bridgeApi";
 import { getCurrentAgenciaSlug } from "@/actions/agencias";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
-import { previsualizarOfiviajeUsuarioActual, previsualizarCobrosXmlManual, confirmarConciliacionOfiviaje as confirmarConciliacionOfiviajeLib, enviarInformeOfiviajePorEmail, guardarAliasProveedorOfi, type OfiviajeMatchPropuesto, type OfiviajePreview } from "@/lib/banco/ofiviajeMatch";
+import { previsualizarOfiviajeUsuarioActual, previsualizarCobrosXmlManual, confirmarConciliacionOfiviaje as confirmarConciliacionOfiviajeLib, enviarInformeOfiviajePorEmail, guardarAliasProveedorOfi, getUltimoInformeReal as getUltimoInformeRealLib, marcarTareaPendienteResueltaPorMovimiento, getHistorialProcesosOfiviaje as getHistorialProcesosOfiviajeLib, forzarProcesoOfiviajeUsuarioActual as forzarProcesoOfiviajeUsuarioActualLib, getDetalleProcesoOfiviaje as getDetalleProcesoOfiviajeLib, type OfiviajeMatchPropuesto, type OfiviajePreview } from "@/lib/banco/ofiviajeMatch";
 
 export async function getMovimientosBanco(options?: any) {
   return fetchMovimientosBanco(options);
@@ -55,11 +55,21 @@ export async function getDocumentosExpediente(expedienteId: string) {
   return fetchDocumentosExpediente(expedienteId);
 }
 
-export async function conciliarManualmente(movimientoBancoId: string, importe: number, expedienteOfi?: string) {
+export async function conciliarManualmente(movimientoBancoId: string, importe: number, expedienteOfi?: string, voboDc?: boolean) {
   const agencyDb = await getAgencyDbClient();
-  const { usuarioId } = await getCurrentAgentePublic();
-  const result = await ejecutarConciliacionManual(agencyDb, movimientoBancoId, importe, expedienteOfi, usuarioId);
-  if (result.success) revalidatePath("/banco");
+  const { usuarioId, rol } = await getCurrentAgentePublic();
+  // El VºBº de Dirección Comercial solo lo puede marcar el Owner, aunque la
+  // petición venga manipulada desde el cliente.
+  const voboDcValido = !!voboDc && rol === "Owner";
+  const result = await ejecutarConciliacionManual(agencyDb, movimientoBancoId, importe, expedienteOfi, usuarioId, voboDcValido);
+  if (result.success) {
+    revalidatePath("/banco");
+    // Evita que la tarea reaparezca en los informes de OFIviaje (Último
+    // informe, Informe mensual) aunque ya se haya conciliado.
+    marcarTareaPendienteResueltaPorMovimiento(agencyDb, movimientoBancoId).catch((err) =>
+      console.error("Error marcando tarea pendiente como resuelta:", err)
+    );
+  }
   return result;
 }
 
@@ -79,25 +89,33 @@ export interface ConciliacionManualDetalle {
   fecha: string;
   usuarioNombre: string;
   expedienteOfi: string | null;
+  voboDc: boolean;
 }
 
 /**
  * Detalle de cada conciliación manual registrada para un movimiento
- * bancario (para mostrar quién conciló el total, o cada parcial).
+ * bancario (para mostrar quién conciló el total, o cada parcial). Las
+ * marcadas con VºBº de Dirección Comercial solo se devuelven al Owner —
+ * para el resto de usuarios quedan ocultas del histórico.
  */
 export async function getConciliacionesManuales(movimientoBancoId: string): Promise<ConciliacionManualDetalle[]> {
   const agencyDb = await getAgencyDbClient();
+  const { rol } = await getCurrentAgentePublic();
+  const esOwner = rol === "Owner";
 
   const { data: pagos } = await agencyDb
     .from("contabilidad_movimientos")
-    .select("id, importe_total, created_at, usuario_id, concepto")
+    .select("id, importe_total, created_at, usuario_id, concepto, vobo_dc")
     .eq("movimiento_banco_id", movimientoBancoId)
     .eq("estado", "confirmado")
     .order("created_at", { ascending: true });
 
   if (!pagos || pagos.length === 0) return [];
 
-  const usuarioIds = [...new Set(pagos.map((p: any) => p.usuario_id).filter(Boolean))];
+  const pagosVisibles = esOwner ? pagos : pagos.filter((p: any) => !p.vobo_dc);
+  if (pagosVisibles.length === 0) return [];
+
+  const usuarioIds = [...new Set(pagosVisibles.map((p: any) => p.usuario_id).filter(Boolean))];
   const adminServiceClient = createAdminServiceClient();
   const { data: usuarios } = await adminServiceClient
     .from("usuarios")
@@ -106,12 +124,13 @@ export async function getConciliacionesManuales(movimientoBancoId: string): Prom
 
   const nombrePorId = new Map((usuarios || []).map((u: any) => [u.id, `${u.nombre || ""} ${u.apellidos || ""}`.trim() || "Usuario desconocido"]));
 
-  return pagos.map((p: any) => ({
+  return pagosVisibles.map((p: any) => ({
     id: p.id,
     importe: Number(p.importe_total || 0),
     fecha: p.created_at,
     usuarioNombre: nombrePorId.get(p.usuario_id) || "Usuario desconocido",
     expedienteOfi: p.concepto?.match(/Expediente OFI: (.+)$/)?.[1] || null,
+    voboDc: !!p.vobo_dc,
   }));
 }
 
@@ -306,6 +325,24 @@ export async function syncBridgeBankMovements(): Promise<{ insertados: number; e
 
 export async function previsualizarConciliacionOfiviaje() {
   return previsualizarOfiviajeUsuarioActual();
+}
+
+export async function getUltimoInformeReal(cuentaBancariaId: string) {
+  return getUltimoInformeRealLib(cuentaBancariaId);
+}
+
+export async function getHistorialProcesosOfiviaje() {
+  return getHistorialProcesosOfiviajeLib();
+}
+
+export async function forzarProcesoOfiviajeUsuarioActual() {
+  const result = await forzarProcesoOfiviajeUsuarioActualLib();
+  if (result.conciliados > 0) revalidatePath("/banco");
+  return result;
+}
+
+export async function getDetalleProcesoOfiviaje(driveFileId: string) {
+  return getDetalleProcesoOfiviajeLib(driveFileId);
 }
 
 export async function confirmarConciliacionOfiviaje(matches: OfiviajeMatchPropuesto[]) {

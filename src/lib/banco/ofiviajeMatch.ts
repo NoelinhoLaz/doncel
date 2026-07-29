@@ -827,12 +827,20 @@ async function persistirTareasPendientes(
     sinMatch: OfiviajePago[];
   }
 ): Promise<void> {
+  const esCobro = fichero.nombre.startsWith("TSRLiquidacionCajas_");
+  // La cuenta bancaria solo se puede determinar con certeza para pagos (el
+  // XML indica cuentaTesoreria); en cobros no hay forma de saber la cuenta
+  // por fila, así que cuenta_bancaria_id queda NULL para ellos.
+  const mapaCuentaContable = esCobro ? {} : await getMapaCuentaContable(agencyDb);
+  const cuentaDePago = (pago: OfiviajePago | undefined) =>
+    esCobro || !pago ? null : mapaCuentaContable[pago.cuentaTesoreria] || null;
+
   const filas: any[] = [];
-  for (const datos of result.revisarNombre) filas.push({ tipo: "revisarNombre", datos });
-  for (const datos of result.revisarImporte) filas.push({ tipo: "revisarImporte", datos });
-  for (const datos of result.revisarSuma) filas.push({ tipo: "revisarSuma", datos });
-  for (const datos of result.revisarDivision) filas.push({ tipo: "revisarDivision", datos });
-  for (const datos of result.sinMatch) filas.push({ tipo: "sinMatch", datos });
+  for (const datos of result.revisarNombre) filas.push({ tipo: "revisarNombre", datos, cuentaBancariaId: cuentaDePago(datos.pago) });
+  for (const datos of result.revisarImporte) filas.push({ tipo: "revisarImporte", datos, cuentaBancariaId: cuentaDePago(datos.pago) });
+  for (const datos of result.revisarSuma) filas.push({ tipo: "revisarSuma", datos, cuentaBancariaId: cuentaDePago(datos.pago) });
+  for (const datos of result.revisarDivision) filas.push({ tipo: "revisarDivision", datos, cuentaBancariaId: null });
+  for (const datos of result.sinMatch) filas.push({ tipo: "sinMatch", datos, cuentaBancariaId: cuentaDePago(datos) });
 
   // Reemplaza las tareas previas de este mismo fichero (si se re-analiza en
   // la misma pasada, o si ya se habían persistido en una llamada anterior),
@@ -847,6 +855,8 @@ async function persistirTareasPendientes(
       datos: f.datos,
       drive_file_id: fichero.id,
       drive_file_nombre: fichero.nombre,
+      es_cobro: esCobro,
+      cuenta_bancaria_id: f.cuentaBancariaId,
     }))
   );
 }
@@ -885,6 +895,408 @@ async function leerTareasPendientesPersistidas(
   return resultado;
 }
 
+/**
+ * Marca como resuelta cualquier tarea persistida en ofiviaje_tareas_pendientes
+ * cuyo movimiento bancario (datos.movimientoId, o datos.movimientoIds para el
+ * caso "revisarSuma") coincida con el que se acaba de conciliar — sin esto,
+ * la tarea sigue apareciendo para siempre en los informes aunque ya esté
+ * conciliada, porque leerTareasPendientesPersistidas() solo filtra por
+ * resuelta=false.
+ */
+export async function marcarTareaPendienteResueltaPorMovimiento(agencyDb: any, movimientoBancoId: string): Promise<void> {
+  const { data } = await agencyDb
+    .from("ofiviaje_tareas_pendientes")
+    .select("id, datos")
+    .eq("resuelta", false);
+
+  const idsAResolver = (data || [])
+    .filter((fila: any) => fila.datos?.movimientoId === movimientoBancoId || fila.datos?.movimientoIds?.includes(movimientoBancoId))
+    .map((fila: any) => fila.id);
+
+  if (idsAResolver.length === 0) return;
+
+  await agencyDb
+    .from("ofiviaje_tareas_pendientes")
+    .update({ resuelta: true, resuelta_en: new Date().toISOString() })
+    .in("id", idsAResolver);
+}
+
+export interface HistorialProcesoOfiviaje {
+  ficheroId: string;
+  nombreFichero: string;
+  procesadoEn: string;
+  procesados: number;
+  pagos: number;
+  cobros: number;
+  conciliados: number;
+  revision: number;
+  origen: "manual" | "automatico";
+}
+
+/**
+ * Lista todos los ficheros OFIviaje ya procesados (pagos y cobros), con el
+ * total de pagos procesados, movimientos conciliados automáticamente y
+ * tareas quedadas para revisión manual (contadas desde
+ * ofiviaje_tareas_pendientes por drive_file_id, sin filtrar por resuelta:
+ * es un histórico, no el estado actual de pendientes).
+ */
+export async function getHistorialProcesosOfiviaje(): Promise<HistorialProcesoOfiviaje[]> {
+  const agencyDb = await getAgencyDbClient();
+
+  const { data: ficheros } = await agencyDb
+    .from("ofiviaje_ficheros_procesados")
+    .select("drive_file_id, nombre_fichero, procesado_en, pagos_procesados, movimientos_conciliados, origen")
+    .order("procesado_en", { ascending: false });
+
+  if (!ficheros || ficheros.length === 0) return [];
+
+  const { data: tareas } = await agencyDb
+    .from("ofiviaje_tareas_pendientes")
+    .select("drive_file_id")
+    .in("drive_file_id", ficheros.map((f: any) => f.drive_file_id));
+
+  const revisionPorFichero = new Map<string, number>();
+  for (const t of tareas || []) {
+    revisionPorFichero.set(t.drive_file_id, (revisionPorFichero.get(t.drive_file_id) || 0) + 1);
+  }
+
+  return ficheros.map((f: any) => {
+    const esCobro = (f.nombre_fichero || "").startsWith("TSRLiquidacionCajas_");
+    const procesados = f.pagos_procesados || 0;
+    const conciliados = f.movimientos_conciliados || 0;
+    return {
+      ficheroId: f.drive_file_id,
+      nombreFichero: f.nombre_fichero || "",
+      procesadoEn: f.procesado_en,
+      procesados,
+      pagos: esCobro ? 0 : conciliados,
+      cobros: esCobro ? conciliados : 0,
+      conciliados,
+      revision: revisionPorFichero.get(f.drive_file_id) || 0,
+      origen: f.origen === "automatico" ? "automatico" : "manual",
+    };
+  });
+}
+
+export interface DetalleProcesoOfiviajeProcesado {
+  movimientoId: string;
+  movimientoFecha: string;
+  movimientoConcepto: string;
+  movimientoImporte: number;
+  proveedorNombre: string;
+  expediente: string;
+}
+
+export interface DetalleProcesoOfiviajeTarea {
+  id: string;
+  tipo: string;
+  nombre: string;
+  expediente: string;
+  importe: number | null;
+  movConcepto: string | null;
+  movImporte: number | null;
+}
+
+export interface DetalleProcesoOfiviaje {
+  nombreFichero: string;
+  procesados: DetalleProcesoOfiviajeProcesado[];
+  tareas: DetalleProcesoOfiviajeTarea[];
+}
+
+/**
+ * Detalle de un proceso concreto (identificado por drive_file_id) para la
+ * página de detalle del historial: movimientos auto-conciliados (leídos por
+ * el marcador _driveFileId guardado dentro de conciliado_externo_datos) y
+ * las tareas/incidencias persistidas para ese fichero.
+ */
+export async function getDetalleProcesoOfiviaje(driveFileId: string): Promise<DetalleProcesoOfiviaje> {
+  const agencyDb = await getAgencyDbClient();
+
+  const { data: ficheroInfo } = await agencyDb
+    .from("ofiviaje_ficheros_procesados")
+    .select("nombre_fichero, procesado_en, movimientos_conciliados")
+    .eq("drive_file_id", driveFileId)
+    .order("procesado_en", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data: movimientosMarcados } = await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .select("id, fecha_operacion, concepto_original, importe, conciliado_externo_datos")
+    .eq("conciliado_externo", true)
+    .contains("conciliado_externo_datos", { _driveFileId: driveFileId });
+
+  let movimientos = movimientosMarcados || [];
+
+  // Procesos anteriores a introducir el marcador _driveFileId: se aproxima
+  // buscando los movimientos conciliados por OFIviaje en la misma fecha
+  // (día) en que se registró este proceso, filtrando además por la cuenta
+  // bancaria del fichero (resuelta desde las tareas persistidas de ese
+  // mismo drive_file_id) para no mezclar procesos de otras cuentas del
+  // mismo día.
+  if (movimientos.length === 0 && ficheroInfo?.procesado_en) {
+    const inicioDia = new Date(ficheroInfo.procesado_en);
+    inicioDia.setUTCHours(0, 0, 0, 0);
+    const finDia = new Date(inicioDia);
+    finDia.setUTCDate(finDia.getUTCDate() + 1);
+
+    const { data: tareaConCuenta } = await agencyDb
+      .from("ofiviaje_tareas_pendientes")
+      .select("cuenta_bancaria_id")
+      .eq("drive_file_id", driveFileId)
+      .not("cuenta_bancaria_id", "is", null)
+      .limit(1)
+      .maybeSingle();
+
+    let query = agencyDb
+      .from("contabilidad_movimientos_banco")
+      .select("id, fecha_operacion, concepto_original, importe, cuenta_bancaria_id, conciliado_externo_datos, conciliado_externo_en")
+      .eq("conciliado_externo", true)
+      .eq("conciliado_externo_origen", "ofiviaje")
+      .gte("conciliado_externo_en", inicioDia.toISOString())
+      .lt("conciliado_externo_en", finDia.toISOString());
+
+    if (tareaConCuenta?.cuenta_bancaria_id) {
+      query = query.eq("cuenta_bancaria_id", tareaConCuenta.cuenta_bancaria_id);
+    }
+
+    const { data: candidatos } = await query;
+    movimientos = candidatos || [];
+  }
+
+  const procesados: DetalleProcesoOfiviajeProcesado[] = movimientos.map((m: any) => ({
+    movimientoId: m.id,
+    movimientoFecha: m.fecha_operacion,
+    movimientoConcepto: m.concepto_original || "",
+    movimientoImporte: Number(m.importe),
+    proveedorNombre: m.conciliado_externo_datos?.proveedorNombre || "",
+    expediente: m.conciliado_externo_datos?.documento || "",
+  }));
+
+  const { data: tareasData } = await agencyDb
+    .from("ofiviaje_tareas_pendientes")
+    .select("id, tipo, datos")
+    .eq("drive_file_id", driveFileId);
+
+  const tareas: DetalleProcesoOfiviajeTarea[] = (tareasData || []).map((fila: any) => {
+    const datos = fila.datos;
+    const pago = datos.pago ?? (fila.tipo === "sinMatch" ? datos : undefined);
+    return {
+      id: fila.id,
+      tipo: fila.tipo,
+      nombre: pago?.proveedorNombre || pago?.nombrePagador || "",
+      expediente: pago?.documento || "",
+      importe: pago?.importePendiente ?? null,
+      movConcepto: datos.movimientoConcepto ?? null,
+      movImporte: datos.movimientoImporte ?? null,
+    };
+  });
+
+  return { nombreFichero: ficheroInfo?.nombre_fichero || "", procesados, tareas };
+}
+
+/**
+ * TEMPORAL (herramienta de mantenimiento, uso puntual): re-lee de Drive los
+ * ficheros OFIviaje ya procesados que aún no tengan _driveFileId marcado en
+ * conciliado_externo_datos, y para cada pago del XML localiza el movimiento
+ * bancario ya conciliado que le corresponde exactamente (mismo proveedor +
+ * importe + fecha, igual que el matching normal), marcándolo con el
+ * drive_file_id real. Sirve para reconstruir el historial de los procesos
+ * anteriores a introducir el marcador, sin necesidad de heurísticas por
+ * fecha/cuenta que pueden confundir ficheros del mismo día.
+ */
+export async function reconstruirMarcadoresDriveFileIdRetroactivo(): Promise<{
+  ficherosRevisados: number;
+  movimientosMarcados: number;
+  detalle: { ficheroNombre: string; marcados: number }[];
+}> {
+  const agencyDb = await getAgencyDbClient();
+  const tokens = await getDriveTokensUsuarioActual();
+
+  const { data: ficherosProcesados } = await agencyDb
+    .from("ofiviaje_ficheros_procesados")
+    .select("drive_file_id, nombre_fichero");
+
+  if (!ficherosProcesados || ficherosProcesados.length === 0) {
+    return { ficherosRevisados: 0, movimientosMarcados: 0, detalle: [] };
+  }
+
+  const { data: sinMarcar } = await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .select("id, importe, fecha_operacion, fecha_valor, concepto_original, conciliado_externo_datos")
+    .eq("conciliado_externo", true)
+    .eq("conciliado_externo_origen", "ofiviaje")
+    .not("conciliado_externo_datos", "is", null);
+
+  const candidatosSinMarcar = (sinMarcar || []).filter((m: any) => !("_driveFileId" in (m.conciliado_externo_datos || {})));
+
+  if (candidatosSinMarcar.length === 0) {
+    return { ficherosRevisados: 0, movimientosMarcados: 0, detalle: [] };
+  }
+
+  const disponibles = new Set(candidatosSinMarcar.map((m: any) => m.id));
+  let movimientosMarcados = 0;
+  const detalle: { ficheroNombre: string; marcados: number }[] = [];
+
+  for (const fichero of ficherosProcesados) {
+    if (fichero.nombre_fichero?.startsWith("TSRLiquidacionCajas_")) continue;
+
+    let contenido: string;
+    try {
+      contenido = await descargarContenidoXml(tokens, fichero.drive_file_id);
+    } catch {
+      continue;
+    }
+
+    const pagos = parseOfiviajePagosXml(contenido);
+    if (pagos.length === 0) continue;
+
+    const pagosConMatch = new Set<OfiviajePago>();
+    let marcadosDeEsteFichero = 0;
+
+    for (const mov of candidatosSinMarcar) {
+      if (!disponibles.has(mov.id)) continue;
+      const pagoMatch = pagos.find((p) => !pagosConMatch.has(p) && coincide(mov, p));
+      if (!pagoMatch) continue;
+
+      pagosConMatch.add(pagoMatch);
+      disponibles.delete(mov.id);
+
+      await agencyDb
+        .from("contabilidad_movimientos_banco")
+        .update({
+          conciliado_externo_datos: { ...mov.conciliado_externo_datos, _driveFileId: fichero.drive_file_id },
+        })
+        .eq("id", mov.id);
+
+      marcadosDeEsteFichero++;
+      movimientosMarcados++;
+    }
+
+    detalle.push({ ficheroNombre: fichero.nombre_fichero || fichero.drive_file_id, marcados: marcadosDeEsteFichero });
+  }
+
+  return { ficherosRevisados: ficherosProcesados.length, movimientosMarcados, detalle };
+}
+
+export interface UltimoInformeTareaReal {
+  id: string;
+  movimientoId: string | null;
+  nombre: string;
+  expediente: string;
+  importe: number;
+  movConcepto: string | null;
+  movImporte: number | null;
+  esCobro: boolean;
+}
+
+export interface UltimoInformeReal {
+  procesados: number;
+  pagosConciliados: number;
+  cobrosConciliados: number;
+  tareasPorTipo: {
+    "Cliente/Proveedor distinto": UltimoInformeTareaReal[];
+    "Importe distinto": UltimoInformeTareaReal[];
+    "Movimiento bancario no encontrado": UltimoInformeTareaReal[];
+  };
+}
+
+/**
+ * Lee, sin tocar Drive, las tareas pendientes ya persistidas para una cuenta
+ * bancaria concreta (o para cobros, que no llevan cuenta) y las agrupa por
+ * tipo de incidencia para el modal "Último informe". Mismo patrón que el
+ * informe automático diario: se basa en datos ya calculados, no en una
+ * comprobación en vivo.
+ */
+export async function getUltimoInformeReal(cuentaBancariaId: string): Promise<UltimoInformeReal> {
+  const agencyDb = await getAgencyDbClient();
+
+  // La cuenta se resuelve por pago.cuentaTesoreria (dato ya guardado dentro
+  // de cada fila desde siempre), no solo por la columna cuenta_bancaria_id:
+  // así funciona también para filas persistidas antes de añadir esa columna.
+  const mapaCuentaContable = await getMapaCuentaContable(agencyDb);
+
+  const { data } = await agencyDb
+    .from("ofiviaje_tareas_pendientes")
+    .select("id, tipo, datos, es_cobro, cuenta_bancaria_id")
+    .eq("resuelta", false);
+
+  const tareasPorTipo: UltimoInformeReal["tareasPorTipo"] = {
+    "Cliente/Proveedor distinto": [],
+    "Importe distinto": [],
+    "Movimiento bancario no encontrado": [],
+  };
+
+  for (const fila of data || []) {
+    const esCobro = !!fila.es_cobro;
+    const datos = fila.datos;
+    const pago: OfiviajePago | undefined = datos.pago ?? (fila.tipo === "sinMatch" ? datos : undefined);
+    if (!pago) continue;
+
+    if (!esCobro) {
+      const cuentaDeLaFila = fila.cuenta_bancaria_id || mapaCuentaContable[pago.cuentaTesoreria] || null;
+      if (cuentaDeLaFila && cuentaDeLaFila !== cuentaBancariaId) continue;
+    }
+
+    const tarea: UltimoInformeTareaReal = {
+      id: fila.id,
+      movimientoId: datos.movimientoId ?? null,
+      nombre: pago.proveedorNombre,
+      expediente: pago.documento,
+      importe: pago.importePendiente,
+      movConcepto: datos.movimientoConcepto ?? null,
+      movImporte: datos.movimientoImporte ?? null,
+      esCobro,
+    };
+
+    if (fila.tipo === "revisarNombre") tareasPorTipo["Cliente/Proveedor distinto"].push(tarea);
+    else if (fila.tipo === "revisarImporte") tareasPorTipo["Importe distinto"].push(tarea);
+    else if (fila.tipo === "sinMatch") tareasPorTipo["Movimiento bancario no encontrado"].push(tarea);
+  }
+
+  const { count: pagosConciliados } = await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .select("id", { count: "exact", head: true })
+    .eq("cuenta_bancaria_id", cuentaBancariaId)
+    .eq("conciliado_externo", true)
+    .lt("importe", 0);
+
+  const { count: cobrosConciliados } = await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .select("id", { count: "exact", head: true })
+    .eq("cuenta_bancaria_id", cuentaBancariaId)
+    .eq("conciliado_externo", true)
+    .gt("importe", 0);
+
+  // "Procesados" es el total real de filas leídas de los XML en la última
+  // ejecución (cron o comprobación manual), no una aproximación por cuenta:
+  // se toman los ficheros procesados el mismo día que el más reciente.
+  let procesados = 0;
+  const { data: ultimoFichero } = await agencyDb
+    .from("ofiviaje_ficheros_procesados")
+    .select("procesado_en")
+    .order("procesado_en", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (ultimoFichero?.procesado_en) {
+    const inicioDia = new Date(ultimoFichero.procesado_en);
+    inicioDia.setUTCHours(0, 0, 0, 0);
+    const { data: ficherosUltimaEjecucion } = await agencyDb
+      .from("ofiviaje_ficheros_procesados")
+      .select("pagos_procesados")
+      .gte("procesado_en", inicioDia.toISOString());
+    procesados = (ficherosUltimaEjecucion || []).reduce((acc: number, f: any) => acc + (f.pagos_procesados || 0), 0);
+  }
+
+  return {
+    procesados,
+    pagosConciliados: pagosConciliados || 0,
+    cobrosConciliados: cobrosConciliados || 0,
+    tareasPorTipo,
+  };
+}
+
 export interface OfiviajeConfirmResult {
   conciliados: number;
   error?: string;
@@ -909,7 +1321,7 @@ export async function confirmarConciliacionOfiviaje(matches: OfiviajeMatchPropue
           conciliado_externo: true,
           conciliado_externo_origen: "ofiviaje",
           conciliado_externo_en: new Date().toISOString(),
-          conciliado_externo_datos: match.pago,
+          conciliado_externo_datos: { ...match.pago, _driveFileId: match.ficheroId },
         })
         .eq("id", match.movimientoId);
 
@@ -928,6 +1340,7 @@ export async function confirmarConciliacionOfiviaje(matches: OfiviajeMatchPropue
         nombre_fichero: fichero.nombre,
         pagos_procesados: pagosDelFichero.length,
         movimientos_conciliados: pagosDelFichero.length,
+        origen: "manual",
       });
     }
 
@@ -941,9 +1354,27 @@ export async function confirmarConciliacionOfiviaje(matches: OfiviajeMatchPropue
  * Flujo cron (sin confirmación humana): calcula y aplica directamente los
  * matches de los ficheros nuevos para la agencia dada.
  */
+/**
+ * Igual que comprobarOfiviajeParaAgencia (sin modal de confirmación previo:
+ * aplica directamente los matches encontrados), pero para el usuario actual
+ * desde la app — lo usa el botón "Procesar archivos" del historial. Se
+ * registra con origen "manual" para distinguirlo del cron en el historial.
+ */
+export async function forzarProcesoOfiviajeUsuarioActual(): Promise<{
+  ficherosNuevos: number;
+  procesados: number;
+  conciliados: number;
+  error?: string;
+}> {
+  const tokens = await getDriveTokensUsuarioActual();
+  const agencyDb = await getAgencyDbClient();
+  return comprobarOfiviajeParaAgencia(agencyDb, tokens, "manual");
+}
+
 export async function comprobarOfiviajeParaAgencia(
   agencyDb: any,
-  tokens: DriveTokens
+  tokens: DriveTokens,
+  origen: "manual" | "automatico" = "automatico"
 ): Promise<{ ficherosNuevos: number; procesados: number; conciliados: number; error?: string }> {
   try {
     const ficheros = await listarXmlEnCarpeta(tokens);
@@ -977,7 +1408,7 @@ export async function comprobarOfiviajeParaAgencia(
             conciliado_externo: true,
             conciliado_externo_origen: "ofiviaje",
             conciliado_externo_en: new Date().toISOString(),
-            conciliado_externo_datos: match.pago,
+            conciliado_externo_datos: { ...match.pago, _driveFileId: fichero.id },
           })
           .eq("id", match.movimientoId);
         if (!updateError) conciliados++;
@@ -993,6 +1424,7 @@ export async function comprobarOfiviajeParaAgencia(
         nombre_fichero: fichero.nombre,
         pagos_procesados: result.procesados,
         movimientos_conciliados: result.matches.length,
+        origen,
       });
     }
 

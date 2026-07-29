@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Landmark, ChevronDown, Menu, Link2, HardDrive, FileCheck2, BarChart3, Bell, BellOff } from "lucide-react";
-import { getMovimientosBanco, connectBridgeBank, syncBridgeBankMovements, previsualizarConciliacionOfiviaje, confirmarConciliacionOfiviaje, enviarInformeOfiviaje, getInformeMensualPendientesOfi, getUltimaConciliacionOfiviaje, enviarInformeMensualPorEmail, actualizarIncluirEnInformeAutomatico, conciliarManualmente, getImportePendienteConciliar, getConciliacionesManuales, guardarAliasProveedor, previsualizarCobrosXmlManualAction, type ConciliacionManualDetalle } from "@/actions/banco";
+import NextLink from "next/link";
+import { Landmark, ChevronDown, Menu, Link2, HardDrive, FileCheck2, BarChart3, History, Bell, BellOff } from "lucide-react";
+import { getMovimientosBanco, connectBridgeBank, syncBridgeBankMovements, previsualizarConciliacionOfiviaje, confirmarConciliacionOfiviaje, enviarInformeOfiviaje, getInformeMensualPendientesOfi, getUltimaConciliacionOfiviaje, enviarInformeMensualPorEmail, actualizarIncluirEnInformeAutomatico, conciliarManualmente, getImportePendienteConciliar, getConciliacionesManuales, guardarAliasProveedor, previsualizarCobrosXmlManualAction, getUltimoInformeReal, type ConciliacionManualDetalle } from "@/actions/banco";
 import { getCuentasBancarias } from "@/actions/cuentasBancarias";
 import { getCurrentAgencyDetails } from "@/actions/agencias";
 import { getCurrentAgentePublic } from "@/actions/crm";
@@ -70,6 +71,7 @@ const labelStyle: React.CSSProperties = {
 const PAGE_SIZE = 200;
 
 const formatEURGlobal = (v: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(v);
+
 const formatFechaCorta = (f: string) => {
   if (!f) return "";
   const iso = /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : null;
@@ -85,6 +87,158 @@ const formatFechaCorta = (f: string) => {
  * los movimientos bancarios implicados (fecha DD/MM/AA, concepto, importe en
  * 3 columnas) y "OfiViaje:" con los pagos del XML (proveedor, fecha, importe).
  */
+const ULTIMO_INFORME_POR_PAGINA_CONST = 5;
+
+type UltimoInformeTarea = {
+  id: string;
+  movimientoId: string | null;
+  nombre: string;
+  expediente: string;
+  importe: number;
+  movConcepto: string | null;
+  movImporte: number | null;
+  esCobro: boolean;
+};
+
+/**
+ * Sección de tareas agrupadas por tipo de incidencia (Cliente/Proveedor
+ * distinto, Movimiento bancario no encontrado, Importe distinto), mezclando
+ * pagos y cobros, con paginación propia de 5 en 5.
+ */
+function SeccionTareasUltimoInforme({
+  titulo,
+  color,
+  tareas,
+  pagina,
+  onCambiarPagina,
+  onConciliar,
+}: {
+  titulo: string;
+  color: string;
+  tareas: UltimoInformeTarea[];
+  pagina: number;
+  onCambiarPagina: (pagina: number) => void;
+  onConciliar: (tarea: UltimoInformeTarea) => void;
+}) {
+  if (tareas.length === 0) return null;
+  const totalPaginas = Math.ceil(tareas.length / ULTIMO_INFORME_POR_PAGINA_CONST);
+  const visibles = tareas.slice(pagina * ULTIMO_INFORME_POR_PAGINA_CONST, (pagina + 1) * ULTIMO_INFORME_POR_PAGINA_CONST);
+
+  return (
+    <div style={{ marginBottom: "1rem" }}>
+      <div style={{ fontSize: "0.68rem", fontWeight: 700, color, textTransform: "uppercase", marginBottom: "0.3rem" }}>
+        {titulo} ({tareas.length})
+      </div>
+      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+        {visibles.map((t) => (
+          <li
+            key={t.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              padding: "0.4rem 0",
+              borderBottom: "1px solid #f8fafc",
+              fontSize: "0.78rem",
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "#64748b" }}>
+                <span
+                  style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                  title={`${t.nombre} (${t.expediente})`}
+                >
+                  OFI: {t.nombre} ({t.expediente})
+                </span>
+                <span style={{ flex: "0 0 auto", fontWeight: 700, color: t.esCobro ? "#15803d" : "#dc2626", whiteSpace: "nowrap" }}>
+                  {formatEURGlobal(Math.abs(t.importe))}
+                </span>
+              </div>
+              {t.movConcepto && (
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginTop: "0.1rem", color: "#94a3b8", fontSize: "0.72rem" }}>
+                  <span
+                    style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                    title={t.movConcepto}
+                  >
+                    Banco: {t.movConcepto}
+                  </span>
+                  <span style={{ flex: "0 0 auto", fontWeight: 600, whiteSpace: "nowrap" }}>
+                    {formatEURGlobal(Math.abs(t.movImporte as number))}
+                  </span>
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              title="Conciliar manualmente"
+              disabled={!t.movimientoId}
+              onClick={() => onConciliar(t)}
+              className="ultimoInformeConciliarBtn"
+              style={{
+                flex: "0 0 auto",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "22px",
+                height: "22px",
+                border: "none",
+                borderRadius: "50%",
+                background: "transparent",
+                color: "#94a3b8",
+                cursor: t.movimientoId ? "pointer" : "default",
+                opacity: t.movimientoId ? 1 : 0.35,
+              }}
+            >
+              <Link2 size={13} />
+            </button>
+          </li>
+        ))}
+      </ul>
+      {totalPaginas > 1 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "0.4rem" }}>
+          <button
+            onClick={() => onCambiarPagina(Math.max(0, pagina - 1))}
+            disabled={pagina === 0}
+            style={{
+              padding: "0.3rem 0.65rem",
+              background: "#f1f5f9",
+              color: "#475569",
+              border: "1px solid #e2e8f0",
+              borderRadius: "0.375rem",
+              fontWeight: 600,
+              fontSize: "0.72rem",
+              cursor: pagina === 0 ? "default" : "pointer",
+              opacity: pagina === 0 ? 0.5 : 1,
+            }}
+          >
+            ← Anterior
+          </button>
+          <span style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
+            Página {pagina + 1} de {totalPaginas}
+          </span>
+          <button
+            onClick={() => onCambiarPagina(pagina + 1 < totalPaginas ? pagina + 1 : pagina)}
+            disabled={pagina + 1 >= totalPaginas}
+            style={{
+              padding: "0.3rem 0.65rem",
+              background: "#f1f5f9",
+              color: "#475569",
+              border: "1px solid #e2e8f0",
+              borderRadius: "0.375rem",
+              fontWeight: 600,
+              fontSize: "0.72rem",
+              cursor: pagina + 1 >= totalPaginas ? "default" : "pointer",
+              opacity: pagina + 1 >= totalPaginas ? 0.5 : 1,
+            }}
+          >
+            Siguiente →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FilaBancoOfi({
   movimientos,
   pagos,
@@ -224,6 +378,9 @@ export default function MovimientosAppPage() {
   const [conciliacionManualMov, setConciliacionManualMov] = useState<any | null>(null);
   const [conciliacionManualImporte, setConciliacionManualImporte] = useState("");
   const [conciliacionManualExpediente, setConciliacionManualExpediente] = useState("");
+  const [conciliacionManualVoboDc, setConciliacionManualVoboDc] = useState(false);
+  const [conciliacionManualAliasProveedor, setConciliacionManualAliasProveedor] = useState<{ proveedorOfi: string; conceptoBanco: string } | null>(null);
+  const [conciliacionManualRecargarUltimoInforme, setConciliacionManualRecargarUltimoInforme] = useState(false);
   const [conciliacionManualLoading, setConciliacionManualLoading] = useState(false);
   const [conciliacionManualPendiente, setConciliacionManualPendiente] = useState<number | null>(null);
   const [conciliacionesHistorico, setConciliacionesHistorico] = useState<any[]>([]);
@@ -257,6 +414,12 @@ export default function MovimientosAppPage() {
   const [informeBancoFiltro, setInformeBancoFiltro] = useState<string>("todos");
   const [informeRevisarPreview, setInformeRevisarPreview] = useState<any | null>(null);
   const [conciliadosVisibles, setConciliadosVisibles] = useState(5);
+  const [showUltimoInformeModal, setShowUltimoInformeModal] = useState(false);
+  const [enviandoUltimoInforme, setEnviandoUltimoInforme] = useState(false);
+  const [ultimoInformeCuentaId, setUltimoInformeCuentaId] = useState<string>("");
+  const [ultimoInformePaginas, setUltimoInformePaginas] = useState<Record<string, number>>({});
+  const [ultimoInformeData, setUltimoInformeData] = useState<any | null>(null);
+  const [ultimoInformeLoading, setUltimoInformeLoading] = useState(false);
   const [informeMensualEmail, setInformeMensualEmail] = useState("");
   const [sendingInformeMensual, setSendingInformeMensual] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -574,10 +737,16 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
     }
   };
 
-  const abrirModalConciliacionManual = async (mov: any) => {
+  const abrirModalConciliacionManual = async (
+    mov: any,
+    opciones?: { expediente?: string; aliasProveedor?: { proveedorOfi: string; conceptoBanco: string }; recargarUltimoInforme?: boolean }
+  ) => {
     const fallback = Math.abs(Number(mov.importe));
     setConciliacionManualMov(mov);
-    setConciliacionManualExpediente("");
+    setConciliacionManualExpediente(opciones?.expediente || "");
+    setConciliacionManualVoboDc(false);
+    setConciliacionManualAliasProveedor(opciones?.aliasProveedor || null);
+    setConciliacionManualRecargarUltimoInforme(!!opciones?.recargarUltimoInforme);
     setConciliacionManualPendiente(fallback);
     setConciliacionManualImporte(fallback.toFixed(2));
     setConciliacionesHistorico([]);
@@ -603,6 +772,9 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
     setConciliacionManualMov(null);
     setConciliacionManualImporte("");
     setConciliacionManualExpediente("");
+    setConciliacionManualVoboDc(false);
+    setConciliacionManualAliasProveedor(null);
+    setConciliacionManualRecargarUltimoInforme(false);
     setConciliacionManualPendiente(null);
     setConciliacionesHistorico([]);
   };
@@ -616,10 +788,23 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
     }
     setConciliacionManualLoading(true);
     try {
-      const res = await conciliarManualmente(conciliacionManualMov.id, importe, conciliacionManualExpediente.trim() || undefined);
+      const res = await conciliarManualmente(
+        conciliacionManualMov.id,
+        importe,
+        conciliacionManualExpediente.trim() || undefined,
+        isOwner && conciliacionManualVoboDc
+      );
       if (!res.success) {
         alert(res.error || "Error al conciliar el movimiento.");
       } else {
+        if (conciliacionManualAliasProveedor) {
+          guardarAliasProveedor(conciliacionManualAliasProveedor.proveedorOfi, conciliacionManualAliasProveedor.conceptoBanco).catch((err) =>
+            console.error("Error guardando alias de proveedor:", err)
+          );
+        }
+        if (conciliacionManualRecargarUltimoInforme) {
+          cargarUltimoInforme(ultimoInformeCuentaId);
+        }
         cerrarModalConciliacionManual();
         loadData(filtros, searchQuery);
       }
@@ -688,6 +873,66 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
       alert("Error al conciliar el movimiento.");
     } finally {
       setConciliandoTareaKey(null);
+    }
+  };
+
+  /**
+   * Concilia manualmente una tarea del modal "Último informe" directamente
+   * (mismo patrón que handleConciliarTarea). Si es "Cliente/Proveedor
+   * distinto" guarda el alias para que futuros pagos del mismo proveedor con
+   * ese destinatario bancario concilien automáticamente.
+   */
+  const handleConciliarDesdeUltimoInforme = async (tarea: UltimoInformeTarea, esProveedorDistinto: boolean) => {
+    if (!tarea.movimientoId) return;
+    await abrirModalConciliacionManual(
+      {
+        id: tarea.movimientoId,
+        importe: tarea.esCobro ? Math.abs(tarea.importe) : -Math.abs(tarea.importe),
+        concepto_original: tarea.movConcepto || tarea.nombre,
+        estado: "pendiente",
+      },
+      {
+        expediente: tarea.expediente,
+        aliasProveedor: esProveedorDistinto && tarea.movConcepto ? { proveedorOfi: tarea.nombre, conceptoBanco: tarea.movConcepto } : undefined,
+        recargarUltimoInforme: true,
+      }
+    );
+  };
+
+  const cargarUltimoInforme = async (cuentaBancariaId: string) => {
+    if (!cuentaBancariaId) {
+      setUltimoInformeData(null);
+      return;
+    }
+    setUltimoInformeLoading(true);
+    try {
+      const data = await getUltimoInformeReal(cuentaBancariaId);
+      setUltimoInformeData(data);
+    } catch (error) {
+      console.error("Error cargando último informe:", error);
+      setUltimoInformeData(null);
+    } finally {
+      setUltimoInformeLoading(false);
+    }
+  };
+
+  const handleUltimoInforme = () => {
+    setShowMenu(false);
+    const primeraCuenta = cuentasBancarias[0]?.id || "";
+    setUltimoInformeCuentaId(primeraCuenta);
+    setUltimoInformePaginas({});
+    setShowUltimoInformeModal(true);
+    cargarUltimoInforme(primeraCuenta);
+  };
+
+  const handleEnviarUltimoInforme = async () => {
+    setEnviandoUltimoInforme(true);
+    try {
+      // TODO: sustituir por el envío real del email de "Último informe".
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      alert("Envío de email pendiente de implementar.");
+    } finally {
+      setEnviandoUltimoInforme(false);
     }
   };
 
@@ -1009,6 +1254,51 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                     <span>{loadingInformeMensual ? "Cargando..." : "Informe mensual"}</span>
                   </button>
 
+                  <button
+                    onClick={handleUltimoInforme}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.5rem 0.75rem",
+                      fontSize: "0.85rem",
+                      fontWeight: 500,
+                      color: "#334155",
+                      background: "none",
+                      border: "none",
+                      borderRadius: "0.375rem",
+                      textAlign: "left",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <BarChart3 size={16} />
+                    <span>Último informe</span>
+                  </button>
+
+                  <NextLink
+                    href="/movimientos-app/historial-procesos"
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.5rem 0.75rem",
+                      fontSize: "0.85rem",
+                      fontWeight: 500,
+                      color: "#334155",
+                      background: "none",
+                      border: "none",
+                      borderRadius: "0.375rem",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      textDecoration: "none",
+                    }}
+                  >
+                    <History size={16} />
+                    <span>Historial procesos</span>
+                  </NextLink>
+
                   {/* TEMPORAL: solo para probar en local el matching de cobros por transferencia */}
                   <button
                     onClick={handleSubirCobrosTest}
@@ -1086,6 +1376,12 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
           background: "#f8fafc",
         }}
       >
+      <style jsx global>{`
+        .ultimoInformeConciliarBtn:hover {
+          color: #15803d !important;
+          background: #dcfce7 !important;
+        }
+      `}</style>
       <style jsx>{`
         @media (max-width: 480px) {
           .movimientosAppContainer {
@@ -1597,6 +1893,189 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
         onChange={handleCobrosTestFileChange}
       />
 
+      {/* ÚLTIMO INFORME (KPIs y tareas pendientes de la última conexión OFIviaje) */}
+      {showUltimoInformeModal && (() => {
+        const cuentaActual = cuentasBancarias.find((c: any) => c.id === ultimoInformeCuentaId) || cuentasBancarias[0];
+        const mock = ultimoInformeData
+          ? {
+              kpis: {
+                procesados: ultimoInformeData.procesados,
+                pagosConciliados: ultimoInformeData.pagosConciliados,
+                cobrosConciliados: ultimoInformeData.cobrosConciliados,
+              },
+              tareasPorTipo: ultimoInformeData.tareasPorTipo,
+            }
+          : {
+              kpis: { procesados: 0, pagosConciliados: 0, cobrosConciliados: 0 },
+              tareasPorTipo: { "Cliente/Proveedor distinto": [], "Movimiento bancario no encontrado": [], "Importe distinto": [] },
+            };
+
+        return (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.5)",
+            zIndex: 200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+          onClick={() => setShowUltimoInformeModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: "0.75rem",
+              width: "100%",
+              maxWidth: "480px",
+              boxShadow: "0 20px 25px -5px rgba(0,0,0,0.15)",
+            }}
+          >
+            <div style={{ padding: "0.85rem 1rem", borderBottom: "1px solid #f1f5f9" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
+                <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>
+                  Último informe
+                </h2>
+                {cuentaActual && (
+                  <span
+                    style={{
+                      flex: "0 0 auto",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.3rem",
+                      padding: "0.2rem 0.55rem",
+                      borderRadius: "999px",
+                      background: "#eff6ff",
+                      color: "#2563eb",
+                      fontSize: "0.72rem",
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <Landmark size={12} />
+                    {cuentaActual.banco}
+                  </span>
+                )}
+              </div>
+              <p style={{ margin: "0.35rem 0 0.5rem", fontSize: "0.75rem", color: "#94a3b8" }}>
+                Resumen de la última conexión con OFIviaje.
+              </p>
+              <select
+                value={ultimoInformeCuentaId}
+                onChange={(e) => {
+                  setUltimoInformeCuentaId(e.target.value);
+                  setUltimoInformePaginas({});
+                  cargarUltimoInforme(e.target.value);
+                }}
+                style={{
+                  width: "100%",
+                  padding: "0.45rem 0.6rem",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "0.5rem",
+                  fontSize: "0.8rem",
+                  color: "#0f172a",
+                  background: "#fff",
+                }}
+              >
+                {cuentasBancarias.length === 0 ? (
+                  <option value="">Sin cuentas</option>
+                ) : (
+                  cuentasBancarias.map((c: any) => (
+                    <option key={c.id} value={c.id}>
+                      {c.banco}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            <div style={{ padding: "0.85rem 1rem", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem" }}>
+              <div style={{ padding: "0.6rem 0.4rem", borderRadius: "0.5rem", border: "2px solid #93c5fd", background: "#eff6ff", textAlign: "center" }}>
+                <div style={{ fontSize: "0.62rem", fontWeight: 600, color: "#64748b" }}>PROCESADOS</div>
+                <div style={{ fontSize: "1.35rem", fontWeight: 700, color: "#2563eb" }}>{mock.kpis.procesados}</div>
+              </div>
+              <div style={{ padding: "0.6rem 0.4rem", borderRadius: "0.5rem", border: "2px solid #c4b5fd", background: "#f5f3ff", textAlign: "center" }}>
+                <div style={{ fontSize: "0.62rem", fontWeight: 600, color: "#64748b" }}>PAGOS CONCILIADOS</div>
+                <div style={{ fontSize: "1.35rem", fontWeight: 700, color: "#7c3aed" }}>{mock.kpis.pagosConciliados}</div>
+              </div>
+              <div style={{ padding: "0.6rem 0.4rem", borderRadius: "0.5rem", border: "2px solid #86efac", background: "#f0fdf4", textAlign: "center" }}>
+                <div style={{ fontSize: "0.62rem", fontWeight: 600, color: "#64748b" }}>COBROS CONCILIADOS</div>
+                <div style={{ fontSize: "1.35rem", fontWeight: 700, color: "#15803d" }}>{mock.kpis.cobrosConciliados}</div>
+              </div>
+            </div>
+
+            <div style={{ padding: "0 1rem 0.5rem", maxHeight: "40vh", overflowY: "auto" }}>
+              <SeccionTareasUltimoInforme
+                titulo="Cliente/Proveedor distinto"
+                color="#dc2626"
+                tareas={mock.tareasPorTipo["Cliente/Proveedor distinto"]}
+                pagina={ultimoInformePaginas["Cliente/Proveedor distinto"] || 0}
+                onCambiarPagina={(p) => setUltimoInformePaginas((prev) => ({ ...prev, ["Cliente/Proveedor distinto"]: p }))}
+                onConciliar={(t) => handleConciliarDesdeUltimoInforme(t, true)}
+              />
+              <SeccionTareasUltimoInforme
+                titulo="Importe distinto"
+                color="#2563eb"
+                tareas={mock.tareasPorTipo["Importe distinto"]}
+                pagina={ultimoInformePaginas["Importe distinto"] || 0}
+                onCambiarPagina={(p) => setUltimoInformePaginas((prev) => ({ ...prev, ["Importe distinto"]: p }))}
+                onConciliar={(t) => handleConciliarDesdeUltimoInforme(t, false)}
+              />
+              <SeccionTareasUltimoInforme
+                titulo="Movimiento bancario no encontrado"
+                color="#b45309"
+                tareas={mock.tareasPorTipo["Movimiento bancario no encontrado"]}
+                pagina={ultimoInformePaginas["Movimiento bancario no encontrado"] || 0}
+                onCambiarPagina={(p) => setUltimoInformePaginas((prev) => ({ ...prev, ["Movimiento bancario no encontrado"]: p }))}
+                onConciliar={(t) => handleConciliarDesdeUltimoInforme(t, false)}
+              />
+            </div>
+
+            <div style={{ padding: "0.75rem 1rem", borderTop: "1px solid #f1f5f9", display: "flex", gap: "0.5rem" }}>
+              <button
+                onClick={() => setShowUltimoInformeModal(false)}
+                disabled={enviandoUltimoInforme}
+                style={{
+                  flex: 1,
+                  padding: "0.6rem",
+                  background: "#f1f5f9",
+                  color: "#475569",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "0.5rem",
+                  fontWeight: 600,
+                  fontSize: "0.85rem",
+                  cursor: enviandoUltimoInforme ? "default" : "pointer",
+                }}
+              >
+                Cerrar
+              </button>
+              <button
+                onClick={handleEnviarUltimoInforme}
+                disabled={enviandoUltimoInforme}
+                style={{
+                  flex: 1,
+                  padding: "0.6rem",
+                  background: "#10b981",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "0.5rem",
+                  fontWeight: 700,
+                  fontSize: "0.85rem",
+                  cursor: enviandoUltimoInforme ? "default" : "pointer",
+                  opacity: enviandoUltimoInforme ? 0.7 : 1,
+                }}
+              >
+                {enviandoUltimoInforme ? "Enviando..." : "Enviar por email"}
+              </button>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
+
       {/* INFORME DE CONCILIACIÓN OFIVIAJE (previo a aplicar cambios) */}
       {ofiviajePreview && (
         <div
@@ -1940,7 +2419,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                 </h2>
                 <p style={{ margin: "0.35rem 0 0.75rem", fontSize: "0.75rem", color: "#94a3b8" }}>
                   Pendientes: últimos 30 días · Conciliados: última lectura de OFIviaje
-                  {ultimaConciliacion?.procesadoEn && ` (${new Date(ultimaConciliacion.procesadoEn).toLocaleString("es-ES")})`}
+                  {ultimaConciliacion?.procesadoEn && ` (${new Date(ultimaConciliacion.procesadoEn).toLocaleString("es-ES", { timeZone: "Europe/Madrid" })})`}
                 </p>
                 <select
                   value={informeBancoFiltro}
@@ -2344,6 +2823,11 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                         >
                           <span style={{ color: "#334155" }}>
                             {c.usuarioNombre}
+                            {c.voboDc && (
+                              <span style={{ marginLeft: "0.4rem", fontSize: "0.65rem", fontWeight: 700, color: "#7c3aed", background: "#f5f3ff", borderRadius: "0.25rem", padding: "0.05rem 0.3rem" }}>
+                                VºBº D.C.
+                              </span>
+                            )}
                             <span style={{ display: "block", color: "#94a3b8", fontSize: "0.7rem" }}>
                               {new Date(c.fecha).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
                             </span>
@@ -2386,6 +2870,17 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                       style={inputStyle}
                     />
                   </div>
+
+                  {isOwner && (
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginTop: "0.75rem", fontSize: "0.8rem", color: "#334155", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={conciliacionManualVoboDc}
+                        onChange={(e) => setConciliacionManualVoboDc(e.target.checked)}
+                      />
+                      VºBº D.C.
+                    </label>
+                  )}
                 </>
               )}
             </div>
