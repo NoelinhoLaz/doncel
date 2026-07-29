@@ -1230,52 +1230,6 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                     <span>{checkingOfiviaje ? "Comprobando..." : "Comprobar OFIviaje"}</span>
                   </button>
 
-                  <button
-                    onClick={handleInformeMensual}
-                    disabled={loadingInformeMensual}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      padding: "0.5rem 0.75rem",
-                      fontSize: "0.85rem",
-                      fontWeight: 500,
-                      color: "#334155",
-                      background: "none",
-                      border: "none",
-                      borderRadius: "0.375rem",
-                      textAlign: "left",
-                      cursor: loadingInformeMensual ? "default" : "pointer",
-                      opacity: loadingInformeMensual ? 0.6 : 1,
-                    }}
-                  >
-                    <BarChart3 size={16} />
-                    <span>{loadingInformeMensual ? "Cargando..." : "Informe mensual"}</span>
-                  </button>
-
-                  <button
-                    onClick={handleUltimoInforme}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      padding: "0.5rem 0.75rem",
-                      fontSize: "0.85rem",
-                      fontWeight: 500,
-                      color: "#334155",
-                      background: "none",
-                      border: "none",
-                      borderRadius: "0.375rem",
-                      textAlign: "left",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <BarChart3 size={16} />
-                    <span>Último informe</span>
-                  </button>
-
                   <NextLink
                     href="/movimientos-app/historial-procesos"
                     style={{
@@ -1298,31 +1252,6 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                     <History size={16} />
                     <span>Historial procesos</span>
                   </NextLink>
-
-                  {/* TEMPORAL: solo para probar en local el matching de cobros por transferencia */}
-                  <button
-                    onClick={handleSubirCobrosTest}
-                    disabled={subiendoCobrosTest}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      padding: "0.5rem 0.75rem",
-                      fontSize: "0.85rem",
-                      fontWeight: 500,
-                      color: "#334155",
-                      background: "none",
-                      border: "none",
-                      borderRadius: "0.375rem",
-                      textAlign: "left",
-                      cursor: subiendoCobrosTest ? "default" : "pointer",
-                      opacity: subiendoCobrosTest ? 0.6 : 1,
-                    }}
-                  >
-                    <FileCheck2 size={16} />
-                    <span>{subiendoCobrosTest ? "Procesando..." : "Subir cobros (test)"}</span>
-                  </button>
 
                   {pushSupported && (
                     <button

@@ -52,17 +52,21 @@ export async function getMovimientosBanco(options?: {
   if (fechaHasta) query = query.lte("fecha_operacion", fechaHasta);
   if (importeMin != null) query = query.gte("importe", importeMin);
   if (importeMax != null) query = query.lte("importe", importeMax);
-  // "manual" no es un valor de la columna `estado` (que solo distingue
-  // pendiente/parcial/conciliado/etc.) sino conciliado + conciliacion_tipo
-  // "manual" — se traduce aquí al filtro real.
-  const estadosReales = estados.filter((e) => e !== "manual");
+  // "manual" y "ofiviaje" no son valores de la columna `estado` (que solo
+  // distingue pendiente/parcial/conciliado/etc.) sino conciliado +
+  // conciliacion_tipo "manual" / conciliado_externo=true — se traducen aquí
+  // al filtro real.
+  const estadosReales = estados.filter((e) => e !== "manual" && e !== "ofiviaje");
   if (estados.includes("manual") && !estados.includes("conciliado")) estadosReales.push("conciliado");
   if (estadosReales.length) query = query.in("estado", estadosReales);
   if (estados.includes("manual") && !estados.includes("conciliado")) query = query.eq("conciliacion_tipo", "manual");
+  if (estados.includes("ofiviaje")) query = query.eq("conciliado_externo", true);
   // "Pendiente" es un estado de matching interno (facturas/proveedores); si el
   // movimiento ya se resolvió externamente vía OFIviaje, no debe seguir
-  // apareciendo como pendiente aunque el estado interno no se haya actualizado.
-  if (estados.includes("pendiente") && estados.length === 1) query = query.eq("conciliado_externo", false);
+  // apareciendo como pendiente aunque el estado interno no se haya actualizado,
+  // sea cual sea la combinación de filtros activa (salvo que se pida
+  // explícitamente "ofiviaje", que ya filtra por conciliado_externo=true).
+  if (estados.includes("pendiente") && !estados.includes("ofiviaje")) query = query.eq("conciliado_externo", false);
   if (cuentaIds && cuentaIds.length) query = query.in("cuenta_bancaria_id", cuentaIds);
 
   const scoreConditions: string[] = [];

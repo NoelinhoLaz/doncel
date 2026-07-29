@@ -5,12 +5,14 @@ import { Icons } from "@/lib/icons";
 import Pagination from "@/app/components/Pagination";
 import styles from "../expedientes/[id]/page.module.css";
 import listStyles from "../expedientes/page.module.css";
-import { getMovimientosBanco, recalcularTodosLosMatches, regenerarPoolsBanco } from "@/actions/banco";
+import { getMovimientosBanco, recalcularTodosLosMatches, regenerarPoolsBanco, getConciliacionesManuales, type ConciliacionManualDetalle } from "@/actions/banco";
 import { getCuentasBancarias } from "@/actions/cuentasBancarias";
+import { getCurrentAgentePublic } from "@/actions/crm";
 import ImportarN43 from "@/app/components/contabilidad/ImportarN43";
 import { PagoPropuestoPorMatch } from "@/components/movimientos/PagoPropuestoPorMatch";
 import { IngresoPropuestoPorMatch } from "@/components/movimientos/IngresoPropuestoPorMatch";
 import { MatchTooltipWrapper } from "@/components/movimientos/MatchTooltipWrapper";
+import { ConciliacionManualModal, type ConciliacionManualMov } from "@/components/movimientos/ConciliacionManualModal";
 
 const getAccountBadgeStyle = (cuenta?: string) => {
   const c = (cuenta || "").toUpperCase();
@@ -68,6 +70,20 @@ const getEstadoBadgeStyle = (estado: string) => {
         border: "1px solid #fde68a",
         label: "Parcial"
       };
+    case "ofiviaje":
+      return {
+        bg: "#cffafe",
+        color: "#0e7490",
+        border: "1px solid #a5f3fc",
+        label: "OFIviaje"
+      };
+    case "manual":
+      return {
+        bg: "#f5f3ff",
+        color: "#7c3aed",
+        border: "1px solid #ddd6fe",
+        label: "Manual"
+      };
     case "pendiente":
     default:
       return {
@@ -83,6 +99,9 @@ export default function BancoPage() {
   const [bankMovements, setBankMovements] = useState<any[]>([]);
   const [cuentasBancarias, setCuentasBancarias] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [conciliacionesManualesPorMov, setConciliacionesManualesPorMov] = useState<Record<string, ConciliacionManualDetalle[]>>({});
+  const [isOwner, setIsOwner] = useState(false);
+  const [conciliacionManualMov, setConciliacionManualMov] = useState<ConciliacionManualMov | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [matchReport, setMatchReport] = useState<{
     procesados: number;
@@ -152,7 +171,24 @@ export default function BancoPage() {
       }
     }
     loadAccounts();
+
+    async function loadRol() {
+      try {
+        const { rol } = await getCurrentAgentePublic();
+        setIsOwner(rol === "Owner");
+      } catch (error) {
+        console.error("Error loading current user role:", error);
+      }
+    }
+    loadRol();
   }, []);
+
+  const cargarConciliacionesManualesTooltip = useCallback((movimientoId: string) => {
+    if (conciliacionesManualesPorMov[movimientoId]) return;
+    getConciliacionesManuales(movimientoId).then((detalle) => {
+      setConciliacionesManualesPorMov((prev) => ({ ...prev, [movimientoId]: detalle }));
+    });
+  }, [conciliacionesManualesPorMov]);
 
   const loadData = useCallback(async (filters: typeof filtros) => {
     try {
@@ -395,6 +431,8 @@ export default function BancoPage() {
                     { value: "parcial", label: "Parcial" },
                     { value: "propuesto", label: "Matching" },
                     { value: "pendiente", label: "Pendiente" },
+                    { value: "ofiviaje", label: "OFIviaje" },
+                    { value: "manual", label: "Manual" },
                   ].map(opt => (
                     <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.35rem", cursor: "pointer", fontSize: "0.78rem" }}>
                       <input type="checkbox"
@@ -490,7 +528,12 @@ export default function BancoPage() {
                 const rawScore = mov.match_score ?? mov.match_metadatos?.score ?? 0;
                 const normalizedScore = rawScore <= 1 ? Math.round(rawScore * 100) : Math.round(rawScore);
                 const isPropuestoValido = mov.estado === "propuesto" && mov.match_metadatos && normalizedScore >= 70;
-                const estadoBadge = getEstadoBadgeStyle(isPropuestoValido ? "propuesto" : (mov.estado === "propuesto" ? "pendiente" : mov.estado));
+                const estadoEfectivo = mov.conciliado_externo
+                  ? "ofiviaje"
+                  : mov.conciliacion_tipo === "manual" && mov.estado === "conciliado"
+                    ? "manual"
+                    : (mov.estado === "propuesto" ? "pendiente" : mov.estado);
+                const estadoBadge = getEstadoBadgeStyle(isPropuestoValido && !mov.conciliado_externo ? "propuesto" : estadoEfectivo);
                 return (
                   <Fragment key={mov.id}>
                     <tr>
@@ -519,7 +562,7 @@ export default function BancoPage() {
                         </div>
                       </td>
                       <td style={{ width: "1%", whiteSpace: "nowrap", textAlign: "center" }}>
-                        {isPropuestoValido ? (
+                        {isPropuestoValido && !mov.conciliado_externo ? (
                           <MatchTooltipWrapper
                             label={estadoBadge.label}
                             badgeStyles={{
@@ -577,18 +620,85 @@ export default function BancoPage() {
                               />
                             )}
                           </MatchTooltipWrapper>
+                        ) : mov.conciliado_externo ? (
+                          <MatchTooltipWrapper
+                            label={estadoBadge.label}
+                            badgeStyles={{
+                              background: estadoBadge.bg,
+                              color: estadoBadge.color,
+                              border: estadoBadge.border,
+                            }}
+                          >
+                            {mov.conciliado_externo_datos && (
+                              <>
+                                <div style={{ fontWeight: 700, marginBottom: "0.3rem" }}>
+                                  {mov.conciliado_externo_datos.proveedorNombre}
+                                </div>
+                                <div>Doc: {mov.conciliado_externo_datos.documento}</div>
+                                <div>Expediente OFI: {mov.conciliado_externo_datos.referenciaProvCte}</div>
+                                <div>Doc. cobro/pago: {mov.conciliado_externo_datos.documentoCobroPago}</div>
+                                <div>
+                                  Importe:{" "}
+                                  {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(
+                                    mov.conciliado_externo_datos.importePendiente
+                                  )}
+                                </div>
+                                <div>Fecha vencto: {mov.conciliado_externo_datos.fechaVencto}</div>
+                                <div>Pasajero: {mov.conciliado_externo_datos.nombrePasajero}</div>
+                              </>
+                            )}
+                          </MatchTooltipWrapper>
+                        ) : estadoEfectivo === "manual" ? (
+                          <MatchTooltipWrapper
+                            label={estadoBadge.label}
+                            badgeStyles={{
+                              background: estadoBadge.bg,
+                              color: estadoBadge.color,
+                              border: estadoBadge.border,
+                            }}
+                            onShow={() => cargarConciliacionesManualesTooltip(mov.id)}
+                          >
+                            {!conciliacionesManualesPorMov[mov.id] ? (
+                              <div>Cargando…</div>
+                            ) : conciliacionesManualesPorMov[mov.id].length === 0 ? (
+                              <div>Sin detalle disponible.</div>
+                            ) : (
+                              conciliacionesManualesPorMov[mov.id].map((c, i) => (
+                                <div key={c.id} style={{ marginBottom: i < conciliacionesManualesPorMov[mov.id].length - 1 ? "0.4rem" : 0 }}>
+                                  <div>Expediente OFI: {c.expedienteOfi || "—"}</div>
+                                  <div>
+                                    Importe: {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(c.importe)}
+                                  </div>
+                                  <div>Por: {c.usuarioNombre}</div>
+                                </div>
+                              ))
+                            )}
+                          </MatchTooltipWrapper>
                         ) : (
-                          <span style={{
-                            display: "inline-block",
-                            padding: "0.2rem 0.5rem",
-                            borderRadius: "0.25rem",
-                            fontSize: "0.75rem",
-                            fontWeight: "700",
-                            background: estadoBadge.bg,
-                            color: estadoBadge.color,
-                            border: estadoBadge.border,
-                            textTransform: "uppercase"
-                          }}>
+                          <span
+                            onClick={() => {
+                              if (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") {
+                                setConciliacionManualMov({
+                                  id: mov.id,
+                                  importe: Number(mov.importe),
+                                  concepto_original: mov.concepto_original,
+                                  estado: mov.estado,
+                                });
+                              }
+                            }}
+                            style={{
+                              display: "inline-block",
+                              padding: "0.1rem 0.4rem",
+                              borderRadius: "0.25rem",
+                              fontSize: "0.65rem",
+                              fontWeight: "700",
+                              background: estadoBadge.bg,
+                              color: estadoBadge.color,
+                              border: estadoBadge.border,
+                              textTransform: "uppercase",
+                              cursor: (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") ? "pointer" : "default",
+                            }}
+                          >
                             {estadoBadge.label}
                           </span>
                         )}
@@ -712,10 +822,10 @@ export default function BancoPage() {
         }
         .bancoPageContainer .bancoTable td {
           vertical-align: middle !important;
-          height: 48px !important;
+          height: 36px !important;
           box-sizing: border-box !important;
-          padding-top: 0.35rem !important;
-          padding-bottom: 0.35rem !important;
+          padding-top: 0.2rem !important;
+          padding-bottom: 0.2rem !important;
         }
         .bancoPageContainer .bancoTable th {
           vertical-align: middle !important;
@@ -735,6 +845,13 @@ export default function BancoPage() {
           max-height: calc(1.4em * 2);
         }
       `}</style>
+
+      <ConciliacionManualModal
+        mov={conciliacionManualMov}
+        isOwner={isOwner}
+        onClose={() => setConciliacionManualMov(null)}
+        onConciliado={() => loadData(filtros)}
+      />
     </div>
   );
 }

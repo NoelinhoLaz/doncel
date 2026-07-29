@@ -1,0 +1,309 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import {
+  conciliarManualmente,
+  getImportePendienteConciliar,
+  getConciliacionesManuales,
+  guardarAliasProveedor,
+  type ConciliacionManualDetalle,
+} from "@/actions/banco";
+
+const inputStyle: React.CSSProperties = {
+  fontSize: "0.8rem",
+  padding: "0.4rem 0.5rem",
+  border: "1px solid #e2e8f0",
+  borderRadius: "0.375rem",
+  width: "100%",
+  boxSizing: "border-box",
+};
+
+const labelStyle: React.CSSProperties = {
+  fontWeight: 600,
+  color: "#334155",
+  marginBottom: "0.3rem",
+  display: "block",
+};
+
+export interface ConciliacionManualMov {
+  id: string;
+  importe: number;
+  concepto_original?: string | null;
+  estado: string;
+}
+
+export interface ConciliacionManualOpciones {
+  expediente?: string;
+  aliasProveedor?: { proveedorOfi: string; conceptoBanco: string };
+}
+
+/**
+ * Modal de conciliación manual, extraído de movimientos-app para reutilizar
+ * en /banco. Encapsula su propio estado (importe, expediente, VºBº Dirección Comercial,
+ * histórico) y las llamadas a las server actions; el padre solo controla
+ * cuándo se abre (pasando `mov`) y qué hacer al cerrarse/conciliar.
+ */
+export function ConciliacionManualModal({
+  mov,
+  opciones,
+  isOwner,
+  onClose,
+  onConciliado,
+}: {
+  mov: ConciliacionManualMov | null;
+  opciones?: ConciliacionManualOpciones;
+  isOwner: boolean;
+  onClose: () => void;
+  onConciliado: () => void;
+}) {
+  const [importe, setImporte] = useState("");
+  const [expediente, setExpediente] = useState("");
+  const [nota, setNota] = useState("");
+  const [voboDc, setVoboDc] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [pendiente, setPendiente] = useState<number | null>(null);
+  const [historico, setHistorico] = useState<ConciliacionManualDetalle[]>([]);
+  const [historicoLoading, setHistoricoLoading] = useState(false);
+
+  useEffect(() => {
+    if (!mov) return;
+    let cancelado = false;
+
+    const fallback = Math.abs(Number(mov.importe));
+    setImporte(fallback.toFixed(2));
+    setExpediente(opciones?.expediente || "");
+    setNota("");
+    setVoboDc(false);
+    setPendiente(fallback);
+    setHistorico([]);
+    setHistoricoLoading(true);
+
+    getImportePendienteConciliar(mov.id)
+      .then(({ importePendiente }) => {
+        if (cancelado) return;
+        setPendiente(importePendiente);
+        setImporte(importePendiente.toFixed(2));
+      })
+      .catch((error) => console.error("Error obteniendo importe pendiente:", error));
+
+    getConciliacionesManuales(mov.id)
+      .then((detalle) => {
+        if (!cancelado) setHistorico(detalle);
+      })
+      .catch((error) => console.error("Error obteniendo histórico de conciliaciones:", error))
+      .finally(() => {
+        if (!cancelado) setHistoricoLoading(false);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mov?.id]);
+
+  if (!mov) return null;
+
+  const handleClose = () => {
+    if (loading) return;
+    onClose();
+  };
+
+  const handleConciliar = async () => {
+    const importeNum = Number(importe.replace(",", "."));
+    if (!importeNum || importeNum <= 0) {
+      alert("Introduce un importe válido.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await conciliarManualmente(mov.id, importeNum, expediente.trim() || undefined, isOwner && voboDc, nota.trim() || undefined);
+      if (!res.success) {
+        alert(res.error || "Error al conciliar el movimiento.");
+        return;
+      }
+      if (opciones?.aliasProveedor) {
+        guardarAliasProveedor(opciones.aliasProveedor.proveedorOfi, opciones.aliasProveedor.conceptoBanco).catch((err) =>
+          console.error("Error guardando alias de proveedor:", err)
+        );
+      }
+      onClose();
+      onConciliado();
+    } catch (error) {
+      console.error("Error conciliando manualmente:", error);
+      alert("Error al conciliar el movimiento.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15,23,42,0.5)",
+        zIndex: 200,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "1rem",
+      }}
+      onClick={handleClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff",
+          borderRadius: "0.75rem",
+          width: "100%",
+          maxWidth: "380px",
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 20px 25px -5px rgba(0,0,0,0.15)",
+        }}
+      >
+        <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #f1f5f9", flexShrink: 0 }}>
+          <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>
+            {mov.estado === "conciliado" ? "Conciliación" : "Conciliar manualmente"}
+          </h2>
+          <p style={{ margin: "0.35rem 0 0", fontSize: "0.8rem", color: "#64748b" }}>
+            {mov.concepto_original || "Movimiento sin concepto"}
+          </p>
+        </div>
+
+        <div style={{ padding: "1.25rem 1.5rem", display: "flex", flexDirection: "column", gap: "0.9rem", overflowY: "auto" }}>
+          {historicoLoading ? (
+            <p style={{ fontSize: "0.8rem", color: "#94a3b8", margin: 0 }}>Cargando histórico...</p>
+          ) : (
+            historico.length > 0 && (
+              <div>
+                <span style={labelStyle}>Conciliado por</span>
+                <ul style={{ listStyle: "none", margin: "0.3rem 0 0", padding: 0, display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                  {historico.map((c) => (
+                    <li
+                      key={c.id}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "0.5rem 0.65rem",
+                        background: "#f8fafc",
+                        borderRadius: "0.375rem",
+                        fontSize: "0.78rem",
+                      }}
+                    >
+                      <span style={{ color: "#334155" }}>
+                        {c.usuarioNombre}
+                        {c.voboDc && (
+                          <span style={{ marginLeft: "0.4rem", fontSize: "0.65rem", fontWeight: 700, color: "#7c3aed", background: "#f5f3ff", borderRadius: "0.25rem", padding: "0.05rem 0.3rem" }}>
+                            VºBº Dirección Comercial
+                          </span>
+                        )}
+                        <span style={{ display: "block", color: "#94a3b8", fontSize: "0.7rem" }}>
+                          {new Date(c.fecha).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                        {c.nota && (
+                          <span style={{ display: "block", color: "#475569", fontSize: "0.72rem", marginTop: "0.2rem", fontStyle: "italic" }}>
+                            {c.nota}
+                          </span>
+                        )}
+                      </span>
+                      <span style={{ fontWeight: 600, color: "#0f172a" }}>
+                        {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(c.importe)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          )}
+
+          {mov.estado !== "conciliado" && (
+            <>
+              <div>
+                <span style={labelStyle}>Importe</span>
+                <input type="number" step="0.01" value={importe} onChange={(e) => setImporte(e.target.value)} style={inputStyle} />
+                {pendiente !== null && (
+                  <p style={{ margin: "0.3rem 0 0", fontSize: "0.72rem", color: "#94a3b8" }}>
+                    Pendiente por conciliar: {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(pendiente)}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <span style={labelStyle}>Expediente OFI (opcional)</span>
+                <input
+                  type="text"
+                  placeholder="Ej. 001260012"
+                  value={expediente}
+                  onChange={(e) => setExpediente(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+
+              <div>
+                <span style={labelStyle}>Nota (opcional)</span>
+                <textarea
+                  placeholder="Añade una nota sobre esta conciliación..."
+                  value={nota}
+                  onChange={(e) => setNota(e.target.value)}
+                  maxLength={500}
+                  rows={2}
+                  style={{ ...inputStyle, resize: "vertical" }}
+                />
+              </div>
+
+              {isOwner && (
+                <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginTop: "0.75rem", fontSize: "0.8rem", color: "#334155", cursor: "pointer" }}>
+                  <input type="checkbox" checked={voboDc} onChange={(e) => setVoboDc(e.target.checked)} />
+                  VºBº Dirección Comercial
+                </label>
+              )}
+            </>
+          )}
+        </div>
+
+        <div style={{ padding: "1rem 1.5rem", borderTop: "1px solid #f1f5f9", display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+          <button
+            onClick={handleClose}
+            disabled={loading}
+            style={{
+              flex: 1,
+              padding: "0.6rem",
+              background: "#f1f5f9",
+              color: "#475569",
+              border: "1px solid #e2e8f0",
+              borderRadius: "0.5rem",
+              fontWeight: 600,
+              fontSize: "0.85rem",
+              cursor: loading ? "default" : "pointer",
+            }}
+          >
+            {mov.estado === "conciliado" ? "Cerrar" : "Cancelar"}
+          </button>
+          {mov.estado !== "conciliado" && (
+            <button
+              onClick={handleConciliar}
+              disabled={loading}
+              style={{
+                flex: 1,
+                padding: "0.6rem",
+                background: "#10b981",
+                color: "#fff",
+                border: "none",
+                borderRadius: "0.5rem",
+                fontWeight: 700,
+                fontSize: "0.85rem",
+                cursor: loading ? "default" : "pointer",
+                opacity: loading ? 0.7 : 1,
+              }}
+            >
+              {loading ? "Conciliando..." : "Conciliar"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

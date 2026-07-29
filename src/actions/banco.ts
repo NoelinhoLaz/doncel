@@ -55,13 +55,13 @@ export async function getDocumentosExpediente(expedienteId: string) {
   return fetchDocumentosExpediente(expedienteId);
 }
 
-export async function conciliarManualmente(movimientoBancoId: string, importe: number, expedienteOfi?: string, voboDc?: boolean) {
+export async function conciliarManualmente(movimientoBancoId: string, importe: number, expedienteOfi?: string, voboDc?: boolean, nota?: string) {
   const agencyDb = await getAgencyDbClient();
   const { usuarioId, rol } = await getCurrentAgentePublic();
   // El VºBº de Dirección Comercial solo lo puede marcar el Owner, aunque la
   // petición venga manipulada desde el cliente.
   const voboDcValido = !!voboDc && rol === "Owner";
-  const result = await ejecutarConciliacionManual(agencyDb, movimientoBancoId, importe, expedienteOfi, usuarioId, voboDcValido);
+  const result = await ejecutarConciliacionManual(agencyDb, movimientoBancoId, importe, expedienteOfi, usuarioId, voboDcValido, nota);
   if (result.success) {
     revalidatePath("/banco");
     // Evita que la tarea reaparezca en los informes de OFIviaje (Último
@@ -90,6 +90,7 @@ export interface ConciliacionManualDetalle {
   usuarioNombre: string;
   expedienteOfi: string | null;
   voboDc: boolean;
+  nota: string | null;
 }
 
 /**
@@ -105,7 +106,7 @@ export async function getConciliacionesManuales(movimientoBancoId: string): Prom
 
   const { data: pagos } = await agencyDb
     .from("contabilidad_movimientos")
-    .select("id, importe_total, created_at, usuario_id, concepto, vobo_dc")
+    .select("id, importe_total, created_at, usuario_id, concepto, vobo_dc, nota")
     .eq("movimiento_banco_id", movimientoBancoId)
     .eq("estado", "confirmado")
     .order("created_at", { ascending: true });
@@ -131,6 +132,7 @@ export async function getConciliacionesManuales(movimientoBancoId: string): Prom
     usuarioNombre: nombrePorId.get(p.usuario_id) || "Usuario desconocido",
     expedienteOfi: p.concepto?.match(/Expediente OFI: (.+)$/)?.[1] || null,
     voboDc: !!p.vobo_dc,
+    nota: p.nota || null,
   }));
 }
 

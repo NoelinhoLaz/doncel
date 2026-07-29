@@ -60,10 +60,11 @@ export async function ejecutarConciliacionManual(
   importe: number,
   expedienteOfi?: string,
   usuarioId?: string,
-  voboDc?: boolean
+  voboDc?: boolean,
+  nota?: string
 ): Promise<ConciliationResult> {
   try {
-    const legacy = await ejecutarConciliacionManualLegacy(agencyDb, movimientoBancoId, importe, expedienteOfi, usuarioId, voboDc);
+    const legacy = await ejecutarConciliacionManualLegacy(agencyDb, movimientoBancoId, importe, expedienteOfi, usuarioId, voboDc, nota);
     return normalizeLegacyResult(legacy);
   } catch (err: any) {
     console.error("[CONCILIATION_FAILURE ejecutarConciliacionManual]:", err?.message ?? err);

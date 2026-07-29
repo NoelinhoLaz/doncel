@@ -10,9 +10,10 @@ interface MatchTooltipWrapperProps {
     border: string;
   };
   children: ReactNode;
+  onShow?: () => void;
 }
 
-export function MatchTooltipWrapper({ label, badgeStyles, children }: MatchTooltipWrapperProps) {
+export function MatchTooltipWrapper({ label, badgeStyles, children, onShow }: MatchTooltipWrapperProps) {
   const [show, setShow] = useState(false);
   const [openUp, setOpenUp] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -40,6 +41,7 @@ export function MatchTooltipWrapper({ label, badgeStyles, children }: MatchToolt
       setOpenUp(window.innerHeight - rect.bottom < 300);
     }
     setShow(true);
+    onShow?.();
   };
   const handleMouseLeave = () => scheduleHide();
 
@@ -52,9 +54,9 @@ export function MatchTooltipWrapper({ label, badgeStyles, children }: MatchToolt
     >
       <span style={{
         display: "inline-block",
-        padding: "0.2rem 0.5rem",
+        padding: "0.1rem 0.4rem",
         borderRadius: "0.25rem",
-        fontSize: "0.75rem",
+        fontSize: "0.65rem",
         fontWeight: "700",
         background: badgeStyles.background,
         color: badgeStyles.color,
