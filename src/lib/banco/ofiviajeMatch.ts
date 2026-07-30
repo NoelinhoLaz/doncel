@@ -1440,14 +1440,106 @@ export async function confirmarConciliacionOfiviaje(matches: OfiviajeMatchPropue
  * registra con origen "manual" para distinguirlo del cron en el historial.
  */
 /**
+ * Reprocesa un único fichero OFIviaje ya descargado/parseado: recalcula
+ * matches con el contenido XML actual (útil tras crear un alias de
+ * proveedor o corregir la lógica de fechas) y aplica los cambios sobre
+ * las tareas pendientes de ESE fichero para cualquier tipo de incidencia
+ * (revisarNombre, revisarImporte, revisarSuma, revisarDivision) sin
+ * borrarlas ni duplicarlas: las que ahora sí concilian se marcan
+ * `resuelta` (siguen visibles en el listado con ese estado), el resto se
+ * deja intacto. También cubre el caso de tareas "huérfanas" cuyo
+ * movimiento ya estaba conciliado (por una pasada anterior o
+ * manualmente) sin que la tarea llegara a resolverse.
+ */
+async function reprocesarFicheroConContenido(
+  agencyDb: any,
+  fichero: { id: string; nombre: string; modifiedTime: string },
+  contenido: string
+): Promise<{ procesados: number; conciliados: number }> {
+  const { data: tareasPendientes } = await agencyDb
+    .from("ofiviaje_tareas_pendientes")
+    .select("id, tipo, datos")
+    .eq("drive_file_id", fichero.id)
+    .eq("resuelta", false);
+
+  if (!tareasPendientes || tareasPendientes.length === 0) {
+    return { procesados: 0, conciliados: 0 };
+  }
+
+  const result = await calcularMatchesFicheroXml(agencyDb, contenido, fichero);
+
+  const movimientoIdsConciliados = new Set<string>();
+
+  let conciliados = 0;
+  for (const match of result.matches) {
+    const { error: updateError } = await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .update({
+        conciliado_externo: true,
+        conciliado_externo_origen: "ofiviaje",
+        conciliado_externo_en: new Date().toISOString(),
+        conciliado_externo_datos: { ...match.pago, _driveFileId: fichero.id },
+      })
+      .eq("id", match.movimientoId);
+    if (!updateError) {
+      conciliados++;
+      movimientoIdsConciliados.add(match.movimientoId);
+    }
+  }
+
+  // movimientoId (revisarNombre/revisarImporte) o movimientoIds[0]
+  // (revisarSuma) — la tarea se resuelve si CUALQUIERA de sus
+  // movimientos asociados ya está gestionado.
+  const movimientoIdsDeLaTarea = (datos: any): string[] => {
+    if (Array.isArray(datos?.movimientoIds)) return datos.movimientoIds;
+    return datos?.movimientoId ? [datos.movimientoId] : [];
+  };
+
+  // Un movimiento puede haberse conciliado en ESTA pasada (recién
+  // añadido a movimientoIdsConciliados) o en una pasada anterior (la
+  // query de candidatos de calcularMatchesFicheroXml excluye movimientos
+  // ya conciliados, así que nunca volvería a aparecer en result.matches)
+  // o haber sido gestionado manualmente por otra vía (estado='conciliado'
+  // sin pasar por OFIviaje). En cualquiera de esos casos la tarea debe
+  // marcarse resuelta igual, para no quedar huérfana para siempre.
+  const todosLosMovimientoIds = tareasPendientes.flatMap((fila: any) => movimientoIdsDeLaTarea(fila.datos));
+  const movimientoIdsPendientes = todosLosMovimientoIds.filter((id: string) => !movimientoIdsConciliados.has(id));
+
+  if (movimientoIdsPendientes.length > 0) {
+    const { data: movsYaConciliados } = await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .select("id")
+      .in("id", movimientoIdsPendientes)
+      .or("conciliado_externo.eq.true,estado.eq.conciliado");
+    for (const mov of movsYaConciliados || []) {
+      movimientoIdsConciliados.add(mov.id);
+    }
+  }
+
+  const idsAResolver = tareasPendientes
+    .filter((fila: any) => movimientoIdsDeLaTarea(fila.datos).some((id) => movimientoIdsConciliados.has(id)))
+    .map((fila: any) => fila.id);
+
+  if (idsAResolver.length > 0) {
+    await agencyDb
+      .from("ofiviaje_tareas_pendientes")
+      .update({ resuelta: true, resuelta_en: new Date().toISOString() })
+      .in("id", idsAResolver);
+  }
+
+  await agencyDb
+    .from("ofiviaje_ficheros_procesados")
+    .update({ ultimo_reproceso_en: new Date().toISOString(), origen: "manual" })
+    .eq("drive_file_id", fichero.id);
+
+  return { procesados: result.procesados, conciliados };
+}
+
+/**
  * Reprocesa un fichero OFIviaje ya procesado anteriormente (identificado por
- * drive_file_id), tras crear un alias de proveedor: recalcula solo las
- * incidencias de tipo "revisarNombre" (Cliente/Proveedor distinto) de ese
- * fichero. Las que ahora sí concilian (match automático gracias al alias) se
- * aplican y su tarea se marca como `resuelta` (no se borra, sigue visible en
- * el listado de incidencias con ese estado). El resto de tipos de incidencia
- * (revisarImporte, revisarSuma, revisarDivision, sinMatch) no se tocan, ya
- * que solo se corrigen manualmente en OFIviaje, no con alias.
+ * drive_file_id), tras crear un alias de proveedor o corregir la lógica de
+ * matching: recalcula sus incidencias pendientes (de cualquier tipo) y
+ * aplica los cambios. Ver reprocesarFicheroConContenido para el detalle.
  */
 export async function reprocesarFicheroOfiviaje(driveFileId: string): Promise<{
   procesados: number;
@@ -1462,93 +1554,9 @@ export async function reprocesarFicheroOfiviaje(driveFileId: string): Promise<{
     const fichero = ficheros.find((f) => f.id === driveFileId);
     if (!fichero) return { procesados: 0, conciliados: 0, error: "No se encontró el fichero en Drive." };
 
-    const { data: tareasRevisarNombre } = await agencyDb
-      .from("ofiviaje_tareas_pendientes")
-      .select("id, datos")
-      .eq("drive_file_id", driveFileId)
-      .eq("tipo", "revisarNombre")
-      .eq("resuelta", false);
-
-    if (!tareasRevisarNombre || tareasRevisarNombre.length === 0) {
-      return { procesados: 0, conciliados: 0 };
-    }
-
     const contenido = await descargarContenidoXml(tokens, fichero.id);
-    const result = await calcularMatchesFicheroXml(agencyDb, contenido, fichero);
-
-    const movimientoIdsConciliados = new Set<string>();
-
-    let conciliados = 0;
-    for (const match of result.matches) {
-      const { error: updateError } = await agencyDb
-        .from("contabilidad_movimientos_banco")
-        .update({
-          conciliado_externo: true,
-          conciliado_externo_origen: "ofiviaje",
-          conciliado_externo_en: new Date().toISOString(),
-          conciliado_externo_datos: { ...match.pago, _driveFileId: fichero.id },
-        })
-        .eq("id", match.movimientoId);
-      if (!updateError) {
-        conciliados++;
-        movimientoIdsConciliados.add(match.movimientoId);
-      }
-    }
-
-    // Un movimiento puede haberse conciliado en ESTA pasada (recién
-    // añadido a movimientoIdsConciliados) o en una pasada anterior (por
-    // ejemplo si esta función ya se ejecutó antes para el mismo alias):
-    // en ese segundo caso, calcularMatchesFicheroXml ya no lo trae como
-    // candidato (la query excluye conciliado_externo=true), por lo que
-    // nunca aparecería en result.matches y su tarea quedaría "huérfana"
-    // — el movimiento conciliado correctamente, pero la incidencia que lo
-    // originó seguiría marcada como pendiente para siempre. Se comprueba
-    // aquí el estado real de conciliado_externo de cada movimiento de las
-    // tareas pendientes para cubrir también ese caso.
-    const movimientoIdsPendientes = tareasRevisarNombre
-      .map((fila: any) => fila.datos?.movimientoId as string | undefined)
-      .filter((id): id is string => !!id && !movimientoIdsConciliados.has(id));
-
-    if (movimientoIdsPendientes.length > 0) {
-      // También se incluyen los movimientos con estado = 'conciliado' (por
-      // ejemplo, resueltos manualmente desde Movimientos Banco por otra
-      // vía): si el usuario ya lo gestionó de otra forma, la incidencia
-      // de nombre distinto que lo originó debe marcarse resuelta igual,
-      // en vez de quedar huérfana para siempre porque calcularMatchesFicheroXml
-      // nunca lo trae como candidato (excluye estado != pendiente/propuesto/parcial).
-      const { data: movsYaConciliados } = await agencyDb
-        .from("contabilidad_movimientos_banco")
-        .select("id")
-        .in("id", movimientoIdsPendientes)
-        .or("conciliado_externo.eq.true,estado.eq.conciliado");
-      for (const mov of movsYaConciliados || []) {
-        movimientoIdsConciliados.add(mov.id);
-      }
-    }
-
-    // Solo se marca resuelta una tarea si su movimiento realmente se
-    // concilió (en esta pasada o en una anterior): si el alias hizo que
-    // el nombre ya coincida pero el pago cayó en otra categoría
-    // (revisarImporte, revisarDivision...) o el UPDATE falló, la tarea
-    // debe seguir apareciendo como incidencia pendiente en vez de
-    // desaparecer sin que el movimiento bancario llegue a conciliarse.
-    const idsAResolver = tareasRevisarNombre
-      .filter((fila: any) => movimientoIdsConciliados.has(fila.datos?.movimientoId))
-      .map((fila: any) => fila.id);
-
-    if (idsAResolver.length > 0) {
-      await agencyDb
-        .from("ofiviaje_tareas_pendientes")
-        .update({ resuelta: true, resuelta_en: new Date().toISOString() })
-        .in("id", idsAResolver);
-    }
-
-    await agencyDb
-      .from("ofiviaje_ficheros_procesados")
-      .update({ ultimo_reproceso_en: new Date().toISOString(), origen: "manual" })
-      .eq("drive_file_id", driveFileId);
-
-    return { procesados: result.procesados, conciliados };
+    const { procesados, conciliados } = await reprocesarFicheroConContenido(agencyDb, fichero, contenido);
+    return { procesados, conciliados };
   } catch (error: any) {
     return { procesados: 0, conciliados: 0, error: error.message || "Error al reprocesar el fichero." };
   }
@@ -1563,6 +1571,69 @@ export async function forzarProcesoOfiviajeUsuarioActual(): Promise<{
   const tokens = await getDriveTokensUsuarioActual();
   const agencyDb = await getAgencyDbClient();
   return comprobarOfiviajeParaAgencia(agencyDb, tokens, "manual");
+}
+
+/**
+ * Reprocesa TODOS los ficheros OFIviaje ya registrados en
+ * ofiviaje_ficheros_procesados (no solo los nuevos, a diferencia de
+ * forzarProcesoOfiviajeUsuarioActual), recalculando sus incidencias
+ * pendientes con el contenido XML actual y los alias/lógica de matching
+ * vigentes. Útil tras crear varios alias de proveedor o corregir la
+ * lógica de fechas, para ver de una vez si baja el número de incidencias
+ * y sube el de conciliados en todo el histórico.
+ */
+export async function reprocesarTodosLosFicherosOfiviaje(): Promise<{
+  ficherosRevisados: number;
+  procesados: number;
+  conciliados: number;
+  error?: string;
+}> {
+  try {
+    const tokens = await getDriveTokensUsuarioActual();
+    const agencyDb = await getAgencyDbClient();
+
+    const { data: ficherosProcesados } = await agencyDb
+      .from("ofiviaje_ficheros_procesados")
+      .select("drive_file_id, nombre_fichero")
+      .order("procesado_en", { ascending: false });
+
+    if (!ficherosProcesados || ficherosProcesados.length === 0) {
+      return { ficherosRevisados: 0, procesados: 0, conciliados: 0 };
+    }
+
+    const driveFileIdsUnicos = [...new Map(ficherosProcesados.map((f: any) => [f.drive_file_id, f])).values()];
+
+    const ficherosDrive = await listarXmlEnCarpeta(tokens);
+    const ficheroDrivePorId = new Map(ficherosDrive.map((f) => [f.id, f]));
+
+    let procesados = 0;
+    let conciliados = 0;
+    let ficherosRevisados = 0;
+
+    for (const fila of driveFileIdsUnicos) {
+      const ficheroDrive = ficheroDrivePorId.get((fila as any).drive_file_id);
+      if (!ficheroDrive) continue; // fichero ya no existe en Drive, no se puede reprocesar
+
+      try {
+        const contenido = await descargarContenidoXml(tokens, ficheroDrive.id);
+        const resultado = await reprocesarFicheroConContenido(agencyDb, ficheroDrive, contenido);
+        procesados += resultado.procesados;
+        conciliados += resultado.conciliados;
+        ficherosRevisados++;
+      } catch {
+        continue;
+      }
+    }
+
+    return { ficherosRevisados, procesados, conciliados };
+  } catch (error: any) {
+    return {
+      ficherosRevisados: 0,
+      procesados: 0,
+      conciliados: 0,
+      error: error.message || "Error al reprocesar los ficheros.",
+    };
+  }
 }
 
 export async function comprobarOfiviajeParaAgencia(

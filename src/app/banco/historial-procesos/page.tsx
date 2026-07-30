@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import NextLink from "next/link";
 import { ArrowLeft, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
-import { getHistorialProcesosOfiviaje, forzarProcesoOfiviajeUsuarioActual } from "@/actions/banco";
+import { getHistorialProcesosOfiviaje, forzarProcesoOfiviajeUsuarioActual, reprocesarTodosLosFicherosOfiviaje } from "@/actions/banco";
 
 const parseFechaUtc = (valor: string) => new Date(/Z|[+-]\d\d:\d\d$/.test(valor) ? valor : `${valor}Z`);
 const POR_PAGINA = 10;
@@ -179,6 +179,11 @@ export default function HistorialProcesosPage() {
       const res = await forzarProcesoOfiviajeUsuarioActual();
       if (res.error) {
         alert(res.error);
+        return;
+      }
+      const resReproceso = await reprocesarTodosLosFicherosOfiviaje();
+      if (resReproceso.error) {
+        alert(resReproceso.error);
       } else {
         cargarHistorial();
       }

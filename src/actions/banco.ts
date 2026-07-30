@@ -10,7 +10,7 @@ import { conciliarPagoProveedor as ejecutarConciliarPagoProveedor, ejecutarConci
 import { createBridgeConnectSession, syncBridgeTransactions } from "@/lib/banco/bridgeApi";
 import { getCurrentAgenciaSlug } from "@/actions/agencias";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
-import { previsualizarOfiviajeUsuarioActual, previsualizarCobrosXmlManual, confirmarConciliacionOfiviaje as confirmarConciliacionOfiviajeLib, enviarInformeOfiviajePorEmail, guardarAliasProveedorOfi, getUltimoInformeReal as getUltimoInformeRealLib, marcarTareaPendienteResueltaPorMovimiento, getHistorialProcesosOfiviaje as getHistorialProcesosOfiviajeLib, forzarProcesoOfiviajeUsuarioActual as forzarProcesoOfiviajeUsuarioActualLib, getDetalleProcesoOfiviaje as getDetalleProcesoOfiviajeLib, buscarProveedorPorDocumento as buscarProveedorPorDocumentoLib, listarProveedoresUnicosOfi as listarProveedoresUnicosOfiLib, buscarProveedorPorImporte as buscarProveedorPorImporteLib, intentarGuardarAliasSiNoCoincide, reprocesarFicheroOfiviaje as reprocesarFicheroOfiviajeLib, type OfiviajeMatchPropuesto, type OfiviajePreview } from "@/lib/banco/ofiviajeMatch";
+import { previsualizarOfiviajeUsuarioActual, previsualizarCobrosXmlManual, confirmarConciliacionOfiviaje as confirmarConciliacionOfiviajeLib, enviarInformeOfiviajePorEmail, guardarAliasProveedorOfi, getUltimoInformeReal as getUltimoInformeRealLib, marcarTareaPendienteResueltaPorMovimiento, getHistorialProcesosOfiviaje as getHistorialProcesosOfiviajeLib, forzarProcesoOfiviajeUsuarioActual as forzarProcesoOfiviajeUsuarioActualLib, getDetalleProcesoOfiviaje as getDetalleProcesoOfiviajeLib, buscarProveedorPorDocumento as buscarProveedorPorDocumentoLib, listarProveedoresUnicosOfi as listarProveedoresUnicosOfiLib, buscarProveedorPorImporte as buscarProveedorPorImporteLib, intentarGuardarAliasSiNoCoincide, reprocesarFicheroOfiviaje as reprocesarFicheroOfiviajeLib, reprocesarTodosLosFicherosOfiviaje as reprocesarTodosLosFicherosOfiviajeLib, type OfiviajeMatchPropuesto, type OfiviajePreview } from "@/lib/banco/ofiviajeMatch";
 
 export async function getMovimientosBanco(options?: any) {
   return fetchMovimientosBanco(options);
@@ -357,6 +357,10 @@ export async function getDetalleProcesoOfiviaje(driveFileId: string) {
 
 export async function reprocesarFicheroOfiviaje(driveFileId: string) {
   return reprocesarFicheroOfiviajeLib(driveFileId);
+}
+
+export async function reprocesarTodosLosFicherosOfiviaje() {
+  return reprocesarTodosLosFicherosOfiviajeLib();
 }
 
 export async function buscarProveedorPorDocumento(documentos: string[]) {
