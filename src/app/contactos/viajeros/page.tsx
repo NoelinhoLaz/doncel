@@ -2,8 +2,9 @@
 
 import styles from "../page.module.css";
 import { Search } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Pagination from "@/app/components/Pagination";
+import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
 
 type Viajero = {
   id: string;
@@ -13,11 +14,13 @@ type Viajero = {
   telefono: string | null;
   pasaporte: string | null;
   nacionalidad: string | null;
+  expedientes: { id: string; numero: string | null; referencia: string }[];
 };
 
 export default function ViajerosPage() {
   const [viajeros, setViajeros] = useState<Viajero[]>([]);
   const [search, setSearch] = useState("");
+  const [expedienteFilter, setExpedienteFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(15);
@@ -30,18 +33,30 @@ export default function ViajerosPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const expedienteLabel = (e: { numero: string | null; referencia: string }) =>
+    e.numero ? `${e.numero} · ${e.referencia}` : e.referencia;
+
+  const expedienteOptions = useMemo(() => {
+    const labels = new Set<string>();
+    viajeros.forEach((v) => v.expedientes.forEach((e) => labels.add(expedienteLabel(e))));
+    return Array.from(labels).sort();
+  }, [viajeros]);
+
   const filtered = viajeros.filter((v) => {
     const q = search.toLowerCase();
-    return (
+    const matchesSearch =
       v.nombre?.toLowerCase().includes(q) ||
       v.apellidos?.toLowerCase().includes(q) ||
-      v.email?.toLowerCase().includes(q)
-    );
+      v.email?.toLowerCase().includes(q);
+    if (!matchesSearch) return false;
+    if (expedienteFilter.length > 0 && !v.expedientes.some((e) => expedienteFilter.includes(expedienteLabel(e)))) return false;
+    return true;
   });
 
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handleSearch = (v: string) => { setSearch(v); setCurrentPage(1); };
+  const handleExpedienteFilter = (v: string[]) => { setExpedienteFilter(v); setCurrentPage(1); };
 
   return (
     <div className={styles.container}>
@@ -55,6 +70,12 @@ export default function ViajerosPage() {
             onChange={(e) => handleSearch(e.target.value)}
           />
         </div>
+        <MultiSelectDropdown
+          options={expedienteOptions}
+          selected={expedienteFilter}
+          onChange={handleExpedienteFilter}
+          placeholder="Todos los expedientes"
+        />
       </div>
 
       {loading ? (
@@ -80,8 +101,8 @@ export default function ViajerosPage() {
               ) : (
                 paginated.map((v) => (
                   <tr key={v.id}>
-                    <td>{v.nombre}</td>
-                    <td>{v.apellidos ?? "—"}</td>
+                    <td>{v.nombre?.toUpperCase()}</td>
+                    <td>{v.apellidos?.toUpperCase() ?? "—"}</td>
                     <td>{v.email ?? "—"}</td>
                     <td>{v.telefono ?? "—"}</td>
                     <td>{v.pasaporte ?? "—"}</td>

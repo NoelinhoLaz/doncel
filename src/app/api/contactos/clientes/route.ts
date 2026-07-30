@@ -33,6 +33,19 @@ export async function GET() {
       conCrm = data ?? [];
     }
 
+    // Expedientes vinculados a cada entidad-cliente
+    const { data: expRows, error: e4 } = await db
+      .from("operativa_expedientes")
+      .select("id, numero, referencia, entidad_id")
+      .not("entidad_id", "is", null);
+    if (e4) throw e4;
+    const expedientesPorEntidad = new Map<string, { id: string; numero: string | null; referencia: string }[]>();
+    for (const exp of expRows ?? []) {
+      const list = expedientesPorEntidad.get(exp.entidad_id) ?? [];
+      list.push({ id: exp.id, numero: exp.numero ?? null, referencia: exp.referencia });
+      expedientesPorEntidad.set(exp.entidad_id, list);
+    }
+
     // Merge, deduplicar por id
     const seen = new Set<string>();
     const all: any[] = [];
@@ -47,6 +60,7 @@ export async function GET() {
         telefono: r.telefono ?? null,
         ciudad: dir.ciudad ?? dir.localidad ?? dir.municipio ?? null,
         pais: dir.pais ?? null,
+        expedientes: expedientesPorEntidad.get(r.id) ?? [],
       });
     }
 

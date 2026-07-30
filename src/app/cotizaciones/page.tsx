@@ -9,6 +9,7 @@ import { Copy, Trash2, UserRound, X, Search, MapPin, SlidersHorizontal, ChevronR
 import { PresupuestoDetalleDrawer } from "@/components/modals/PresupuestoDetalleDrawer";
 import Pagination from "@/app/components/Pagination";
 import { duplicateCotizacion, deleteCotizacion, updateCotizacionLinea, tieneCotizacionPropuestasVinculadas } from "@/actions/cotizaciones";
+import { getCurrentUsuario } from "@/actions/usuarios";
 import TipoIcon from "@/app/components/cotizacion/TipoIcon";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
 import dynamic from "next/dynamic";
@@ -120,6 +121,8 @@ export default function CotizacionesPage() {
   const [selectedLineIds, setSelectedLineIds] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [agenteFilter, setAgenteFilter] = useState<string[]>([]);
+  const [agenteFilterInicializado, setAgenteFilterInicializado] = useState(false);
+  const [nombreAgenteActual, setNombreAgenteActual] = useState<string | null>(null);
   const [destinoFilter, setDestinoFilter] = useState<string[]>([]);
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
@@ -169,9 +172,14 @@ export default function CotizacionesPage() {
       .catch(() => {});
   };
 
-  useEffect(() => { 
-    loadCotizaciones(); 
+  useEffect(() => {
+    loadCotizaciones();
     loadServiceTypes();
+    getCurrentUsuario()
+      .then((u: any) => {
+        if (u) setNombreAgenteActual(`${u.nombre ?? ''} ${u.apellidos ?? ''}`.trim());
+      })
+      .catch(() => {});
   }, []);
 
   const allLines = useMemo(() => {
@@ -198,6 +206,15 @@ export default function CotizacionesPage() {
       .filter((n: any) => !!n);
     return Array.from(new Set(names)).sort() as string[];
   }, [cotizaciones]);
+
+  useEffect(() => {
+    if (agenteFilterInicializado) return;
+    if (!nombreAgenteActual || agenteOptions.length === 0) return;
+    if (agenteOptions.includes(nombreAgenteActual)) {
+      setAgenteFilter([nombreAgenteActual]);
+    }
+    setAgenteFilterInicializado(true);
+  }, [nombreAgenteActual, agenteOptions, agenteFilterInicializado]);
 
   const destinoOptions = useMemo(() => {
     const names: string[] = [];

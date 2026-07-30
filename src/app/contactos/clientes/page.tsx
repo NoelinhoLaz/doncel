@@ -2,8 +2,9 @@
 
 import styles from "../page.module.css";
 import { Search } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Pagination from "@/app/components/Pagination";
+import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
 
 type Cliente = {
   id: string;
@@ -12,11 +13,13 @@ type Cliente = {
   telefono: string | null;
   ciudad: string | null;
   pais: string | null;
+  expedientes: { id: string; numero: string | null; referencia: string }[];
 };
 
 export default function ClientesPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [search, setSearch] = useState("");
+  const [expedienteFilter, setExpedienteFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(15);
@@ -29,18 +32,30 @@ export default function ClientesPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const expedienteLabel = (e: { numero: string | null; referencia: string }) =>
+    e.numero ? `${e.numero} · ${e.referencia}` : e.referencia;
+
+  const expedienteOptions = useMemo(() => {
+    const labels = new Set<string>();
+    clientes.forEach((c) => c.expedientes.forEach((e) => labels.add(expedienteLabel(e))));
+    return Array.from(labels).sort();
+  }, [clientes]);
+
   const filtered = clientes.filter((c) => {
     const q = search.toLowerCase();
-    return (
+    const matchesSearch =
       c.nombre?.toLowerCase().includes(q) ||
       c.email?.toLowerCase().includes(q) ||
-      c.ciudad?.toLowerCase().includes(q)
-    );
+      c.ciudad?.toLowerCase().includes(q);
+    if (!matchesSearch) return false;
+    if (expedienteFilter.length > 0 && !c.expedientes.some((e) => expedienteFilter.includes(expedienteLabel(e)))) return false;
+    return true;
   });
 
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handleSearch = (v: string) => { setSearch(v); setCurrentPage(1); };
+  const handleExpedienteFilter = (v: string[]) => { setExpedienteFilter(v); setCurrentPage(1); };
 
   return (
     <div className={styles.container}>
@@ -54,6 +69,12 @@ export default function ClientesPage() {
             onChange={(e) => handleSearch(e.target.value)}
           />
         </div>
+        <MultiSelectDropdown
+          options={expedienteOptions}
+          selected={expedienteFilter}
+          onChange={handleExpedienteFilter}
+          placeholder="Todos los expedientes"
+        />
       </div>
 
       {loading ? (
@@ -78,10 +99,10 @@ export default function ClientesPage() {
               ) : (
                 paginated.map((c) => (
                   <tr key={c.id}>
-                    <td>{c.nombre}</td>
+                    <td>{c.nombre?.toUpperCase()}</td>
                     <td>{c.email ?? "—"}</td>
                     <td>{c.telefono ?? "—"}</td>
-                    <td>{c.ciudad ?? "—"}</td>
+                    <td>{c.ciudad?.toUpperCase() ?? "—"}</td>
                     <td>{c.pais ?? "—"}</td>
                   </tr>
                 ))

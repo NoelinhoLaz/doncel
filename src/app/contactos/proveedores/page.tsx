@@ -2,8 +2,9 @@
 
 import styles from "../page.module.css";
 import { Search } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Pagination from "@/app/components/Pagination";
+import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
 
 type Proveedor = {
   id: string;
@@ -13,11 +14,13 @@ type Proveedor = {
   telefono: string | null;
   ciudad: string | null;
   pais: string | null;
+  expedientes: { id: string; numero: string | null; referencia: string }[];
 };
 
 export default function ProveedoresPage() {
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [search, setSearch] = useState("");
+  const [expedienteFilter, setExpedienteFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(15);
@@ -30,18 +33,30 @@ export default function ProveedoresPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const expedienteLabel = (e: { numero: string | null; referencia: string }) =>
+    e.numero ? `${e.numero} · ${e.referencia}` : e.referencia;
+
+  const expedienteOptions = useMemo(() => {
+    const labels = new Set<string>();
+    proveedores.forEach((p) => p.expedientes.forEach((e) => labels.add(expedienteLabel(e))));
+    return Array.from(labels).sort();
+  }, [proveedores]);
+
   const filtered = proveedores.filter((p) => {
     const q = search.toLowerCase();
-    return (
+    const matchesSearch =
       p.nombre?.toLowerCase().includes(q) ||
       p.tipo?.toLowerCase().includes(q) ||
-      p.ciudad?.toLowerCase().includes(q)
-    );
+      p.ciudad?.toLowerCase().includes(q);
+    if (!matchesSearch) return false;
+    if (expedienteFilter.length > 0 && !p.expedientes.some((e) => expedienteFilter.includes(expedienteLabel(e)))) return false;
+    return true;
   });
 
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handleSearch = (v: string) => { setSearch(v); setCurrentPage(1); };
+  const handleExpedienteFilter = (v: string[]) => { setExpedienteFilter(v); setCurrentPage(1); };
 
   return (
     <div className={styles.container}>
@@ -55,6 +70,12 @@ export default function ProveedoresPage() {
             onChange={(e) => handleSearch(e.target.value)}
           />
         </div>
+        <MultiSelectDropdown
+          options={expedienteOptions}
+          selected={expedienteFilter}
+          onChange={handleExpedienteFilter}
+          placeholder="Todos los expedientes"
+        />
       </div>
 
       {loading ? (
@@ -80,11 +101,11 @@ export default function ProveedoresPage() {
               ) : (
                 paginated.map((p) => (
                   <tr key={p.id}>
-                    <td>{p.nombre}</td>
+                    <td>{p.nombre?.toUpperCase()}</td>
                     <td>{p.tipo ?? "—"}</td>
                     <td>{p.email ?? "—"}</td>
                     <td>{p.telefono ?? "—"}</td>
-                    <td>{p.ciudad ?? "—"}</td>
+                    <td>{p.ciudad?.toUpperCase() ?? "—"}</td>
                     <td>{p.pais ?? "—"}</td>
                   </tr>
                 ))

@@ -1,4 +1,5 @@
 import { getCotizaciones } from "@/actions/cotizaciones";
+import { getCurrentUsuario } from "@/actions/usuarios";
 import styles from "./page.module.css";
 import Link from "next/link";
 
@@ -10,8 +11,15 @@ const ESTADO_MAP: Record<string, { bg: string; color: string; label: string }> =
 };
 
 export default async function CotizacionesCard() {
-  const cotizaciones = (await getCotizaciones()) ?? [];
-  const recientes = cotizaciones.slice(0, 8);
+  const [cotizaciones, usuario] = await Promise.all([
+    getCotizaciones(),
+    getCurrentUsuario(),
+  ]);
+  const nombreUsuario = usuario ? `${usuario.nombre ?? ''} ${usuario.apellidos ?? ''}`.trim() : null;
+  const propias = nombreUsuario
+    ? (cotizaciones ?? []).filter((c: any) => c.agente?.nombre === nombreUsuario)
+    : (cotizaciones ?? []);
+  const recientes = propias.slice(0, 8);
 
   return (
     <div className={styles.listCard}>
