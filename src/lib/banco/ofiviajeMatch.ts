@@ -1228,7 +1228,20 @@ export async function reconstruirMarcadoresDriveFileIdRetroactivo(): Promise<{
 
     for (const mov of candidatosSinMarcar) {
       if (!disponibles.has(mov.id)) continue;
-      const pagoMatch = pagos.find((p) => !pagosConMatch.has(p) && coincide(mov, p));
+      // No basta con que importe+fecha coincidan (coincide()): el
+      // conciliado_externo_datos ya guardado en el movimiento debe
+      // corresponder realmente a un pago DE ESTE fichero, si no se
+      // marcaría con el _driveFileId de un proceso al que no pertenece
+      // (mismo importe/fecha, proveedor/expediente distinto).
+      const referenciaGuardada = mov.conciliado_externo_datos?.referenciaProvCte;
+      const documentoGuardado = mov.conciliado_externo_datos?.documento;
+      const pagoMatch = pagos.find(
+        (p) =>
+          !pagosConMatch.has(p) &&
+          coincide(mov, p) &&
+          (referenciaGuardada ? p.referenciaProvCte === referenciaGuardada : true) &&
+          (documentoGuardado ? p.documento === documentoGuardado : true)
+      );
       if (!pagoMatch) continue;
 
       pagosConMatch.add(pagoMatch);
