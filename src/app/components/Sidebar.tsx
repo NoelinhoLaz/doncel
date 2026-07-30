@@ -268,7 +268,17 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
                 <Icons.Landmark size={14} className={styles.submenuIcon} />
                 <span>Movimientos banco</span>
               </button>
-              <button 
+              <button
+                className={styles.submenuItem}
+                onClick={() => {
+                  setBancoSubOpen(false);
+                  router.push("/banco/historial-procesos");
+                }}
+              >
+                <Icons.History size={14} className={styles.submenuIcon} />
+                <span>Historial de procesos</span>
+              </button>
+              <button
                 className={styles.submenuItem}
                 onClick={() => {
                   setBancoSubOpen(false);

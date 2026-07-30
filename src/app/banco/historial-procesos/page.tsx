@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import NextLink from "next/link";
 import { ArrowLeft, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { getHistorialProcesosOfiviaje, forzarProcesoOfiviajeUsuarioActual } from "@/actions/banco";
-import { getCurrentAgencyDetails } from "@/actions/agencias";
 
 const parseFechaUtc = (valor: string) => new Date(/Z|[+-]\d\d:\d\d$/.test(valor) ? valor : `${valor}Z`);
 const POR_PAGINA = 10;
@@ -14,6 +13,7 @@ interface HistorialFila {
   ficheroId: string;
   nombreFichero: string;
   procesadoEn: string;
+  ultimoReprocesoEn: string | null;
   procesados: number;
   pagos: number;
   cobros: number;
@@ -43,6 +43,7 @@ function TablaHistorial({
     <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: "0.5rem", background: "#f8fafc" }}>
       <table style={{ width: "100%", tableLayout: "fixed", borderCollapse: "collapse", fontSize: "0.85rem" }}>
         <colgroup>
+          <col style={{ width: "130px" }} />
           <col style={{ width: "180px" }} />
           <col style={{ width: "auto" }} />
           <col style={{ width: "100px" }} />
@@ -53,6 +54,7 @@ function TablaHistorial({
         <thead>
           <tr style={{ background: "#eef1f6", textAlign: "left" }}>
             <th style={{ padding: "0.6rem 0.9rem", fontWeight: 600, color: "#334155" }}>Fecha</th>
+            <th style={{ padding: "0.6rem 0.9rem", fontWeight: 600, color: "#334155" }}>Ult. Reproceso</th>
             <th style={{ padding: "0.6rem 0.9rem", fontWeight: 600, color: "#334155" }}>Fichero</th>
             <th style={{ padding: "0.6rem 0.9rem", fontWeight: 600, color: "#334155" }}>Tipo</th>
             <th style={{ padding: "0.6rem 0.9rem", fontWeight: 600, color: "#334155", textAlign: "right" }}>Procesados</th>
@@ -71,6 +73,9 @@ function TablaHistorial({
             >
               <td style={{ padding: "0.6rem 0.9rem", color: "#334155", whiteSpace: "nowrap" }}>
                 {parseFechaUtc(f.procesadoEn).toLocaleString("es-ES", { timeZone: "Europe/Madrid" })}
+              </td>
+              <td style={{ padding: "0.6rem 0.9rem", color: "#94a3b8", whiteSpace: "nowrap" }}>
+                {f.ultimoReprocesoEn ? parseFechaUtc(f.ultimoReprocesoEn).toLocaleString("es-ES", { timeZone: "Europe/Madrid" }) : "—"}
               </td>
               <td
                 title={f.nombreFichero}
@@ -155,7 +160,6 @@ export default function HistorialProcesosPage() {
   const router = useRouter();
   const [filas, setFilas] = useState<HistorialFila[]>([]);
   const [loading, setLoading] = useState(true);
-  const [agencyDetails, setAgencyDetails] = useState<any>(null);
   const [procesando, setProcesando] = useState(false);
 
   const cargarHistorial = () => {
@@ -167,7 +171,6 @@ export default function HistorialProcesosPage() {
 
   useEffect(() => {
     cargarHistorial();
-    getCurrentAgencyDetails().then(setAgencyDetails);
   }, []);
 
   const handleProcesarArchivos = async () => {
@@ -188,52 +191,11 @@ export default function HistorialProcesosPage() {
   const ficherosCobros = filas.filter((f) => f.nombreFichero.startsWith("TSRLiquidacionCajas_"));
 
   return (
-    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "#1D2441" }}>
-      <header
-        style={{
-          flexShrink: 0,
-          background: "#1D2441",
-          boxSizing: "border-box",
-          paddingTop: "env(safe-area-inset-top)",
-        }}
-      >
-        <div
-          style={{
-            height: "44px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "0 1.5rem",
-          }}
-        >
-          <img
-            src="/alivia_logo_no_text.png"
-            alt="Alivia"
-            style={{ height: "24px", maxWidth: "150px", objectFit: "contain" }}
-          />
-          <span
-            style={{
-              color: "rgba(255,255,255,0.85)",
-              fontSize: "0.85rem",
-              fontWeight: 300,
-              fontFamily: "var(--font-raleway), sans-serif",
-              textTransform: "uppercase",
-              letterSpacing: "0.03em",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              maxWidth: "180px",
-            }}
-          >
-            {agencyDetails?.nombre_comercial || ""}
-          </span>
-        </div>
-      </header>
-
-      <div style={{ flex: 1, background: "#1D2441" }}>
-        <div style={{ width: "100%", background: "#f8fafc", padding: "1.5rem" }}>
+    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, background: "#f8fafc" }}>
+        <div style={{ width: "100%", padding: "1.5rem" }}>
           <NextLink
-            href="/movimientos-app"
+            href="/banco"
             style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", color: "#334155", fontSize: "0.85rem", textDecoration: "none", marginBottom: "1rem" }}
           >
             <ArrowLeft size={16} />
@@ -284,7 +246,7 @@ export default function HistorialProcesosPage() {
               <div style={{ marginBottom: "2rem" }}>
                 <TablaHistorial
                   filas={ficherosPagos}
-                  onRowClick={(f) => router.push(`/movimientos-app/historial-procesos/${f.ficheroId}?fecha=${encodeURIComponent(f.procesadoEn)}`)}
+                  onRowClick={(f) => router.push(`/banco/historial-procesos/${f.ficheroId}?fecha=${encodeURIComponent(f.procesadoEn)}`)}
                 />
               </div>
 
@@ -293,7 +255,7 @@ export default function HistorialProcesosPage() {
               </h2>
               <TablaHistorial
                 filas={ficherosCobros}
-                onRowClick={(f) => router.push(`/movimientos-app/historial-procesos/${f.ficheroId}?fecha=${encodeURIComponent(f.procesadoEn)}`)}
+                onRowClick={(f) => router.push(`/banco/historial-procesos/${f.ficheroId}?fecha=${encodeURIComponent(f.procesadoEn)}`)}
               />
             </>
           )}

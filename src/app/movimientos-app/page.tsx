@@ -1231,7 +1231,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                   </button>
 
                   <NextLink
-                    href="/movimientos-app/historial-procesos"
+                    href="/banco/historial-procesos"
                     style={{
                       width: "100%",
                       display: "flex",

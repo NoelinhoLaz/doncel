@@ -925,6 +925,7 @@ export interface HistorialProcesoOfiviaje {
   ficheroId: string;
   nombreFichero: string;
   procesadoEn: string;
+  ultimoReprocesoEn: string | null;
   procesados: number;
   pagos: number;
   cobros: number;
@@ -945,7 +946,7 @@ export async function getHistorialProcesosOfiviaje(): Promise<HistorialProcesoOf
 
   const { data: ficheros } = await agencyDb
     .from("ofiviaje_ficheros_procesados")
-    .select("drive_file_id, nombre_fichero, procesado_en, pagos_procesados, movimientos_conciliados, origen")
+    .select("drive_file_id, nombre_fichero, procesado_en, ultimo_reproceso_en, pagos_procesados, movimientos_conciliados, origen")
     .order("procesado_en", { ascending: false });
 
   if (!ficheros || ficheros.length === 0) return [];
@@ -953,6 +954,7 @@ export async function getHistorialProcesosOfiviaje(): Promise<HistorialProcesoOf
   const { data: tareas } = await agencyDb
     .from("ofiviaje_tareas_pendientes")
     .select("drive_file_id")
+    .eq("resuelta", false)
     .in("drive_file_id", ficheros.map((f: any) => f.drive_file_id));
 
   const revisionPorFichero = new Map<string, number>();
@@ -968,6 +970,7 @@ export async function getHistorialProcesosOfiviaje(): Promise<HistorialProcesoOf
       ficheroId: f.drive_file_id,
       nombreFichero: f.nombre_fichero || "",
       procesadoEn: f.procesado_en,
+      ultimoReprocesoEn: f.ultimo_reproceso_en || null,
       procesados,
       pagos: esCobro ? 0 : conciliados,
       cobros: esCobro ? conciliados : 0,
@@ -981,10 +984,19 @@ export async function getHistorialProcesosOfiviaje(): Promise<HistorialProcesoOf
 export interface DetalleProcesoOfiviajeProcesado {
   movimientoId: string;
   movimientoFecha: string;
+  movimientoFechaValor: string | null;
   movimientoConcepto: string;
   movimientoImporte: number;
+  ofiImporte: number | null;
   proveedorNombre: string;
   expediente: string;
+  documento: string | null;
+  documentoCobroPago: string | null;
+  nombrePasajero: string | null;
+  fechaVencto: string | null;
+  fechaDoc: string | null;
+  cuentaBancariaId: string | null;
+  cuentaBancariaNombre: string | null;
 }
 
 export interface DetalleProcesoOfiviajeTarea {
@@ -993,8 +1005,18 @@ export interface DetalleProcesoOfiviajeTarea {
   nombre: string;
   expediente: string;
   importe: number | null;
+  documento: string | null;
+  documentoCobroPago: string | null;
+  nombrePasajero: string | null;
+  fechaVencto: string | null;
+  fechaDoc: string | null;
   movConcepto: string | null;
   movImporte: number | null;
+  movFecha: string | null;
+  movFechaValor: string | null;
+  resuelta: boolean;
+  cuentaBancariaId: string | null;
+  cuentaBancariaNombre: string | null;
 }
 
 export interface DetalleProcesoOfiviaje {
@@ -1012,6 +1034,9 @@ export interface DetalleProcesoOfiviaje {
 export async function getDetalleProcesoOfiviaje(driveFileId: string): Promise<DetalleProcesoOfiviaje> {
   const agencyDb = await getAgencyDbClient();
 
+  const { data: cuentasBancarias } = await agencyDb.from("config_cuentas_bancarias").select("id, banco");
+  const nombreCuentaPorId = new Map<string, string>((cuentasBancarias || []).map((c: any) => [c.id, c.banco]));
+
   const { data: ficheroInfo } = await agencyDb
     .from("ofiviaje_ficheros_procesados")
     .select("nombre_fichero, procesado_en, movimientos_conciliados")
@@ -1022,7 +1047,7 @@ export async function getDetalleProcesoOfiviaje(driveFileId: string): Promise<De
 
   const { data: movimientosMarcados } = await agencyDb
     .from("contabilidad_movimientos_banco")
-    .select("id, fecha_operacion, concepto_original, importe, conciliado_externo_datos")
+    .select("id, fecha_operacion, fecha_valor, concepto_original, importe, cuenta_bancaria_id, conciliado_externo_datos")
     .eq("conciliado_externo", true)
     .contains("conciliado_externo_datos", { _driveFileId: driveFileId });
 
@@ -1050,7 +1075,7 @@ export async function getDetalleProcesoOfiviaje(driveFileId: string): Promise<De
 
     let query = agencyDb
       .from("contabilidad_movimientos_banco")
-      .select("id, fecha_operacion, concepto_original, importe, cuenta_bancaria_id, conciliado_externo_datos, conciliado_externo_en")
+      .select("id, fecha_operacion, fecha_valor, concepto_original, importe, cuenta_bancaria_id, conciliado_externo_datos, conciliado_externo_en")
       .eq("conciliado_externo", true)
       .eq("conciliado_externo_origen", "ofiviaje")
       .gte("conciliado_externo_en", inicioDia.toISOString())
@@ -1067,28 +1092,75 @@ export async function getDetalleProcesoOfiviaje(driveFileId: string): Promise<De
   const procesados: DetalleProcesoOfiviajeProcesado[] = movimientos.map((m: any) => ({
     movimientoId: m.id,
     movimientoFecha: m.fecha_operacion,
+    movimientoFechaValor: m.fecha_valor || null,
     movimientoConcepto: m.concepto_original || "",
     movimientoImporte: Number(m.importe),
+    ofiImporte: m.conciliado_externo_datos?.importePendiente != null ? Number(m.conciliado_externo_datos.importePendiente) : null,
     proveedorNombre: m.conciliado_externo_datos?.proveedorNombre || "",
-    expediente: m.conciliado_externo_datos?.documento || "",
+    expediente: m.conciliado_externo_datos?.referenciaProvCte || "",
+    documento: m.conciliado_externo_datos?.documento || null,
+    documentoCobroPago: m.conciliado_externo_datos?.documentoCobroPago || null,
+    nombrePasajero: m.conciliado_externo_datos?.nombrePasajero || null,
+    fechaVencto: m.conciliado_externo_datos?.fechaVencto || null,
+    fechaDoc: m.conciliado_externo_datos?.fechaDoc || null,
+    cuentaBancariaId: m.cuenta_bancaria_id || null,
+    cuentaBancariaNombre: m.cuenta_bancaria_id ? nombreCuentaPorId.get(m.cuenta_bancaria_id) || null : null,
   }));
 
   const { data: tareasData } = await agencyDb
     .from("ofiviaje_tareas_pendientes")
-    .select("id, tipo, datos")
+    .select("id, tipo, datos, cuenta_bancaria_id, resuelta")
     .eq("drive_file_id", driveFileId);
+
+  // Para tareas de cobros, la cuenta no viene en cuenta_bancaria_id (el XML de
+  // cobros no la indica por fila); se resuelve consultando el movimiento
+  // bancario asociado, si la tarea ya tiene un movimientoId candidato.
+  const movimientoIdsSinCuenta = (tareasData || [])
+    .filter((fila: any) => !fila.cuenta_bancaria_id && fila.datos?.movimientoId)
+    .map((fila: any) => fila.datos.movimientoId as string);
+
+  // La fecha valor del movimiento bancario no se persiste en `datos` de la
+  // tarea (solo movimientoFecha = fecha_operacion), así que se resuelve para
+  // todas las tareas con movimientoId, igual que en la tabla Procesados.
+  const movimientoIdsParaFechaValor = [
+    ...new Set((tareasData || []).map((fila: any) => fila.datos?.movimientoId as string | undefined).filter((id): id is string => !!id)),
+  ];
+
+  const cuentaPorMovimientoId = new Map<string, string>();
+  const fechaValorPorMovimientoId = new Map<string, string>();
+  if (movimientoIdsSinCuenta.length > 0 || movimientoIdsParaFechaValor.length > 0) {
+    const { data: movsParaDatos } = await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .select("id, cuenta_bancaria_id, fecha_valor")
+      .in("id", [...new Set([...movimientoIdsSinCuenta, ...movimientoIdsParaFechaValor])]);
+    for (const mov of movsParaDatos || []) {
+      if (mov.cuenta_bancaria_id) cuentaPorMovimientoId.set(mov.id, mov.cuenta_bancaria_id);
+      if (mov.fecha_valor) fechaValorPorMovimientoId.set(mov.id, mov.fecha_valor);
+    }
+  }
 
   const tareas: DetalleProcesoOfiviajeTarea[] = (tareasData || []).map((fila: any) => {
     const datos = fila.datos;
     const pago = datos.pago ?? (fila.tipo === "sinMatch" ? datos : undefined);
+    const cuentaBancariaId = fila.cuenta_bancaria_id || (datos?.movimientoId ? cuentaPorMovimientoId.get(datos.movimientoId) : null) || null;
     return {
       id: fila.id,
       tipo: fila.tipo,
       nombre: pago?.proveedorNombre || pago?.nombrePagador || "",
-      expediente: pago?.documento || "",
+      expediente: pago?.referenciaProvCte || "",
+      documento: pago?.documento || null,
+      documentoCobroPago: pago?.documentoCobroPago || null,
+      nombrePasajero: pago?.nombrePasajero || null,
+      fechaVencto: pago?.fechaVencto || null,
+      fechaDoc: pago?.fechaDoc || null,
       importe: pago?.importePendiente ?? null,
-      movConcepto: datos.movimientoConcepto ?? null,
-      movImporte: datos.movimientoImporte ?? null,
+      movConcepto: datos.movimientoConcepto ?? datos.movimientoConceptos?.[0] ?? null,
+      movImporte: datos.movimientoImporte ?? datos.movimientoImportes?.[0] ?? null,
+      movFecha: datos.movimientoFecha ?? datos.movimientoFechas?.[0] ?? null,
+      movFechaValor: datos?.movimientoId ? fechaValorPorMovimientoId.get(datos.movimientoId) || null : null,
+      resuelta: !!fila.resuelta,
+      cuentaBancariaId,
+      cuentaBancariaNombre: cuentaBancariaId ? nombreCuentaPorId.get(cuentaBancariaId) || null : null,
     };
   });
 
@@ -1360,6 +1432,81 @@ export async function confirmarConciliacionOfiviaje(matches: OfiviajeMatchPropue
  * desde la app — lo usa el botón "Procesar archivos" del historial. Se
  * registra con origen "manual" para distinguirlo del cron en el historial.
  */
+/**
+ * Reprocesa un fichero OFIviaje ya procesado anteriormente (identificado por
+ * drive_file_id), tras crear un alias de proveedor: recalcula solo las
+ * incidencias de tipo "revisarNombre" (Cliente/Proveedor distinto) de ese
+ * fichero. Las que ahora sí concilian (match automático gracias al alias) se
+ * aplican y su tarea se marca como `resuelta` (no se borra, sigue visible en
+ * el listado de incidencias con ese estado). El resto de tipos de incidencia
+ * (revisarImporte, revisarSuma, revisarDivision, sinMatch) no se tocan, ya
+ * que solo se corrigen manualmente en OFIviaje, no con alias.
+ */
+export async function reprocesarFicheroOfiviaje(driveFileId: string): Promise<{
+  procesados: number;
+  conciliados: number;
+  error?: string;
+}> {
+  try {
+    const tokens = await getDriveTokensUsuarioActual();
+    const agencyDb = await getAgencyDbClient();
+
+    const ficheros = await listarXmlEnCarpeta(tokens);
+    const fichero = ficheros.find((f) => f.id === driveFileId);
+    if (!fichero) return { procesados: 0, conciliados: 0, error: "No se encontró el fichero en Drive." };
+
+    const { data: tareasRevisarNombre } = await agencyDb
+      .from("ofiviaje_tareas_pendientes")
+      .select("id, datos")
+      .eq("drive_file_id", driveFileId)
+      .eq("tipo", "revisarNombre")
+      .eq("resuelta", false);
+
+    if (!tareasRevisarNombre || tareasRevisarNombre.length === 0) {
+      return { procesados: 0, conciliados: 0 };
+    }
+
+    const contenido = await descargarContenidoXml(tokens, fichero.id);
+    const result = await calcularMatchesFicheroXml(agencyDb, contenido, fichero);
+
+    const movimientoIdsAunPendientes = new Set(result.revisarNombre.map((m) => m.movimientoId));
+
+    let conciliados = 0;
+    for (const match of result.matches) {
+      const { error: updateError } = await agencyDb
+        .from("contabilidad_movimientos_banco")
+        .update({
+          conciliado_externo: true,
+          conciliado_externo_origen: "ofiviaje",
+          conciliado_externo_en: new Date().toISOString(),
+          conciliado_externo_datos: { ...match.pago, _driveFileId: fichero.id },
+        })
+        .eq("id", match.movimientoId);
+      if (!updateError) conciliados++;
+    }
+
+    const idsAResolver = tareasRevisarNombre
+      .filter((fila: any) => !movimientoIdsAunPendientes.has(fila.datos?.movimientoId))
+      .map((fila: any) => fila.id);
+
+    if (idsAResolver.length > 0) {
+      await agencyDb
+        .from("ofiviaje_tareas_pendientes")
+        .update({ resuelta: true, resuelta_en: new Date().toISOString() })
+        .in("id", idsAResolver);
+    }
+
+    await agencyDb
+      .from("ofiviaje_ficheros_procesados")
+      .update({ ultimo_reproceso_en: new Date().toISOString(), origen: "manual" })
+      .eq("drive_file_id", driveFileId);
+
+    return { procesados: result.procesados, conciliados };
+  } catch (error: any) {
+    return { procesados: 0, conciliados: 0, error: error.message || "Error al reprocesar el fichero." };
+  }
+}
+
 export async function forzarProcesoOfiviajeUsuarioActual(): Promise<{
   ficherosNuevos: number;
   procesados: number;
@@ -1630,4 +1777,155 @@ export async function enviarInformeHtmlPorEmail(
   } catch (err: any) {
     return { success: false, error: err.message || "Error al enviar el email." };
   }
+}
+
+/**
+ * TEMPORAL (herramienta de mantenimiento puntual, solo lectura): busca en
+ * todos los ficheros de pagos ya existentes en Drive el proveedorNombre
+ * correspondiente a una lista de documentos (números de pago OFI), sin
+ * escribir nada en BD ni en Drive. Sirve para reconstruir alias
+ * proveedor↔banco que no se crearon en su momento.
+ */
+export async function buscarProveedorPorDocumento(documentos: string[]): Promise<Record<string, string>> {
+  const tokens = await getDriveTokensUsuarioActual();
+  const ficheros = await listarXmlEnCarpeta(tokens);
+  const buscados = new Set(documentos);
+  const resultado: Record<string, string> = {};
+
+  for (const fichero of ficheros) {
+    if (fichero.nombre.startsWith("TSRLiquidacionCajas_")) continue;
+    if (buscados.size === 0) break;
+
+    let contenido: string;
+    try {
+      contenido = await descargarContenidoXml(tokens, fichero.id);
+    } catch {
+      continue;
+    }
+
+    const pagos = parseOfiviajePagosXml(contenido);
+    for (const pago of pagos) {
+      if (buscados.has(pago.documento)) {
+        resultado[pago.documento] = pago.proveedorNombre;
+        buscados.delete(pago.documento);
+      }
+    }
+  }
+
+  return resultado;
+}
+
+/**
+ * Al conciliar manualmente con un Expediente OFI indicado, busca ese
+ * documento en los ficheros de pagos de Drive y, si el proveedor real no
+ * comparte ningún token con el concepto bancario del movimiento, guarda el
+ * alias automáticamente — igual que ya ocurre al conciliar una tarea
+ * "Cliente/Proveedor distinto" desde el listado, pero para cualquier
+ * conciliación manual con expediente. No falla la conciliación si algo va
+ * mal aquí (best-effort).
+ */
+export async function intentarGuardarAliasSiNoCoincide(
+  agencyDb: any,
+  movimientoBancoId: string,
+  expedienteOfi: string
+): Promise<void> {
+  const { data: movimiento } = await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .select("concepto_original")
+    .eq("id", movimientoBancoId)
+    .maybeSingle();
+
+  const conceptoOriginal = movimiento?.concepto_original || "";
+  if (!conceptoOriginal) return;
+
+  const proveedores = await buscarProveedorPorDocumento([expedienteOfi]);
+  const proveedorNombre = proveedores[expedienteOfi];
+  if (!proveedorNombre) return;
+
+  const tokensConcepto = new Set(tokenizarNombre(conceptoOriginal));
+  const tokensProveedor = tokenizarNombre(proveedorNombre);
+  const coincide = tokensProveedor.some((t) => tokensConcepto.has(t));
+  if (coincide) return;
+
+  await guardarAliasProveedorOfi(proveedorNombre, conceptoOriginal);
+}
+
+/**
+ * TEMPORAL (herramienta de mantenimiento puntual, solo lectura): lista todos
+ * los proveedores únicos que aparecen en los ficheros de pagos de Drive
+ * junto con un importe/fecha de alguno de sus vencimientos, para poder
+ * identificar a ojo cuál corresponde a un concepto bancario dado (cuando no
+ * se conoce el documento OFI exacto). No escribe nada en BD ni en Drive.
+ */
+export async function listarProveedoresUnicosOfi(): Promise<{ proveedorNombre: string; ejemploDocumento: string; ejemploImporte: number }[]> {
+  const tokens = await getDriveTokensUsuarioActual();
+  const ficheros = await listarXmlEnCarpeta(tokens);
+  const vistos = new Map<string, { documento: string; importe: number }>();
+
+  for (const fichero of ficheros) {
+    if (fichero.nombre.startsWith("TSRLiquidacionCajas_")) continue;
+
+    let contenido: string;
+    try {
+      contenido = await descargarContenidoXml(tokens, fichero.id);
+    } catch {
+      continue;
+    }
+
+    const pagos = parseOfiviajePagosXml(contenido);
+    for (const pago of pagos) {
+      if (!vistos.has(pago.proveedorNombre)) {
+        vistos.set(pago.proveedorNombre, { documento: pago.documento, importe: pago.importePendiente });
+      }
+    }
+  }
+
+  return Array.from(vistos.entries()).map(([proveedorNombre, datos]) => ({
+    proveedorNombre,
+    ejemploDocumento: datos.documento,
+    ejemploImporte: datos.importe,
+  }));
+}
+
+/**
+ * TEMPORAL (herramienta de mantenimiento puntual, solo lectura): busca en
+ * todos los ficheros de pagos de Drive los vencimientos cuyo importe
+ * (en valor absoluto, con tolerancia de 1 céntimo) coincida con alguno de
+ * los indicados, para identificar el proveedor real cuando no se conoce el
+ * documento OFI. No escribe nada en BD ni en Drive.
+ */
+export async function buscarProveedorPorImporte(
+  importes: number[]
+): Promise<{ importeBuscado: number; documento: string; proveedorNombre: string; fechaVencto: string }[]> {
+  const tokens = await getDriveTokensUsuarioActual();
+  const ficheros = await listarXmlEnCarpeta(tokens);
+  const objetivos = importes.map((i) => Math.abs(i));
+  const encontrados: { importeBuscado: number; documento: string; proveedorNombre: string; fechaVencto: string }[] = [];
+
+  for (const fichero of ficheros) {
+    if (fichero.nombre.startsWith("TSRLiquidacionCajas_")) continue;
+
+    let contenido: string;
+    try {
+      contenido = await descargarContenidoXml(tokens, fichero.id);
+    } catch {
+      continue;
+    }
+
+    const pagos = parseOfiviajePagosXml(contenido);
+    for (const pago of pagos) {
+      for (const objetivo of objetivos) {
+        if (Math.abs(pago.importePendiente - objetivo) <= 0.01) {
+          encontrados.push({
+            importeBuscado: objetivo,
+            documento: pago.documento,
+            proveedorNombre: pago.proveedorNombre,
+            fechaVencto: pago.fechaVencto,
+          });
+        }
+      }
+    }
+  }
+
+  return encontrados;
 }
