@@ -120,7 +120,10 @@ function tokenizarNombre(texto: string): string[] {
  * `aliasPorProveedor` recoge alias bancarios confirmados manualmente por el
  * usuario en conciliaciones anteriores (ej. proveedor OFI "Aerolíneas
  * Españolas S.A." con alias bancario "IBERIA"): si el concepto contiene un
- * alias conocido de este proveedor, se da por coincidente sin más.
+ * alias conocido de este proveedor, se da por coincidente sin más. El alias
+ * matchea por token exacto o por prefijo (ej. alias "RyanairE-Com" matchea
+ * el token "ryanairecoma95qjr"), porque algunos comercios pegan un código de
+ * reserva variable justo después del nombre sin separador.
  */
 function nombreCoincide(
   movimiento: any,
@@ -134,7 +137,13 @@ function nombreCoincide(
   if (tokensProveedor.some((t) => tokensConcepto.has(t))) return true;
 
   const alias = aliasPorProveedor?.get(pago.proveedorNombre.trim().toUpperCase()) || [];
-  return alias.some((a) => tokenizarNombre(a).some((t) => tokensConcepto.has(t)));
+  return alias.some((a) =>
+    tokenizarNombre(a).some((aliasToken) =>
+      [...tokensConcepto].some(
+        (t) => t === aliasToken || (aliasToken.length >= 4 && t.startsWith(aliasToken))
+      )
+    )
+  );
 }
 
 /**
