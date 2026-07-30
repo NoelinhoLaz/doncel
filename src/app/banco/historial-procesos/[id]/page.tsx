@@ -594,7 +594,7 @@ export default function DetalleProcesoOfiviajePage() {
     return coincideTexto && coincideCuenta && coincideTipo;
   });
 
-  const tareasPendientesCount = tareas.filter((t) => !t.resuelta).length;
+  const tareasPendientesCount = tareasFiltradas.filter((t) => !t.resuelta).length;
 
   return (
     <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column" }}>
