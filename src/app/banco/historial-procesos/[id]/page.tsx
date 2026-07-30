@@ -266,7 +266,7 @@ function DropdownTipos({
   );
 }
 
-function ModalBuscarMovimiento({ onClose }: { onClose: () => void }) {
+function ModalBuscarMovimiento({ tarea, onClose }: { tarea: Tarea; onClose: () => void }) {
   const [texto, setTexto] = useState("");
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
@@ -283,19 +283,41 @@ function ModalBuscarMovimiento({ onClose }: { onClose: () => void }) {
     getCuentasBancarias().then((data: any) => setCuentas(data || []));
   }, []);
 
+  // El importe se introduce siempre en positivo (como en OFI); como
+  // contabilidad_movimientos_banco guarda el importe con signo (negativo para
+  // pagos/Debe, positivo para cobros/Haber), se traduce aquí el rango
+  // positivo introducido al rango real según el signo esperado, para que
+  // buscar "de 450 a 452" encuentre un movimiento de -451 sin que el usuario
+  // tenga que invertir ni negar los valores.
   const buscar = async () => {
     setBuscando(true);
     try {
+      const min = importeMin ? Number(importeMin) : undefined;
+      const max = importeMax ? Number(importeMax) : undefined;
+
+      let importeMinReal: number | undefined;
+      let importeMaxReal: number | undefined;
+
+      if (tipoMovimiento === "debe") {
+        importeMinReal = max != null ? -max : undefined;
+        importeMaxReal = min != null ? -min : undefined;
+      } else {
+        // Haber, o sin signo indicado: se asume positivo (Haber). Para
+        // buscar un pago (Debe) hay que seleccionar explícitamente "Debe".
+        importeMinReal = min;
+        importeMaxReal = max;
+      }
+
       const { data } = await getMovimientosBanco({
         search: texto.trim() || undefined,
         fechaDesde: fechaDesde || undefined,
         fechaHasta: fechaHasta || undefined,
-        importeMin: importeMin ? Number(importeMin) : undefined,
-        importeMax: importeMax ? Number(importeMax) : undefined,
+        importeMin: importeMinReal,
+        importeMax: importeMaxReal,
         tipoMovimiento: tipoMovimiento || undefined,
         cuentaIds: cuentaId ? [cuentaId] : undefined,
         page: 1,
-        limit: 30,
+        limit: 100,
       });
       setResultados(data);
       setBuscado(true);
@@ -315,6 +337,28 @@ function ModalBuscarMovimiento({ onClose }: { onClose: () => void }) {
           <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b" }}>
             <X size={18} />
           </button>
+        </div>
+
+        <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "0.5rem", padding: "0.75rem", marginBottom: "1rem" }}>
+          <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: "0.4rem" }}>Datos OFI</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.3rem 1rem", fontSize: "0.8rem" }}>
+            {[
+              { label: "Proveedor", valor: tarea.nombre },
+              { label: "Expediente OFI", valor: tarea.expediente },
+              { label: "Importe", valor: tarea.importe != null ? formatoImporte(tarea.importe) : null },
+              { label: "Documento", valor: tarea.documento },
+              { label: "Doc. cobro/pago", valor: tarea.documentoCobroPago },
+              { label: "Pasajero", valor: tarea.nombrePasajero },
+              { label: "Fecha vencto", valor: tarea.fechaVencto },
+              { label: "Fecha doc", valor: tarea.fechaDoc },
+            ]
+              .filter((d) => d.valor)
+              .map((d) => (
+                <div key={d.label}>
+                  <span style={{ color: "#94a3b8" }}>{d.label}:</span> <span style={{ color: "#334155", fontWeight: 600 }}>{d.valor}</span>
+                </div>
+              ))}
+          </div>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginBottom: "1rem" }}>
@@ -362,20 +406,22 @@ function ModalBuscarMovimiento({ onClose }: { onClose: () => void }) {
           </div>
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <label style={{ flex: 1, fontSize: "0.75rem", color: "#64748b" }}>
-              Importe mín.
+              Importe mín. (en positivo)
               <input
                 type="number"
                 step="0.01"
+                min={0}
                 value={importeMin}
                 onChange={(e) => setImporteMin(e.target.value)}
                 style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.85rem", border: "1px solid #e2e8f0", borderRadius: "0.375rem", boxSizing: "border-box", marginTop: "0.2rem" }}
               />
             </label>
             <label style={{ flex: 1, fontSize: "0.75rem", color: "#64748b" }}>
-              Importe máx.
+              Importe máx. (en positivo)
               <input
                 type="number"
                 step="0.01"
+                min={0}
                 value={importeMax}
                 onChange={(e) => setImporteMax(e.target.value)}
                 style={{ width: "100%", padding: "0.4rem 0.5rem", fontSize: "0.85rem", border: "1px solid #e2e8f0", borderRadius: "0.375rem", boxSizing: "border-box", marginTop: "0.2rem" }}
@@ -418,6 +464,12 @@ function ModalBuscarMovimiento({ onClose }: { onClose: () => void }) {
           resultados.length === 0 ? (
             <p style={{ color: "#94a3b8", fontSize: "0.85rem" }}>Sin resultados para estos filtros.</p>
           ) : (
+            <div>
+              {!texto && !fechaDesde && !fechaHasta && !importeMin && !importeMax && (
+                <p style={{ color: "#94a3b8", fontSize: "0.75rem", marginBottom: "0.4rem" }}>
+                  Sin filtros se muestran solo los movimientos más recientes. Añade texto, fecha o importe para buscar en todo el histórico.
+                </p>
+              )}
             <div style={{ border: "1px solid #e2e8f0", borderRadius: "0.5rem", overflow: "hidden" }}>
               {resultados.map((m) => (
                 <div
@@ -447,6 +499,7 @@ function ModalBuscarMovimiento({ onClose }: { onClose: () => void }) {
                 </div>
               ))}
             </div>
+            </div>
           )
         )}
       </div>
@@ -472,7 +525,7 @@ export default function DetalleProcesoOfiviajePage() {
   const [cuentasTareas, setCuentasTareas] = useState<string[]>([]);
   const [tiposTareas, setTiposTareas] = useState<string[]>([]);
   const [creandoAliasId, setCreandoAliasId] = useState<string | null>(null);
-  const [buscarMovimientoAbierto, setBuscarMovimientoAbierto] = useState(false);
+  const [tareaBuscarMovimiento, setTareaBuscarMovimiento] = useState<Tarea | null>(null);
 
   const cargarDetalle = () => {
     return getDetalleProcesoOfiviaje(ficheroId).then((data) => {
@@ -874,7 +927,7 @@ export default function DetalleProcesoOfiviajePage() {
                                     )}
                                     {t.tipo === "sinMatch" && (
                                       <button
-                                        onClick={() => setBuscarMovimientoAbierto(true)}
+                                        onClick={() => setTareaBuscarMovimiento(t)}
                                         style={{
                                           fontSize: "0.7rem",
                                           fontWeight: 600,
@@ -950,7 +1003,9 @@ export default function DetalleProcesoOfiviajePage() {
           )}
         </div>
       </div>
-      {buscarMovimientoAbierto && <ModalBuscarMovimiento onClose={() => setBuscarMovimientoAbierto(false)} />}
+      {tareaBuscarMovimiento && (
+        <ModalBuscarMovimiento tarea={tareaBuscarMovimiento} onClose={() => setTareaBuscarMovimiento(null)} />
+      )}
     </div>
   );
 }
