@@ -44,17 +44,11 @@ function diasEntre(fechaA: string, fechaB: string): number {
 }
 
 function fechaCoincide(movimiento: any, pago: OfiviajePago): boolean {
-  const fechasXml = [parseOfiviajeFecha(pago.fechaVencto), parseOfiviajeFecha(pago.fechaDoc)].filter(
-    (f): f is string => !!f
-  );
+  const fechaXml = parseOfiviajeFecha(pago.fechaVencto);
+  if (!fechaXml) return false;
   const fechasMov = [movimiento.fecha_operacion, movimiento.fecha_valor].filter(Boolean);
 
-  for (const fXml of fechasXml) {
-    for (const fMov of fechasMov) {
-      if (diasEntre(fXml, fMov) <= TOLERANCIA_DIAS) return true;
-    }
-  }
-  return false;
+  return fechasMov.some((fMov) => diasEntre(fechaXml, fMov) <= TOLERANCIA_DIAS);
 }
 
 function coincide(movimiento: any, pago: OfiviajePago): boolean {
@@ -1482,7 +1476,7 @@ export async function reprocesarFicheroOfiviaje(driveFileId: string): Promise<{
     const contenido = await descargarContenidoXml(tokens, fichero.id);
     const result = await calcularMatchesFicheroXml(agencyDb, contenido, fichero);
 
-    const movimientoIdsAunPendientes = new Set(result.revisarNombre.map((m) => m.movimientoId));
+    const movimientoIdsConciliados = new Set<string>();
 
     let conciliados = 0;
     for (const match of result.matches) {
@@ -1495,11 +1489,51 @@ export async function reprocesarFicheroOfiviaje(driveFileId: string): Promise<{
           conciliado_externo_datos: { ...match.pago, _driveFileId: fichero.id },
         })
         .eq("id", match.movimientoId);
-      if (!updateError) conciliados++;
+      if (!updateError) {
+        conciliados++;
+        movimientoIdsConciliados.add(match.movimientoId);
+      }
     }
 
+    // Un movimiento puede haberse conciliado en ESTA pasada (recién
+    // añadido a movimientoIdsConciliados) o en una pasada anterior (por
+    // ejemplo si esta función ya se ejecutó antes para el mismo alias):
+    // en ese segundo caso, calcularMatchesFicheroXml ya no lo trae como
+    // candidato (la query excluye conciliado_externo=true), por lo que
+    // nunca aparecería en result.matches y su tarea quedaría "huérfana"
+    // — el movimiento conciliado correctamente, pero la incidencia que lo
+    // originó seguiría marcada como pendiente para siempre. Se comprueba
+    // aquí el estado real de conciliado_externo de cada movimiento de las
+    // tareas pendientes para cubrir también ese caso.
+    const movimientoIdsPendientes = tareasRevisarNombre
+      .map((fila: any) => fila.datos?.movimientoId as string | undefined)
+      .filter((id): id is string => !!id && !movimientoIdsConciliados.has(id));
+
+    if (movimientoIdsPendientes.length > 0) {
+      // También se incluyen los movimientos con estado = 'conciliado' (por
+      // ejemplo, resueltos manualmente desde Movimientos Banco por otra
+      // vía): si el usuario ya lo gestionó de otra forma, la incidencia
+      // de nombre distinto que lo originó debe marcarse resuelta igual,
+      // en vez de quedar huérfana para siempre porque calcularMatchesFicheroXml
+      // nunca lo trae como candidato (excluye estado != pendiente/propuesto/parcial).
+      const { data: movsYaConciliados } = await agencyDb
+        .from("contabilidad_movimientos_banco")
+        .select("id")
+        .in("id", movimientoIdsPendientes)
+        .or("conciliado_externo.eq.true,estado.eq.conciliado");
+      for (const mov of movsYaConciliados || []) {
+        movimientoIdsConciliados.add(mov.id);
+      }
+    }
+
+    // Solo se marca resuelta una tarea si su movimiento realmente se
+    // concilió (en esta pasada o en una anterior): si el alias hizo que
+    // el nombre ya coincida pero el pago cayó en otra categoría
+    // (revisarImporte, revisarDivision...) o el UPDATE falló, la tarea
+    // debe seguir apareciendo como incidencia pendiente en vez de
+    // desaparecer sin que el movimiento bancario llegue a conciliarse.
     const idsAResolver = tareasRevisarNombre
-      .filter((fila: any) => !movimientoIdsAunPendientes.has(fila.datos?.movimientoId))
+      .filter((fila: any) => movimientoIdsConciliados.has(fila.datos?.movimientoId))
       .map((fila: any) => fila.id);
 
     if (idsAResolver.length > 0) {
