@@ -525,6 +525,7 @@ export async function conciliarDesdeOfiPagos(): Promise<ConciliarDesdeOfiResulta
         conciliado_externo_origen: "ofiviaje",
         conciliado_externo_en: new Date().toISOString(),
         conciliado_externo_datos: { ...pagoMatch, _driveFileId: filaOrigen.drive_file_id },
+        estado: "conciliado",
       })
       .eq("id", mov.id);
     if (updateMovError) continue;

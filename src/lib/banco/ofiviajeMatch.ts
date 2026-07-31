@@ -1597,6 +1597,7 @@ export async function confirmarConciliacionOfiviaje(matches: OfiviajeMatchPropue
           conciliado_externo_origen: "ofiviaje",
           conciliado_externo_en: new Date().toISOString(),
           conciliado_externo_datos: { ...match.pago, _driveFileId: match.ficheroId },
+          estado: "conciliado",
         })
         .eq("id", match.movimientoId);
 
@@ -1678,6 +1679,7 @@ async function reprocesarFicheroConContenido(
         conciliado_externo_origen: "ofiviaje",
         conciliado_externo_en: new Date().toISOString(),
         conciliado_externo_datos: { ...match.pago, _driveFileId: fichero.id },
+        estado: "conciliado",
       })
       .eq("id", match.movimientoId);
     if (!updateError) {
@@ -1874,6 +1876,7 @@ export async function comprobarOfiviajeParaAgencia(
             conciliado_externo_origen: "ofiviaje",
             conciliado_externo_en: new Date().toISOString(),
             conciliado_externo_datos: { ...match.pago, _driveFileId: fichero.id },
+            estado: "conciliado",
           })
           .eq("id", match.movimientoId);
         if (!updateError) {
