@@ -11,6 +11,33 @@ import { createBridgeConnectSession, syncBridgeTransactions } from "@/lib/banco/
 import { getCurrentAgenciaSlug } from "@/actions/agencias";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { previsualizarOfiviajeUsuarioActual, previsualizarCobrosXmlManual, confirmarConciliacionOfiviaje as confirmarConciliacionOfiviajeLib, enviarInformeOfiviajePorEmail, guardarAliasProveedorOfi, getUltimoInformeReal as getUltimoInformeRealLib, marcarTareaPendienteResueltaPorMovimiento, getHistorialProcesosOfiviaje as getHistorialProcesosOfiviajeLib, forzarProcesoOfiviajeUsuarioActual as forzarProcesoOfiviajeUsuarioActualLib, getDetalleProcesoOfiviaje as getDetalleProcesoOfiviajeLib, buscarProveedorPorDocumento as buscarProveedorPorDocumentoLib, listarProveedoresUnicosOfi as listarProveedoresUnicosOfiLib, buscarProveedorPorImporte as buscarProveedorPorImporteLib, intentarGuardarAliasSiNoCoincide, reprocesarFicheroOfiviaje as reprocesarFicheroOfiviajeLib, reprocesarTodosLosFicherosOfiviaje as reprocesarTodosLosFicherosOfiviajeLib, type OfiviajeMatchPropuesto, type OfiviajePreview } from "@/lib/banco/ofiviajeMatch";
+import { descargarMovimientosOfiviaje as descargarMovimientosOfiviajeLib, getOfiPagos as fetchOfiPagos, getOfiCobros as fetchOfiCobros, vincularMovimientosOfiConBanco as vincularMovimientosOfiConBancoLib, buscarCandidatosMovimientoBanco as buscarCandidatosMovimientoBancoLib, vincularManualmenteMovimientoBanco as vincularManualmenteMovimientoBancoLib } from "@/lib/banco/ofiviajeMovimientos";
+
+export async function descargarMovimientosOfiviaje() {
+  return descargarMovimientosOfiviajeLib();
+}
+
+export async function getOfiPagos() {
+  return fetchOfiPagos();
+}
+
+export async function getOfiCobros() {
+  return fetchOfiCobros();
+}
+
+// TEMPORAL: backfill manual de movimiento_banco_id para registros OFI que ya
+// existían antes de que la conciliación empezara a rellenar ese campo.
+export async function vincularMovimientosOfiConBanco() {
+  return vincularMovimientosOfiConBancoLib();
+}
+
+export async function buscarCandidatosMovimientoBanco(tipo: "pago" | "cobro", id: string) {
+  return buscarCandidatosMovimientoBancoLib(tipo, id);
+}
+
+export async function vincularManualmenteMovimientoBanco(tipo: "pago" | "cobro", id: string, movimientoBancoId: string) {
+  return vincularManualmenteMovimientoBancoLib(tipo, id, movimientoBancoId);
+}
 
 export async function getMovimientosBanco(options?: any) {
   return fetchMovimientosBanco(options);

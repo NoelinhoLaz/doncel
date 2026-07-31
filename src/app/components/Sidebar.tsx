@@ -282,6 +282,16 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
                 className={styles.submenuItem}
                 onClick={() => {
                   setBancoSubOpen(false);
+                  router.push("/banco/movimientos-ofiviaje");
+                }}
+              >
+                <Icons.Download size={14} className={styles.submenuIcon} />
+                <span>Movimientos OFIviaje</span>
+              </button>
+              <button
+                className={styles.submenuItem}
+                onClick={() => {
+                  setBancoSubOpen(false);
                   router.push("/banco/diario");
                 }}
               >

@@ -71,10 +71,15 @@ function coincideImporteAproximado(movimiento: any, pago: OfiviajePago): boolean
   return fechaCoincide(movimiento, pago);
 }
 
-// En el concepto bancario el código de localizador viene precedido de "LOC"
-// (ej. "Locvg2133"); en OFIviaje el mismo código aparece "pelado" en el campo
-// Doc. cobro/pago (ej. "VG2133"). Se extrae de cada lado y se compara el
-// código alfanumérico normalizado, ignorando el prefijo "LOC".
+// En el concepto bancario el código de localizador a veces viene precedido
+// de "LOC" (ej. "Locvg2133"), pero no siempre: también aparece "pelado" como
+// palabra suelta en el texto libre (ej. "RUMANIA 187 - MB2SQW - 15 AGOSTO").
+// En OFIviaje el mismo código aparece en el campo Doc. cobro/pago (ej.
+// "VG2133", "MB2SQW"). En vez de exigir el prefijo "LOC", se busca si el
+// código de Doc. cobro/pago (normalizado, alfanumérico) aparece como token
+// completo en cualquier parte del concepto bancario — con longitud mínima de
+// 5 para evitar falsos positivos con números cortos (importes, referencias
+// genéricas) que coincidan por casualidad.
 const REGEX_CODIGO_LOC = /LOC\s?-?\s?([A-Z0-9]{3,})/i;
 
 function extraerCodigoLoc(texto: string): string | null {
@@ -87,10 +92,137 @@ function normalizarCodigo(texto: string): string {
 }
 
 function codigoLocCoincide(movimiento: any, pago: OfiviajePago): boolean {
-  const codigoConcepto = extraerCodigoLoc(movimiento.concepto_original || "");
+  const concepto = movimiento.concepto_original || "";
   const codigoPago = normalizarCodigo(pago.documentoCobroPago || "");
-  if (!codigoConcepto || !codigoPago) return false;
-  return codigoConcepto === codigoPago;
+  if (!codigoPago) return false;
+
+  // 1. Caso con prefijo "LOC" explícito (más específico, se prueba primero).
+  const codigoConcepto = extraerCodigoLoc(concepto);
+  if (codigoConcepto && codigoConcepto === codigoPago) return true;
+
+  // 2. Fallback: el código de Doc. cobro/pago aparece como palabra suelta en
+  // el concepto, sin prefijo "LOC". Solo para códigos de 5+ caracteres para
+  // evitar coincidir con números cortos genéricos (importes, últimos dígitos
+  // de tarjeta, etc.) que aparecen mucho en los conceptos bancarios.
+  if (codigoPago.length >= 5) {
+    const tokensConcepto = concepto
+      .toUpperCase()
+      .split(/[\s,.\-_/;:!?]+/)
+      .map((t: string) => t.replace(/[^A-Z0-9]/g, ""));
+    if (tokensConcepto.includes(codigoPago)) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Cuando varios pagos/cobros del XML coinciden en importe+fecha para el
+ * mismo movimiento bancario (mismo proveedor y hasta mismo expediente, pero
+ * documento distinto; o mismo importe/fecha con proveedores distintos), no
+ * hay garantía de que el primero del array sea el correcto — el banco no
+ * dice a qué documento OFI corresponde un cargo. Se desambigua en cascada:
+ * 1. Código de localizador del concepto bancario vs Doc. cobro/pago del XML
+ *    (señal más fuerte: es specific al documento, no solo al proveedor).
+ * 2. Coincidencia de nombre de proveedor/pagador.
+ * Si tras ambos pasos sigue habiendo más de un candidato empatado, no se
+ * elige ninguno a ciegas: se devuelve null para que el movimiento quede sin
+ * match automático (visible como pendiente/revisar en vez de conciliado con
+ * un documento que podría no ser el correcto).
+ */
+/**
+ * Clave de agrupación para "cargos idénticos": importe absoluto (redondeado
+ * a céntimos) + fecha exacta. Se usa tanto para el movimiento bancario
+ * (fecha_operacion) como para el pago OFI (fechaVencto, con fallback a
+ * fechaDoc) — son casos donde fechaCoincide() ya exige coincidencia dentro
+ * de tolerancia, pero aquí se agrupa por el día exacto del movimiento para
+ * no mezclar cargos de días distintos en el mismo lote de "da igual cuál".
+ */
+function claveImporteFecha(importe: number, fecha: string | null): string | null {
+  if (!fecha) return null;
+  return `${Math.round(Math.abs(importe) * 100)}|${fecha}`;
+}
+
+/**
+ * Empareja por orden de aparición los movimientos y pagos que quedaron sin
+ * resolver por coincide()+desambiguarCandidato() pero comparten importe y
+ * fecha exactos con más de un candidato de cada lado (cargos idénticos: no
+ * hay ninguna señal en el concepto que permita saber cuál-con-cuál). Se
+ * concilia hasta el mínimo de cada grupo; el resto queda sin match.
+ */
+function emparejarGruposEmpatadosPorOrden(
+  movimientos: any[],
+  pagos: OfiviajePago[],
+  pagosConMatch: Set<OfiviajePago>,
+  matches: OfiviajeMatchPropuesto[],
+  fichero: { id: string; nombre: string; modifiedTime: string }
+): void {
+  const movimientosSinMatch = movimientos.filter((mov: any) => !matches.some((m) => m.movimientoId === mov.id));
+  // Solo pagos con tarjeta (TipoOperacion "J" del XML): son los que generan
+  // conceptos bancarios idénticos repetidos (mismo comercio/tarjeta, mismo
+  // importe, mismo día). Las transferencias (tipo "N") sí suelen traer texto
+  // libre distintivo (nombre del pagador, concepto) y quedan fuera de este
+  // emparejamiento "a ciegas" — el volumen de colisión ahí es mucho menor y
+  // el riesgo de emparejar mal no compensa.
+  const pagosSinMatch = pagos.filter((p) => !pagosConMatch.has(p) && p.tipoOperacion === "J");
+  if (movimientosSinMatch.length === 0 || pagosSinMatch.length === 0) return;
+
+  const movimientosPorClave = new Map<string, any[]>();
+  for (const mov of movimientosSinMatch) {
+    const clave = claveImporteFecha(Number(mov.importe), mov.fecha_operacion);
+    if (!clave) continue;
+    (movimientosPorClave.get(clave) ?? movimientosPorClave.set(clave, []).get(clave)!).push(mov);
+  }
+
+  const pagosPorClave = new Map<string, OfiviajePago[]>();
+  for (const pago of pagosSinMatch) {
+    const fechaPago = parseOfiviajeFecha(pago.fechaVencto) || parseOfiviajeFecha(pago.fechaDoc);
+    const clave = claveImporteFecha(pago.importePendiente, fechaPago);
+    if (!clave) continue;
+    (pagosPorClave.get(clave) ?? pagosPorClave.set(clave, []).get(clave)!).push(pago);
+  }
+
+  for (const [clave, movsGrupo] of movimientosPorClave) {
+    const pagosGrupo = pagosPorClave.get(clave);
+    // Solo cargos genuinamente indistinguibles: más de un candidato en al
+    // menos un lado. Si hay exactamente 1 movimiento y 1 pago, ya lo habría
+    // resuelto el bucle principal — llegar aquí con 1:1 sería un caso donde
+    // coincide() falló por algún otro motivo, no aplica este emparejamiento.
+    if (!pagosGrupo || movsGrupo.length < 2) continue;
+
+    const n = Math.min(movsGrupo.length, pagosGrupo.length);
+    for (let i = 0; i < n; i++) {
+      const mov = movsGrupo[i];
+      const pago = pagosGrupo[i];
+      pagosConMatch.add(pago);
+      matches.push({
+        movimientoId: mov.id,
+        movimientoImporte: Number(mov.importe),
+        movimientoFecha: mov.fecha_operacion,
+        movimientoConcepto: mov.concepto_original || "",
+        pago,
+        ficheroId: fichero.id,
+        ficheroNombre: fichero.nombre,
+        ficheroModifiedTime: fichero.modifiedTime,
+      });
+    }
+  }
+}
+
+function desambiguarCandidato(
+  movimiento: any,
+  candidatos: OfiviajePago[],
+  aliasPorProveedor?: Map<string, string[]>
+): OfiviajePago | null {
+  if (candidatos.length === 1) return candidatos[0];
+
+  const porLoc = candidatos.filter((p) => codigoLocCoincide(movimiento, p));
+  if (porLoc.length === 1) return porLoc[0];
+
+  const baseParaNombre = porLoc.length > 1 ? porLoc : candidatos;
+  const porNombre = baseParaNombre.filter((p) => nombreCoincide(movimiento, p, aliasPorProveedor));
+  if (porNombre.length === 1) return porNombre[0];
+
+  return null;
 }
 
 const STOP_WORDS_NOMBRE = new Set([
@@ -181,12 +313,46 @@ export async function guardarAliasProveedorOfi(proveedorOfi: string, aliasBanco:
   );
 }
 
+/**
+ * Registra en ofi_pagos/ofi_cobros a qué movimiento bancario quedó conciliado
+ * cada registro OFI, usando su clave única (documento+apunte para pagos,
+ * factura+fecha+pagador+importe para cobros). Best-effort: si la fila aún no
+ * se descargó a estas tablas (no se ha usado "Descargar movimientos" en
+ * /banco/movimientos-ofiviaje), no falla la conciliación en sí.
+ */
+async function vincularMovimientoBancoConRegistroOfi(agencyDb: any, match: OfiviajeMatchPropuesto): Promise<void> {
+  try {
+    if (match.cobroOriginal) {
+      const c = match.cobroOriginal;
+      const fechaMovimiento = parseOfiviajeFechaCorta(c.fechaMovimiento);
+      await agencyDb
+        .from("ofi_cobros")
+        .update({ movimiento_banco_id: match.movimientoId })
+        .eq("factura", c.factura)
+        .eq("fecha_movimiento", fechaMovimiento)
+        .eq("nombre_pagador", c.nombrePagador)
+        .eq("importe_cobro", c.importeCobro);
+    } else {
+      await agencyDb
+        .from("ofi_pagos")
+        .update({ movimiento_banco_id: match.movimientoId })
+        .eq("documento", match.pago.documento)
+        .eq("apunte", match.pago.apunte);
+    }
+  } catch {
+    // best-effort: no bloquea la conciliación si la tabla ofi_pagos/ofi_cobros
+    // no tiene aún esa fila (fichero no descargado) o si falla el UPDATE.
+  }
+}
+
 export interface OfiviajeMatchPropuesto {
   movimientoId: string;
   movimientoImporte: number;
   movimientoFecha: string;
   movimientoConcepto: string;
   pago: OfiviajePago;
+  /** Presente solo cuando este match viene de un cobro (fichero TSRLiquidacionCajas_*), no de un pago. */
+  cobroOriginal?: OfiviajeCobro;
   ficheroId: string;
   ficheroNombre: string;
   ficheroModifiedTime: string;
@@ -314,7 +480,14 @@ async function calcularMatchesXmlContenido(
   const pagosConMatch = new Set<OfiviajePago>();
 
   for (const mov of movimientos) {
-    const pagoMatch = pagos.find((p) => !pagosConMatch.has(p) && coincide(mov, p));
+    // Puede haber varios pagos del XML con el mismo importe+fecha
+    // compitiendo por el mismo movimiento bancario (mismo proveedor con
+    // documentos distintos, incluso mismo expediente, o proveedores
+    // distintos con importes coincidentes). Se desambigua por código de
+    // localizador y nombre; si sigue habiendo empate no se asigna a ciegas.
+    const candidatosPorImporteFecha = pagos.filter((p) => !pagosConMatch.has(p) && coincide(mov, p));
+    if (candidatosPorImporteFecha.length === 0) continue;
+    const pagoMatch = desambiguarCandidato(mov, candidatosPorImporteFecha, aliasPorProveedor);
     if (!pagoMatch) continue;
 
     pagosConMatch.add(pagoMatch);
@@ -338,6 +511,15 @@ async function calcularMatchesXmlContenido(
       revisarNombre.push(propuesta);
     }
   }
+
+  // Grupos de cargos idénticos (mismo proveedor/tarjeta, mismo importe, mismo
+  // día) que ninguna señal del concepto permite distinguir entre sí — ej. 4
+  // compras de "COMPRA TRAVELFINE..." de 92,76€ el mismo día. Da igual cuál
+  // se empareje con cuál: el resultado contable es el mismo. Se concilian
+  // por orden de aparición hasta el mínimo entre movimientos y pagos
+  // pendientes de ese grupo; si sobra alguno de un lado, queda sin match
+  // (no se inventa ni se descarta nada, solo pasa a revisión).
+  emparejarGruposEmpatadosPorOrden(movimientos, pagos, pagosConMatch, matches, fichero);
 
   // Segunda pasada (prioritaria sobre "revisar importe" individual): pares de
   // movimientos sin match cuya suma coincide con un pago OFIviaje pendiente,
@@ -552,6 +734,7 @@ async function calcularMatchesCobrosXmlContenido(
   if (cobros.length === 0) return vacio;
 
   const pagos = cobros.map(cobroComoPago);
+  const cobroOriginalPorPago = new Map<OfiviajePago, OfiviajeCobro>(pagos.map((p, i) => [p, cobros[i]]));
   const fechaMinimaBusqueda = calcularFechaMinimaBusqueda(pagos);
   const aliasPorProveedor = await getAliasProveedorPorAgencia(agencyDb);
 
@@ -587,9 +770,12 @@ async function calcularMatchesCobrosXmlContenido(
 
   for (const mov of movimientos) {
     const movEsEntrada = Number(mov.importe) > 0;
-    const pagoMatch = pagos.find(
+    // Mismo criterio de desambiguación que en calcularMatchesXmlContenido.
+    const candidatosPorImporteFecha = pagos.filter(
       (p) => !pagosConMatch.has(p) && (p.importePendiente >= 0) === movEsEntrada && coincide(mov, p)
     );
+    if (candidatosPorImporteFecha.length === 0) continue;
+    const pagoMatch = desambiguarCandidato(mov, candidatosPorImporteFecha, aliasPorProveedor);
     if (!pagoMatch) continue;
 
     pagosConMatch.add(pagoMatch);
@@ -599,6 +785,7 @@ async function calcularMatchesCobrosXmlContenido(
       movimientoFecha: mov.fecha_operacion,
       movimientoConcepto: mov.concepto_original || "",
       pago: pagoMatch,
+      cobroOriginal: cobroOriginalPorPago.get(pagoMatch),
       ficheroId: fichero.id,
       ficheroNombre: fichero.nombre,
       ficheroModifiedTime: fichero.modifiedTime,
@@ -1413,7 +1600,10 @@ export async function confirmarConciliacionOfiviaje(matches: OfiviajeMatchPropue
         })
         .eq("id", match.movimientoId);
 
-      if (!updateError) conciliados++;
+      if (!updateError) {
+        conciliados++;
+        await vincularMovimientoBancoConRegistroOfi(agencyDb, match);
+      }
     }
 
     // Registrar cada fichero involucrado como procesado, una sola vez.
@@ -1493,6 +1683,7 @@ async function reprocesarFicheroConContenido(
     if (!updateError) {
       conciliados++;
       movimientoIdsConciliados.add(match.movimientoId);
+      await vincularMovimientoBancoConRegistroOfi(agencyDb, match);
     }
   }
 
@@ -1685,7 +1876,10 @@ export async function comprobarOfiviajeParaAgencia(
             conciliado_externo_datos: { ...match.pago, _driveFileId: fichero.id },
           })
           .eq("id", match.movimientoId);
-        if (!updateError) conciliados++;
+        if (!updateError) {
+          conciliados++;
+          await vincularMovimientoBancoConRegistroOfi(agencyDb, match);
+        }
       }
 
       // Persistir lo que no se resolvió automáticamente, para que siga

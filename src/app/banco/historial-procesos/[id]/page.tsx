@@ -276,8 +276,11 @@ function ModalBuscarMovimiento({ tarea, onClose }: { tarea: Tarea; onClose: () =
   const [cuentaId, setCuentaId] = useState("");
   const [cuentas, setCuentas] = useState<{ id: string; banco: string }[]>([]);
   const [resultados, setResultados] = useState<any[]>([]);
+  const [totalResultados, setTotalResultados] = useState(0);
+  const [paginaResultados, setPaginaResultados] = useState(1);
   const [buscando, setBuscando] = useState(false);
   const [buscado, setBuscado] = useState(false);
+  const RESULTADOS_POR_PAGINA = 100;
 
   useEffect(() => {
     getCuentasBancarias().then((data: any) => setCuentas(data || []));
@@ -289,7 +292,7 @@ function ModalBuscarMovimiento({ tarea, onClose }: { tarea: Tarea; onClose: () =
   // positivo introducido al rango real según el signo esperado, para que
   // buscar "de 450 a 452" encuentre un movimiento de -451 sin que el usuario
   // tenga que invertir ni negar los valores.
-  const buscar = async () => {
+  const buscar = async (pagina: number = 1) => {
     setBuscando(true);
     try {
       const min = importeMin ? Number(importeMin) : undefined;
@@ -308,7 +311,7 @@ function ModalBuscarMovimiento({ tarea, onClose }: { tarea: Tarea; onClose: () =
         importeMaxReal = max;
       }
 
-      const { data } = await getMovimientosBanco({
+      const { data, count } = await getMovimientosBanco({
         search: texto.trim() || undefined,
         fechaDesde: fechaDesde || undefined,
         fechaHasta: fechaHasta || undefined,
@@ -316,10 +319,12 @@ function ModalBuscarMovimiento({ tarea, onClose }: { tarea: Tarea; onClose: () =
         importeMax: importeMaxReal,
         tipoMovimiento: tipoMovimiento || undefined,
         cuentaIds: cuentaId ? [cuentaId] : undefined,
-        page: 1,
-        limit: 100,
+        page: pagina,
+        limit: RESULTADOS_POR_PAGINA,
       });
       setResultados(data);
+      setTotalResultados(count || 0);
+      setPaginaResultados(pagina);
       setBuscado(true);
     } finally {
       setBuscando(false);
@@ -441,7 +446,7 @@ function ModalBuscarMovimiento({ tarea, onClose }: { tarea: Tarea; onClose: () =
             </label>
           </div>
           <button
-            onClick={buscar}
+            onClick={() => buscar(1)}
             disabled={buscando}
             style={{
               padding: "0.5rem 0.9rem",
@@ -470,6 +475,11 @@ function ModalBuscarMovimiento({ tarea, onClose }: { tarea: Tarea; onClose: () =
                   Sin filtros se muestran solo los movimientos más recientes. Añade texto, fecha o importe para buscar en todo el histórico.
                 </p>
               )}
+            {totalResultados > RESULTADOS_POR_PAGINA && (
+              <p style={{ color: "#94a3b8", fontSize: "0.75rem", marginBottom: "0.4rem" }}>
+                Mostrando {(paginaResultados - 1) * RESULTADOS_POR_PAGINA + 1}-{Math.min(paginaResultados * RESULTADOS_POR_PAGINA, totalResultados)} de {totalResultados} resultados
+              </p>
+            )}
             <div style={{ border: "1px solid #e2e8f0", borderRadius: "0.5rem", overflow: "hidden" }}>
               {resultados.map((m) => (
                 <div
@@ -499,6 +509,27 @@ function ModalBuscarMovimiento({ tarea, onClose }: { tarea: Tarea; onClose: () =
                 </div>
               ))}
             </div>
+            {totalResultados > RESULTADOS_POR_PAGINA && (
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.75rem", marginTop: "0.6rem" }}>
+                <button
+                  onClick={() => buscar(paginaResultados - 1)}
+                  disabled={buscando || paginaResultados <= 1}
+                  style={{ padding: "0.3rem 0.6rem", fontSize: "0.8rem", border: "1px solid #e2e8f0", borderRadius: "0.375rem", background: "#fff", cursor: paginaResultados <= 1 ? "default" : "pointer", opacity: paginaResultados <= 1 ? 0.5 : 1 }}
+                >
+                  Anterior
+                </button>
+                <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                  Página {paginaResultados} de {Math.ceil(totalResultados / RESULTADOS_POR_PAGINA)}
+                </span>
+                <button
+                  onClick={() => buscar(paginaResultados + 1)}
+                  disabled={buscando || paginaResultados * RESULTADOS_POR_PAGINA >= totalResultados}
+                  style={{ padding: "0.3rem 0.6rem", fontSize: "0.8rem", border: "1px solid #e2e8f0", borderRadius: "0.375rem", background: "#fff", cursor: paginaResultados * RESULTADOS_POR_PAGINA >= totalResultados ? "default" : "pointer", opacity: paginaResultados * RESULTADOS_POR_PAGINA >= totalResultados ? 0.5 : 1 }}
+                >
+                  Siguiente
+                </button>
+              </div>
+            )}
             </div>
           )
         )}
