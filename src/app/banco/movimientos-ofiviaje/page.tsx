@@ -5,6 +5,7 @@ import NextLink from "next/link";
 import { ArrowLeft, Download, Link2, Search, X } from "lucide-react";
 import { descargarMovimientosOfiviaje, getOfiPagos, getOfiCobros, buscarCandidatosMovimientoBanco, vincularManualmenteMovimientoBanco, conciliarDesdeOfiPagos } from "@/actions/banco";
 import { RefreshCw } from "lucide-react";
+import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
 
 function ConciliadoCell({
   movimientoBanco,
@@ -263,6 +264,21 @@ function Tabla<T extends { id: string }>({
   );
 }
 
+// El prefijo de 3 dígitos de la referencia de expediente (referencia_prov_cte
+// del XML de OFIviaje, ej. "003251325") identifica la agencia/oficina de
+// origen del expediente.
+const AGENCIA_POR_PREFIJO: Record<string, string> = {
+  "001": "Alcalá",
+  "002": "Guadalajara",
+  "003": "Palma",
+};
+
+function agenciaDeExpediente(referenciaProvCte: string | null): string | null {
+  if (!referenciaProvCte) return null;
+  const prefijo = referenciaProvCte.slice(0, 3);
+  return AGENCIA_POR_PREFIJO[prefijo] ?? null;
+}
+
 export default function MovimientosOfiviajePage() {
   const [pagos, setPagos] = useState<any[]>([]);
   const [cobros, setCobros] = useState<any[]>([]);
@@ -273,6 +289,7 @@ export default function MovimientosOfiviajePage() {
   const [resultado, setResultado] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const [filtroConciliado, setFiltroConciliado] = useState<"todos" | "conciliados" | "pendientes">("todos");
+  const [filtroAgencia, setFiltroAgencia] = useState<string[]>([]);
   const [objetivoBusqueda, setObjetivoBusqueda] = useState<{ tipo: "pago" | "cobro"; registro: any } | null>(null);
 
   const cargar = () => {
@@ -310,12 +327,16 @@ export default function MovimientosOfiviajePage() {
     const q = busqueda.trim().toLowerCase();
     return pagos.filter((p) => {
       if (!pasaFiltroConciliado(p.movimiento_banco_id)) return false;
+      if (filtroAgencia.length > 0) {
+        const agencia = agenciaDeExpediente(p.referencia_prov_cte);
+        if (!agencia || !filtroAgencia.includes(agencia)) return false;
+      }
       if (!q) return true;
       return [p.documento, p.referencia_prov_cte, p.proveedor_nombre, p.nombre_pasajero]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [pagos, busqueda, filtroConciliado]);
+  }, [pagos, busqueda, filtroConciliado, filtroAgencia]);
 
   const cobrosFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -425,6 +446,12 @@ export default function MovimientosOfiviajePage() {
           <option value="conciliados">Conciliados</option>
           <option value="pendientes">Pendientes</option>
         </select>
+        <MultiSelectDropdown
+          options={["Alcalá", "Guadalajara", "Palma"]}
+          selected={filtroAgencia}
+          onChange={setFiltroAgencia}
+          placeholder="Todas las agencias"
+        />
       </div>
 
       {loading ? (

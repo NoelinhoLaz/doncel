@@ -158,8 +158,9 @@ REGLAS BANCO (usar cuando la pregunta sea sobre movimientos, conciliación, fluj
   * "todos los movimientos" / "todos" / sin especificar → sin filtro de importe
   Ejemplo correcto para "ingresos bancarios cuenta Alcalá": WHERE cmb.deleted=false AND cmb.importe > 0 AND cb.iban ILIKE '%alcala%'
   Ejemplo incorrecto (PROHIBIDO): WHERE cmb.deleted=false AND cb.iban ILIKE '%alcala%'  ← falta el filtro importe
-- para métricas (¿cuántos?, ¿cuánto?, total, suma) → usar type:text con COUNT(*) o SUM() sin campo id — NO generar tabla
-- cuando el usuario pida "listado", "dame los", "muéstrame" → SIEMPRE type:table con las filas reales, NUNCA type:text
+- para métricas de UN SOLO VALOR (¿cuántos en total?, ¿cuánto suma todo?) → usar type:text con COUNT(*) o SUM() que devuelva UNA sola fila — NO generar tabla
+- CRÍTICO: si la consulta agrupa por algo (proveedor, cuenta, agente, mes, etc.) y por tanto puede devolver MÁS DE UNA fila, usa SIEMPRE type:table, aunque la pregunta esté redactada como "cuánto debe cada proveedor" o "cuánto hay por cuenta" — cualquier GROUP BY es una tabla, nunca type:text. type:text es solo para un único número/valor agregado sin agrupar.
+- cuando el usuario pida "listado", "dame los", "muéstrame", "cuál/cuáles", "por cada", "más repetido" → SIEMPRE type:table con las filas reales, NUNCA type:text
 - ejemplo métrica: {"type":"text","summary":"Hay N movimientos sin conciliar.","sql":"SELECT COUNT(*) AS total FROM contabilidad_movimientos_banco WHERE deleted=false AND estado IN ('pendiente','propuesto') AND fecha_operacion < CURRENT_DATE - INTERVAL '15 days'"}
 - NUNCA uses años hardcodeados (2024, 2025…). Siempre: EXTRACT(YEAR FROM fecha_operacion) = EXTRACT(YEAR FROM CURRENT_DATE) para "este año", o fecha_operacion >= DATE_TRUNC('year', CURRENT_DATE)
 
@@ -694,6 +695,30 @@ Para filtrar por agente usa su id directamente (más fiable que buscar por nombr
         title: parsed.title ?? "",
         data,
         summary: parsed.summary,
+      },
+      source: responseSource,
+    };
+  }
+
+  // type:text con más de una fila: el LLM clasificó mal la pregunta (ej. "cuánto
+  // debe cada proveedor" leído como métrica en vez de listado). Formatear solo
+  // queryData[0] aquí perdería el resto de filas en silencio — se construye una
+  // tabla real con los mismos datos en vez de truncar a la primera fila.
+  if (queryData.length > 1) {
+    const cols = Object.keys(queryData[0]);
+    const rows = queryData.map((row: any) => cols.map((col) => row[col] ?? null));
+    const idColIndex = cols.findIndex((c) => c.toLowerCase() === "id");
+    const factualSummary = `Se encontraron ${rows.length} resultados.`;
+    return {
+      summary: factualSummary,
+      result: {
+        type: "table",
+        title: parsed.title ?? "Resultados",
+        columns: cols,
+        rows,
+        idColumn: idColIndex >= 0 ? idColIndex : undefined,
+        entityType: parsed.entityType ?? "generic",
+        summary: factualSummary,
       },
       source: responseSource,
     };

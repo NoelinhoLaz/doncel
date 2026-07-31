@@ -34,6 +34,7 @@ export function PagoPropuestoPorMatch({
   const [conciliando, setConciliando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rechazado, setRechazado] = useState(false);
+  const [rechazando, setRechazando] = useState(false);
   const [selectedPagos, setSelectedPagos] = useState<Set<string>>(new Set(match.pagos.map(p => p.id)));
 
   const displayScore = match.match_score <= 1 ? Math.round(match.match_score * 100) : Math.round(match.match_score);
@@ -76,6 +77,25 @@ export function PagoPropuestoPorMatch({
       console.error(err);
     } finally {
       setConciliando(false);
+    }
+  };
+
+  const handleRechazar = async () => {
+    setRechazando(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/contabilidad/movimientos-banco/rechazar", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ movimiento_banco_id: movimiento.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al rechazar la propuesta");
+      setRechazado(true);
+    } catch (err: any) {
+      setError(err.message || "Error al rechazar la propuesta");
+    } finally {
+      setRechazando(false);
     }
   };
 
@@ -278,7 +298,8 @@ export function PagoPropuestoPorMatch({
         </button>
 
         <button
-          onClick={() => setRechazado(true)}
+          onClick={handleRechazar}
+          disabled={rechazando}
           style={{
             backgroundColor: "#f8fafc",
             color: "#64748b",
@@ -287,17 +308,18 @@ export function PagoPropuestoPorMatch({
             padding: "0.6rem 1rem",
             fontWeight: "600",
             fontSize: "0.85rem",
-            cursor: "pointer",
+            cursor: rechazando ? "default" : "pointer",
+            opacity: rechazando ? 0.6 : 1,
             transition: "all 0.15s ease"
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "#f1f5f9";
+            if (!rechazando) e.currentTarget.style.backgroundColor = "#f1f5f9";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "#f8fafc";
+            if (!rechazando) e.currentTarget.style.backgroundColor = "#f8fafc";
           }}
         >
-          Rechazar
+          {rechazando ? "Rechazando..." : "Rechazar"}
         </button>
       </div>
     </div>

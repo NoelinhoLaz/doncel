@@ -33,6 +33,7 @@ export function IngresoPropuestoPorMatch({
   const [conciliando, setConciliando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rechazado, setRechazado] = useState(false);
+  const [rechazando, setRechazando] = useState(false);
   const [confirmarExceso, setConfirmarExceso] = useState(false);
 
   const displayScore = match.match_score <= 1 ? Math.round(match.match_score * 100) : Math.round(match.match_score);
@@ -75,6 +76,25 @@ export function IngresoPropuestoPorMatch({
       console.error(err);
     } finally {
       setConciliando(false);
+    }
+  };
+
+  const handleRechazar = async () => {
+    setRechazando(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/contabilidad/movimientos-banco/rechazar", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ movimiento_banco_id: movimiento.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al rechazar la propuesta");
+      setRechazado(true);
+    } catch (err: any) {
+      setError(err.message || "Error al rechazar la propuesta");
+    } finally {
+      setRechazando(false);
     }
   };
 
@@ -176,7 +196,7 @@ export function IngresoPropuestoPorMatch({
           {conciliando && <Loader2 size={14} className="animate-spin" />}
           {conciliando ? "Conciliando..." : "Conciliar Ingreso"}
         </button>
-        <button onClick={() => setRechazado(true)} style={{ backgroundColor: "#f8fafc", color: "#64748b", border: "1px solid #e2e8f0", borderRadius: "0.375rem", padding: "0.6rem 1rem", fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", transition: "all 0.15s ease" }}>Rechazar</button>
+        <button onClick={handleRechazar} disabled={rechazando} style={{ backgroundColor: "#f8fafc", color: "#64748b", border: "1px solid #e2e8f0", borderRadius: "0.375rem", padding: "0.6rem 1rem", fontWeight: "600", fontSize: "0.85rem", cursor: rechazando ? "default" : "pointer", opacity: rechazando ? 0.6 : 1, transition: "all 0.15s ease" }}>{rechazando ? "Rechazando..." : "Rechazar"}</button>
       </div>
     </div>
   );
