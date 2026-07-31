@@ -3,7 +3,8 @@
 import { useEffect, useState, useMemo } from "react";
 import NextLink from "next/link";
 import { ArrowLeft, Download, Link2, Search, X } from "lucide-react";
-import { descargarMovimientosOfiviaje, getOfiPagos, getOfiCobros, vincularMovimientosOfiConBanco, buscarCandidatosMovimientoBanco, vincularManualmenteMovimientoBanco } from "@/actions/banco";
+import { descargarMovimientosOfiviaje, getOfiPagos, getOfiCobros, buscarCandidatosMovimientoBanco, vincularManualmenteMovimientoBanco, conciliarDesdeOfiPagos } from "@/actions/banco";
+import { RefreshCw } from "lucide-react";
 
 function ConciliadoCell({
   movimientoBanco,
@@ -72,6 +73,7 @@ function BuscarMovimientoModal({
     tipo === "pago"
       ? [
           { label: "Documento", valor: registro.documento },
+          { label: "Doc. cobro/pago", valor: registro.documento_cobro_pago },
           { label: "Expediente", valor: registro.referencia_prov_cte },
           { label: "Proveedor", valor: registro.proveedor_nombre },
           { label: "Pasajero", valor: registro.nombre_pasajero },
@@ -266,7 +268,8 @@ export default function MovimientosOfiviajePage() {
   const [cobros, setCobros] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [descargando, setDescargando] = useState(false);
-  const [vinculando, setVinculando] = useState(false);
+  const [conciliando, setConciliando] = useState(false);
+  const [idsPagosAmbiguos, setIdsPagosAmbiguos] = useState<Set<string>>(new Set());
   const [resultado, setResultado] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const [filtroConciliado, setFiltroConciliado] = useState<"todos" | "conciliados" | "pendientes">("todos");
@@ -325,17 +328,19 @@ export default function MovimientosOfiviajePage() {
     });
   }, [cobros, busqueda, filtroConciliado]);
 
-  const handleVincular = async () => {
-    setVinculando(true);
+
+  const handleConciliar = async () => {
+    setConciliando(true);
     setResultado(null);
     try {
-      const r = await vincularMovimientosOfiConBanco();
-      setResultado(`${r.pagosVinculados} pagos vinculados · ${r.cobrosVinculados} cobros vinculados`);
+      const r = await conciliarDesdeOfiPagos();
+      setResultado(`${r.pagosSincronizados} ya conciliados sincronizados · ${r.pagosConciliados} pagos conciliados · ${r.pagosRevisados} sin desambiguar (revisión manual)`);
+      setIdsPagosAmbiguos(new Set(r.idsPagosRevisados));
       await cargar();
     } catch (e: any) {
-      setResultado(`Error: ${e.message || "no se pudieron vincular los movimientos"}`);
+      setResultado(`Error: ${e.message || "no se pudo conciliar"}`);
     } finally {
-      setVinculando(false);
+      setConciliando(false);
     }
   };
 
@@ -349,9 +354,9 @@ export default function MovimientosOfiviajePage() {
         <h1 style={{ fontSize: "1.3rem", fontWeight: 700, color: "#0f172a", margin: 0 }}>Movimientos OFIviaje</h1>
         <div style={{ display: "flex", gap: "0.6rem" }}>
           <button
-            onClick={handleVincular}
-            disabled={vinculando}
-            title="Temporal: intenta vincular con un movimiento bancario los registros OFI que aún no lo tienen, por importe y fecha."
+            onClick={handleConciliar}
+            disabled={conciliando}
+            title="Busca en los movimientos de OFI de la base de datos que aún no están conciliados un movimiento bancario con el que hacer match."
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -363,12 +368,12 @@ export default function MovimientosOfiviajePage() {
               background: "#fff",
               border: "1px solid #e2e8f0",
               borderRadius: "0.375rem",
-              cursor: vinculando ? "default" : "pointer",
-              opacity: vinculando ? 0.6 : 1,
+              cursor: conciliando ? "default" : "pointer",
+              opacity: conciliando ? 0.6 : 1,
             }}
           >
-            <Link2 size={16} />
-            {vinculando ? "Vinculando..." : "Vincular con movimientos (temporal)"}
+            <RefreshCw size={16} />
+            {conciliando ? "Conciliando..." : "Conciliar"}
           </button>
           <button
             onClick={handleDescargar}
@@ -443,10 +448,20 @@ export default function MovimientosOfiviajePage() {
                   header: "Conciliado",
                   width: "1%",
                   render: (p) => (
-                    <ConciliadoCell
-                      movimientoBanco={p.movimiento_banco}
-                      onBuscar={() => setObjetivoBusqueda({ tipo: "pago", registro: p })}
-                    />
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                      <ConciliadoCell
+                        movimientoBanco={p.movimiento_banco}
+                        onBuscar={() => setObjetivoBusqueda({ tipo: "pago", registro: p })}
+                      />
+                      {idsPagosAmbiguos.has(p.id) && (
+                        <span
+                          title="Hay varios movimientos bancarios candidatos y ninguno se pudo desambiguar automáticamente. Usa la lupa para elegir manualmente."
+                          style={{ fontSize: "0.65rem", fontWeight: 700, padding: "0.1rem 0.4rem", borderRadius: "999px", color: "#b45309", background: "#fef3c7", whiteSpace: "nowrap" }}
+                        >
+                          Ambiguo
+                        </span>
+                      )}
+                    </div>
                   ),
                 },
               ]}

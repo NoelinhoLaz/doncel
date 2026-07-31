@@ -1,7 +1,8 @@
 import { getAgencyDbClient } from "@/lib/agencyDb";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { getDriveTokensUsuarioActual, listarXmlEnCarpeta, descargarContenidoXml } from "./ofiviajeDrive";
-import { parseOfiviajePagosXml, parseOfiviajeCobrosXml, parseOfiviajeFecha, parseOfiviajeFechaCorta } from "./ofiviajeParser";
+import { parseOfiviajePagosXml, parseOfiviajeCobrosXml, parseOfiviajeFecha, parseOfiviajeFechaCorta, type OfiviajePago } from "./ofiviajeParser";
+import { coincide, desambiguarCandidato, getAliasProveedorPorAgencia } from "./ofiviajeMatch";
 
 /**
  * Resuelve la oficina a asignar a los registros descargados: la del usuario
@@ -359,4 +360,179 @@ export async function vincularManualmenteMovimientoBanco(
   const tabla = tipo === "pago" ? "ofi_pagos" : "ofi_cobros";
   const { error } = await agencyDb.from(tabla).update({ movimiento_banco_id: movimientoBancoId }).eq("id", id);
   if (error) throw error;
+}
+
+// yyyy-mm-dd (formato BD) -> dd/mm/yyyy (formato que esperan coincide()/
+// desambiguarCandidato() de ofiviajeMatch.ts, pensadas para OfiviajePago tal
+// como sale del XML).
+function fechaBdAFormatoXml(fecha: string | null): string {
+  if (!fecha) return "";
+  const [yyyy, mm, dd] = fecha.split("-");
+  return dd && mm && yyyy ? `${dd}/${mm}/${yyyy}` : "";
+}
+
+function filaOfiPagoComoOfiviajePago(fila: any): OfiviajePago {
+  const fechaVencto = fechaBdAFormatoXml(fila.fecha_vencto);
+  const fechaDoc = fechaBdAFormatoXml(fila.fecha_doc);
+  return {
+    documento: fila.documento,
+    fechaVencto: fechaVencto || fechaDoc,
+    fechaDoc: fechaDoc || fechaVencto,
+    referenciaProvCte: fila.referencia_prov_cte || "",
+    documentoCobroPago: fila.documento_cobro_pago || "",
+    tipoOperacion: fila.tipo_operacion || "",
+    cuentaTesoreria: fila.cuenta_tesoreria || "",
+    nombrePasajero: fila.nombre_pasajero || "",
+    apunte: fila.apunte || "",
+    importePendiente: Number(fila.importe_pendiente),
+    situacion: fila.situacion || "",
+    proveedorNombre: fila.proveedor_nombre || "",
+    proveedorCuentaContable: fila.proveedor_cuenta_contable || "",
+  };
+}
+
+export interface ConciliarDesdeOfiResultado {
+  pagosConciliados: number;
+  pagosRevisados: number;
+  idsPagosRevisados: string[];
+  pagosSincronizados: number;
+}
+
+/**
+ * Alinea ofi_pagos.movimiento_banco_id con la fuente de verdad real de la
+ * conciliación: contabilidad_movimientos_banco.conciliado_externo_datos,
+ * guardado en el momento en que el matching (clásico desde XML, o este mismo
+ * flujo) concilió cada movimiento. Bidireccional: corrige tanto los que
+ * tenían el campo vacío (nunca se sincronizó) como los que apuntaban a un
+ * movimiento distinto — típicamente un cruce dejado por el backfill fuzzy
+ * antiguo (vincularMovimientosOfiConBanco), que asignaba por importe+fecha
+ * sin desambiguar por código/nombre y podía acertar el documento equivocado
+ * de un par. "documento" es único por oficina en ofi_pagos, así que basta
+ * como clave (no se compara "apunte": puede quedar guardado con o sin ceros
+ * a la izquierda según el momento en que se conciliara, ej. "116918" vs
+ * "00116918" del mismo apunte contable real).
+ */
+async function sincronizarVinculosYaConciliados(agencyDb: any): Promise<number> {
+  const { data: movimientosConciliados, error } = await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .select("id, conciliado_externo_datos")
+    .eq("conciliado_externo", true)
+    .eq("conciliado_externo_origen", "ofiviaje")
+    .not("conciliado_externo_datos", "is", null);
+  if (error) throw error;
+  if (!movimientosConciliados || movimientosConciliados.length === 0) return 0;
+
+  const movimientoIdPorDocumento = new Map<string, string>();
+  for (const mov of movimientosConciliados) {
+    const documento = mov.conciliado_externo_datos?.documento;
+    if (documento) movimientoIdPorDocumento.set(documento, mov.id);
+  }
+  if (movimientoIdPorDocumento.size === 0) return 0;
+
+  const { data: pagosExistentes, error: e2 } = await agencyDb
+    .from("ofi_pagos")
+    .select("id, documento, movimiento_banco_id")
+    .in("documento", Array.from(movimientoIdPorDocumento.keys()));
+  if (e2) throw e2;
+
+  let sincronizados = 0;
+  for (const pago of pagosExistentes ?? []) {
+    const movimientoIdCorrecto = movimientoIdPorDocumento.get(pago.documento);
+    if (!movimientoIdCorrecto || pago.movimiento_banco_id === movimientoIdCorrecto) continue;
+
+    const { error: updateError } = await agencyDb
+      .from("ofi_pagos")
+      .update({ movimiento_banco_id: movimientoIdCorrecto })
+      .eq("id", pago.id);
+    if (!updateError) sincronizados++;
+  }
+
+  return sincronizados;
+}
+
+/**
+ * Concilia de verdad (marca conciliado_externo=true en el movimiento
+ * bancario) a partir de lo que ya está en ofi_pagos, sin releer los XML de
+ * Drive — a diferencia de "Procesar archivos" (historial-procesos), que
+ * siempre relee el XML. Útil para comprobar el efecto de cambios en la
+ * lógica de matching sin depender de que Drive tenga los mismos ficheros.
+ *
+ * Antes de buscar matches nuevos, sincroniza también los que ya estaban
+ * conciliados por otra vía pero a los que aún les faltaba el vínculo en
+ * ofi_pagos (ver sincronizarVinculosYaConciliados).
+ *
+ * Reutiliza exactamente coincide()/desambiguarCandidato() de
+ * ofiviajeMatch.ts, así que el criterio de desambiguación (código LOC con o
+ * sin prefijo, nombre de proveedor) es idéntico al que aplica el matching
+ * automático desde XML.
+ */
+export async function conciliarDesdeOfiPagos(): Promise<ConciliarDesdeOfiResultado> {
+  const agencyDb = await getAgencyDbClient();
+
+  const pagosSincronizados = await sincronizarVinculosYaConciliados(agencyDb);
+
+  const { data: pagosSinVincular, error: e1 } = await agencyDb
+    .from("ofi_pagos")
+    .select("*")
+    .is("movimiento_banco_id", null);
+  if (e1) throw e1;
+  if (!pagosSinVincular || pagosSinVincular.length === 0) return { pagosConciliados: 0, pagosRevisados: 0, idsPagosRevisados: [], pagosSincronizados };
+
+  const pagos = pagosSinVincular.map(filaOfiPagoComoOfiviajePago);
+  const filaPorPago = new Map(pagos.map((p, i) => [p, pagosSinVincular[i]]));
+
+  const fechas = pagos
+    .map((p) => parseOfiviajeFecha(p.fechaVencto) || parseOfiviajeFecha(p.fechaDoc))
+    .filter((f): f is string => !!f);
+  const fechaMasAntigua = fechas.length > 0 ? fechas.reduce((a, b) => (a < b ? a : b)) : new Date().toISOString().slice(0, 10);
+  const fecha = new Date(fechaMasAntigua);
+  fecha.setMonth(fecha.getMonth() - 1);
+  const fechaMinimaBusqueda = fecha.toISOString().slice(0, 10);
+
+  const { data: movimientos, error: e2 } = await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .select("id, importe, fecha_operacion, fecha_valor, concepto_original, estado, conciliado_externo")
+    .in("estado", ["pendiente", "propuesto", "parcial"])
+    .eq("conciliado_externo", false)
+    .lt("importe", 0)
+    .gte("fecha_operacion", fechaMinimaBusqueda);
+  if (e2) throw e2;
+  if (!movimientos || movimientos.length === 0) return { pagosConciliados: 0, pagosRevisados: 0, idsPagosRevisados: [], pagosSincronizados };
+
+  const aliasPorProveedor = await getAliasProveedorPorAgencia(agencyDb);
+
+  const pagosConMatch = new Set<OfiviajePago>();
+  const idsPagosRevisados = new Set<string>();
+  let pagosConciliados = 0;
+
+  for (const mov of movimientos) {
+    const candidatosPorImporteFecha = pagos.filter((p) => !pagosConMatch.has(p) && coincide(mov, p));
+    if (candidatosPorImporteFecha.length === 0) continue;
+
+    const pagoMatch = desambiguarCandidato(mov, candidatosPorImporteFecha, aliasPorProveedor);
+    if (!pagoMatch) {
+      candidatosPorImporteFecha.forEach((p) => idsPagosRevisados.add(filaPorPago.get(p)!.id));
+      continue;
+    }
+
+    pagosConMatch.add(pagoMatch);
+    const filaOrigen = filaPorPago.get(pagoMatch)!;
+
+    const { error: updateMovError } = await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .update({
+        conciliado_externo: true,
+        conciliado_externo_origen: "ofiviaje",
+        conciliado_externo_en: new Date().toISOString(),
+        conciliado_externo_datos: { ...pagoMatch, _driveFileId: filaOrigen.drive_file_id },
+      })
+      .eq("id", mov.id);
+    if (updateMovError) continue;
+
+    await agencyDb.from("ofi_pagos").update({ movimiento_banco_id: mov.id }).eq("id", filaOrigen.id);
+    idsPagosRevisados.delete(filaOrigen.id);
+    pagosConciliados++;
+  }
+
+  return { pagosConciliados, pagosRevisados: idsPagosRevisados.size, idsPagosRevisados: Array.from(idsPagosRevisados), pagosSincronizados };
 }

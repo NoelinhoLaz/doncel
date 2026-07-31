@@ -43,7 +43,7 @@ function diasEntre(fechaA: string, fechaB: string): number {
   return Math.abs(a - b) / 86400000;
 }
 
-function fechaCoincide(movimiento: any, pago: OfiviajePago): boolean {
+export function fechaCoincide(movimiento: any, pago: OfiviajePago): boolean {
   const fechaXml = parseOfiviajeFecha(pago.fechaVencto);
   if (!fechaXml) return false;
   const fechasMov = [movimiento.fecha_operacion, movimiento.fecha_valor].filter(Boolean);
@@ -51,7 +51,7 @@ function fechaCoincide(movimiento: any, pago: OfiviajePago): boolean {
   return fechasMov.some((fMov) => diasEntre(fechaXml, fMov) <= TOLERANCIA_DIAS);
 }
 
-function coincide(movimiento: any, pago: OfiviajePago): boolean {
+export function coincide(movimiento: any, pago: OfiviajePago): boolean {
   const importeMov = Math.abs(Number(movimiento.importe));
   if (Math.abs(importeMov - pago.importePendiente) > TOLERANCIA_IMPORTE) return false;
   return fechaCoincide(movimiento, pago);
@@ -208,7 +208,7 @@ function emparejarGruposEmpatadosPorOrden(
   }
 }
 
-function desambiguarCandidato(
+export function desambiguarCandidato(
   movimiento: any,
   candidatos: OfiviajePago[],
   aliasPorProveedor?: Map<string, string[]>
@@ -257,7 +257,7 @@ function tokenizarNombre(texto: string): string[] {
  * el token "ryanairecoma95qjr"), porque algunos comercios pegan un código de
  * reserva variable justo después del nombre sin separador.
  */
-function nombreCoincide(
+export function nombreCoincide(
   movimiento: any,
   pago: OfiviajePago,
   aliasPorProveedor?: Map<string, string[]>
@@ -282,7 +282,7 @@ function nombreCoincide(
  * Carga los alias proveedor OFI → nombre bancario confirmados por la agencia
  * (tabla ofiviaje_alias_proveedor), agrupados por proveedor.
  */
-async function getAliasProveedorPorAgencia(agencyDb: any): Promise<Map<string, string[]>> {
+export async function getAliasProveedorPorAgencia(agencyDb: any): Promise<Map<string, string[]>> {
   const { data } = await agencyDb.from("ofiviaje_alias_proveedor").select("proveedor_ofi, alias_banco");
   const mapa = new Map<string, string[]>();
   for (const fila of data || []) {
