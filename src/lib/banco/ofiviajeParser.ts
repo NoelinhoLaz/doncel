@@ -26,6 +26,19 @@ export interface OfiviajePago {
   proveedorCuentaContable: string;
 }
 
+// Convierte un importe en formato español ("-1.018,50") a number. Se usa en
+// vez de fieldsByObjectName()+parseFloat() para los importes porque el campo
+// "Value" del XML pierde precisión en números grandes: Crystal Reports lo
+// exporta en notación científica con pocas cifras significativas (ej.
+// "-1.02E+003" en vez de -1018.50), mientras que "FormattedValue" conserva
+// el valor exacto tal como se muestra en pantalla.
+function parseImporteEspanol(texto: string): number {
+  if (!texto) return 0;
+  const normalizado = texto.replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(normalizado);
+  return isNaN(n) ? 0 : n;
+}
+
 function asArray<T>(value: T | T[] | undefined): T[] {
   if (value === undefined) return [];
   return Array.isArray(value) ? value : [value];
@@ -41,6 +54,21 @@ function fieldsByObjectName(reportObjects: any): Record<string, string> {
     // sin perder ceros a la izquierda. Value es el más "técnico" (para importes,
     // sin separador de miles); se usa como preferido, con fallback a FormattedValue.
     const value = obj?.Value ?? obj?.TextValue ?? obj?.FormattedValue;
+    if (value !== undefined) result[name] = String(value);
+  }
+  return result;
+}
+
+// Igual que fieldsByObjectName pero siempre devuelve FormattedValue, nunca
+// Value — necesario para importes, donde Value puede venir en notación
+// científica con precisión perdida en números grandes (ver parseImporteEspanol).
+function formattedValuesByObjectName(reportObjects: any): Record<string, string> {
+  const objects = asArray(reportObjects);
+  const result: Record<string, string> = {};
+  for (const obj of objects) {
+    const name = obj?.ObjectName;
+    if (!name) continue;
+    const value = obj?.FormattedValue;
     if (value !== undefined) result[name] = String(value);
   }
   return result;
@@ -83,6 +111,7 @@ export function parseOfiviajePagosXml(xml: string): OfiviajePago[] {
       for (const section of sections) {
         const fields = fieldsByObjectName(section?.FormattedReportObjects?.FormattedReportObject);
         if (!fields["Documento1"]) continue;
+        const formattedFields = formattedValuesByObjectName(section?.FormattedReportObjects?.FormattedReportObject);
 
         pagos.push({
           documento: fields["Documento1"] || "",
@@ -94,7 +123,7 @@ export function parseOfiviajePagosXml(xml: string): OfiviajePago[] {
           cuentaTesoreria: fields["CuentaTesoreria1"] || "",
           nombrePasajero: fields["NombrePasajero1"] || "",
           apunte: fields["Apunte1"] || "",
-          importePendiente: parseFloat(fields["ImportePendiente1"] || "0"),
+          importePendiente: parseImporteEspanol(formattedFields["ImportePendiente1"] || ""),
           situacion: fields["Situac1"] || "",
           proveedorNombre,
           proveedorCuentaContable,
@@ -157,13 +186,14 @@ export function parseOfiviajeCobrosXml(xml: string): OfiviajeCobro[] {
           const fields = fieldsByObjectName(section?.FormattedReportObjects?.FormattedReportObject);
           const importeCobro = fields["ImporteCobro1"];
           if (importeCobro === undefined || importeCobro === "") continue; // fila de salida (ImportePago), no interesa
+          const formattedFields = formattedValuesByObjectName(section?.FormattedReportObjects?.FormattedReportObject);
 
           cobros.push({
             factura: fields["Factura1"] || "",
             fechaMovimiento: fields["FechaMovimiento1"] || "",
             nombrePagador: fields["NombrePagador1"] || "",
             conceptoMovimiento: fields["ConceptoMovimiento1"] || "",
-            importeCobro: parseFloat(importeCobro || "0"),
+            importeCobro: parseImporteEspanol(formattedFields["ImporteCobro1"] || ""),
           });
         }
       }
