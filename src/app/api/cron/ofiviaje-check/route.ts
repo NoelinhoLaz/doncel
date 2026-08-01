@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminServiceClient } from "@/lib/supabaseServer";
 import { getAgencyDbClientById } from "@/lib/agencyDb";
-import { comprobarOfiviajeParaAgencia } from "@/lib/banco/ofiviajeMatch";
-import { enviarInformeAutomaticoOfiviajeAlOwner } from "@/lib/banco/bancoService";
-import { enviarPushAUsuario } from "@/lib/pushNotifications";
+import { descargarMovimientosOfiviajeParaAgencia, conciliarDesdeOfiPagosParaAgencia } from "@/lib/banco/ofiviajeMovimientos";
 import type { DriveTokens } from "@/lib/banco/ofiviajeDrive";
 
-// Recorre todos los usuarios con Google Drive conectado y carpeta seleccionada,
-// agrupados por agencia, y comprueba en cada una si hay ficheros XML nuevos de
-// OFIviaje que conciliar. Pensado para ejecutarse periódicamente (Vercel Cron).
+// Recorre todos los usuarios con Google Drive conectado y carpeta seleccionada:
+// descarga los XML nuevos de OFIviaje a ofi_pagos/ofi_cobros y concilia contra
+// contabilidad_movimientos_banco. Pensado para ejecutarse periódicamente (Vercel Cron).
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -27,7 +25,6 @@ export async function GET(request: NextRequest) {
   }
 
   const resultados: any[] = [];
-  const agenciasYaComunicadas = new Set<string>();
 
   for (const usuario of usuarios || []) {
     const driveConfig = usuario.metadata?.drive_config;
@@ -42,35 +39,26 @@ export async function GET(request: NextRequest) {
 
     try {
       const agencyDb = await getAgencyDbClientById(usuario.agencia_id);
-      const result = await comprobarOfiviajeParaAgencia(agencyDb, tokens);
-      resultados.push({ agencia_id: usuario.agencia_id, usuario_id: usuario.id, ...result });
 
-      // Informe automático al Owner: una sola vez por agencia (el bucle es
-      // por usuario con Drive conectado, puede haber varios por agencia).
-      if (!agenciasYaComunicadas.has(usuario.agencia_id)) {
-        agenciasYaComunicadas.add(usuario.agencia_id);
-        const { data: owner } = await adminDb
-          .from("usuarios")
-          .select("id, email")
-          .eq("agencia_id", usuario.agencia_id)
-          .eq("rol", "Owner")
-          .eq("esta_activo", true)
-          .single();
-
-        if (owner?.id && owner.email) {
-          const informe = await enviarInformeAutomaticoOfiviajeAlOwner(agencyDb, owner.id, owner.email);
-          resultados.push({ agencia_id: usuario.agencia_id, informeOwner: informe });
-
-          if (informe.success) {
-            const push = await enviarPushAUsuario(agencyDb, owner.id, {
-              title: "Informe de conciliación OFIviaje",
-              body: "Se ha generado el informe diario de conciliación.",
-              url: "/concilia_login",
-            });
-            resultados.push({ agencia_id: usuario.agencia_id, push });
-          }
-        }
+      const { data: config } = await agencyDb
+        .from("config_usuarios")
+        .select("oficina")
+        .eq("usuario_id", usuario.id)
+        .single();
+      let oficinaId = config?.oficina;
+      if (!oficinaId) {
+        const { data: oficinas } = await agencyDb.from("config_oficinas").select("id").limit(1);
+        oficinaId = oficinas?.[0]?.id;
       }
+      if (!oficinaId) {
+        resultados.push({ agencia_id: usuario.agencia_id, usuario_id: usuario.id, error: "No hay oficina configurada." });
+        continue;
+      }
+
+      const descarga = await descargarMovimientosOfiviajeParaAgencia(agencyDb, tokens, oficinaId);
+      const conciliacion = await conciliarDesdeOfiPagosParaAgencia(agencyDb);
+
+      resultados.push({ agencia_id: usuario.agencia_id, usuario_id: usuario.id, ...descarga, ...conciliacion });
     } catch (err: any) {
       resultados.push({ agencia_id: usuario.agencia_id, usuario_id: usuario.id, error: err.message });
     }

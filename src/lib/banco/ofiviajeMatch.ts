@@ -53,7 +53,10 @@ export function fechaCoincide(movimiento: any, pago: OfiviajePago): boolean {
 
 export function coincide(movimiento: any, pago: OfiviajePago): boolean {
   const importeMov = Math.abs(Number(movimiento.importe));
-  if (Math.abs(importeMov - pago.importePendiente) > TOLERANCIA_IMPORTE) return false;
+  // pago.importePendiente puede ser negativo (reembolso/devolución: OFIviaje
+  // registra el pago al proveedor como negativo, y su contraparte real en el
+  // banco es un ingreso positivo). Se compara siempre en valor absoluto.
+  if (Math.abs(importeMov - Math.abs(pago.importePendiente)) > TOLERANCIA_IMPORTE) return false;
   return fechaCoincide(movimiento, pago);
 }
 
@@ -213,7 +216,16 @@ export function desambiguarCandidato(
   candidatos: OfiviajePago[],
   aliasPorProveedor?: Map<string, string[]>
 ): OfiviajePago | null {
-  if (candidatos.length === 1) return candidatos[0];
+  // Aunque haya un único candidato por importe+fecha, no basta como prueba:
+  // dos pagos completamente ajenos pueden coincidir en importe por pura
+  // casualidad (ej. un pago de Movelia de 30,00€ y un cargo de Air France de
+  // -30,00€ el mismo mes, sin relación real entre sí). Se exige siempre que
+  // el nombre del proveedor (o el código LOC) tenga alguna correspondencia
+  // con el concepto bancario antes de conciliar, también con un solo candidato.
+  if (candidatos.length === 1) {
+    const p = candidatos[0];
+    return codigoLocCoincide(movimiento, p) || nombreCoincide(movimiento, p, aliasPorProveedor) ? p : null;
+  }
 
   const porLoc = candidatos.filter((p) => codigoLocCoincide(movimiento, p));
   if (porLoc.length === 1) return porLoc[0];
@@ -405,7 +417,7 @@ export interface OfiviajeRevisarDivision {
  * CuentaTesoreria del XML de OFIviaje, sin tener que barrer todos los
  * movimientos de la agencia.
  */
-async function getMapaCuentaContable(agencyDb: any): Promise<Record<string, string>> {
+export async function getMapaCuentaContable(agencyDb: any): Promise<Record<string, string>> {
   const { data, error } = await agencyDb
     .from("config_cuentas_bancarias")
     .select("id, cuenta_contable")

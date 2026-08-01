@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback, Fragment } from "react";
 import { Icons } from "@/lib/icons";
+import { AlertTriangle } from "lucide-react";
 import Pagination from "@/app/components/Pagination";
 import styles from "../expedientes/[id]/page.module.css";
 import listStyles from "../expedientes/page.module.css";
-import { getMovimientosBanco, recalcularTodosLosMatches, regenerarPoolsBanco, getConciliacionesManuales, type ConciliacionManualDetalle } from "@/actions/banco";
+import { getMovimientosBanco, recalcularTodosLosMatches, regenerarPoolsBanco, getConciliacionesManuales, type ConciliacionManualDetalle, getPagosPendientesDeRevision } from "@/actions/banco";
 import { getCuentasBancarias } from "@/actions/cuentasBancarias";
 import { getCurrentAgentePublic } from "@/actions/crm";
 import ImportarN43 from "@/app/components/contabilidad/ImportarN43";
@@ -100,6 +101,7 @@ export default function BancoPage() {
   const [cuentasBancarias, setCuentasBancarias] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [conciliacionesManualesPorMov, setConciliacionesManualesPorMov] = useState<Record<string, ConciliacionManualDetalle[]>>({});
+  const [candidatosOfiPorMov, setCandidatosOfiPorMov] = useState<Record<string, any>>({});
   const [isOwner, setIsOwner] = useState(false);
   const [conciliacionManualMov, setConciliacionManualMov] = useState<ConciliacionManualMov | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -182,6 +184,23 @@ export default function BancoPage() {
       }
     }
     loadRol();
+
+    // Candidatos OFI para el icono de aviso junto al badge "Pendiente": pares
+    // (pago OFI, movimiento) con coincidencia parcial (importe o proveedor +
+    // fecha) que no llegaron a conciliarse automáticamente.
+    async function loadCandidatosOfi() {
+      try {
+        const candidatos = await getPagosPendientesDeRevision();
+        const porMov: Record<string, any> = {};
+        for (const c of candidatos as any[]) {
+          if (!porMov[c.movimientoBancoId]) porMov[c.movimientoBancoId] = c;
+        }
+        setCandidatosOfiPorMov(porMov);
+      } catch (error) {
+        console.error("Error loading candidatos OFI para revisión:", error);
+      }
+    }
+    loadCandidatosOfi();
   }, []);
 
   const cargarConciliacionesManualesTooltip = useCallback((movimientoId: string) => {
@@ -731,31 +750,41 @@ export default function BancoPage() {
                             )}
                           </MatchTooltipWrapper>
                         ) : (
-                          <span
-                            onClick={() => {
-                              if (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") {
-                                setConciliacionManualMov({
-                                  id: mov.id,
-                                  importe: Number(mov.importe),
-                                  concepto_original: mov.concepto_original,
-                                  estado: mov.estado,
-                                });
-                              }
-                            }}
-                            style={{
-                              display: "inline-block",
-                              padding: "0.1rem 0.4rem",
-                              borderRadius: "0.25rem",
-                              fontSize: "0.65rem",
-                              fontWeight: "700",
-                              background: estadoBadge.bg,
-                              color: estadoBadge.color,
-                              border: estadoBadge.border,
-                              textTransform: "uppercase",
-                              cursor: (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") ? "pointer" : "default",
-                            }}
-                          >
-                            {estadoBadge.label}
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+                            <span
+                              onClick={() => {
+                                if (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") {
+                                  setConciliacionManualMov({
+                                    id: mov.id,
+                                    importe: Number(mov.importe),
+                                    concepto_original: mov.concepto_original,
+                                    estado: mov.estado,
+                                  });
+                                }
+                              }}
+                              style={{
+                                display: "inline-block",
+                                padding: "0.1rem 0.4rem",
+                                borderRadius: "0.25rem",
+                                fontSize: "0.65rem",
+                                fontWeight: "700",
+                                background: estadoBadge.bg,
+                                color: estadoBadge.color,
+                                border: estadoBadge.border,
+                                textTransform: "uppercase",
+                                cursor: (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") ? "pointer" : "default",
+                              }}
+                            >
+                              {estadoBadge.label}
+                            </span>
+                            {candidatosOfiPorMov[mov.id] && (
+                              <span
+                                title={`Posible pago OFI: ${candidatosOfiPorMov[mov.id].documento} · ${candidatosOfiPorMov[mov.id].proveedorNombre} · ${new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(candidatosOfiPorMov[mov.id].importePendiente)} · ${candidatosOfiPorMov[mov.id].fechaVencto || ""} (${candidatosOfiPorMov[mov.id].coincidePorImporte ? "mismo importe" : "mismo proveedor"})`}
+                                style={{ display: "inline-flex" }}
+                              >
+                                <AlertTriangle size={13} color="#b45309" />
+                              </span>
+                            )}
                           </span>
                         )}
                       </td>
