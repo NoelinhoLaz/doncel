@@ -11,7 +11,7 @@ import { createBridgeConnectSession, syncBridgeTransactions } from "@/lib/banco/
 import { getCurrentAgenciaSlug } from "@/actions/agencias";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { previsualizarOfiviajeUsuarioActual, previsualizarCobrosXmlManual, confirmarConciliacionOfiviaje as confirmarConciliacionOfiviajeLib, enviarInformeOfiviajePorEmail, guardarAliasProveedorOfi, getUltimoInformeReal as getUltimoInformeRealLib, marcarTareaPendienteResueltaPorMovimiento, getHistorialProcesosOfiviaje as getHistorialProcesosOfiviajeLib, forzarProcesoOfiviajeUsuarioActual as forzarProcesoOfiviajeUsuarioActualLib, getDetalleProcesoOfiviaje as getDetalleProcesoOfiviajeLib, buscarProveedorPorDocumento as buscarProveedorPorDocumentoLib, listarProveedoresUnicosOfi as listarProveedoresUnicosOfiLib, buscarProveedorPorImporte as buscarProveedorPorImporteLib, intentarGuardarAliasSiNoCoincide, reprocesarFicheroOfiviaje as reprocesarFicheroOfiviajeLib, reprocesarTodosLosFicherosOfiviaje as reprocesarTodosLosFicherosOfiviajeLib, type OfiviajeMatchPropuesto, type OfiviajePreview } from "@/lib/banco/ofiviajeMatch";
-import { descargarMovimientosOfiviaje as descargarMovimientosOfiviajeLib, getOfiPagos as fetchOfiPagos, getOfiCobros as fetchOfiCobros, vincularMovimientosOfiConBanco as vincularMovimientosOfiConBancoLib, buscarCandidatosMovimientoBanco as buscarCandidatosMovimientoBancoLib, vincularManualmenteMovimientoBanco as vincularManualmenteMovimientoBancoLib, conciliarDesdeOfiPagos as conciliarDesdeOfiPagosLib, getPagosPendientesDeRevision as getPagosPendientesDeRevisionLib, getGruposAgrupacionPendientes as getGruposAgrupacionPendientesLib, conciliarGrupoAgrupacion as conciliarGrupoAgrupacionLib } from "@/lib/banco/ofiviajeMovimientos";
+import { descargarMovimientosOfiviaje as descargarMovimientosOfiviajeLib, getOfiPagos as fetchOfiPagos, getOfiCobros as fetchOfiCobros, vincularMovimientosOfiConBanco as vincularMovimientosOfiConBancoLib, buscarCandidatosMovimientoBanco as buscarCandidatosMovimientoBancoLib, vincularManualmenteMovimientoBanco as vincularManualmenteMovimientoBancoLib, conciliarDesdeOfiPagos as conciliarDesdeOfiPagosLib } from "@/lib/banco/ofiviajeMovimientos";
 
 export async function descargarMovimientosOfiviaje() {
   return descargarMovimientosOfiviajeLib();
@@ -44,24 +44,6 @@ export async function vincularManualmenteMovimientoBanco(tipo: "pago" | "cobro",
 // cambios en la lógica de matching sobre los pagos ya descargados.
 export async function conciliarDesdeOfiPagos() {
   return conciliarDesdeOfiPagosLib();
-}
-
-// Pares (pago OFI, movimiento bancario) con coincidencia parcial (importe O
-// nombre, más fecha cercana) que no llegaron a conciliarse automáticamente —
-// para la pestaña "Revisión".
-export async function getPagosPendientesDeRevision() {
-  return getPagosPendientesDeRevisionLib();
-}
-
-// Grupos de pagos OFI del mismo proveedor/fecha cuya suma coincide con un
-// movimiento bancario sin conciliar (ej. recibos de seguros agrupados en un
-// único cargo).
-export async function getGruposAgrupacionPendientes() {
-  return getGruposAgrupacionPendientesLib();
-}
-
-export async function conciliarGrupoAgrupacion(pagoIds: string[], movimientoBancoId: string) {
-  return conciliarGrupoAgrupacionLib(pagoIds, movimientoBancoId);
 }
 
 export async function getMovimientosBanco(options?: any) {

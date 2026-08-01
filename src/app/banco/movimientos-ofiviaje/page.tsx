@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import NextLink from "next/link";
 import { ArrowLeft, Download, Link2, Search, X } from "lucide-react";
-import { descargarMovimientosOfiviaje, getOfiPagos, getOfiCobros, buscarCandidatosMovimientoBanco, vincularManualmenteMovimientoBanco, conciliarDesdeOfiPagos, getPagosPendientesDeRevision, getGruposAgrupacionPendientes, conciliarGrupoAgrupacion } from "@/actions/banco";
+import { descargarMovimientosOfiviaje, getOfiPagos, getOfiCobros, buscarCandidatosMovimientoBanco, vincularManualmenteMovimientoBanco, conciliarDesdeOfiPagos } from "@/actions/banco";
 import { RefreshCw } from "lucide-react";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
 
@@ -279,199 +279,6 @@ function agenciaDeExpediente(referenciaProvCte: string | null): string | null {
   return AGENCIA_POR_PREFIJO[prefijo] ?? null;
 }
 
-function TablaRevision({
-  candidatos,
-  onAccionCompletada,
-}: {
-  candidatos: any[];
-  onAccionCompletada: () => void;
-}) {
-  const [pagina, setPagina] = useState(1);
-  const [procesandoId, setProcesandoId] = useState<string | null>(null);
-
-  if (candidatos.length === 0) {
-    return <p style={{ color: "#94a3b8", fontSize: "0.85rem" }}>Sin candidatos pendientes de revisión.</p>;
-  }
-
-  const totalPaginas = Math.ceil(candidatos.length / POR_PAGINA);
-  const filasPagina = candidatos.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA);
-
-  const clave = (c: any) => `${c.pagoOfiId}|${c.movimientoBancoId}`;
-
-  const handleVincular = async (c: any) => {
-    setProcesandoId(clave(c));
-    try {
-      await vincularManualmenteMovimientoBanco("pago", c.pagoOfiId, c.movimientoBancoId);
-      onAccionCompletada();
-    } finally {
-      setProcesandoId(null);
-    }
-  };
-
-  return (
-    <>
-      <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: "0.5rem", background: "#f8fafc" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
-          <thead>
-            <tr style={{ background: "#eef1f6", textAlign: "left" }}>
-              <th style={{ padding: "0.3rem 0.9rem", fontWeight: 600, color: "#334155" }}>Motivo</th>
-              <th style={{ padding: "0.3rem 0.9rem", fontWeight: 600, color: "#334155" }}>Pago OFI</th>
-              <th style={{ padding: "0.3rem 0.9rem", fontWeight: 600, color: "#334155", textAlign: "right" }}>Importe OFI</th>
-              <th style={{ padding: "0.3rem 0.9rem", fontWeight: 600, color: "#334155" }}>Movimiento banco</th>
-              <th style={{ padding: "0.3rem 0.9rem", fontWeight: 600, color: "#334155", textAlign: "right" }}>Importe banco</th>
-              <th style={{ padding: "0.3rem 0.9rem", fontWeight: 600, color: "#334155", width: "1%" }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filasPagina.map((c) => (
-              <tr key={clave(c)} style={{ borderTop: "1px solid #e2e8f0" }}>
-                <td style={{ padding: "0.3rem 0.9rem" }}>
-                  <span
-                    style={{
-                      fontSize: "0.65rem",
-                      fontWeight: 700,
-                      padding: "0.1rem 0.4rem",
-                      borderRadius: "999px",
-                      color: c.coincidePorImporte ? "#1d4ed8" : "#b45309",
-                      background: c.coincidePorImporte ? "#dbeafe" : "#fef3c7",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {c.coincidePorImporte ? "Mismo importe" : "Mismo proveedor"}
-                  </span>
-                </td>
-                <td style={{ padding: "0.3rem 0.9rem", color: "#334155" }}>
-                  <div>{c.documento}</div>
-                  <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{c.proveedorNombre} · {formatoFecha(c.fechaVencto)}</div>
-                </td>
-                <td style={{ padding: "0.3rem 0.9rem", textAlign: "right", color: "#334155" }}>{formatoImporte(c.importePendiente)}</td>
-                <td style={{ padding: "0.3rem 0.9rem", color: "#334155", maxWidth: 320 }}>
-                  <div title={c.movimientoConcepto} style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.movimientoConcepto}</div>
-                  <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{formatoFecha(c.movimientoFecha)}</div>
-                </td>
-                <td style={{ padding: "0.3rem 0.9rem", textAlign: "right", color: c.movimientoImporte < 0 ? "#dc2626" : "#15803d" }}>
-                  {formatoImporte(c.movimientoImporte)}
-                </td>
-                <td style={{ padding: "0.3rem 0.9rem" }}>
-                  <button
-                    onClick={() => handleVincular(c)}
-                    disabled={procesandoId === clave(c)}
-                    style={{
-                      padding: "0.3rem 0.6rem",
-                      fontSize: "0.8rem",
-                      fontWeight: 600,
-                      color: "#fff",
-                      background: "#334155",
-                      border: "none",
-                      borderRadius: "0.375rem",
-                      cursor: procesandoId === clave(c) ? "default" : "pointer",
-                      opacity: procesandoId === clave(c) ? 0.6 : 1,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {procesandoId === clave(c) ? "..." : "Vincular"}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {totalPaginas > 1 && (
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.75rem", marginTop: "0.6rem" }}>
-          <button
-            onClick={() => setPagina((p) => Math.max(1, p - 1))}
-            disabled={pagina <= 1}
-            style={{ padding: "0.3rem 0.6rem", fontSize: "0.8rem", border: "1px solid #e2e8f0", borderRadius: "0.375rem", background: "#fff", cursor: pagina <= 1 ? "default" : "pointer", opacity: pagina <= 1 ? 0.5 : 1 }}
-          >
-            Anterior
-          </button>
-          <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
-            Página {pagina} de {totalPaginas}
-          </span>
-          <button
-            onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
-            disabled={pagina >= totalPaginas}
-            style={{ padding: "0.3rem 0.6rem", fontSize: "0.8rem", border: "1px solid #e2e8f0", borderRadius: "0.375rem", background: "#fff", cursor: pagina >= totalPaginas ? "default" : "pointer", opacity: pagina >= totalPaginas ? 0.5 : 1 }}
-          >
-            Siguiente
-          </button>
-        </div>
-      )}
-    </>
-  );
-}
-
-function TablaGrupos({
-  grupos,
-  onAccionCompletada,
-}: {
-  grupos: any[];
-  onAccionCompletada: () => void;
-}) {
-  const [procesandoId, setProcesandoId] = useState<string | null>(null);
-
-  if (grupos.length === 0) {
-    return <p style={{ color: "#94a3b8", fontSize: "0.85rem" }}>Sin agrupaciones detectadas.</p>;
-  }
-
-  const handleConciliar = async (g: any) => {
-    setProcesandoId(g.movimientoBancoId);
-    try {
-      await conciliarGrupoAgrupacion(g.pagoIds, g.movimientoBancoId);
-      onAccionCompletada();
-    } finally {
-      setProcesandoId(null);
-    }
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-      {grupos.map((g) => (
-        <div key={g.movimientoBancoId} style={{ border: "1px solid #e2e8f0", borderRadius: "0.5rem", background: "#f8fafc", padding: "0.75rem 0.9rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem", flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#334155" }}>
-                {g.proveedorNombre} · {formatoFecha(g.fechaVencto)}
-              </div>
-              <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
-                {g.pagoIds.length} pagos: {g.documentos.join(", ")}
-              </div>
-              <div title={g.movimientoConcepto} style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.3rem", maxWidth: 480, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                Movimiento: {g.movimientoConcepto} · {formatoFecha(g.movimientoFecha)}
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#334155" }}>{formatoImporte(g.sumaImporte)}</div>
-                <div style={{ fontSize: "0.7rem", color: "#94a3b8" }}>suma de {g.pagoIds.length}</div>
-              </div>
-              <button
-                onClick={() => handleConciliar(g)}
-                disabled={procesandoId === g.movimientoBancoId}
-                style={{
-                  padding: "0.35rem 0.7rem",
-                  fontSize: "0.8rem",
-                  fontWeight: 600,
-                  color: "#fff",
-                  background: "#334155",
-                  border: "none",
-                  borderRadius: "0.375rem",
-                  cursor: procesandoId === g.movimientoBancoId ? "default" : "pointer",
-                  opacity: procesandoId === g.movimientoBancoId ? 0.6 : 1,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {procesandoId === g.movimientoBancoId ? "..." : "Conciliar grupo"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export default function MovimientosOfiviajePage() {
   const [pagos, setPagos] = useState<any[]>([]);
   const [cobros, setCobros] = useState<any[]>([]);
@@ -484,11 +291,6 @@ export default function MovimientosOfiviajePage() {
   const [filtroConciliado, setFiltroConciliado] = useState<"todos" | "conciliados" | "pendientes">("todos");
   const [filtroAgencia, setFiltroAgencia] = useState<string[]>([]);
   const [objetivoBusqueda, setObjetivoBusqueda] = useState<{ tipo: "pago" | "cobro"; registro: any } | null>(null);
-  const [pestana, setPestana] = useState<"listados" | "revision">("listados");
-  const [candidatosRevision, setCandidatosRevision] = useState<any[]>([]);
-  const [gruposRevision, setGruposRevision] = useState<any[]>([]);
-  const [cargandoRevision, setCargandoRevision] = useState(false);
-
   const cargar = () => {
     return Promise.all([getOfiPagos(), getOfiCobros()]).then(([p, c]) => {
       setPagos(p as any[]);
@@ -496,23 +298,9 @@ export default function MovimientosOfiviajePage() {
     });
   };
 
-  const cargarRevision = () => {
-    setCargandoRevision(true);
-    return Promise.all([getPagosPendientesDeRevision(), getGruposAgrupacionPendientes()])
-      .then(([candidatos, grupos]) => {
-        setCandidatosRevision(candidatos as any[]);
-        setGruposRevision(grupos as any[]);
-      })
-      .finally(() => setCargandoRevision(false));
-  };
-
   useEffect(() => {
     cargar().finally(() => setLoading(false));
   }, []);
-
-  useEffect(() => {
-    if (pestana === "revision" && candidatosRevision.length === 0 && gruposRevision.length === 0) cargarRevision();
-  }, [pestana]);
 
   const handleDescargar = async () => {
     setDescargando(true);
@@ -637,85 +425,6 @@ export default function MovimientosOfiviajePage() {
         </p>
       )}
 
-      <div style={{ display: "flex", gap: "1.5rem", borderBottom: "1px solid #e2e8f0", marginBottom: "1.25rem" }}>
-        <button
-          onClick={() => setPestana("listados")}
-          style={{
-            padding: "0.5rem 0.1rem",
-            fontSize: "0.85rem",
-            fontWeight: 600,
-            color: pestana === "listados" ? "#334155" : "#94a3b8",
-            background: "none",
-            border: "none",
-            borderBottom: pestana === "listados" ? "2px solid #334155" : "2px solid transparent",
-            cursor: "pointer",
-          }}
-        >
-          Pagos y Cobros
-        </button>
-        <button
-          onClick={() => setPestana("revision")}
-          style={{
-            padding: "0.5rem 0.1rem",
-            fontSize: "0.85rem",
-            fontWeight: 600,
-            color: pestana === "revision" ? "#334155" : "#94a3b8",
-            background: "none",
-            border: "none",
-            borderBottom: pestana === "revision" ? "2px solid #334155" : "2px solid transparent",
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.35rem",
-          }}
-        >
-          Revisión
-          {candidatosRevision.length + gruposRevision.length > 0 && (
-            <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "0.05rem 0.4rem", borderRadius: "999px", color: "#b45309", background: "#fef3c7" }}>
-              {candidatosRevision.length + gruposRevision.length}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {pestana === "revision" ? (
-        <>
-          {cargandoRevision ? (
-            <p style={{ color: "#94a3b8", fontSize: "0.85rem" }}>Cargando…</p>
-          ) : (
-            <>
-              <section style={{ marginBottom: "2rem" }}>
-                <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#334155", marginBottom: "0.4rem" }}>Posibles agrupaciones ({gruposRevision.length})</h2>
-                <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.75rem" }}>
-                  Varios pagos OFI del mismo proveedor y fecha cuya suma coincide con un único movimiento bancario (ej. recibos agrupados en un cargo consolidado).
-                </p>
-                <TablaGrupos
-                  grupos={gruposRevision}
-                  onAccionCompletada={() => {
-                    cargar();
-                    cargarRevision();
-                  }}
-                />
-              </section>
-
-              <section>
-                <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#334155", marginBottom: "0.4rem" }}>Coincidencias parciales ({candidatosRevision.length})</h2>
-                <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.75rem" }}>
-                  Pares (pago OFI, movimiento bancario) con coincidencia parcial — mismo importe con fecha cercana, o mismo proveedor con fecha cercana — que no se conciliaron automáticamente por no cumplir ambos criterios a la vez.
-                </p>
-                <TablaRevision
-                  candidatos={candidatosRevision}
-                  onAccionCompletada={() => {
-                    cargar();
-                    cargarRevision();
-                  }}
-                />
-              </section>
-            </>
-          )}
-        </>
-      ) : (
-      <>
       <div style={{ display: "flex", gap: "0.6rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flex: "1 1 260px", minWidth: 220, padding: "0.4rem 0.7rem", border: "1px solid #e2e8f0", borderRadius: "0.375rem", background: "#fff" }}>
           <Search size={15} color="#94a3b8" />
@@ -810,8 +519,6 @@ export default function MovimientosOfiviajePage() {
             />
           </section>
         </>
-      )}
-      </>
       )}
 
       {objetivoBusqueda && (
