@@ -6,6 +6,8 @@ import {
   getImportePendienteConciliar,
   getConciliacionesManuales,
   guardarAliasProveedor,
+  buscarPagosOfiPorExpediente,
+  vincularPagoOfiDesdeConciliacionManual,
   type ConciliacionManualDetalle,
 } from "@/actions/banco";
 
@@ -64,6 +66,9 @@ export function ConciliacionManualModal({
   const [pendiente, setPendiente] = useState<number | null>(null);
   const [historico, setHistorico] = useState<ConciliacionManualDetalle[]>([]);
   const [historicoLoading, setHistoricoLoading] = useState(false);
+  const [pagosOfi, setPagosOfi] = useState<Awaited<ReturnType<typeof buscarPagosOfiPorExpediente>>>([]);
+  const [pagosOfiLoading, setPagosOfiLoading] = useState(false);
+  const [pagoOfiSeleccionadoId, setPagoOfiSeleccionadoId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!mov) return;
@@ -77,6 +82,8 @@ export function ConciliacionManualModal({
     setPendiente(fallback);
     setHistorico([]);
     setHistoricoLoading(true);
+    setPagosOfi([]);
+    setPagoOfiSeleccionadoId(null);
 
     getImportePendienteConciliar(mov.id)
       .then(({ importePendiente }) => {
@@ -101,6 +108,35 @@ export function ConciliacionManualModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mov?.id]);
 
+  // Búsqueda de pagos OFI del expediente escrito, con debounce para no
+  // disparar una consulta en cada pulsación.
+  useEffect(() => {
+    if (!mov) return;
+    const expedienteLimpio = expediente.trim();
+    setPagoOfiSeleccionadoId(null);
+    if (!expedienteLimpio) {
+      setPagosOfi([]);
+      return;
+    }
+    let cancelado = false;
+    setPagosOfiLoading(true);
+    const timeout = setTimeout(() => {
+      buscarPagosOfiPorExpediente(expedienteLimpio)
+        .then((data) => {
+          if (!cancelado) setPagosOfi(data);
+        })
+        .catch((error) => console.error("Error buscando pagos OFI del expediente:", error))
+        .finally(() => {
+          if (!cancelado) setPagosOfiLoading(false);
+        });
+    }, 400);
+    return () => {
+      cancelado = true;
+      clearTimeout(timeout);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expediente, mov?.id]);
+
   if (!mov) return null;
 
   const handleClose = () => {
@@ -116,6 +152,14 @@ export function ConciliacionManualModal({
     }
     setLoading(true);
     try {
+      if (pagoOfiSeleccionadoId) {
+        try {
+          await vincularPagoOfiDesdeConciliacionManual(pagoOfiSeleccionadoId, mov.id);
+        } catch (error: any) {
+          alert(error?.message || "Error al vincular el pago OFI seleccionado.");
+          return;
+        }
+      }
       const res = await conciliarManualmente(mov.id, importeNum, expediente.trim() || undefined, isOwner && voboDc, nota.trim() || undefined);
       if (!res.success) {
         alert(res.error || "Error al conciliar el movimiento.");
@@ -240,6 +284,59 @@ export function ConciliacionManualModal({
                   onChange={(e) => setExpediente(e.target.value)}
                   style={inputStyle}
                 />
+                {pagosOfiLoading ? (
+                  <p style={{ margin: "0.4rem 0 0", fontSize: "0.72rem", color: "#94a3b8" }}>Buscando pagos OFI…</p>
+                ) : pagosOfi.length > 0 ? (
+                  <div style={{ marginTop: "0.5rem", border: "1px solid #e2e8f0", borderRadius: "0.375rem", overflow: "hidden" }}>
+                    {pagosOfi.map((p) => {
+                      const seleccionado = pagoOfiSeleccionadoId === p.id;
+                      const restante = Math.abs(p.importePendiente) - p.importeVinculado;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setPagoOfiSeleccionadoId(seleccionado ? null : p.id)}
+                          disabled={p.completo}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: "0.5rem",
+                            width: "100%",
+                            padding: "0.45rem 0.6rem",
+                            border: "none",
+                            borderTop: "1px solid #f1f5f9",
+                            background: seleccionado ? "#ecfdf5" : "#fff",
+                            cursor: p.completo ? "default" : "pointer",
+                            opacity: p.completo ? 0.55 : 1,
+                            textAlign: "left",
+                          }}
+                        >
+                          <span style={{ minWidth: 0 }}>
+                            <span style={{ display: "block", fontSize: "0.76rem", color: "#334155", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {p.proveedorNombre || p.documento}
+                            </span>
+                            <span style={{ display: "block", fontSize: "0.7rem", color: "#94a3b8" }}>
+                              {p.documento} · {p.nombrePasajero || "—"}
+                              {p.completo
+                                ? " · completo"
+                                : p.vinculado
+                                ? ` · quedan ${new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(restante)}`
+                                : ""}
+                            </span>
+                          </span>
+                          <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>
+                            {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(p.importePendiente)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  expediente.trim() && (
+                    <p style={{ margin: "0.4rem 0 0", fontSize: "0.72rem", color: "#94a3b8" }}>Sin pagos OFI para ese expediente.</p>
+                  )
+                )}
               </div>
 
               <div>

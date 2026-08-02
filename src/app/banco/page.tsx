@@ -5,7 +5,7 @@ import { Icons } from "@/lib/icons";
 import Pagination from "@/app/components/Pagination";
 import styles from "../expedientes/[id]/page.module.css";
 import listStyles from "../expedientes/page.module.css";
-import { getMovimientosBanco, recalcularTodosLosMatches, regenerarPoolsBanco, getConciliacionesManuales, type ConciliacionManualDetalle } from "@/actions/banco";
+import { getMovimientosBanco, recalcularTodosLosMatches, regenerarPoolsBanco, getConciliacionesManuales, getPagosOfiVinculadosAMovimiento, type ConciliacionManualDetalle } from "@/actions/banco";
 import { getCuentasBancarias } from "@/actions/cuentasBancarias";
 import { getCurrentAgentePublic } from "@/actions/crm";
 import ImportarN43 from "@/app/components/contabilidad/ImportarN43";
@@ -100,6 +100,7 @@ export default function BancoPage() {
   const [cuentasBancarias, setCuentasBancarias] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [conciliacionesManualesPorMov, setConciliacionesManualesPorMov] = useState<Record<string, ConciliacionManualDetalle[]>>({});
+  const [pagosOfiPorMov, setPagosOfiPorMov] = useState<Record<string, Awaited<ReturnType<typeof getPagosOfiVinculadosAMovimiento>>>>({});
   const [isOwner, setIsOwner] = useState(false);
   const [conciliacionManualMov, setConciliacionManualMov] = useState<ConciliacionManualMov | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -190,6 +191,13 @@ export default function BancoPage() {
       setConciliacionesManualesPorMov((prev) => ({ ...prev, [movimientoId]: detalle }));
     });
   }, [conciliacionesManualesPorMov]);
+
+  const cargarPagosOfiTooltip = useCallback((movimientoId: string) => {
+    if (pagosOfiPorMov[movimientoId]) return;
+    getPagosOfiVinculadosAMovimiento(movimientoId).then((pagos) => {
+      setPagosOfiPorMov((prev) => ({ ...prev, [movimientoId]: pagos }));
+    });
+  }, [pagosOfiPorMov]);
 
   const loadData = useCallback(async (filters: typeof filtros) => {
     try {
@@ -585,7 +593,7 @@ export default function BancoPage() {
                 const normalizedScore = rawScore <= 1 ? Math.round(rawScore * 100) : Math.round(rawScore);
                 const isPropuestoValido = mov.estado === "propuesto" && mov.match_metadatos && normalizedScore >= 70;
                 const estadoEfectivo = mov.conciliado_externo
-                  ? "ofiviaje"
+                  ? (mov.estado === "parcial" ? "parcial" : "ofiviaje")
                   : mov.conciliacion_tipo === "manual" && mov.estado === "conciliado"
                     ? "manual"
                     : (mov.estado === "propuesto" ? "pendiente" : mov.estado);
@@ -684,25 +692,76 @@ export default function BancoPage() {
                               color: estadoBadge.color,
                               border: estadoBadge.border,
                             }}
+                            onShow={() => cargarPagosOfiTooltip(mov.id)}
+                            onClick={
+                              mov.estado === "parcial"
+                                ? () => {
+                                    setConciliacionManualMov({
+                                      id: mov.id,
+                                      importe: Number(mov.importe),
+                                      concepto_original: mov.concepto_original,
+                                      estado: mov.estado,
+                                    });
+                                  }
+                                : undefined
+                            }
                           >
-                            {mov.conciliado_externo_datos && (
-                              <>
-                                <div style={{ fontWeight: 700, marginBottom: "0.3rem" }}>
-                                  {mov.conciliado_externo_datos.proveedorNombre}
-                                </div>
-                                <div>Doc: {mov.conciliado_externo_datos.documento}</div>
-                                <div>Expediente OFI: {mov.conciliado_externo_datos.referenciaProvCte}</div>
-                                <div>Doc. cobro/pago: {mov.conciliado_externo_datos.documentoCobroPago}</div>
-                                <div>
-                                  Importe:{" "}
-                                  {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(
-                                    mov.conciliado_externo_datos.importePendiente
-                                  )}
-                                </div>
-                                <div>Fecha vencto: {mov.conciliado_externo_datos.fechaVencto}</div>
-                                <div>Pasajero: {mov.conciliado_externo_datos.nombrePasajero}</div>
-                              </>
-                            )}
+                            {(() => {
+                              const pagosOfi = pagosOfiPorMov[mov.id];
+                              if (pagosOfi && pagosOfi.length >= 2) {
+                                return (
+                                  <>
+                                    <div style={{ fontWeight: 700, marginBottom: "0.4rem" }}>
+                                      {pagosOfi.length} expedientes OFI vinculados
+                                    </div>
+                                    {pagosOfi.map((p, i) => (
+                                      <div
+                                        key={p.id}
+                                        style={{
+                                          marginBottom: i < pagosOfi.length - 1 ? "0.5rem" : 0,
+                                          paddingBottom: i < pagosOfi.length - 1 ? "0.5rem" : 0,
+                                          borderBottom: i < pagosOfi.length - 1 ? "1px solid #f1f5f9" : "none",
+                                        }}
+                                      >
+                                        <div style={{ fontWeight: 600 }}>{p.proveedorNombre}</div>
+                                        <div>Doc: {p.documento} · Expediente OFI: {p.referenciaProvCte}</div>
+                                        <div>
+                                          {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(p.importePendiente)}
+                                          {" · "}
+                                          {p.nombrePasajero}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </>
+                                );
+                              }
+                              const p = pagosOfi?.[0];
+                              const datos = p
+                                ? {
+                                    proveedorNombre: p.proveedorNombre,
+                                    documento: p.documento,
+                                    referenciaProvCte: p.referenciaProvCte,
+                                    documentoCobroPago: p.documentoCobroPago,
+                                    importePendiente: p.importePendiente,
+                                    fechaVencto: p.fechaVencto,
+                                    nombrePasajero: p.nombrePasajero,
+                                  }
+                                : mov.conciliado_externo_datos;
+                              if (!datos) return null;
+                              return (
+                                <>
+                                  <div style={{ fontWeight: 700, marginBottom: "0.3rem" }}>{datos.proveedorNombre}</div>
+                                  <div>Doc: {datos.documento}</div>
+                                  <div>Expediente OFI: {datos.referenciaProvCte}</div>
+                                  <div>Doc. cobro/pago: {datos.documentoCobroPago}</div>
+                                  <div>
+                                    Importe: {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(datos.importePendiente)}
+                                  </div>
+                                  <div>Fecha vencto: {datos.fechaVencto}</div>
+                                  <div>Pasajero: {datos.nombrePasajero}</div>
+                                </>
+                              );
+                            })()}
                           </MatchTooltipWrapper>
                         ) : estadoEfectivo === "manual" ? (
                           <MatchTooltipWrapper

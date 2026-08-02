@@ -373,6 +373,233 @@ export async function vincularManualmenteMovimientoBanco(
   if (error) throw error;
 }
 
+export interface PagoOfiVinculado {
+  id: string;
+  documento: string;
+  proveedorNombre: string;
+  nombrePasajero: string;
+  referenciaProvCte: string;
+  documentoCobroPago: string;
+  importePendiente: number;
+  fechaVencto: string | null;
+}
+
+/**
+ * Todos los pagos OFI vinculados a un movimiento bancario concreto (columna
+ * movimiento_banco_id o array movimientos_banco_ids), para el tooltip de
+ * /banco: un movimiento puede tener varios pagos OFI de expedientes
+ * distintos (ej. uno grande cubierto por varios pagos pequeños), y
+ * conciliado_externo_datos solo guarda el primero como referencia.
+ */
+export async function getPagosOfiVinculadosAMovimiento(movimientoBancoId: string): Promise<PagoOfiVinculado[]> {
+  const agencyDb = await getAgencyDbClient();
+  const { data, error } = await agencyDb
+    .from("ofi_pagos")
+    .select("id, documento, proveedor_nombre, nombre_pasajero, referencia_prov_cte, documento_cobro_pago, importe_pendiente, fecha_vencto")
+    .or(`movimiento_banco_id.eq.${movimientoBancoId},movimientos_banco_ids.cs.["${movimientoBancoId}"]`)
+    .order("fecha_vencto", { ascending: false });
+  if (error) throw error;
+
+  return (data ?? []).map((p: any) => ({
+    id: p.id,
+    documento: p.documento,
+    proveedorNombre: p.proveedor_nombre || "",
+    nombrePasajero: p.nombre_pasajero || "",
+    referenciaProvCte: p.referencia_prov_cte || "",
+    documentoCobroPago: p.documento_cobro_pago || "",
+    importePendiente: Number(p.importe_pendiente),
+    fechaVencto: p.fecha_vencto,
+  }));
+}
+
+export interface PagoOfiPorExpediente {
+  id: string;
+  documento: string;
+  proveedorNombre: string;
+  nombrePasajero: string;
+  importePendiente: number;
+  importeVinculado: number;
+  fechaVencto: string | null;
+  vinculado: boolean;
+  completo: boolean;
+}
+
+/**
+ * Pagos OFI de un expediente (referencia_prov_cte), para el selector del
+ * modal de "Conciliar manualmente" en /banco: al escribir el expediente,
+ * permite elegir el pago OFI real en vez de dejarlo como texto libre sin
+ * vínculo (que hoy no toca ofi_pagos en absoluto). Incluye la suma ya
+ * vinculada para permitir repartir un mismo pago entre varios movimientos
+ * bancarios (ej. 264,08€ pagados en dos transferencias de 132,04€) sin
+ * superar su importe.
+ */
+export async function buscarPagosOfiPorExpediente(expediente: string): Promise<PagoOfiPorExpediente[]> {
+  const expedienteLimpio = expediente.trim();
+  if (!expedienteLimpio) return [];
+
+  const agencyDb = await getAgencyDbClient();
+  const { data, error } = await agencyDb
+    .from("ofi_pagos")
+    .select("id, documento, proveedor_nombre, nombre_pasajero, importe_pendiente, fecha_vencto, movimiento_banco_id, movimientos_banco_ids")
+    .eq("referencia_prov_cte", expedienteLimpio)
+    .order("fecha_vencto", { ascending: false });
+  if (error) throw error;
+
+  // movimiento_banco_id puede estar relleno sin que movimientos_banco_ids lo
+  // incluya (vínculos hechos antes de que existiera el array, o por otras
+  // vías como el matching automático o el modal de búsqueda de
+  // movimientos-ofiviaje, que solo escriben la columna singular).
+  const idsVinculadosPorPago = new Map<string, string[]>();
+  for (const p of data ?? []) {
+    const ids = new Set<string>(Array.isArray(p.movimientos_banco_ids) ? p.movimientos_banco_ids : []);
+    if (p.movimiento_banco_id) ids.add(p.movimiento_banco_id);
+    if (ids.size > 0) idsVinculadosPorPago.set(p.id, [...ids]);
+  }
+  const todosLosIds = [...new Set([...idsVinculadosPorPago.values()].flat())];
+  const importePorMovimiento = new Map<string, number>();
+  if (todosLosIds.length > 0) {
+    const { data: movimientos, error: e2 } = await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .select("id, importe")
+      .in("id", todosLosIds);
+    if (e2) throw e2;
+    for (const m of movimientos ?? []) importePorMovimiento.set(m.id, Math.abs(Number(m.importe)));
+  }
+
+  return (data ?? []).map((p: any) => {
+    const idsVinculados: string[] = idsVinculadosPorPago.get(p.id) ?? [];
+    const importeVinculado = idsVinculados.reduce((sum, id) => sum + (importePorMovimiento.get(id) ?? 0), 0);
+    const importePendiente = Number(p.importe_pendiente);
+    return {
+      id: p.id,
+      documento: p.documento,
+      proveedorNombre: p.proveedor_nombre || "",
+      nombrePasajero: p.nombre_pasajero || "",
+      importePendiente,
+      importeVinculado,
+      fechaVencto: p.fecha_vencto,
+      vinculado: !!p.movimiento_banco_id || idsVinculados.length > 0,
+      completo: importeVinculado - Math.abs(importePendiente) > -TOLERANCIA_IMPORTE,
+    };
+  });
+}
+
+/**
+ * Recalcula el estado de un movimiento bancario a partir de los pagos OFI
+ * que tiene vinculados (columna singular movimiento_banco_id de ofi_pagos, o
+ * el array movimientos_banco_ids para el caso de reparto). Igual que
+ * recalcularEstadoMovimientoBanco (conciliación manual normal): si la suma
+ * de los pagos OFI vinculados no cubre el importe del movimiento, queda
+ * "parcial" en vez de "conciliado", para poder seguir completándolo con más
+ * vínculos.
+ */
+async function recalcularEstadoMovimientoBancoPorOfi(agencyDb: any, movimientoBancoId: string): Promise<"conciliado" | "parcial"> {
+  const { data: banco, error: e1 } = await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .select("importe")
+    .eq("id", movimientoBancoId)
+    .single();
+  if (e1) throw e1;
+
+  const { data: pagosVinculados, error: e2 } = await agencyDb
+    .from("ofi_pagos")
+    .select("importe_pendiente")
+    .or(`movimiento_banco_id.eq.${movimientoBancoId},movimientos_banco_ids.cs.["${movimientoBancoId}"]`);
+  if (e2) throw e2;
+
+  const totalOfiVinculado = (pagosVinculados ?? []).reduce((sum: number, p: any) => sum + Math.abs(Number(p.importe_pendiente || 0)), 0);
+  const importeMovimiento = Math.abs(Number(banco?.importe || 0));
+  const nuevoEstado: "conciliado" | "parcial" = totalOfiVinculado + TOLERANCIA_IMPORTE >= importeMovimiento ? "conciliado" : "parcial";
+
+  const { error: e3 } = await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .update({ estado: nuevoEstado, conciliado_at: nuevoEstado === "conciliado" ? new Date().toISOString() : null })
+    .eq("id", movimientoBancoId);
+  if (e3) throw e3;
+
+  return nuevoEstado;
+}
+
+/**
+ * Vincula de verdad un pago OFI concreto elegido en el modal de conciliación
+ * manual: marca movimiento_banco_id en ofi_pagos y conciliado_externo en el
+ * movimiento bancario, igual que hace el matching automático
+ * (conciliarDesdeOfiPagos), para que quede recíproco en ambos sentidos.
+ *
+ * Soporta que un mismo pago OFI se reparta entre varios movimientos
+ * bancarios (ej. un pago de 264,08€ pagado en dos transferencias de
+ * 132,04€): cada vinculación se añade a movimientos_banco_ids en vez de
+ * sobrescribir, siempre que la suma de los importes ya vinculados más el
+ * nuevo no supere el importe_pendiente del pago (con tolerancia de 1
+ * céntimo). movimiento_banco_id sigue apuntando al primer vínculo, para no
+ * romper el código que aún lo lee como relación 1:1.
+ *
+ * El caso inverso (un movimiento bancario más grande que el pago OFI
+ * vinculado, ej. 300€ de movimiento contra 100€ de pago OFI) se resuelve
+ * dejando el movimiento en estado "parcial" hasta que la suma de todos los
+ * pagos OFI vinculados a él cubra su importe — igual que ya hace la
+ * conciliación manual normal (recalcularEstadoMovimientoBanco).
+ */
+export async function vincularPagoOfiDesdeConciliacionManual(pagoOfiId: string, movimientoBancoId: string): Promise<void> {
+  const agencyDb = await getAgencyDbClient();
+
+  const { data: pago, error: e1 } = await agencyDb.from("ofi_pagos").select("*").eq("id", pagoOfiId).single();
+  if (e1) throw e1;
+
+  // movimiento_banco_id puede estar relleno sin que movimientos_banco_ids lo
+  // incluya (vínculos hechos antes de que existiera el array, o por el
+  // matching automático o el modal de búsqueda de movimientos-ofiviaje).
+  const idsExistentesSet = new Set<string>(Array.isArray(pago.movimientos_banco_ids) ? pago.movimientos_banco_ids : []);
+  if (pago.movimiento_banco_id) idsExistentesSet.add(pago.movimiento_banco_id);
+  const idsExistentes = [...idsExistentesSet];
+  if (idsExistentes.includes(movimientoBancoId)) return;
+
+  // Solo se valida que la suma de movimientos bancarios no supere el pago
+  // OFI cuando ese pago YA tenía algún vínculo previo (caso de reparto: un
+  // pago OFI pagado en varias transferencias más pequeñas). Si es el primer
+  // vínculo, un movimiento bancario mayor que el pago OFI es válido (caso
+  // inverso: un movimiento grande recibe varios pagos OFI pequeños) — ese
+  // caso lo gestiona recalcularEstadoMovimientoBancoPorOfi dejando el
+  // movimiento en "parcial" hasta completarse, sin bloquear el vínculo.
+  if (idsExistentes.length > 0) {
+    const { data: movimientosVinculados, error: e2 } = await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .select("id, importe")
+      .in("id", [...idsExistentes, movimientoBancoId]);
+    if (e2) throw e2;
+
+    const sumaVinculada = (movimientosVinculados ?? []).reduce((sum: number, m: any) => sum + Math.abs(Number(m.importe)), 0);
+    const importePago = Math.abs(Number(pago.importe_pendiente));
+    if (sumaVinculada - importePago > TOLERANCIA_IMPORTE) {
+      throw new Error(
+        `La suma de los movimientos vinculados (${sumaVinculada.toFixed(2)}€) supera el importe del pago OFI (${importePago.toFixed(2)}€).`
+      );
+    }
+  }
+
+  const pagoOfiviaje = filaOfiPagoComoOfiviajePago(pago);
+
+  const { error: e3 } = await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .update({
+      conciliado_externo: true,
+      conciliado_externo_origen: "ofiviaje",
+      conciliado_externo_en: new Date().toISOString(),
+      conciliado_externo_datos: { ...pagoOfiviaje, _driveFileId: pago.drive_file_id },
+    })
+    .eq("id", movimientoBancoId);
+  if (e3) throw e3;
+
+  const nuevosIds = [...idsExistentes, movimientoBancoId];
+  const { error: e4 } = await agencyDb
+    .from("ofi_pagos")
+    .update({ movimiento_banco_id: pago.movimiento_banco_id || movimientoBancoId, movimientos_banco_ids: nuevosIds })
+    .eq("id", pagoOfiId);
+  if (e4) throw e4;
+
+  await recalcularEstadoMovimientoBancoPorOfi(agencyDb, movimientoBancoId);
+}
+
 // yyyy-mm-dd (formato BD) -> dd/mm/yyyy (formato que esperan coincide()/
 // desambiguarCandidato() de ofiviajeMatch.ts, pensadas para OfiviajePago tal
 // como sale del XML).

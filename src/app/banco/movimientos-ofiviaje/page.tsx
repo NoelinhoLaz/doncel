@@ -445,12 +445,14 @@ export default function MovimientosOfiviajePage() {
           <option value="conciliados">Conciliados</option>
           <option value="pendientes">Pendientes</option>
         </select>
-        <MultiSelectDropdown
-          options={["Alcalá", "Guadalajara", "Palma"]}
-          selected={filtroAgencia}
-          onChange={setFiltroAgencia}
-          placeholder="Todas las agencias"
-        />
+        <div style={{ width: 220, flex: "0 0 auto" }}>
+          <MultiSelectDropdown
+            options={["Alcalá", "Guadalajara", "Palma"]}
+            selected={filtroAgencia}
+            onChange={setFiltroAgencia}
+            placeholder="Todas las agencias"
+          />
+        </div>
       </div>
 
       {loading ? (

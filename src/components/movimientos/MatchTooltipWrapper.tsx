@@ -11,9 +11,10 @@ interface MatchTooltipWrapperProps {
   };
   children: ReactNode;
   onShow?: () => void;
+  onClick?: () => void;
 }
 
-export function MatchTooltipWrapper({ label, badgeStyles, children, onShow }: MatchTooltipWrapperProps) {
+export function MatchTooltipWrapper({ label, badgeStyles, children, onShow, onClick }: MatchTooltipWrapperProps) {
   const [show, setShow] = useState(false);
   const [openUp, setOpenUp] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -52,19 +53,22 @@ export function MatchTooltipWrapper({ label, badgeStyles, children, onShow }: Ma
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <span style={{
-        display: "inline-block",
-        padding: "0.1rem 0.4rem",
-        borderRadius: "0.25rem",
-        fontSize: "0.65rem",
-        fontWeight: "700",
-        background: badgeStyles.background,
-        color: badgeStyles.color,
-        border: badgeStyles.border,
-        textTransform: "uppercase",
-        cursor: "pointer",
-        transition: "all 0.15s ease-in-out",
-      }}>
+      <span
+        onClick={onClick}
+        style={{
+          display: "inline-block",
+          padding: "0.1rem 0.4rem",
+          borderRadius: "0.25rem",
+          fontSize: "0.65rem",
+          fontWeight: "700",
+          background: badgeStyles.background,
+          color: badgeStyles.color,
+          border: badgeStyles.border,
+          textTransform: "uppercase",
+          cursor: "pointer",
+          transition: "all 0.15s ease-in-out",
+        }}
+      >
         {label}
       </span>
 

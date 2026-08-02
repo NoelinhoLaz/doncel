@@ -11,7 +11,7 @@ import { createBridgeConnectSession, syncBridgeTransactions } from "@/lib/banco/
 import { getCurrentAgenciaSlug } from "@/actions/agencias";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { previsualizarOfiviajeUsuarioActual, previsualizarCobrosXmlManual, confirmarConciliacionOfiviaje as confirmarConciliacionOfiviajeLib, enviarInformeOfiviajePorEmail, guardarAliasProveedorOfi, getUltimoInformeReal as getUltimoInformeRealLib, marcarTareaPendienteResueltaPorMovimiento, getHistorialProcesosOfiviaje as getHistorialProcesosOfiviajeLib, forzarProcesoOfiviajeUsuarioActual as forzarProcesoOfiviajeUsuarioActualLib, getDetalleProcesoOfiviaje as getDetalleProcesoOfiviajeLib, buscarProveedorPorDocumento as buscarProveedorPorDocumentoLib, listarProveedoresUnicosOfi as listarProveedoresUnicosOfiLib, buscarProveedorPorImporte as buscarProveedorPorImporteLib, intentarGuardarAliasSiNoCoincide, reprocesarFicheroOfiviaje as reprocesarFicheroOfiviajeLib, reprocesarTodosLosFicherosOfiviaje as reprocesarTodosLosFicherosOfiviajeLib, type OfiviajeMatchPropuesto, type OfiviajePreview } from "@/lib/banco/ofiviajeMatch";
-import { descargarMovimientosOfiviaje as descargarMovimientosOfiviajeLib, getOfiPagos as fetchOfiPagos, getOfiCobros as fetchOfiCobros, vincularMovimientosOfiConBanco as vincularMovimientosOfiConBancoLib, buscarCandidatosMovimientoBanco as buscarCandidatosMovimientoBancoLib, vincularManualmenteMovimientoBanco as vincularManualmenteMovimientoBancoLib, conciliarDesdeOfiPagos as conciliarDesdeOfiPagosLib } from "@/lib/banco/ofiviajeMovimientos";
+import { descargarMovimientosOfiviaje as descargarMovimientosOfiviajeLib, getOfiPagos as fetchOfiPagos, getOfiCobros as fetchOfiCobros, vincularMovimientosOfiConBanco as vincularMovimientosOfiConBancoLib, buscarCandidatosMovimientoBanco as buscarCandidatosMovimientoBancoLib, vincularManualmenteMovimientoBanco as vincularManualmenteMovimientoBancoLib, conciliarDesdeOfiPagos as conciliarDesdeOfiPagosLib, buscarPagosOfiPorExpediente as buscarPagosOfiPorExpedienteLib, vincularPagoOfiDesdeConciliacionManual as vincularPagoOfiDesdeConciliacionManualLib, getPagosOfiVinculadosAMovimiento as getPagosOfiVinculadosAMovimientoLib } from "@/lib/banco/ofiviajeMovimientos";
 
 export async function descargarMovimientosOfiviaje() {
   return descargarMovimientosOfiviajeLib();
@@ -44,6 +44,23 @@ export async function vincularManualmenteMovimientoBanco(tipo: "pago" | "cobro",
 // cambios en la lógica de matching sobre los pagos ya descargados.
 export async function conciliarDesdeOfiPagos() {
   return conciliarDesdeOfiPagosLib();
+}
+
+// Pagos OFI de un expediente, para el selector del modal de conciliación
+// manual: permite elegir el pago OFI real en vez de dejar el expediente
+// como texto libre sin vínculo real con ofi_pagos.
+export async function buscarPagosOfiPorExpediente(expediente: string) {
+  return buscarPagosOfiPorExpedienteLib(expediente);
+}
+
+export async function vincularPagoOfiDesdeConciliacionManual(pagoOfiId: string, movimientoBancoId: string) {
+  return vincularPagoOfiDesdeConciliacionManualLib(pagoOfiId, movimientoBancoId);
+}
+
+// Todos los pagos OFI vinculados a un movimiento bancario (puede haber más
+// de uno, de expedientes distintos), para el tooltip del listado de /banco.
+export async function getPagosOfiVinculadosAMovimiento(movimientoBancoId: string) {
+  return getPagosOfiVinculadosAMovimientoLib(movimientoBancoId);
 }
 
 export async function getMovimientosBanco(options?: any) {
@@ -193,9 +210,18 @@ export async function getImportePendienteConciliar(movimientoBancoId: string): P
     .eq("movimiento_banco_id", movimientoBancoId)
     .eq("estado", "confirmado");
 
+  // También descuenta lo ya cubierto por pagos OFI vinculados manualmente
+  // (movimiento en estado "parcial" por vincularPagoOfiDesdeConciliacionManual),
+  // para que el importe propuesto al reabrir el modal sea el resto real.
+  const { data: pagosOfi } = await agencyDb
+    .from("ofi_pagos")
+    .select("importe_pendiente")
+    .or(`movimiento_banco_id.eq.${movimientoBancoId},movimientos_banco_ids.cs.["${movimientoBancoId}"]`);
+
   const yaConciliado = (pagos || []).reduce((sum: number, p: any) => sum + Number(p.importe_total || 0), 0);
+  const yaConciliadoOfi = (pagosOfi || []).reduce((sum: number, p: any) => sum + Math.abs(Number(p.importe_pendiente || 0)), 0);
   const importeMovimiento = Math.abs(Number(movimiento?.importe || 0));
-  const importePendiente = Math.max(0, importeMovimiento - yaConciliado);
+  const importePendiente = Math.max(0, importeMovimiento - yaConciliado - yaConciliadoOfi);
 
   return { importePendiente };
 }
