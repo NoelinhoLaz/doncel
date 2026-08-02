@@ -6,8 +6,8 @@ import {
   getImportePendienteConciliar,
   getConciliacionesManuales,
   guardarAliasProveedor,
-  buscarPagosOfiPorExpediente,
-  vincularPagoOfiDesdeConciliacionManual,
+  buscarPagosOfi,
+  vincularPagosOfiDesdeConciliacionManual,
   type ConciliacionManualDetalle,
 } from "@/actions/banco";
 
@@ -39,11 +39,25 @@ export interface ConciliacionManualOpciones {
   aliasProveedor?: { proveedorOfi: string; conceptoBanco: string };
 }
 
+const formatoEuro = (v: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(v);
+
+// fecha_vencto llega de la BD como "yyyy-mm-dd" (DATE); se muestra en
+// formato local DD/MM/AAAA sin pasar por Date (evita desfases de zona horaria).
+const formatoFecha = (v: string | null) => {
+  if (!v) return "—";
+  const [yyyy, mm, dd] = v.split("-");
+  return dd && mm && yyyy ? `${dd}/${mm}/${yyyy}` : v;
+};
+
 /**
  * Modal de conciliación manual, extraído de movimientos-app para reutilizar
  * en /banco. Encapsula su propio estado (importe, expediente, VºBº Dirección Comercial,
  * histórico) y las llamadas a las server actions; el padre solo controla
  * cuándo se abre (pasando `mov`) y qué hacer al cerrarse/conciliar.
+ *
+ * El selector de pagos OFI permite filtrar libremente por expediente,
+ * proveedor y/o rango de fecha, y seleccionar varios pagos a la vez
+ * (checkboxes) mostrando la suma seleccionada en vivo.
  */
 export function ConciliacionManualModal({
   mov,
@@ -59,16 +73,20 @@ export function ConciliacionManualModal({
   onConciliado: () => void;
 }) {
   const [importe, setImporte] = useState("");
-  const [expediente, setExpediente] = useState("");
   const [nota, setNota] = useState("");
   const [voboDc, setVoboDc] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pendiente, setPendiente] = useState<number | null>(null);
   const [historico, setHistorico] = useState<ConciliacionManualDetalle[]>([]);
   const [historicoLoading, setHistoricoLoading] = useState(false);
-  const [pagosOfi, setPagosOfi] = useState<Awaited<ReturnType<typeof buscarPagosOfiPorExpediente>>>([]);
+
+  const [filtroExpediente, setFiltroExpediente] = useState("");
+  const [filtroProveedor, setFiltroProveedor] = useState("");
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
+  const [pagosOfi, setPagosOfi] = useState<Awaited<ReturnType<typeof buscarPagosOfi>>>([]);
   const [pagosOfiLoading, setPagosOfiLoading] = useState(false);
-  const [pagoOfiSeleccionadoId, setPagoOfiSeleccionadoId] = useState<string | null>(null);
+  const [pagosOfiSeleccionados, setPagosOfiSeleccionados] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!mov) return;
@@ -76,14 +94,17 @@ export function ConciliacionManualModal({
 
     const fallback = Math.abs(Number(mov.importe));
     setImporte(fallback.toFixed(2));
-    setExpediente(opciones?.expediente || "");
     setNota("");
     setVoboDc(false);
     setPendiente(fallback);
     setHistorico([]);
     setHistoricoLoading(true);
     setPagosOfi([]);
-    setPagoOfiSeleccionadoId(null);
+    setPagosOfiSeleccionados(new Set());
+    setFiltroExpediente(opciones?.expediente || "");
+    setFiltroProveedor("");
+    setFiltroFechaDesde("");
+    setFiltroFechaHasta("");
 
     getImportePendienteConciliar(mov.id)
       .then(({ importePendiente }) => {
@@ -108,24 +129,26 @@ export function ConciliacionManualModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mov?.id]);
 
-  // Búsqueda de pagos OFI del expediente escrito, con debounce para no
+  // Búsqueda de pagos OFI según los filtros activos, con debounce para no
   // disparar una consulta en cada pulsación.
   useEffect(() => {
     if (!mov) return;
-    const expedienteLimpio = expediente.trim();
-    setPagoOfiSeleccionadoId(null);
-    if (!expedienteLimpio) {
+    const expediente = filtroExpediente.trim();
+    const proveedor = filtroProveedor.trim();
+    const fechaDesde = filtroFechaDesde.trim();
+    const fechaHasta = filtroFechaHasta.trim();
+    if (!expediente && !proveedor && !fechaDesde && !fechaHasta) {
       setPagosOfi([]);
       return;
     }
     let cancelado = false;
     setPagosOfiLoading(true);
     const timeout = setTimeout(() => {
-      buscarPagosOfiPorExpediente(expedienteLimpio)
+      buscarPagosOfi({ expediente, proveedor, fechaDesde, fechaHasta })
         .then((data) => {
           if (!cancelado) setPagosOfi(data);
         })
-        .catch((error) => console.error("Error buscando pagos OFI del expediente:", error))
+        .catch((error: any) => console.error("Error buscando pagos OFI:", error))
         .finally(() => {
           if (!cancelado) setPagosOfiLoading(false);
         });
@@ -135,9 +158,24 @@ export function ConciliacionManualModal({
       clearTimeout(timeout);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expediente, mov?.id]);
+  }, [filtroExpediente, filtroProveedor, filtroFechaDesde, filtroFechaHasta, mov?.id]);
 
   if (!mov) return null;
+
+  const toggleSeleccion = (pagoId: string) => {
+    setPagosOfiSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(pagoId)) next.delete(pagoId);
+      else next.add(pagoId);
+      return next;
+    });
+  };
+
+  // Los pagos OFI con importePendiente negativo son reembolsos/devoluciones:
+  // deben restar de la suma, no sumarse en valor absoluto.
+  const sumaSeleccionada = pagosOfi
+    .filter((p) => pagosOfiSeleccionados.has(p.id))
+    .reduce((sum, p) => sum + p.importePendiente, 0);
 
   const handleClose = () => {
     if (loading) return;
@@ -152,15 +190,15 @@ export function ConciliacionManualModal({
     }
     setLoading(true);
     try {
-      if (pagoOfiSeleccionadoId) {
+      if (pagosOfiSeleccionados.size > 0) {
         try {
-          await vincularPagoOfiDesdeConciliacionManual(pagoOfiSeleccionadoId, mov.id);
+          await vincularPagosOfiDesdeConciliacionManual([...pagosOfiSeleccionados], mov.id);
         } catch (error: any) {
-          alert(error?.message || "Error al vincular el pago OFI seleccionado.");
+          alert(error?.message || "Error al vincular los pagos OFI seleccionados.");
           return;
         }
       }
-      const res = await conciliarManualmente(mov.id, importeNum, expediente.trim() || undefined, isOwner && voboDc, nota.trim() || undefined);
+      const res = await conciliarManualmente(mov.id, importeNum, filtroExpediente.trim() || undefined, isOwner && voboDc, nota.trim() || undefined);
       if (!res.success) {
         alert(res.error || "Error al conciliar el movimiento.");
         return;
@@ -200,7 +238,7 @@ export function ConciliacionManualModal({
           background: "#fff",
           borderRadius: "0.75rem",
           width: "100%",
-          maxWidth: "380px",
+          maxWidth: "640px",
           maxHeight: "90vh",
           display: "flex",
           flexDirection: "column",
@@ -253,9 +291,7 @@ export function ConciliacionManualModal({
                           </span>
                         )}
                       </span>
-                      <span style={{ fontWeight: 600, color: "#0f172a" }}>
-                        {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(c.importe)}
-                      </span>
+                      <span style={{ fontWeight: 600, color: "#0f172a" }}>{formatoEuro(c.importe)}</span>
                     </li>
                   ))}
                 </ul>
@@ -270,71 +306,105 @@ export function ConciliacionManualModal({
                 <input type="number" step="0.01" value={importe} onChange={(e) => setImporte(e.target.value)} style={inputStyle} />
                 {pendiente !== null && (
                   <p style={{ margin: "0.3rem 0 0", fontSize: "0.72rem", color: "#94a3b8" }}>
-                    Pendiente por conciliar: {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(pendiente)}
+                    Pendiente por conciliar: {formatoEuro(pendiente)}
                   </p>
                 )}
               </div>
 
               <div>
-                <span style={labelStyle}>Expediente OFI (opcional)</span>
-                <input
-                  type="text"
-                  placeholder="Ej. 001260012"
-                  value={expediente}
-                  onChange={(e) => setExpediente(e.target.value)}
-                  style={inputStyle}
-                />
+                <span style={labelStyle}>Buscar pagos OFI</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                  <input
+                    type="text"
+                    placeholder="Expediente (ej. 001260012)"
+                    value={filtroExpediente}
+                    onChange={(e) => setFiltroExpediente(e.target.value)}
+                    style={inputStyle}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Proveedor"
+                    value={filtroProveedor}
+                    onChange={(e) => setFiltroProveedor(e.target.value)}
+                    style={inputStyle}
+                  />
+                  <div style={{ display: "flex", gap: "0.4rem" }}>
+                    <input
+                      type="date"
+                      value={filtroFechaDesde}
+                      onChange={(e) => setFiltroFechaDesde(e.target.value)}
+                      style={inputStyle}
+                      title="Fecha desde"
+                    />
+                    <input
+                      type="date"
+                      value={filtroFechaHasta}
+                      onChange={(e) => setFiltroFechaHasta(e.target.value)}
+                      style={inputStyle}
+                      title="Fecha hasta"
+                    />
+                  </div>
+                </div>
+
                 {pagosOfiLoading ? (
                   <p style={{ margin: "0.4rem 0 0", fontSize: "0.72rem", color: "#94a3b8" }}>Buscando pagos OFI…</p>
                 ) : pagosOfi.length > 0 ? (
-                  <div style={{ marginTop: "0.5rem", border: "1px solid #e2e8f0", borderRadius: "0.375rem", overflow: "hidden" }}>
-                    {pagosOfi.map((p) => {
-                      const seleccionado = pagoOfiSeleccionadoId === p.id;
-                      const restante = Math.abs(p.importePendiente) - p.importeVinculado;
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => setPagoOfiSeleccionadoId(seleccionado ? null : p.id)}
-                          disabled={p.completo}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            gap: "0.5rem",
-                            width: "100%",
-                            padding: "0.45rem 0.6rem",
-                            border: "none",
-                            borderTop: "1px solid #f1f5f9",
-                            background: seleccionado ? "#ecfdf5" : "#fff",
-                            cursor: p.completo ? "default" : "pointer",
-                            opacity: p.completo ? 0.55 : 1,
-                            textAlign: "left",
-                          }}
-                        >
-                          <span style={{ minWidth: 0 }}>
-                            <span style={{ display: "block", fontSize: "0.76rem", color: "#334155", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {p.proveedorNombre || p.documento}
+                  <>
+                    <div style={{ marginTop: "0.5rem", border: "1px solid #e2e8f0", borderRadius: "0.375rem", overflow: "hidden", maxHeight: "220px", overflowY: "auto" }}>
+                      {pagosOfi.map((p) => {
+                        const seleccionado = pagosOfiSeleccionados.has(p.id);
+                        const restante = Math.abs(p.importePendiente) - p.importeVinculado;
+                        return (
+                          <label
+                            key={p.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              width: "100%",
+                              padding: "0.45rem 0.6rem",
+                              borderTop: "1px solid #f1f5f9",
+                              background: seleccionado ? "#ecfdf5" : "#fff",
+                              cursor: p.completo ? "default" : "pointer",
+                              opacity: p.completo ? 0.55 : 1,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={seleccionado}
+                              disabled={p.completo}
+                              onChange={() => toggleSeleccion(p.id)}
+                              style={{ flexShrink: 0 }}
+                            />
+                            <span style={{ minWidth: 0, flex: 1 }}>
+                              <span style={{ display: "block", fontSize: "0.76rem", color: "#334155", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {p.proveedorNombre || p.documento}
+                              </span>
+                              <span style={{ display: "block", fontSize: "0.7rem", color: "#94a3b8" }}>
+                                {p.documento} · Exp. {p.referenciaProvCte || "—"} · {p.nombrePasajero || "—"} · {formatoFecha(p.fechaVencto)}
+                                {p.completo
+                                  ? " · completo"
+                                  : p.vinculado
+                                  ? ` · quedan ${formatoEuro(restante)}`
+                                  : ""}
+                              </span>
                             </span>
-                            <span style={{ display: "block", fontSize: "0.7rem", color: "#94a3b8" }}>
-                              {p.documento} · {p.nombrePasajero || "—"}
-                              {p.completo
-                                ? " · completo"
-                                : p.vinculado
-                                ? ` · quedan ${new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(restante)}`
-                                : ""}
+                            <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>
+                              {formatoEuro(p.importePendiente)}
                             </span>
-                          </span>
-                          <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>
-                            {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(p.importePendiente)}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {pagosOfiSeleccionados.size > 0 && (
+                      <p style={{ margin: "0.4rem 0 0", fontSize: "0.78rem", color: "#334155", fontWeight: 600 }}>
+                        {pagosOfiSeleccionados.size} seleccionado{pagosOfiSeleccionados.size !== 1 ? "s" : ""} · Suma: {formatoEuro(sumaSeleccionada)}
+                      </p>
+                    )}
+                  </>
                 ) : (
-                  expediente.trim() && (
-                    <p style={{ margin: "0.4rem 0 0", fontSize: "0.72rem", color: "#94a3b8" }}>Sin pagos OFI para ese expediente.</p>
+                  (filtroExpediente.trim() || filtroProveedor.trim() || filtroFechaDesde || filtroFechaHasta) && (
+                    <p style={{ margin: "0.4rem 0 0", fontSize: "0.72rem", color: "#94a3b8" }}>Sin pagos OFI para esos filtros.</p>
                   )
                 )}
               </div>

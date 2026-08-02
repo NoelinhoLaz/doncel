@@ -11,7 +11,7 @@ import { createBridgeConnectSession, syncBridgeTransactions } from "@/lib/banco/
 import { getCurrentAgenciaSlug } from "@/actions/agencias";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { previsualizarOfiviajeUsuarioActual, previsualizarCobrosXmlManual, confirmarConciliacionOfiviaje as confirmarConciliacionOfiviajeLib, enviarInformeOfiviajePorEmail, guardarAliasProveedorOfi, getUltimoInformeReal as getUltimoInformeRealLib, marcarTareaPendienteResueltaPorMovimiento, getHistorialProcesosOfiviaje as getHistorialProcesosOfiviajeLib, forzarProcesoOfiviajeUsuarioActual as forzarProcesoOfiviajeUsuarioActualLib, getDetalleProcesoOfiviaje as getDetalleProcesoOfiviajeLib, buscarProveedorPorDocumento as buscarProveedorPorDocumentoLib, listarProveedoresUnicosOfi as listarProveedoresUnicosOfiLib, buscarProveedorPorImporte as buscarProveedorPorImporteLib, intentarGuardarAliasSiNoCoincide, reprocesarFicheroOfiviaje as reprocesarFicheroOfiviajeLib, reprocesarTodosLosFicherosOfiviaje as reprocesarTodosLosFicherosOfiviajeLib, type OfiviajeMatchPropuesto, type OfiviajePreview } from "@/lib/banco/ofiviajeMatch";
-import { descargarMovimientosOfiviaje as descargarMovimientosOfiviajeLib, getOfiPagos as fetchOfiPagos, getOfiCobros as fetchOfiCobros, vincularMovimientosOfiConBanco as vincularMovimientosOfiConBancoLib, buscarCandidatosMovimientoBanco as buscarCandidatosMovimientoBancoLib, vincularManualmenteMovimientoBanco as vincularManualmenteMovimientoBancoLib, conciliarDesdeOfiPagos as conciliarDesdeOfiPagosLib, buscarPagosOfiPorExpediente as buscarPagosOfiPorExpedienteLib, vincularPagoOfiDesdeConciliacionManual as vincularPagoOfiDesdeConciliacionManualLib, getPagosOfiVinculadosAMovimiento as getPagosOfiVinculadosAMovimientoLib } from "@/lib/banco/ofiviajeMovimientos";
+import { descargarMovimientosOfiviaje as descargarMovimientosOfiviajeLib, getOfiPagos as fetchOfiPagos, getOfiCobros as fetchOfiCobros, vincularMovimientosOfiConBanco as vincularMovimientosOfiConBancoLib, buscarCandidatosMovimientoBanco as buscarCandidatosMovimientoBancoLib, vincularManualmenteMovimientoBanco as vincularManualmenteMovimientoBancoLib, conciliarDesdeOfiPagos as conciliarDesdeOfiPagosLib, buscarPagosOfi as buscarPagosOfiLib, vincularPagosOfiDesdeConciliacionManual as vincularPagosOfiDesdeConciliacionManualLib, getPagosOfiVinculadosAMovimiento as getPagosOfiVinculadosAMovimientoLib, type FiltrosBusquedaPagoOfi } from "@/lib/banco/ofiviajeMovimientos";
 
 export async function descargarMovimientosOfiviaje() {
   return descargarMovimientosOfiviajeLib();
@@ -46,21 +46,32 @@ export async function conciliarDesdeOfiPagos() {
   return conciliarDesdeOfiPagosLib();
 }
 
-// Pagos OFI de un expediente, para el selector del modal de conciliación
-// manual: permite elegir el pago OFI real en vez de dejar el expediente
-// como texto libre sin vínculo real con ofi_pagos.
-export async function buscarPagosOfiPorExpediente(expediente: string) {
-  return buscarPagosOfiPorExpedienteLib(expediente);
+// Pagos OFI filtrados por expediente, proveedor y/o rango de fecha, para el
+// selector del modal de conciliación manual: permite elegir el/los pago(s)
+// OFI reales en vez de dejar el expediente como texto libre sin vínculo
+// real con ofi_pagos.
+export async function buscarPagosOfi(filtros: FiltrosBusquedaPagoOfi) {
+  return buscarPagosOfiLib(filtros);
 }
 
-export async function vincularPagoOfiDesdeConciliacionManual(pagoOfiId: string, movimientoBancoId: string) {
-  return vincularPagoOfiDesdeConciliacionManualLib(pagoOfiId, movimientoBancoId);
+export async function vincularPagosOfiDesdeConciliacionManual(pagoOfiIds: string[], movimientoBancoId: string) {
+  const { usuarioId } = await getCurrentAgentePublic();
+  return vincularPagosOfiDesdeConciliacionManualLib(pagoOfiIds, movimientoBancoId, usuarioId);
 }
 
 // Todos los pagos OFI vinculados a un movimiento bancario (puede haber más
-// de uno, de expedientes distintos), para el tooltip del listado de /banco.
+// de uno, de expedientes distintos), con el nombre de quién vinculó cada
+// uno, para el tooltip del listado de /banco.
 export async function getPagosOfiVinculadosAMovimiento(movimientoBancoId: string) {
-  return getPagosOfiVinculadosAMovimientoLib(movimientoBancoId);
+  const pagos = await getPagosOfiVinculadosAMovimientoLib(movimientoBancoId);
+  const usuarioIds = [...new Set(pagos.map((p) => p.vinculadoPor).filter((id): id is string => !!id))];
+  if (usuarioIds.length === 0) return pagos.map((p) => ({ ...p, vinculadoPorNombre: null as string | null }));
+
+  const adminServiceClient = createAdminServiceClient();
+  const { data: usuarios } = await adminServiceClient.from("usuarios").select("id, nombre, apellidos").in("id", usuarioIds);
+  const nombrePorId = new Map((usuarios || []).map((u: any) => [u.id, `${u.nombre || ""} ${u.apellidos || ""}`.trim() || "Usuario desconocido"]));
+
+  return pagos.map((p) => ({ ...p, vinculadoPorNombre: p.vinculadoPor ? nombrePorId.get(p.vinculadoPor) || "Usuario desconocido" : null }));
 }
 
 export async function getMovimientosBanco(options?: any) {

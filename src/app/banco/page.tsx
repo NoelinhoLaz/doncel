@@ -730,6 +730,12 @@ export default function BancoPage() {
                                           {" · "}
                                           {p.nombrePasajero}
                                         </div>
+                                        {p.vinculadoPorNombre && (
+                                          <div style={{ color: "#94a3b8", fontSize: "0.7rem" }}>
+                                            Vinculado por {p.vinculadoPorNombre}
+                                            {p.vinculadoEn && ` · ${new Date(p.vinculadoEn).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" })}`}
+                                          </div>
+                                        )}
                                       </div>
                                     ))}
                                   </>
@@ -745,8 +751,11 @@ export default function BancoPage() {
                                     importePendiente: p.importePendiente,
                                     fechaVencto: p.fechaVencto,
                                     nombrePasajero: p.nombrePasajero,
+                                    vinculadoPorNombre: p.vinculadoPorNombre,
                                   }
-                                : mov.conciliado_externo_datos;
+                                : mov.conciliado_externo_datos
+                                ? { ...mov.conciliado_externo_datos, vinculadoPorNombre: null as string | null }
+                                : null;
                               if (!datos) return null;
                               return (
                                 <>
@@ -759,6 +768,11 @@ export default function BancoPage() {
                                   </div>
                                   <div>Fecha vencto: {datos.fechaVencto}</div>
                                   <div>Pasajero: {datos.nombrePasajero}</div>
+                                  {datos.vinculadoPorNombre && (
+                                    <div style={{ color: "#94a3b8", fontSize: "0.7rem", marginTop: "0.2rem" }}>
+                                      Vinculado por {datos.vinculadoPorNombre}
+                                    </div>
+                                  )}
                                 </>
                               );
                             })()}
