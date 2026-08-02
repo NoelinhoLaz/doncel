@@ -500,9 +500,10 @@ export default function MovimientosOfiviajePage() {
               columnas={[
                 { header: "Fec. Doc", width: "1%", render: (p) => formatoFecha(p.fecha_doc) },
                 { header: "Fec. Vcto", width: "1%", render: (p) => formatoFecha(p.fecha_vencto) },
-                { header: "Expediente", render: (p) => p.referencia_prov_cte ?? "—" },
+                { header: "Expediente", width: "1%", render: (p) => p.referencia_prov_cte ?? "—" },
                 { header: "Proveedor", render: (p) => p.proveedor_nombre ?? "—" },
                 { header: "Pasajero", render: (p) => p.nombre_pasajero ?? "—" },
+                { header: "LOC", width: "1%", render: (p) => p.documento_cobro_pago ?? "—" },
                 { header: "Documento", width: "1%", render: (p) => p.documento ?? "—" },
                 { header: "Importe", render: (p) => formatoImporte(p.importe_pendiente), align: "right" },
                 {
