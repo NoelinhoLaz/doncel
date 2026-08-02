@@ -2,7 +2,7 @@ import { getAgencyDbClient } from "@/lib/agencyDb";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { getDriveTokensUsuarioActual, listarXmlEnCarpeta, descargarContenidoXml, type DriveTokens } from "./ofiviajeDrive";
 import { parseOfiviajePagosXml, parseOfiviajeCobrosXml, parseOfiviajeFecha, parseOfiviajeFechaCorta, type OfiviajePago } from "./ofiviajeParser";
-import { coincide, desambiguarCandidato, getAliasProveedorPorAgencia, getMapaCuentaContable, nombreCoincide } from "./ofiviajeMatch";
+import { coincide, desambiguarMovimiento, getAliasProveedorPorAgencia, getMapaCuentaContable, nombreCoincide } from "./ofiviajeMatch";
 
 /**
  * Resuelve la oficina a asignar a los registros descargados: la del usuario
@@ -143,24 +143,39 @@ export async function descargarMovimientosOfiviaje(): Promise<DescargaOfiviajeRe
 }
 
 /**
- * Añade a cada fila `movimiento_banco` con los datos del movimiento bancario
- * vinculado (para el tooltip del listado), consultando aparte en vez de vía
- * embed de Supabase para no depender del nombre de la FK auto-generada.
+ * Añade a cada fila `movimiento_banco` (el primero, para no romper el uso
+ * existente) y `movimientos_banco` (todos los vinculados, vía
+ * movimientos_banco_ids con fallback a la columna singular para filas
+ * antiguas) con los datos del/los movimiento(s) bancario(s), para el
+ * tooltip del listado — consultando aparte en vez de vía embed de Supabase
+ * para no depender del nombre de la FK auto-generada.
  */
-async function adjuntarMovimientoBanco<T extends { movimiento_banco_id: string | null }>(
+async function adjuntarMovimientoBanco<T extends { movimiento_banco_id: string | null; movimientos_banco_ids?: string[] | null }>(
   agencyDb: any,
   filas: T[]
-): Promise<(T & { movimiento_banco: any | null })[]> {
-  const ids = [...new Set(filas.map((f) => f.movimiento_banco_id).filter((id): id is string => !!id))];
-  if (ids.length === 0) return filas.map((f) => ({ ...f, movimiento_banco: null }));
+): Promise<(T & { movimiento_banco: any | null; movimientos_banco: any[] })[]> {
+  const idsPorFila = filas.map((f) => {
+    const ids = new Set<string>(Array.isArray(f.movimientos_banco_ids) ? f.movimientos_banco_ids : []);
+    if (f.movimiento_banco_id) ids.add(f.movimiento_banco_id);
+    return [...ids];
+  });
+  const todosLosIds = [...new Set(idsPorFila.flat())];
+  if (todosLosIds.length === 0) return filas.map((f) => ({ ...f, movimiento_banco: null, movimientos_banco: [] }));
 
   const { data: movimientos } = await agencyDb
     .from("contabilidad_movimientos_banco")
     .select("id, concepto_original, fecha_operacion, importe")
-    .in("id", ids);
+    .in("id", todosLosIds);
 
   const porId = new Map((movimientos ?? []).map((m: any) => [m.id, m]));
-  return filas.map((f) => ({ ...f, movimiento_banco: f.movimiento_banco_id ? porId.get(f.movimiento_banco_id) ?? null : null }));
+  return filas.map((f, i) => {
+    const movimientosBanco = idsPorFila[i].map((id) => porId.get(id)).filter(Boolean);
+    return {
+      ...f,
+      movimiento_banco: f.movimiento_banco_id ? porId.get(f.movimiento_banco_id) ?? null : movimientosBanco[0] ?? null,
+      movimientos_banco: movimientosBanco,
+    };
+  });
 }
 
 export async function getOfiPagos(oficinaId?: string) {
@@ -833,25 +848,32 @@ export async function conciliarDesdeOfiPagosParaAgencia(agencyDb: any): Promise<
 
   const aliasPorProveedor = await getAliasProveedorPorAgencia(agencyDb);
 
-  const pagosConMatch = new Set<OfiviajePago>();
+  const movimientosConMatch = new Set<string>();
   const idsPagosRevisados = new Set<string>();
   let pagosConciliados = 0;
 
-  for (const mov of movimientos) {
-    const movEsIngreso = Number(mov.importe) > 0;
-    const candidatosPorImporteFecha = pagos.filter(
-      (p) => !pagosConMatch.has(p) && (p.importePendiente < 0) === movEsIngreso && coincide(mov, p)
+  // Se itera por PAGO OFI (no por movimiento bancario): cuando dos
+  // movimientos bancarios distintos coinciden en importe+fecha con el mismo
+  // pago (ej. dos transferencias iguales al mismo proveedor con 12 días de
+  // diferencia), hay que comparar ambos candidatos a la vez para quedarnos
+  // con el que de verdad corresponde (LOC exacto, nombre, o fecha más
+  // cercana) — iterando por movimiento el primero procesado se quedaría el
+  // pago aunque el otro tuviera mejor señal.
+  for (const pago of pagos) {
+    const filaOrigen = filaPorPago.get(pago)!;
+    const pagoEsIngreso = pago.importePendiente < 0;
+    const candidatosPorImporteFecha = movimientos.filter(
+      (mov) => !movimientosConMatch.has(mov.id) && (Number(mov.importe) > 0) === pagoEsIngreso && coincide(mov, pago)
     );
     if (candidatosPorImporteFecha.length === 0) continue;
 
-    const pagoMatch = desambiguarCandidato(mov, candidatosPorImporteFecha, aliasPorProveedor);
-    if (!pagoMatch) {
-      candidatosPorImporteFecha.forEach((p) => idsPagosRevisados.add(filaPorPago.get(p)!.id));
+    const movMatch = desambiguarMovimiento(pago, candidatosPorImporteFecha, aliasPorProveedor);
+    if (!movMatch) {
+      idsPagosRevisados.add(filaOrigen.id);
       continue;
     }
 
-    pagosConMatch.add(pagoMatch);
-    const filaOrigen = filaPorPago.get(pagoMatch)!;
+    movimientosConMatch.add(movMatch.id);
 
     const { error: updateMovError } = await agencyDb
       .from("contabilidad_movimientos_banco")
@@ -859,13 +881,13 @@ export async function conciliarDesdeOfiPagosParaAgencia(agencyDb: any): Promise<
         conciliado_externo: true,
         conciliado_externo_origen: "ofiviaje",
         conciliado_externo_en: new Date().toISOString(),
-        conciliado_externo_datos: { ...pagoMatch, _driveFileId: filaOrigen.drive_file_id },
+        conciliado_externo_datos: { ...pago, _driveFileId: filaOrigen.drive_file_id },
         estado: "conciliado",
       })
-      .eq("id", mov.id);
+      .eq("id", movMatch.id);
     if (updateMovError) continue;
 
-    await agencyDb.from("ofi_pagos").update({ movimiento_banco_id: mov.id }).eq("id", filaOrigen.id);
+    await agencyDb.from("ofi_pagos").update({ movimiento_banco_id: movMatch.id }).eq("id", filaOrigen.id);
     idsPagosRevisados.delete(filaOrigen.id);
     pagosConciliados++;
   }

@@ -12,9 +12,11 @@ interface MatchTooltipWrapperProps {
   children: ReactNode;
   onShow?: () => void;
   onClick?: () => void;
+  /** Sustituye el badge de texto por defecto por un trigger custom (ej. un icono). */
+  trigger?: ReactNode;
 }
 
-export function MatchTooltipWrapper({ label, badgeStyles, children, onShow, onClick }: MatchTooltipWrapperProps) {
+export function MatchTooltipWrapper({ label, badgeStyles, children, onShow, onClick, trigger }: MatchTooltipWrapperProps) {
   const [show, setShow] = useState(false);
   const [openUp, setOpenUp] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -53,24 +55,30 @@ export function MatchTooltipWrapper({ label, badgeStyles, children, onShow, onCl
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <span
-        onClick={onClick}
-        style={{
-          display: "inline-block",
-          padding: "0.1rem 0.4rem",
-          borderRadius: "0.25rem",
-          fontSize: "0.65rem",
-          fontWeight: "700",
-          background: badgeStyles.background,
-          color: badgeStyles.color,
-          border: badgeStyles.border,
-          textTransform: "uppercase",
-          cursor: "pointer",
-          transition: "all 0.15s ease-in-out",
-        }}
-      >
-        {label}
-      </span>
+      {trigger ? (
+        <span onClick={onClick} style={{ display: "inline-flex", cursor: onClick ? "pointer" : "default" }}>
+          {trigger}
+        </span>
+      ) : (
+        <span
+          onClick={onClick}
+          style={{
+            display: "inline-block",
+            padding: "0.1rem 0.4rem",
+            borderRadius: "0.25rem",
+            fontSize: "0.65rem",
+            fontWeight: "700",
+            background: badgeStyles.background,
+            color: badgeStyles.color,
+            border: badgeStyles.border,
+            textTransform: "uppercase",
+            cursor: "pointer",
+            transition: "all 0.15s ease-in-out",
+          }}
+        >
+          {label}
+        </span>
+      )}
 
       {show && (
         <div

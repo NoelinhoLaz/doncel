@@ -6,36 +6,69 @@ import { ArrowLeft, Download, Link2, Search, X } from "lucide-react";
 import { descargarMovimientosOfiviaje, getOfiPagos, getOfiCobros, buscarCandidatosMovimientoBanco, vincularManualmenteMovimientoBanco, conciliarDesdeOfiPagos } from "@/actions/banco";
 import { RefreshCw } from "lucide-react";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
+import { MatchTooltipWrapper } from "@/components/movimientos/MatchTooltipWrapper";
 
 function ConciliadoCell({
-  movimientoBanco,
+  movimientosBanco,
   onBuscar,
 }: {
-  movimientoBanco: any | null;
+  movimientosBanco: any[];
   onBuscar: () => void;
 }) {
-  if (movimientoBanco) {
-    const tooltip = [
-      movimientoBanco.concepto_original,
-      movimientoBanco.fecha_operacion ? formatoFecha(movimientoBanco.fecha_operacion) : null,
-      movimientoBanco.importe != null ? formatoImporte(movimientoBanco.importe) : null,
-    ]
-      .filter(Boolean)
-      .join(" · ");
+  if (movimientosBanco.length === 0) {
     return (
-      <span title={tooltip} style={{ display: "inline-flex", color: "#15803d", cursor: "default" }}>
-        <Link2 size={16} />
-      </span>
+      <button
+        onClick={onBuscar}
+        title="Buscar movimiento bancario"
+        style={{ display: "inline-flex", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+      >
+        <Search size={16} />
+      </button>
     );
   }
+
   return (
-    <button
-      onClick={onBuscar}
-      title="Buscar movimiento bancario"
-      style={{ display: "inline-flex", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+    <MatchTooltipWrapper
+      label=""
+      badgeStyles={{ background: "transparent", color: "#15803d", border: "none" }}
+      trigger={
+        <span style={{ display: "inline-flex", color: "#15803d" }}>
+          <Link2 size={16} />
+        </span>
+      }
     >
-      <Search size={16} />
-    </button>
+      {movimientosBanco.length === 1 ? (
+        (() => {
+          const m = movimientosBanco[0];
+          return (
+            <>
+              <div style={{ fontWeight: 700, marginBottom: "0.3rem" }}>{m.concepto_original || "Movimiento sin concepto"}</div>
+              <div>Fecha: {m.fecha_operacion ? formatoFecha(m.fecha_operacion) : "—"}</div>
+              <div>Importe: {m.importe != null ? formatoImporte(m.importe) : "—"}</div>
+            </>
+          );
+        })()
+      ) : (
+        <>
+          <div style={{ fontWeight: 700, marginBottom: "0.4rem" }}>{movimientosBanco.length} movimientos bancarios vinculados</div>
+          {movimientosBanco.map((m, i) => (
+            <div
+              key={m.id}
+              style={{
+                marginBottom: i < movimientosBanco.length - 1 ? "0.5rem" : 0,
+                paddingBottom: i < movimientosBanco.length - 1 ? "0.5rem" : 0,
+                borderBottom: i < movimientosBanco.length - 1 ? "1px solid #f1f5f9" : "none",
+              }}
+            >
+              <div style={{ fontWeight: 600 }}>{m.concepto_original || "Movimiento sin concepto"}</div>
+              <div>
+                {m.fecha_operacion ? formatoFecha(m.fecha_operacion) : "—"} · {m.importe != null ? formatoImporte(m.importe) : "—"}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </MatchTooltipWrapper>
   );
 }
 
@@ -478,7 +511,7 @@ export default function MovimientosOfiviajePage() {
                   render: (p) => (
                     <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
                       <ConciliadoCell
-                        movimientoBanco={p.movimiento_banco}
+                        movimientosBanco={p.movimientos_banco ?? (p.movimiento_banco ? [p.movimiento_banco] : [])}
                         onBuscar={() => setObjetivoBusqueda({ tipo: "pago", registro: p })}
                       />
                       {idsPagosAmbiguos.has(p.id) && (
@@ -512,7 +545,7 @@ export default function MovimientosOfiviajePage() {
                   width: "1%",
                   render: (c) => (
                     <ConciliadoCell
-                      movimientoBanco={c.movimiento_banco}
+                      movimientosBanco={c.movimientos_banco ?? (c.movimiento_banco ? [c.movimiento_banco] : [])}
                       onBuscar={() => setObjetivoBusqueda({ tipo: "cobro", registro: c })}
                     />
                   ),

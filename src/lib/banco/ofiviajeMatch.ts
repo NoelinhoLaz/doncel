@@ -94,7 +94,7 @@ function normalizarCodigo(texto: string): string {
   return (texto || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
-function codigoLocCoincide(movimiento: any, pago: OfiviajePago): boolean {
+export function codigoLocCoincide(movimiento: any, pago: OfiviajePago): boolean {
   const concepto = movimiento.concepto_original || "";
   const codigoPago = normalizarCodigo(pago.documentoCobroPago || "");
   if (!codigoPago) return false;
@@ -233,6 +233,49 @@ export function desambiguarCandidato(
   const baseParaNombre = porLoc.length > 1 ? porLoc : candidatos;
   const porNombre = baseParaNombre.filter((p) => nombreCoincide(movimiento, p, aliasPorProveedor));
   if (porNombre.length === 1) return porNombre[0];
+
+  return null;
+}
+
+/**
+ * Inversa de desambiguarCandidato: para UN pago OFI, elige entre varios
+ * movimientos bancarios candidatos (mismo importe, dentro de la ventana de
+ * fecha) el que realmente le corresponde. Necesaria porque conciliar
+ * iterando solo por movimiento bancario puede hacer que dos movimientos
+ * distintos (ej. mismo importe, mismo proveedor, fechas distintas por 12
+ * días) compitan por el mismo pago OFI, y el primero procesado se lo lleve
+ * aunque el otro tenga una señal más fuerte (LOC exacto) — como ocurrió con
+ * dos transferencias a Nautalia de 3.230,70€ once días entre sí, donde el
+ * LOC del concepto solo coincidía con una de ellas.
+ *
+ * Cascada de desambiguación: código LOC exacto > nombre de proveedor/alias >
+ * fecha de operación más cercana a la fecha de vencimiento del pago. Si tras
+ * los tres criterios sigue habiendo empate (movimientos genuinamente
+ * indistinguibles, ej. mismo importe y misma fecha exacta), no se elige
+ * ninguno a ciegas: se devuelve null.
+ */
+export function desambiguarMovimiento(
+  pago: OfiviajePago,
+  candidatos: any[],
+  aliasPorProveedor?: Map<string, string[]>
+): any | null {
+  const porLoc = candidatos.filter((mov) => codigoLocCoincide(mov, pago));
+  let base = candidatos;
+  if (porLoc.length === 1) return porLoc[0];
+  if (porLoc.length > 1) base = porLoc;
+
+  const porNombre = base.filter((mov) => nombreCoincide(mov, pago, aliasPorProveedor));
+  let restantes = base;
+  if (porNombre.length === 1) return porNombre[0];
+  if (porNombre.length > 1) restantes = porNombre;
+  else if (porNombre.length === 0 && base === candidatos) return null; // sin LOC ni nombre coincidente: no conciliar a ciegas
+
+  const fechaPago = parseOfiviajeFecha(pago.fechaVencto) || parseOfiviajeFecha(pago.fechaDoc);
+  if (!fechaPago) return null;
+  const distancias = restantes.map((mov) => ({ mov, dias: diasEntre(fechaPago, mov.fecha_operacion) }));
+  const minDias = Math.min(...distancias.map((d) => d.dias));
+  const masCercanos = distancias.filter((d) => d.dias === minDias);
+  if (masCercanos.length === 1) return masCercanos[0].mov;
 
   return null;
 }
