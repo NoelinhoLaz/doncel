@@ -11,7 +11,7 @@ import { createBridgeConnectSession, syncBridgeTransactions } from "@/lib/banco/
 import { getCurrentAgenciaSlug } from "@/actions/agencias";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { previsualizarOfiviajeUsuarioActual, previsualizarCobrosXmlManual, confirmarConciliacionOfiviaje as confirmarConciliacionOfiviajeLib, enviarInformeOfiviajePorEmail, guardarAliasProveedorOfi, getUltimoInformeReal as getUltimoInformeRealLib, marcarTareaPendienteResueltaPorMovimiento, getHistorialProcesosOfiviaje as getHistorialProcesosOfiviajeLib, forzarProcesoOfiviajeUsuarioActual as forzarProcesoOfiviajeUsuarioActualLib, getDetalleProcesoOfiviaje as getDetalleProcesoOfiviajeLib, buscarProveedorPorDocumento as buscarProveedorPorDocumentoLib, listarProveedoresUnicosOfi as listarProveedoresUnicosOfiLib, buscarProveedorPorImporte as buscarProveedorPorImporteLib, intentarGuardarAliasSiNoCoincide, reprocesarFicheroOfiviaje as reprocesarFicheroOfiviajeLib, reprocesarTodosLosFicherosOfiviaje as reprocesarTodosLosFicherosOfiviajeLib, type OfiviajeMatchPropuesto, type OfiviajePreview } from "@/lib/banco/ofiviajeMatch";
-import { descargarMovimientosOfiviaje as descargarMovimientosOfiviajeLib, getOfiPagos as fetchOfiPagos, getOfiCobros as fetchOfiCobros, vincularMovimientosOfiConBanco as vincularMovimientosOfiConBancoLib, buscarCandidatosMovimientoBanco as buscarCandidatosMovimientoBancoLib, vincularManualmenteMovimientoBanco as vincularManualmenteMovimientoBancoLib, conciliarDesdeOfiPagos as conciliarDesdeOfiPagosLib, conciliarDesdeOfiCobros as conciliarDesdeOfiCobrosLib, buscarPagosOfi as buscarPagosOfiLib, vincularPagosOfiDesdeConciliacionManual as vincularPagosOfiDesdeConciliacionManualLib, getPagosOfiVinculadosAMovimiento as getPagosOfiVinculadosAMovimientoLib, type FiltrosBusquedaPagoOfi } from "@/lib/banco/ofiviajeMovimientos";
+import { descargarMovimientosOfiviaje as descargarMovimientosOfiviajeLib, getOfiPagos as fetchOfiPagos, getOfiCobros as fetchOfiCobros, vincularMovimientosOfiConBanco as vincularMovimientosOfiConBancoLib, buscarCandidatosMovimientoBanco as buscarCandidatosMovimientoBancoLib, vincularManualmenteMovimientoBanco as vincularManualmenteMovimientoBancoLib, conciliarDesdeOfiPagos as conciliarDesdeOfiPagosLib, conciliarDesdeOfiCobros as conciliarDesdeOfiCobrosLib, buscarPagosOfi as buscarPagosOfiLib, vincularPagosOfiDesdeConciliacionManual as vincularPagosOfiDesdeConciliacionManualLib, vincularPagoOfiDesdeConciliacionManual as vincularPagoOfiDesdeConciliacionManualLib, vincularCobroOfiDesdeConciliacionManual as vincularCobroOfiDesdeConciliacionManualLib, getPagosOfiVinculadosAMovimiento as getPagosOfiVinculadosAMovimientoLib, type FiltrosBusquedaPagoOfi } from "@/lib/banco/ofiviajeMovimientos";
 
 export async function descargarMovimientosOfiviaje() {
   return descargarMovimientosOfiviajeLib();
@@ -62,6 +62,15 @@ export async function buscarPagosOfi(filtros: FiltrosBusquedaPagoOfi) {
 export async function vincularPagosOfiDesdeConciliacionManual(pagoOfiIds: string[], movimientoBancoId: string) {
   const { usuarioId } = await getCurrentAgentePublic();
   return vincularPagosOfiDesdeConciliacionManualLib(pagoOfiIds, movimientoBancoId, usuarioId);
+}
+
+// Vincula un pago o cobro OFI concreto (elegido entre los candidatos
+// empatados) a un movimiento bancario — usado desde el modal de detalle de
+// conciliación, pestaña "Sin desambiguar".
+export async function vincularOfiDesdeRevision(tipo: "pago" | "cobro", id: string, movimientoBancoId: string) {
+  const { usuarioId } = await getCurrentAgentePublic();
+  if (tipo === "pago") return vincularPagoOfiDesdeConciliacionManualLib(id, movimientoBancoId, usuarioId);
+  return vincularCobroOfiDesdeConciliacionManualLib(id, movimientoBancoId, usuarioId);
 }
 
 // Todos los pagos OFI vinculados a un movimiento bancario (puede haber más

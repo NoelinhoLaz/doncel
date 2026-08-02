@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import NextLink from "next/link";
 import { ArrowLeft, Download, Link2, Search, X } from "lucide-react";
-import { descargarMovimientosOfiviaje, getOfiPagos, getOfiCobros, buscarCandidatosMovimientoBanco, vincularManualmenteMovimientoBanco, conciliarDesdeOfiPagos, conciliarDesdeOfiCobros } from "@/actions/banco";
+import { descargarMovimientosOfiviaje, getOfiPagos, getOfiCobros, buscarCandidatosMovimientoBanco, vincularManualmenteMovimientoBanco, conciliarDesdeOfiPagos, conciliarDesdeOfiCobros, vincularOfiDesdeRevision } from "@/actions/banco";
 import { RefreshCw } from "lucide-react";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
 import { MatchTooltipWrapper } from "@/components/movimientos/MatchTooltipWrapper";
@@ -212,14 +212,59 @@ function BuscarMovimientoModal({
 
 interface DetalleConciliacion {
   sincronizados: { documento: string; proveedorNombre: string; movimientoBancoId: string }[];
-  conciliados: { documento: string; proveedorNombre: string; importe: number; movimientoConcepto: string; movimientoFecha: string; movimientoImporte: number }[];
-  revisados: { documento: string; proveedorNombre: string; importe: number; candidatos: { movimientoConcepto: string; movimientoFecha: string; movimientoImporte: number }[] }[];
+  conciliados: {
+    documento: string;
+    proveedorNombre: string;
+    nombrePasajero: string;
+    importe: number;
+    fechaVencto: string;
+    referenciaProvCte: string;
+    documentoCobroPago: string;
+    movimientoConcepto: string;
+    movimientoFecha: string;
+    movimientoImporte: number;
+  }[];
+  revisados: {
+    id: string;
+    tipo: "pago" | "cobro";
+    documento: string;
+    proveedorNombre: string;
+    nombrePasajero: string;
+    importe: number;
+    fechaVencto: string;
+    referenciaProvCte: string;
+    documentoCobroPago: string;
+    candidatos: { movimientoBancoId: string; movimientoConcepto: string; movimientoFecha: string; movimientoImporte: number }[];
+  }[];
 }
 
-function DetalleConciliacionModal({ detalle, onClose }: { detalle: DetalleConciliacion; onClose: () => void }) {
+function DetalleConciliacionModal({
+  detalle,
+  onClose,
+  onVinculado,
+}: {
+  detalle: DetalleConciliacion;
+  onClose: () => void;
+  onVinculado: () => void;
+}) {
   const [tab, setTab] = useState<"sincronizados" | "conciliados" | "revisados">(
     detalle.revisados.length > 0 ? "revisados" : detalle.conciliados.length > 0 ? "conciliados" : "sincronizados"
   );
+  const [vinculandoId, setVinculandoId] = useState<string | null>(null);
+  const [idsVinculados, setIdsVinculados] = useState<Set<string>>(new Set());
+
+  const handleVincular = async (r: DetalleConciliacion["revisados"][number], movimientoBancoId: string) => {
+    setVinculandoId(`${r.id}-${movimientoBancoId}`);
+    try {
+      await vincularOfiDesdeRevision(r.tipo, r.id, movimientoBancoId);
+      setIdsVinculados((prev) => new Set(prev).add(r.id));
+      onVinculado();
+    } catch (e: any) {
+      alert(e?.message || "Error al vincular.");
+    } finally {
+      setVinculandoId(null);
+    }
+  };
 
   const tabs: { key: typeof tab; label: string; count: number }[] = [
     { key: "revisados", label: "Sin desambiguar", count: detalle.revisados.length },
@@ -266,22 +311,42 @@ function DetalleConciliacionModal({ detalle, onClose }: { detalle: DetalleConcil
             <p style={{ color: "#94a3b8", fontSize: "0.85rem" }}>Ninguno.</p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              {detalle.revisados.map((r, i) => (
-                <div key={i} style={{ border: "1px solid #e2e8f0", borderRadius: "0.5rem", padding: "0.7rem 0.9rem" }}>
-                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#334155" }}>
-                    {r.proveedorNombre} · {formatoImporte(r.importe)}
+              {detalle.revisados.map((r, i) => {
+                const yaVinculado = idsVinculados.has(r.id);
+                return (
+                  <div key={i} style={{ border: "1px solid #e2e8f0", borderRadius: "0.5rem", padding: "0.7rem 0.9rem", opacity: yaVinculado ? 0.5 : 1 }}>
+                    <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#334155" }}>
+                      {r.proveedorNombre} · {formatoImporte(r.importe)}
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginBottom: "0.4rem" }}>
+                      Documento: {r.documento} · Fec. Vcto: {r.fechaVencto || "—"} · LOC: {r.documentoCobroPago || "—"} · Expediente: {r.referenciaProvCte || "—"}
+                    </div>
+                    {r.nombrePasajero && (
+                      <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginBottom: "0.4rem" }}>Pasajero: {r.nombrePasajero}</div>
+                    )}
+                    <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{r.candidatos.length} movimientos bancarios candidatos:</div>
+                    <ul style={{ margin: "0.3rem 0 0", paddingLeft: 0, listStyle: "none", fontSize: "0.75rem", color: "#334155" }}>
+                      {r.candidatos.map((c, j) => (
+                        <li key={j} style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.15rem 0" }}>
+                          <span>
+                            {formatoFecha(c.movimientoFecha)} · {formatoImporte(c.movimientoImporte)} · {c.movimientoConcepto}
+                          </span>
+                          {!yaVinculado && (
+                            <button
+                              onClick={() => handleVincular(r, c.movimientoBancoId)}
+                              disabled={vinculandoId === `${r.id}-${c.movimientoBancoId}`}
+                              title="Vincular a este movimiento"
+                              style={{ display: "inline-flex", color: "#15803d", background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}
+                            >
+                              <Link2 size={14} />
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginBottom: "0.4rem" }}>Documento: {r.documento}</div>
-                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{r.candidatos.length} movimientos bancarios candidatos empatados:</div>
-                  <ul style={{ margin: "0.3rem 0 0", paddingLeft: "1.1rem", fontSize: "0.75rem", color: "#334155" }}>
-                    {r.candidatos.map((c, j) => (
-                      <li key={j}>
-                        {formatoFecha(c.movimientoFecha)} · {formatoImporte(c.movimientoImporte)} · {c.movimientoConcepto}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )
         )}
@@ -306,6 +371,12 @@ function DetalleConciliacionModal({ detalle, onClose }: { detalle: DetalleConcil
                 >
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 600, color: "#334155" }}>{c.proveedorNombre} · {c.documento}</div>
+                    <div style={{ color: "#94a3b8", fontSize: "0.75rem" }}>
+                      Fec. Vcto: {c.fechaVencto || "—"} · LOC: {c.documentoCobroPago || "—"} · Expediente: {c.referenciaProvCte || "—"}
+                    </div>
+                    {c.nombrePasajero && (
+                      <div style={{ color: "#94a3b8", fontSize: "0.75rem" }}>Pasajero: {c.nombrePasajero}</div>
+                    )}
                     <div style={{ color: "#94a3b8", fontSize: "0.75rem" }}>
                       → {formatoFecha(c.movimientoFecha)} · {c.movimientoConcepto}
                     </div>
@@ -453,11 +524,7 @@ export default function MovimientosOfiviajePage() {
   const [conciliando, setConciliando] = useState(false);
   const [idsPagosAmbiguos, setIdsPagosAmbiguos] = useState<Set<string>>(new Set());
   const [resultado, setResultado] = useState<string | null>(null);
-  const [detalleConciliacion, setDetalleConciliacion] = useState<{
-    sincronizados: { documento: string; proveedorNombre: string; movimientoBancoId: string }[];
-    conciliados: { documento: string; proveedorNombre: string; importe: number; movimientoConcepto: string; movimientoFecha: string; movimientoImporte: number }[];
-    revisados: { documento: string; proveedorNombre: string; importe: number; candidatos: { movimientoConcepto: string; movimientoFecha: string; movimientoImporte: number }[] }[];
-  } | null>(null);
+  const [detalleConciliacion, setDetalleConciliacion] = useState<DetalleConciliacion | null>(null);
   const [mostrarDetalleConciliacion, setMostrarDetalleConciliacion] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [filtroConciliado, setFiltroConciliado] = useState<"todos" | "conciliados" | "pendientes">("todos");
@@ -722,7 +789,7 @@ export default function MovimientosOfiviajePage() {
       )}
 
       {mostrarDetalleConciliacion && detalleConciliacion && (
-        <DetalleConciliacionModal detalle={detalleConciliacion} onClose={() => setMostrarDetalleConciliacion(false)} />
+        <DetalleConciliacionModal detalle={detalleConciliacion} onClose={() => setMostrarDetalleConciliacion(false)} onVinculado={cargar} />
       )}
     </div>
   );

@@ -667,6 +667,67 @@ export async function vincularPagosOfiDesdeConciliacionManual(pagoOfiIds: string
   }
 }
 
+/**
+ * Igual que vincularPagoOfiDesdeConciliacionManual pero para ofi_cobros —
+ * usada desde el modal de detalle de conciliación (pestaña "Sin
+ * desambiguar") para vincular manualmente uno de los movimientos candidatos
+ * empatados que el matching automático no pudo elegir por sí solo.
+ */
+export async function vincularCobroOfiDesdeConciliacionManual(cobroOfiId: string, movimientoBancoId: string, usuarioId?: string): Promise<void> {
+  const agencyDb = await getAgencyDbClient();
+
+  const { data: cobro, error: e1 } = await agencyDb.from("ofi_cobros").select("*").eq("id", cobroOfiId).single();
+  if (e1) throw e1;
+
+  const idsExistentesSet = new Set<string>(Array.isArray(cobro.movimientos_banco_ids) ? cobro.movimientos_banco_ids : []);
+  if (cobro.movimiento_banco_id) idsExistentesSet.add(cobro.movimiento_banco_id);
+  const idsExistentes = [...idsExistentesSet];
+  if (idsExistentes.includes(movimientoBancoId)) return;
+
+  if (idsExistentes.length > 0) {
+    const { data: movimientosVinculados, error: e2 } = await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .select("id, importe")
+      .in("id", [...idsExistentes, movimientoBancoId]);
+    if (e2) throw e2;
+
+    const sumaVinculada = (movimientosVinculados ?? []).reduce((sum: number, m: any) => sum + Math.abs(Number(m.importe)), 0);
+    const importeCobro = Math.abs(Number(cobro.importe_cobro));
+    if (sumaVinculada - importeCobro > TOLERANCIA_IMPORTE) {
+      throw new Error(
+        `La suma de los movimientos vinculados (${sumaVinculada.toFixed(2)}€) supera el importe del cobro OFI (${importeCobro.toFixed(2)}€).`
+      );
+    }
+  }
+
+  const cobroOfiviaje = filaOfiCobroComoOfiviajePago(cobro);
+
+  const { error: e3 } = await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .update({
+      conciliado_externo: true,
+      conciliado_externo_origen: "ofiviaje",
+      conciliado_externo_en: new Date().toISOString(),
+      conciliado_externo_datos: { ...cobroOfiviaje, _driveFileId: cobro.drive_file_id },
+    })
+    .eq("id", movimientoBancoId);
+  if (e3) throw e3;
+
+  const nuevosIds = [...idsExistentes, movimientoBancoId];
+  const { error: e4 } = await agencyDb
+    .from("ofi_cobros")
+    .update({
+      movimiento_banco_id: cobro.movimiento_banco_id || movimientoBancoId,
+      movimientos_banco_ids: nuevosIds,
+      vinculado_por: usuarioId || cobro.vinculado_por || null,
+      vinculado_en: new Date().toISOString(),
+    })
+    .eq("id", cobroOfiId);
+  if (e4) throw e4;
+
+  await recalcularEstadoMovimientoBancoPorOfi(agencyDb, movimientoBancoId);
+}
+
 // yyyy-mm-dd (formato BD) -> dd/mm/yyyy (formato que esperan coincide()/
 // desambiguarCandidato() de ofiviajeMatch.ts, pensadas para OfiviajePago tal
 // como sale del XML).
@@ -705,7 +766,11 @@ export interface DetalleSincronizado {
 export interface DetalleConciliado {
   documento: string;
   proveedorNombre: string;
+  nombrePasajero: string;
   importe: number;
+  fechaVencto: string;
+  referenciaProvCte: string;
+  documentoCobroPago: string;
   movimientoBancoId: string;
   movimientoConcepto: string;
   movimientoFecha: string;
@@ -721,9 +786,14 @@ export interface CandidatoEmpatado {
 
 export interface DetalleRevisado {
   id: string;
+  tipo: "pago" | "cobro";
   documento: string;
   proveedorNombre: string;
+  nombrePasajero: string;
   importe: number;
+  fechaVencto: string;
+  referenciaProvCte: string;
+  documentoCobroPago: string;
   candidatos: CandidatoEmpatado[];
 }
 
@@ -929,9 +999,14 @@ export async function conciliarDesdeOfiPagosParaAgencia(agencyDb: any): Promise<
       idsPagosRevisados.add(filaOrigen.id);
       detalleRevisadosPorId.set(filaOrigen.id, {
         id: filaOrigen.id,
+        tipo: "pago",
         documento: pago.documento,
         proveedorNombre: pago.proveedorNombre,
+        nombrePasajero: pago.nombrePasajero,
         importe: pago.importePendiente,
+        fechaVencto: pago.fechaVencto,
+        referenciaProvCte: pago.referenciaProvCte,
+        documentoCobroPago: pago.documentoCobroPago,
         candidatos: candidatosPorImporteFecha.map((c) => ({
           movimientoBancoId: c.id,
           movimientoConcepto: c.concepto_original || "",
@@ -962,7 +1037,11 @@ export async function conciliarDesdeOfiPagosParaAgencia(agencyDb: any): Promise<
     detalleConciliados.push({
       documento: pago.documento,
       proveedorNombre: pago.proveedorNombre,
+      nombrePasajero: pago.nombrePasajero,
       importe: pago.importePendiente,
+      fechaVencto: pago.fechaVencto,
+      referenciaProvCte: pago.referenciaProvCte,
+      documentoCobroPago: pago.documentoCobroPago,
       movimientoBancoId: movMatch.id,
       movimientoConcepto: movMatch.concepto_original || "",
       movimientoFecha: movMatch.fecha_operacion,
@@ -1111,9 +1190,14 @@ export async function conciliarDesdeOfiCobrosParaAgencia(agencyDb: any): Promise
       idsCobrosRevisados.add(filaOrigen.id);
       detalleRevisadosPorId.set(filaOrigen.id, {
         id: filaOrigen.id,
+        tipo: "cobro",
         documento: cobro.documento,
         proveedorNombre: cobro.proveedorNombre,
+        nombrePasajero: "",
         importe: cobro.importePendiente,
+        fechaVencto: cobro.fechaVencto,
+        referenciaProvCte: cobro.referenciaProvCte,
+        documentoCobroPago: cobro.documentoCobroPago,
         candidatos: candidatosPorImporteFecha.map((c) => ({
           movimientoBancoId: c.id,
           movimientoConcepto: c.concepto_original || "",
@@ -1144,7 +1228,11 @@ export async function conciliarDesdeOfiCobrosParaAgencia(agencyDb: any): Promise
     detalleConciliados.push({
       documento: cobro.documento,
       proveedorNombre: cobro.proveedorNombre,
+      nombrePasajero: "",
       importe: cobro.importePendiente,
+      fechaVencto: cobro.fechaVencto,
+      referenciaProvCte: cobro.referenciaProvCte,
+      documentoCobroPago: cobro.documentoCobroPago,
       movimientoBancoId: movMatch.id,
       movimientoConcepto: movMatch.concepto_original || "",
       movimientoFecha: movMatch.fecha_operacion,
