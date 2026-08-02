@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import NextLink from "next/link";
 import { ArrowLeft, Download, Link2, Search, X } from "lucide-react";
-import { descargarMovimientosOfiviaje, getOfiPagos, getOfiCobros, buscarCandidatosMovimientoBanco, vincularManualmenteMovimientoBanco, conciliarDesdeOfiPagos } from "@/actions/banco";
+import { descargarMovimientosOfiviaje, getOfiPagos, getOfiCobros, buscarCandidatosMovimientoBanco, vincularManualmenteMovimientoBanco, conciliarDesdeOfiPagos, conciliarDesdeOfiCobros } from "@/actions/banco";
 import { RefreshCw } from "lucide-react";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
 import { MatchTooltipWrapper } from "@/components/movimientos/MatchTooltipWrapper";
@@ -210,6 +210,139 @@ function BuscarMovimientoModal({
   );
 }
 
+interface DetalleConciliacion {
+  sincronizados: { documento: string; proveedorNombre: string; movimientoBancoId: string }[];
+  conciliados: { documento: string; proveedorNombre: string; importe: number; movimientoConcepto: string; movimientoFecha: string; movimientoImporte: number }[];
+  revisados: { documento: string; proveedorNombre: string; importe: number; candidatos: { movimientoConcepto: string; movimientoFecha: string; movimientoImporte: number }[] }[];
+}
+
+function DetalleConciliacionModal({ detalle, onClose }: { detalle: DetalleConciliacion; onClose: () => void }) {
+  const [tab, setTab] = useState<"sincronizados" | "conciliados" | "revisados">(
+    detalle.revisados.length > 0 ? "revisados" : detalle.conciliados.length > 0 ? "conciliados" : "sincronizados"
+  );
+
+  const tabs: { key: typeof tab; label: string; count: number }[] = [
+    { key: "revisados", label: "Sin desambiguar", count: detalle.revisados.length },
+    { key: "conciliados", label: "Conciliados", count: detalle.conciliados.length },
+    { key: "sincronizados", label: "Sincronizados", count: detalle.sincronizados.length },
+  ];
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,23,42,0.4)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
+      <div
+        style={{ background: "#fff", borderRadius: "0.6rem", padding: "1.25rem", width: "min(720px, 92vw)", maxHeight: "85vh", overflowY: "auto" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+          <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f172a", margin: 0 }}>Detalle de la conciliación</h3>
+          <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b" }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <div style={{ display: "flex", gap: "1.25rem", borderBottom: "1px solid #e2e8f0", marginBottom: "1rem" }}>
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              style={{
+                padding: "0.5rem 0.1rem",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                color: tab === t.key ? "#334155" : "#94a3b8",
+                background: "none",
+                border: "none",
+                borderBottom: tab === t.key ? "2px solid #334155" : "2px solid transparent",
+                cursor: "pointer",
+              }}
+            >
+              {t.label} ({t.count})
+            </button>
+          ))}
+        </div>
+
+        {tab === "revisados" && (
+          detalle.revisados.length === 0 ? (
+            <p style={{ color: "#94a3b8", fontSize: "0.85rem" }}>Ninguno.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              {detalle.revisados.map((r, i) => (
+                <div key={i} style={{ border: "1px solid #e2e8f0", borderRadius: "0.5rem", padding: "0.7rem 0.9rem" }}>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#334155" }}>
+                    {r.proveedorNombre} · {formatoImporte(r.importe)}
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginBottom: "0.4rem" }}>Documento: {r.documento}</div>
+                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{r.candidatos.length} movimientos bancarios candidatos empatados:</div>
+                  <ul style={{ margin: "0.3rem 0 0", paddingLeft: "1.1rem", fontSize: "0.75rem", color: "#334155" }}>
+                    {r.candidatos.map((c, j) => (
+                      <li key={j}>
+                        {formatoFecha(c.movimientoFecha)} · {formatoImporte(c.movimientoImporte)} · {c.movimientoConcepto}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+
+        {tab === "conciliados" && (
+          detalle.conciliados.length === 0 ? (
+            <p style={{ color: "#94a3b8", fontSize: "0.85rem" }}>Ninguno.</p>
+          ) : (
+            <div style={{ border: "1px solid #e2e8f0", borderRadius: "0.5rem", overflow: "hidden" }}>
+              {detalle.conciliados.map((c, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: "0.6rem 0.8rem",
+                    borderTop: i > 0 ? "1px solid #f1f5f9" : "none",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "0.75rem",
+                    alignItems: "center",
+                    fontSize: "0.8rem",
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, color: "#334155" }}>{c.proveedorNombre} · {c.documento}</div>
+                    <div style={{ color: "#94a3b8", fontSize: "0.75rem" }}>
+                      → {formatoFecha(c.movimientoFecha)} · {c.movimientoConcepto}
+                    </div>
+                  </div>
+                  <div style={{ fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>{formatoImporte(c.importe)}</div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+
+        {tab === "sincronizados" && (
+          detalle.sincronizados.length === 0 ? (
+            <p style={{ color: "#94a3b8", fontSize: "0.85rem" }}>Ninguno.</p>
+          ) : (
+            <div style={{ border: "1px solid #e2e8f0", borderRadius: "0.5rem", overflow: "hidden" }}>
+              {detalle.sincronizados.map((s, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: "0.6rem 0.8rem",
+                    borderTop: i > 0 ? "1px solid #f1f5f9" : "none",
+                    fontSize: "0.8rem",
+                    color: "#334155",
+                  }}
+                >
+                  {s.proveedorNombre} · {s.documento}
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
 const POR_PAGINA = 20;
 
 function formatoImporte(v: number) {
@@ -320,6 +453,12 @@ export default function MovimientosOfiviajePage() {
   const [conciliando, setConciliando] = useState(false);
   const [idsPagosAmbiguos, setIdsPagosAmbiguos] = useState<Set<string>>(new Set());
   const [resultado, setResultado] = useState<string | null>(null);
+  const [detalleConciliacion, setDetalleConciliacion] = useState<{
+    sincronizados: { documento: string; proveedorNombre: string; movimientoBancoId: string }[];
+    conciliados: { documento: string; proveedorNombre: string; importe: number; movimientoConcepto: string; movimientoFecha: string; movimientoImporte: number }[];
+    revisados: { documento: string; proveedorNombre: string; importe: number; candidatos: { movimientoConcepto: string; movimientoFecha: string; movimientoImporte: number }[] }[];
+  } | null>(null);
+  const [mostrarDetalleConciliacion, setMostrarDetalleConciliacion] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [filtroConciliado, setFiltroConciliado] = useState<"todos" | "conciliados" | "pendientes">("todos");
   const [filtroAgencia, setFiltroAgencia] = useState<string[]>([]);
@@ -385,10 +524,19 @@ export default function MovimientosOfiviajePage() {
   const handleConciliar = async () => {
     setConciliando(true);
     setResultado(null);
+    setDetalleConciliacion(null);
     try {
-      const r = await conciliarDesdeOfiPagos();
-      setResultado(`${r.pagosSincronizados} ya conciliados sincronizados · ${r.pagosConciliados} pagos conciliados · ${r.pagosRevisados} sin desambiguar (revisión manual)`);
-      setIdsPagosAmbiguos(new Set(r.idsPagosRevisados));
+      const [rPagos, rCobros] = await Promise.all([conciliarDesdeOfiPagos(), conciliarDesdeOfiCobros()]);
+      setResultado(
+        `${rPagos.pagosSincronizados} ya conciliados sincronizados · ${rPagos.pagosConciliados + rCobros.cobrosConciliados} conciliados (${rPagos.pagosConciliados} pagos, ${rCobros.cobrosConciliados} cobros) · ${rPagos.pagosRevisados + rCobros.cobrosRevisados} sin desambiguar (revisión manual)`
+      );
+      setIdsPagosAmbiguos(new Set([...rPagos.idsPagosRevisados, ...rCobros.idsCobrosRevisados]));
+      setDetalleConciliacion({
+        sincronizados: rPagos.detalleSincronizados,
+        conciliados: [...rPagos.detalleConciliados, ...rCobros.detalleConciliados],
+        revisados: [...rPagos.detalleRevisados, ...rCobros.detalleRevisados],
+      });
+      setMostrarDetalleConciliacion(true);
       await cargar();
     } catch (e: any) {
       setResultado(`Error: ${e.message || "no se pudo conciliar"}`);
@@ -455,6 +603,14 @@ export default function MovimientosOfiviajePage() {
       {resultado && (
         <p style={{ fontSize: "0.85rem", color: resultado.startsWith("Error") ? "#dc2626" : "#15803d", marginBottom: "1rem" }}>
           {resultado}
+          {detalleConciliacion && (
+            <button
+              onClick={() => setMostrarDetalleConciliacion(true)}
+              style={{ marginLeft: "0.6rem", fontSize: "0.8rem", color: "#334155", background: "none", border: "none", textDecoration: "underline", cursor: "pointer", padding: 0 }}
+            >
+              Ver detalle
+            </button>
+          )}
         </p>
       )}
 
@@ -563,6 +719,10 @@ export default function MovimientosOfiviajePage() {
           onClose={() => setObjetivoBusqueda(null)}
           onVinculado={cargar}
         />
+      )}
+
+      {mostrarDetalleConciliacion && detalleConciliacion && (
+        <DetalleConciliacionModal detalle={detalleConciliacion} onClose={() => setMostrarDetalleConciliacion(false)} />
       )}
     </div>
   );

@@ -731,7 +731,7 @@ async function calcularMatchesXmlContenido(
  * OfiviajePago para poder reutilizar coincide()/fechaCoincide()/nombreCoincide(),
  * que operan sobre proveedorNombre/importePendiente/fechaVencto/fechaDoc.
  */
-function cobroComoPago(cobro: OfiviajeCobro): OfiviajePago {
+export function cobroComoPago(cobro: OfiviajeCobro): OfiviajePago {
   const fecha = parseOfiviajeFechaCorta(cobro.fechaMovimiento);
   const fechaDDMMYYYY = fecha ? `${fecha.slice(8, 10)}/${fecha.slice(5, 7)}/${fecha.slice(0, 4)}` : "";
   return {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminServiceClient } from "@/lib/supabaseServer";
 import { getAgencyDbClientById } from "@/lib/agencyDb";
-import { descargarMovimientosOfiviajeParaAgencia, conciliarDesdeOfiPagosParaAgencia } from "@/lib/banco/ofiviajeMovimientos";
+import { descargarMovimientosOfiviajeParaAgencia, conciliarDesdeOfiPagosParaAgencia, conciliarDesdeOfiCobrosParaAgencia } from "@/lib/banco/ofiviajeMovimientos";
 import type { DriveTokens } from "@/lib/banco/ofiviajeDrive";
 
 // Recorre todos los usuarios con Google Drive conectado y carpeta seleccionada:
@@ -56,9 +56,10 @@ export async function GET(request: NextRequest) {
       }
 
       const descarga = await descargarMovimientosOfiviajeParaAgencia(agencyDb, tokens, oficinaId);
-      const conciliacion = await conciliarDesdeOfiPagosParaAgencia(agencyDb);
+      const conciliacionPagos = await conciliarDesdeOfiPagosParaAgencia(agencyDb);
+      const conciliacionCobros = await conciliarDesdeOfiCobrosParaAgencia(agencyDb);
 
-      resultados.push({ agencia_id: usuario.agencia_id, usuario_id: usuario.id, ...descarga, ...conciliacion });
+      resultados.push({ agencia_id: usuario.agencia_id, usuario_id: usuario.id, ...descarga, ...conciliacionPagos, ...conciliacionCobros });
     } catch (err: any) {
       resultados.push({ agencia_id: usuario.agencia_id, usuario_id: usuario.id, error: err.message });
     }

@@ -696,11 +696,45 @@ function filaOfiPagoComoOfiviajePago(fila: any): OfiviajePago {
   };
 }
 
+export interface DetalleSincronizado {
+  documento: string;
+  proveedorNombre: string;
+  movimientoBancoId: string;
+}
+
+export interface DetalleConciliado {
+  documento: string;
+  proveedorNombre: string;
+  importe: number;
+  movimientoBancoId: string;
+  movimientoConcepto: string;
+  movimientoFecha: string;
+  movimientoImporte: number;
+}
+
+export interface CandidatoEmpatado {
+  movimientoBancoId: string;
+  movimientoConcepto: string;
+  movimientoFecha: string;
+  movimientoImporte: number;
+}
+
+export interface DetalleRevisado {
+  id: string;
+  documento: string;
+  proveedorNombre: string;
+  importe: number;
+  candidatos: CandidatoEmpatado[];
+}
+
 export interface ConciliarDesdeOfiResultado {
   pagosConciliados: number;
   pagosRevisados: number;
   idsPagosRevisados: string[];
   pagosSincronizados: number;
+  detalleSincronizados: DetalleSincronizado[];
+  detalleConciliados: DetalleConciliado[];
+  detalleRevisados: DetalleRevisado[];
 }
 
 /**
@@ -717,7 +751,7 @@ export interface ConciliarDesdeOfiResultado {
  * a la izquierda según el momento en que se conciliara, ej. "116918" vs
  * "00116918" del mismo apunte contable real).
  */
-async function sincronizarVinculosYaConciliados(agencyDb: any): Promise<number> {
+async function sincronizarVinculosYaConciliados(agencyDb: any): Promise<{ sincronizados: number; detalle: DetalleSincronizado[] }> {
   // Paginado explícitamente: sin .range(), Supabase corta silenciosamente en
   // 1000 filas, y el número de movimientos conciliados por OFIviaje crece
   // con el tiempo.
@@ -736,14 +770,18 @@ async function sincronizarVinculosYaConciliados(agencyDb: any): Promise<number> 
     movimientosConciliados.push(...pagina);
     if (pagina.length < PAGE_SIZE) break;
   }
-  if (movimientosConciliados.length === 0) return 0;
+  if (movimientosConciliados.length === 0) return { sincronizados: 0, detalle: [] };
 
   const movimientoIdPorDocumento = new Map<string, string>();
+  const proveedorPorDocumento = new Map<string, string>();
   for (const mov of movimientosConciliados) {
     const documento = mov.conciliado_externo_datos?.documento;
-    if (documento) movimientoIdPorDocumento.set(documento, mov.id);
+    if (documento) {
+      movimientoIdPorDocumento.set(documento, mov.id);
+      proveedorPorDocumento.set(documento, mov.conciliado_externo_datos?.proveedorNombre || "");
+    }
   }
-  if (movimientoIdPorDocumento.size === 0) return 0;
+  if (movimientoIdPorDocumento.size === 0) return { sincronizados: 0, detalle: [] };
 
   const { data: pagosExistentes, error: e2 } = await agencyDb
     .from("ofi_pagos")
@@ -752,6 +790,7 @@ async function sincronizarVinculosYaConciliados(agencyDb: any): Promise<number> 
   if (e2) throw e2;
 
   let sincronizados = 0;
+  const detalle: DetalleSincronizado[] = [];
   for (const pago of pagosExistentes ?? []) {
     const movimientoIdCorrecto = movimientoIdPorDocumento.get(pago.documento);
     if (!movimientoIdCorrecto || pago.movimiento_banco_id === movimientoIdCorrecto) continue;
@@ -760,10 +799,17 @@ async function sincronizarVinculosYaConciliados(agencyDb: any): Promise<number> 
       .from("ofi_pagos")
       .update({ movimiento_banco_id: movimientoIdCorrecto })
       .eq("id", pago.id);
-    if (!updateError) sincronizados++;
+    if (!updateError) {
+      sincronizados++;
+      detalle.push({
+        documento: pago.documento,
+        proveedorNombre: proveedorPorDocumento.get(pago.documento) || "",
+        movimientoBancoId: movimientoIdCorrecto,
+      });
+    }
   }
 
-  return sincronizados;
+  return { sincronizados, detalle };
 }
 
 /**
@@ -786,14 +832,23 @@ async function sincronizarVinculosYaConciliados(agencyDb: any): Promise<number> 
  * agencyDb ya resuelto en vez de leerlo de la sesión actual.
  */
 export async function conciliarDesdeOfiPagosParaAgencia(agencyDb: any): Promise<ConciliarDesdeOfiResultado> {
-  const pagosSincronizados = await sincronizarVinculosYaConciliados(agencyDb);
+  const { sincronizados: pagosSincronizados, detalle: detalleSincronizados } = await sincronizarVinculosYaConciliados(agencyDb);
+  const vacio: ConciliarDesdeOfiResultado = {
+    pagosConciliados: 0,
+    pagosRevisados: 0,
+    idsPagosRevisados: [],
+    pagosSincronizados,
+    detalleSincronizados,
+    detalleConciliados: [],
+    detalleRevisados: [],
+  };
 
   const { data: pagosSinVincular, error: e1 } = await agencyDb
     .from("ofi_pagos")
     .select("*")
     .is("movimiento_banco_id", null);
   if (e1) throw e1;
-  if (!pagosSinVincular || pagosSinVincular.length === 0) return { pagosConciliados: 0, pagosRevisados: 0, idsPagosRevisados: [], pagosSincronizados };
+  if (!pagosSinVincular || pagosSinVincular.length === 0) return vacio;
 
   const pagos: OfiviajePago[] = pagosSinVincular.map(filaOfiPagoComoOfiviajePago);
   const filaPorPago = new Map(pagos.map((p, i) => [p, pagosSinVincular[i]]));
@@ -816,7 +871,7 @@ export async function conciliarDesdeOfiPagosParaAgencia(agencyDb: any): Promise<
     ...new Set(pagos.map((p) => mapaCuentaContable[p.cuentaTesoreria]).filter((id): id is string => !!id)),
   ];
   if (cuentaBancariaIds.length === 0) {
-    return { pagosConciliados: 0, pagosRevisados: 0, idsPagosRevisados: [], pagosSincronizados };
+    return vacio;
   }
 
   // Sin filtro de signo en la query: un pago OFI normal (importePendiente>0)
@@ -844,12 +899,14 @@ export async function conciliarDesdeOfiPagosParaAgencia(agencyDb: any): Promise<
     movimientos.push(...pagina);
     if (pagina.length < PAGE_SIZE) break;
   }
-  if (movimientos.length === 0) return { pagosConciliados: 0, pagosRevisados: 0, idsPagosRevisados: [], pagosSincronizados };
+  if (movimientos.length === 0) return vacio;
 
   const aliasPorProveedor = await getAliasProveedorPorAgencia(agencyDb);
 
   const movimientosConMatch = new Set<string>();
   const idsPagosRevisados = new Set<string>();
+  const detalleRevisadosPorId = new Map<string, DetalleRevisado>();
+  const detalleConciliados: DetalleConciliado[] = [];
   let pagosConciliados = 0;
 
   // Se itera por PAGO OFI (no por movimiento bancario): cuando dos
@@ -870,6 +927,18 @@ export async function conciliarDesdeOfiPagosParaAgencia(agencyDb: any): Promise<
     const movMatch = desambiguarMovimiento(pago, candidatosPorImporteFecha, aliasPorProveedor);
     if (!movMatch) {
       idsPagosRevisados.add(filaOrigen.id);
+      detalleRevisadosPorId.set(filaOrigen.id, {
+        id: filaOrigen.id,
+        documento: pago.documento,
+        proveedorNombre: pago.proveedorNombre,
+        importe: pago.importePendiente,
+        candidatos: candidatosPorImporteFecha.map((c) => ({
+          movimientoBancoId: c.id,
+          movimientoConcepto: c.concepto_original || "",
+          movimientoFecha: c.fecha_operacion,
+          movimientoImporte: Number(c.importe),
+        })),
+      });
       continue;
     }
 
@@ -889,16 +958,214 @@ export async function conciliarDesdeOfiPagosParaAgencia(agencyDb: any): Promise<
 
     await agencyDb.from("ofi_pagos").update({ movimiento_banco_id: movMatch.id }).eq("id", filaOrigen.id);
     idsPagosRevisados.delete(filaOrigen.id);
+    detalleRevisadosPorId.delete(filaOrigen.id);
+    detalleConciliados.push({
+      documento: pago.documento,
+      proveedorNombre: pago.proveedorNombre,
+      importe: pago.importePendiente,
+      movimientoBancoId: movMatch.id,
+      movimientoConcepto: movMatch.concepto_original || "",
+      movimientoFecha: movMatch.fecha_operacion,
+      movimientoImporte: Number(movMatch.importe),
+    });
     pagosConciliados++;
   }
 
-  return { pagosConciliados, pagosRevisados: idsPagosRevisados.size, idsPagosRevisados: Array.from(idsPagosRevisados), pagosSincronizados };
+  return {
+    pagosConciliados,
+    pagosRevisados: idsPagosRevisados.size,
+    idsPagosRevisados: Array.from(idsPagosRevisados),
+    pagosSincronizados,
+    detalleSincronizados,
+    detalleConciliados,
+    detalleRevisados: Array.from(detalleRevisadosPorId.values()),
+  };
 }
 
 /** Variante para la UI (usuario autenticado): resuelve agencyDb de la sesión actual. */
 export async function conciliarDesdeOfiPagos(): Promise<ConciliarDesdeOfiResultado> {
   const agencyDb = await getAgencyDbClient();
   return conciliarDesdeOfiPagosParaAgencia(agencyDb);
+}
+
+// Adapta una fila de ofi_cobros (BD) al shape OfiviajePago para reutilizar
+// coincide()/fechaCoincide()/nombreCoincide()/desambiguarMovimiento(), igual
+// que cobroComoPago() hace con OfiviajeCobro recién parseado del XML. Sin
+// LOC (documentoCobroPago vacío): la desambiguación cae directo a nombre del
+// pagador y, si sigue empatado, a la fecha más cercana.
+function filaOfiCobroComoOfiviajePago(fila: any): OfiviajePago {
+  const fechaMovimiento = fechaBdAFormatoXml(fila.fecha_movimiento);
+  return {
+    documento: fila.factura || "",
+    fechaVencto: fechaMovimiento,
+    fechaDoc: fechaMovimiento,
+    referenciaProvCte: fila.factura || "",
+    documentoCobroPago: "",
+    tipoOperacion: "",
+    cuentaTesoreria: "",
+    nombrePasajero: fila.nombre_pagador || "",
+    apunte: "",
+    importePendiente: Number(fila.importe_cobro),
+    situacion: "",
+    proveedorNombre: fila.nombre_pagador || "",
+    proveedorCuentaContable: "",
+  };
+}
+
+export interface ConciliarDesdeOfiCobrosResultado {
+  cobrosConciliados: number;
+  cobrosRevisados: number;
+  idsCobrosRevisados: string[];
+  detalleConciliados: DetalleConciliado[];
+  detalleRevisados: DetalleRevisado[];
+}
+
+/**
+ * Igual que conciliarDesdeOfiPagosParaAgencia pero para ofi_cobros: itera
+ * por cobro (no por movimiento bancario) buscando candidatos por importe+
+ * fecha entre TODAS las cuentas bancarias activas (los cobros no traen
+ * CuentaTesoreria en el XML, a diferencia de los pagos), filtra por nombre
+ * del pagador/alias y desambigua con desambiguarMovimiento() — sin código
+ * LOC disponible, así que el criterio real es nombre y, si sigue empatado,
+ * fecha más cercana. Si no hay un único candidato tras desambiguar, el
+ * cobro queda sin conciliar (visible para revisión manual) en vez de
+ * arriesgarse a vincular el movimiento equivocado — el mismo problema que
+ * tenía el backfill fuzzy antiguo (vincularMovimientosOfiConBanco), que
+ * indexaba solo por factura sin desempate y podía cruzar dos cobros de un
+ * mismo cliente entre sí.
+ */
+export async function conciliarDesdeOfiCobrosParaAgencia(agencyDb: any): Promise<ConciliarDesdeOfiCobrosResultado> {
+  const vacio: ConciliarDesdeOfiCobrosResultado = {
+    cobrosConciliados: 0,
+    cobrosRevisados: 0,
+    idsCobrosRevisados: [],
+    detalleConciliados: [],
+    detalleRevisados: [],
+  };
+
+  const { data: cobrosSinVincular, error: e1 } = await agencyDb
+    .from("ofi_cobros")
+    .select("*")
+    .is("movimiento_banco_id", null);
+  if (e1) throw e1;
+  if (!cobrosSinVincular || cobrosSinVincular.length === 0) return vacio;
+
+  const cobros: OfiviajePago[] = cobrosSinVincular.map(filaOfiCobroComoOfiviajePago);
+  const filaPorCobro = new Map(cobros.map((c, i) => [c, cobrosSinVincular[i]]));
+
+  const fechas = cobros
+    .map((c) => parseOfiviajeFecha(c.fechaVencto) || parseOfiviajeFecha(c.fechaDoc))
+    .filter((f): f is string => !!f);
+  const fechaMasAntigua = fechas.length > 0 ? fechas.reduce((a, b) => (a < b ? a : b)) : new Date().toISOString().slice(0, 10);
+  const fechaMinima = new Date(fechaMasAntigua);
+  fechaMinima.setMonth(fechaMinima.getMonth() - 1);
+  const fechaMinimaBusqueda = fechaMinima.toISOString().slice(0, 10);
+
+  // Sin CuentaTesoreria en el XML de cobros: se busca en todas las cuentas
+  // bancarias activas de la agencia, igual que calcularMatchesCobrosXmlContenido.
+  const { data: cuentas, error: e2 } = await agencyDb.from("config_cuentas_bancarias").select("id").eq("activa", true);
+  if (e2) throw e2;
+  const cuentaBancariaIds = (cuentas ?? []).map((c: any) => c.id);
+  if (cuentaBancariaIds.length === 0) return vacio;
+
+  // Un cobro con importe negativo (devolución al cliente) debe conciliar
+  // contra un movimiento de salida, no de entrada: sin filtro de signo en
+  // la query, se filtra por signo opuesto abajo, por cobro.
+  const movimientos: any[] = [];
+  const PAGE_SIZE = 1000;
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data: pagina, error: e3 } = await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .select("id, importe, fecha_operacion, fecha_valor, concepto_original, estado, conciliado_externo")
+      .in("estado", ["pendiente", "propuesto", "parcial"])
+      .eq("conciliado_externo", false)
+      .in("cuenta_bancaria_id", cuentaBancariaIds)
+      .neq("importe", 0)
+      .gte("fecha_operacion", fechaMinimaBusqueda)
+      .range(from, from + PAGE_SIZE - 1);
+    if (e3) throw e3;
+    if (!pagina || pagina.length === 0) break;
+    movimientos.push(...pagina);
+    if (pagina.length < PAGE_SIZE) break;
+  }
+  if (movimientos.length === 0) return vacio;
+
+  const aliasPorProveedor = await getAliasProveedorPorAgencia(agencyDb);
+
+  const movimientosConMatch = new Set<string>();
+  const idsCobrosRevisados = new Set<string>();
+  const detalleRevisadosPorId = new Map<string, DetalleRevisado>();
+  const detalleConciliados: DetalleConciliado[] = [];
+  let cobrosConciliados = 0;
+
+  for (const cobro of cobros) {
+    const filaOrigen = filaPorCobro.get(cobro)!;
+    const cobroEsSalida = cobro.importePendiente < 0;
+    const candidatosPorImporteFecha = movimientos.filter(
+      (mov) => !movimientosConMatch.has(mov.id) && (Number(mov.importe) < 0) === cobroEsSalida && coincide(mov, cobro)
+    );
+    if (candidatosPorImporteFecha.length === 0) continue;
+
+    const movMatch = desambiguarMovimiento(cobro, candidatosPorImporteFecha, aliasPorProveedor);
+    if (!movMatch) {
+      idsCobrosRevisados.add(filaOrigen.id);
+      detalleRevisadosPorId.set(filaOrigen.id, {
+        id: filaOrigen.id,
+        documento: cobro.documento,
+        proveedorNombre: cobro.proveedorNombre,
+        importe: cobro.importePendiente,
+        candidatos: candidatosPorImporteFecha.map((c) => ({
+          movimientoBancoId: c.id,
+          movimientoConcepto: c.concepto_original || "",
+          movimientoFecha: c.fecha_operacion,
+          movimientoImporte: Number(c.importe),
+        })),
+      });
+      continue;
+    }
+
+    movimientosConMatch.add(movMatch.id);
+
+    const { error: updateMovError } = await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .update({
+        conciliado_externo: true,
+        conciliado_externo_origen: "ofiviaje",
+        conciliado_externo_en: new Date().toISOString(),
+        conciliado_externo_datos: { ...cobro, _driveFileId: filaOrigen.drive_file_id },
+        estado: "conciliado",
+      })
+      .eq("id", movMatch.id);
+    if (updateMovError) continue;
+
+    await agencyDb.from("ofi_cobros").update({ movimiento_banco_id: movMatch.id }).eq("id", filaOrigen.id);
+    idsCobrosRevisados.delete(filaOrigen.id);
+    detalleRevisadosPorId.delete(filaOrigen.id);
+    detalleConciliados.push({
+      documento: cobro.documento,
+      proveedorNombre: cobro.proveedorNombre,
+      importe: cobro.importePendiente,
+      movimientoBancoId: movMatch.id,
+      movimientoConcepto: movMatch.concepto_original || "",
+      movimientoFecha: movMatch.fecha_operacion,
+      movimientoImporte: Number(movMatch.importe),
+    });
+    cobrosConciliados++;
+  }
+
+  return {
+    cobrosConciliados,
+    cobrosRevisados: idsCobrosRevisados.size,
+    idsCobrosRevisados: Array.from(idsCobrosRevisados),
+    detalleConciliados,
+    detalleRevisados: Array.from(detalleRevisadosPorId.values()),
+  };
+}
+
+/** Variante para la UI (usuario autenticado): resuelve agencyDb de la sesión actual. */
+export async function conciliarDesdeOfiCobros(): Promise<ConciliarDesdeOfiCobrosResultado> {
+  const agencyDb = await getAgencyDbClient();
+  return conciliarDesdeOfiCobrosParaAgencia(agencyDb);
 }
 
 export interface CandidatoRevision {
