@@ -1670,7 +1670,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                       }}
                     >
                       <span style={{ display: "flex", gap: "0.3rem" }}>
-                        {(!mov.conciliado_externo || mov.estado === "parcial") && mov.estado === "conciliado" && mov.conciliacion_tipo === "manual" ? (
+                        {mov.estado === "conciliado" && mov.conciliacion_tipo === "manual" ? (
                           <HoverTooltip
                             onShow={() => cargarConciliacionesManualesTooltip(mov.id)}
                             trigger={
@@ -1705,30 +1705,28 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                             )}
                           </HoverTooltip>
                         ) : (
-                          (!mov.conciliado_externo || mov.estado === "parcial") && (
-                            <span
-                              onClick={(e) => {
-                                if (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") {
-                                  e.stopPropagation();
-                                  abrirModalConciliacionManual(mov);
-                                }
-                              }}
-                              style={{
-                                fontSize: "0.6rem",
-                                fontWeight: 400,
-                                textTransform: "uppercase",
-                                color: estado.color,
-                                background: estado.bg,
-                                borderRadius: "0.25rem",
-                                padding: "0.1rem 0.35rem",
-                                cursor: (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") ? "pointer" : "default",
-                              }}
-                            >
-                              {estado.label}
-                            </span>
-                          )
+                          <span
+                            onClick={(e) => {
+                              if (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") {
+                                e.stopPropagation();
+                                abrirModalConciliacionManual(mov);
+                              }
+                            }}
+                            style={{
+                              fontSize: "0.6rem",
+                              fontWeight: 400,
+                              textTransform: "uppercase",
+                              color: estado.color,
+                              background: estado.bg,
+                              borderRadius: "0.25rem",
+                              padding: "0.1rem 0.35rem",
+                              cursor: (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") ? "pointer" : "default",
+                            }}
+                          >
+                            {estado.label}
+                          </span>
                         )}
-                        {mov.conciliado_externo && (
+                        {mov.conciliado_externo && mov.estado !== "parcial" && (
                           <HoverTooltip
                             trigger={
                               <span
@@ -1776,7 +1774,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                           flexShrink: 0,
                         }}
                       >
-                        {formatImporte(mov.importe)}
+                        {mov.estado === "parcial" ? `${formatImporte(mov.importe)} (parcial)` : formatImporte(mov.importe)}
                       </span>
                     </div>
                     </div>
