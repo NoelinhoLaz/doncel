@@ -24,16 +24,6 @@ const CUENTA_COLOR_PALETTE = [
   { color: "#78716c", bg: "#f5f5f4" }, // gris cálido
 ];
 
-// Color estable por cuenta bancaria (no por nombre de banco), asignado por su
-// posición dentro de la lista completa de cuentas de la agencia (ordenada por id),
-// para garantizar que no se repitan colores mientras haya ≤ 8 cuentas.
-const getCuentaColor = (cuentaId: string | undefined, cuentasOrdenadas: string[]) => {
-  if (!cuentaId) return { color: "#64748b", bg: "#f8fafc" };
-  const idx = cuentasOrdenadas.indexOf(cuentaId);
-  if (idx === -1) return { color: "#64748b", bg: "#f8fafc" };
-  return CUENTA_COLOR_PALETTE[idx % CUENTA_COLOR_PALETTE.length];
-};
-
 const getEstadoLabel = (estado: string, conciliacionTipo?: string | null) => {
   switch (estado) {
     case "manual":
@@ -1055,7 +1045,17 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
 
   const fechasOrdenadas = Object.keys(grupos).sort((a, b) => (a < b ? 1 : -1));
 
-  const cuentasIdsOrdenadas = [...cuentasBancarias].map((c: any) => c.id).sort();
+  // Mapeo dinámico: extrae las IDs de cuenta única de los movimientos visibles y las ordena
+  const cuentasUnicasEnMovimientos = Array.from(
+    new Set(movimientosVisibles.map((m: any) => m.cuenta_bancaria_id).filter(Boolean))
+  ).sort();
+
+  const getCuentaColorDinamico = (cuentaId: string | undefined) => {
+    if (!cuentaId) return { color: "#64748b", bg: "#f8fafc" };
+    const idx = cuentasUnicasEnMovimientos.indexOf(cuentaId);
+    if (idx === -1) return { color: "#64748b", bg: "#f8fafc" };
+    return CUENTA_COLOR_PALETTE[idx % CUENTA_COLOR_PALETTE.length];
+  };
 
   const filtrosActivos =
     filtros.bancosIds.length > 0 ||
@@ -1619,7 +1619,8 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
               {grupos[fecha].map((mov) => {
                 const estado = getEstadoLabel(mov.estado, mov.conciliacion_tipo);
                 const bankName = mov.config_cuentas_bancarias?.banco || "Banco";
-                const bankColor = getCuentaColor(mov.cuenta_bancaria_id, cuentasIdsOrdenadas);
+                const cuentaDescripcion = mov.config_cuentas_bancarias?.descripcion || mov.config_cuentas_bancarias?.banco || "Cuenta desconocida";
+                const bankColor = getCuentaColorDinamico(mov.cuenta_bancaria_id);
                 return (
                   <li
                     key={mov.id}
@@ -1632,7 +1633,7 @@ const loadData = useCallback(async (filters: typeof filtros, search: string, pag
                     }}
                   >
                     <div
-                      title={bankName}
+                      title={cuentaDescripcion}
                       style={{
                         display: "flex",
                         alignItems: "center",

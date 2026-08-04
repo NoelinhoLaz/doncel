@@ -14,37 +14,71 @@ import { IngresoPropuestoPorMatch } from "@/components/movimientos/IngresoPropue
 import { MatchTooltipWrapper } from "@/components/movimientos/MatchTooltipWrapper";
 import { ConciliacionManualModal, type ConciliacionManualMov } from "@/components/movimientos/ConciliacionManualModal";
 
-const getAccountBadgeStyle = (cuenta?: string) => {
-  const c = (cuenta || "").toUpperCase();
-  if (c.includes("SANTANDER")) {
-    return {
-      bg: "#fef2f2",
-      color: "#ef4444",
-      border: "1px solid #fee2e2",
-      label: "Banco Santander"
-    };
-  } else if (c.includes("CAIXA")) {
-    return {
-      bg: "#f0fdfa",
-      color: "#0d9488",
-      border: "1px solid #ccfbf1",
-      label: "CaixaBank"
-    };
-  } else if (c.includes("BBVA")) {
-    return {
-      bg: "#eff6ff",
-      color: "#3b82f6",
-      border: "1px solid #dbeafe",
-      label: "BBVA"
-    };
-  } else {
+// Paleta de colores para cuentas bancarias
+const CUENTA_COLOR_PALETTE = [
+  { color: "#ef4444", bg: "#fef2f2" }, // rojo
+  { color: "#3b82f6", bg: "#eff6ff" }, // azul
+  { color: "#65a30d", bg: "#f7fee7" }, // verde
+  { color: "#f59e0b", bg: "#fffbeb" }, // ámbar
+  { color: "#8b5cf6", bg: "#f5f3ff" }, // violeta
+  { color: "#0891b2", bg: "#ecfeff" }, // cian
+  { color: "#db2777", bg: "#fdf2f8" }, // rosa
+  { color: "#78716c", bg: "#f5f5f4" }, // gris cálido
+];
+
+const getAccountBadgeStyle = (cuentaId?: string, cuentasUnicas?: string[], bankName?: string) => {
+  if (!cuentaId || !cuentasUnicas) {
+    // Fallback al comportamiento anterior si no se pasan los parámetros
+    const c = (bankName || "").toUpperCase();
+    if (c.includes("SANTANDER")) {
+      return {
+        bg: "#fef2f2",
+        color: "#ef4444",
+        border: "1px solid #fee2e2",
+        label: "Banco Santander"
+      };
+    } else if (c.includes("CAIXA")) {
+      return {
+        bg: "#f0fdfa",
+        color: "#0d9488",
+        border: "1px solid #ccfbf1",
+        label: "CaixaBank"
+      };
+    } else if (c.includes("BBVA")) {
+      return {
+        bg: "#eff6ff",
+        color: "#3b82f6",
+        border: "1px solid #dbeafe",
+        label: "BBVA"
+      };
+    } else {
+      return {
+        bg: "#f8fafc",
+        color: "#64748b",
+        border: "1px solid #e2e8f0",
+        label: bankName || "Banco"
+      };
+    }
+  }
+
+  // Nuevo comportamiento: color dinámico basado en la posición de la cuenta
+  const idx = cuentasUnicas.indexOf(cuentaId);
+  if (idx === -1) {
     return {
       bg: "#f8fafc",
       color: "#64748b",
       border: "1px solid #e2e8f0",
-      label: cuenta || "Banco"
+      label: bankName || "Banco"
     };
   }
+
+  const colorPair = CUENTA_COLOR_PALETTE[idx % CUENTA_COLOR_PALETTE.length];
+  return {
+    bg: colorPair.bg,
+    color: colorPair.color,
+    border: `1px solid ${colorPair.color}33`,
+    label: bankName || "Cuenta"
+  };
 };
 
 const getEstadoBadgeStyle = (estado: string) => {
@@ -586,9 +620,27 @@ export default function BancoPage() {
                     <div>Cargando movimientos bancarios...</div>
                   </td>
                 </tr>
-              ) : bankMovements.map((mov) => {
-                const bankName = mov.config_cuentas_bancarias?.banco || "Banco";
-                const badge = getAccountBadgeStyle(bankName);
+              ) : (() => {
+                // Crea un mapa de cuenta_id -> índice usando todas las cuentas conocidas
+                const allCuentasIdsOrdenadas = [...cuentasBancarias]
+                  .map((c: any) => c.id)
+                  .sort();
+
+                return bankMovements.map((mov) => {
+                  const bankName = mov.config_cuentas_bancarias?.banco || "Banco";
+                  // Obtiene el índice basado en la posición en la lista ordenada de todas las cuentas
+                  let colorIdx = 0;
+                  if (mov.cuenta_bancaria_id) {
+                    colorIdx = allCuentasIdsOrdenadas.indexOf(mov.cuenta_bancaria_id);
+                    if (colorIdx === -1) colorIdx = 0;
+                  }
+                  const colorPair = CUENTA_COLOR_PALETTE[colorIdx % CUENTA_COLOR_PALETTE.length];
+                  const badge = {
+                    bg: colorPair.bg,
+                    color: colorPair.color,
+                    border: `1px solid ${colorPair.color}33`,
+                    label: bankName || "Cuenta"
+                  };
                 const rawScore = mov.match_score ?? mov.match_metadatos?.score ?? 0;
                 const normalizedScore = rawScore <= 1 ? Math.round(rawScore * 100) : Math.round(rawScore);
                 const isPropuestoValido = mov.estado === "propuesto" && mov.match_metadatos && normalizedScore >= 70;
@@ -842,7 +894,8 @@ export default function BancoPage() {
                     </tr>
                   </Fragment>
                 );
-              })}
+                });
+              })()}
               {!loading && bankMovements.length === 0 && (
                 <tr>
                   <td colSpan={6} style={{ textAlign: "center", color: "#64748b", padding: "3rem" }}>
