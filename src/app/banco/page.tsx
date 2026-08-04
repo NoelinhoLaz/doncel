@@ -163,6 +163,7 @@ export default function BancoPage() {
     importeMax: "",
     estados: [] as string[],
     matchRanges: [] as string[],
+    soloGastosFinancieros: false,
   });
 
   const updateFiltro = <K extends keyof typeof filtros>(key: K, value: (typeof filtros)[K]) => {
@@ -248,6 +249,7 @@ export default function BancoPage() {
         importeMax: filters.importeMax ? Number(filters.importeMax) : undefined,
         estados: filters.estados.length > 0 ? filters.estados : undefined,
         cuentaIds: filters.bancosIds.length > 0 ? filters.bancosIds : undefined,
+        soloGastosFinancieros: filters.soloGastosFinancieros || undefined,
       });
       setBankMovements(result.data || []);
       setTotalItems(result.count || 0);
@@ -283,6 +285,7 @@ export default function BancoPage() {
           importeMax: filtros.importeMax ? Number(filtros.importeMax) : undefined,
           estados: filtros.estados.length > 0 ? filtros.estados : undefined,
           cuentaIds: filtros.bancosIds.length > 0 ? filtros.bancosIds : undefined,
+          soloGastosFinancieros: filtros.soloGastosFinancieros || undefined,
         }),
       });
 
@@ -405,7 +408,7 @@ export default function BancoPage() {
               <Icons.RefreshCw size={18} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
             </button>
             <button
-              className={`${styles.actionIconButton} ${showFilters || filtros.bancosIds.length > 0 || filtros.estados.length > 0 || filtros.matchRanges.length > 0 || filtros.tipoMovimiento !== "todos" || filtros.fechaDesde || filtros.fechaHasta || filtros.importeMin || filtros.importeMax ? listStyles.activeAction : ""}`}
+              className={`${styles.actionIconButton} ${showFilters || filtros.bancosIds.length > 0 || filtros.estados.length > 0 || filtros.matchRanges.length > 0 || filtros.tipoMovimiento !== "todos" || filtros.fechaDesde || filtros.fechaHasta || filtros.importeMin || filtros.importeMax || filtros.soloGastosFinancieros ? listStyles.activeAction : ""}`}
               title="Filtrar"
               onClick={() => setShowFilters(!showFilters)}
             >
@@ -563,12 +566,23 @@ export default function BancoPage() {
                 </div>
               </div>
 
+              {/* Gasto Financiero */}
+              <div>
+                <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", cursor: "pointer", fontSize: "0.78rem" }}>
+                  <input type="checkbox"
+                    checked={filtros.soloGastosFinancieros}
+                    onChange={() => updateFiltro("soloGastosFinancieros", !filtros.soloGastosFinancieros)}
+                    style={{ accentColor: "var(--primary-color, #475569)" }} />
+                  Solo Gastos Financieros
+                </label>
+              </div>
+
               {/* Limpiar filtros */}
-              {(filtros.bancosIds.length > 0 || filtros.tipoMovimiento !== "todos" || filtros.fechaDesde || filtros.fechaHasta || filtros.importeMin || filtros.importeMax || filtros.estados.length > 0 || filtros.matchRanges.length > 0) && (
+              {(filtros.bancosIds.length > 0 || filtros.tipoMovimiento !== "todos" || filtros.fechaDesde || filtros.fechaHasta || filtros.importeMin || filtros.importeMax || filtros.estados.length > 0 || filtros.matchRanges.length > 0 || filtros.soloGastosFinancieros) && (
                 <button onClick={() => {
                   setFiltros({
                     bancosIds: [], tipoMovimiento: "todos", fechaDesde: "", fechaHasta: "",
-                    importeMin: "", importeMax: "", estados: [], matchRanges: [],
+                    importeMin: "", importeMax: "", estados: [], matchRanges: [], soloGastosFinancieros: false,
                   });
                 }}
                   style={{
@@ -883,11 +897,30 @@ export default function BancoPage() {
                             {estadoBadge.label}
                           </span>
                         )}
+                        {mov.es_gasto_financiero && (
+                          <span
+                            style={{
+                              display: "inline-block",
+                              marginLeft: "0.35rem",
+                              padding: "0.1rem 0.4rem",
+                              borderRadius: "0.25rem",
+                              fontSize: "0.65rem",
+                              fontWeight: "700",
+                              background: "#f5e6ff",
+                              color: "#7c3aed",
+                              border: "1px solid #ddd6fe",
+                              textTransform: "uppercase",
+                            }}
+                            title="Gasto Financiero"
+                          >
+                            Gast. Finan
+                          </span>
+                        )}
                       </td>
-                      <td style={{ 
+                      <td style={{
                         textAlign: "right",
-                        fontWeight: "700", 
-                        color: mov.importe >= 0 ? "#10b981" : "#ef4444" 
+                        fontWeight: "700",
+                        color: mov.importe >= 0 ? "#10b981" : "#ef4444"
                       }}>
                         {formatImporte(mov.importe)}
                       </td>

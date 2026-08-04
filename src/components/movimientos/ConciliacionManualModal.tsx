@@ -75,6 +75,7 @@ export function ConciliacionManualModal({
   const [importe, setImporte] = useState("");
   const [nota, setNota] = useState("");
   const [voboDc, setVoboDc] = useState(false);
+  const [esGastoFinanciero, setEsGastoFinanciero] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pendiente, setPendiente] = useState<number | null>(null);
   const [historico, setHistorico] = useState<ConciliacionManualDetalle[]>([]);
@@ -96,6 +97,7 @@ export function ConciliacionManualModal({
     setImporte(fallback.toFixed(2));
     setNota("");
     setVoboDc(false);
+    setEsGastoFinanciero(false);
     setPendiente(fallback);
     setHistorico([]);
     setHistoricoLoading(true);
@@ -208,7 +210,7 @@ export function ConciliacionManualModal({
           return;
         }
       }
-      const res = await conciliarManualmente(mov.id, importeNum, filtroExpediente.trim() || undefined, isOwner && voboDc, nota.trim() || undefined);
+      const res = await conciliarManualmente(mov.id, importeNum, filtroExpediente.trim() || undefined, isOwner && voboDc, nota.trim() || undefined, esGastoFinanciero);
       if (!res.success) {
         alert(res.error || "Error al conciliar el movimiento.");
         return;
@@ -431,12 +433,18 @@ export function ConciliacionManualModal({
                 />
               </div>
 
-              {isOwner && (
-                <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginTop: "0.75rem", fontSize: "0.8rem", color: "#334155", cursor: "pointer" }}>
-                  <input type="checkbox" checked={voboDc} onChange={(e) => setVoboDc(e.target.checked)} />
-                  VºBº Dirección Comercial
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.75rem" }}>
+                {isOwner && (
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem", color: "#334155", cursor: "pointer" }}>
+                    <input type="checkbox" checked={voboDc} onChange={(e) => setVoboDc(e.target.checked)} />
+                    VºBº Dirección Comercial
+                  </label>
+                )}
+                <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem", color: "#334155", cursor: "pointer" }}>
+                  <input type="checkbox" checked={esGastoFinanciero} onChange={(e) => setEsGastoFinanciero(e.target.checked)} />
+                  Marcar como Gasto Financiero
                 </label>
-              )}
+              </div>
             </>
           )}
         </div>

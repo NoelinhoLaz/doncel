@@ -132,13 +132,13 @@ export async function getDocumentosExpediente(expedienteId: string) {
   return fetchDocumentosExpediente(expedienteId);
 }
 
-export async function conciliarManualmente(movimientoBancoId: string, importe: number, expedienteOfi?: string, voboDc?: boolean, nota?: string) {
+export async function conciliarManualmente(movimientoBancoId: string, importe: number, expedienteOfi?: string, voboDc?: boolean, nota?: string, esGastoFinanciero?: boolean) {
   const agencyDb = await getAgencyDbClient();
   const { usuarioId, rol } = await getCurrentAgentePublic();
   // El VºBº de Dirección Comercial solo lo puede marcar el Owner, aunque la
   // petición venga manipulada desde el cliente.
   const voboDcValido = !!voboDc && rol === "Owner";
-  const result = await ejecutarConciliacionManual(agencyDb, movimientoBancoId, importe, expedienteOfi, usuarioId, voboDcValido, nota);
+  const result = await ejecutarConciliacionManual(agencyDb, movimientoBancoId, importe, expedienteOfi, usuarioId, voboDcValido, nota, esGastoFinanciero);
   if (result.success) {
     revalidatePath("/banco");
     // Evita que la tarea reaparezca en los informes de OFIviaje (Último

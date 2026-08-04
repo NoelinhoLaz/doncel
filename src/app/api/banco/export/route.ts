@@ -23,6 +23,7 @@ export async function POST(req: Request) {
       { header: "Banco", key: "banco", width: 20 },
       { header: "Estado", key: "estado", width: 14 },
       { header: "OFIviaje", key: "ofiviaje", width: 10 },
+      { header: "Gasto Finan", key: "gasto_financiero", width: 12 },
       { header: "Importe", key: "importe", width: 14 },
     ];
 
@@ -34,6 +35,7 @@ export async function POST(req: Request) {
         banco: mov.config_cuentas_bancarias?.banco || "",
         estado: mov.estado || "",
         ofiviaje: mov.conciliado_externo ? "Sí" : "",
+        gasto_financiero: mov.es_gasto_financiero ? "Sí" : "",
         importe: Number(mov.importe),
       });
     }

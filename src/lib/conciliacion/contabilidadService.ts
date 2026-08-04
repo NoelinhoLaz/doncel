@@ -429,7 +429,8 @@ export async function ejecutarConciliacionManual(
   expedienteOfi?: string,
   usuarioId?: string,
   voboDc?: boolean,
-  nota?: string
+  nota?: string,
+  esGastoFinanciero?: boolean
 ): Promise<{ success: boolean; error?: string; estado?: "conciliado" | "parcial" | "pendiente" }> {
   const { data: movimiento, error: movError } = await agencyDb
     .from("contabilidad_movimientos_banco")
@@ -476,6 +477,7 @@ export async function ejecutarConciliacionManual(
       expediente_id: null,
       vobo_dc: !!voboDc,
       nota: nota || null,
+      es_gasto_financiero: !!esGastoFinanciero,
     },
   ]);
 

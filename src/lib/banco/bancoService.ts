@@ -12,6 +12,7 @@ export interface MovimientosBancoFiltros {
   importeMax?: number;
   estados?: string[];
   cuentaIds?: string[];
+  soloGastosFinancieros?: boolean;
 }
 
 function construirQueryMovimientosBanco(agencyDb: any, filtros: MovimientosBancoFiltros) {
@@ -24,6 +25,7 @@ function construirQueryMovimientosBanco(agencyDb: any, filtros: MovimientosBanco
   const importeMax = filtros.importeMax;
   const estados = filtros.estados ?? [];
   const cuentaIds = filtros.cuentaIds;
+  const soloGastosFinancieros = filtros.soloGastosFinancieros;
 
   let query = agencyDb
     .from("contabilidad_movimientos_banco")
@@ -65,6 +67,7 @@ function construirQueryMovimientosBanco(agencyDb: any, filtros: MovimientosBanco
   // explícitamente "ofiviaje", que ya filtra por conciliado_externo=true).
   if (estados.includes("pendiente") && !estados.includes("ofiviaje")) query = query.eq("conciliado_externo", false);
   if (cuentaIds && cuentaIds.length) query = query.in("cuenta_bancaria_id", cuentaIds);
+  if (soloGastosFinancieros) query = query.eq("es_gasto_financiero", true);
 
   const scoreConditions: string[] = [];
   if (matchScoreFilters.includes("bajos")) scoreConditions.push("and(match_score.gte.60,match_score.lt.80)");
