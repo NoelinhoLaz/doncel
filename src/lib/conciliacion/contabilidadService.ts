@@ -485,6 +485,16 @@ export async function ejecutarConciliacionManual(
     return { success: false, error: `Error al registrar la conciliación: ${mcError.message}` };
   }
 
+  if (esGastoFinanciero) {
+    const { error: updateError } = await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .update({ es_gasto_financiero: true })
+      .eq("id", movimientoBancoId);
+    if (updateError) {
+      console.error("Error actualizando es_gasto_financiero:", updateError);
+    }
+  }
+
   const nuevoEstado = await recalcularEstadoMovimientoBanco(agencyDb, movimientoBancoId, "manual");
 
   return { success: true, estado: nuevoEstado };
