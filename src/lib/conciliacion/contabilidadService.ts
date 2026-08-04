@@ -8,7 +8,7 @@ export async function recalcularEstadoMovimientoBanco(
   agencyDb: any,
   movimientoBancoId: string,
   conciliacionTipo: "automatica" | "manual" = "manual"
-): Promise<"conciliado" | "parcial"> {
+): Promise<"conciliado" | "parcial" | "pendiente"> {
   const { data: banco } = await agencyDb
     .from("contabilidad_movimientos_banco")
     .select("importe")
@@ -41,8 +41,6 @@ export async function recalcularEstadoMovimientoBanco(
     ? totalOfiPagos + totalOfiCobros
     : totalContable;
   const importeMovimiento = Math.abs(Number(banco?.importe || 0));
-
-  console.log(`[recalcularEstadoMovimientoBanco] ${movimientoBancoId}: contable=${totalContable}, ofiPagos=${totalOfiPagos}, ofiCobros=${totalOfiCobros}, totalConciliado=${totalConciliado}, importeMovimiento=${importeMovimiento}`);
 
   let nuevoEstado: "conciliado" | "pendiente" | "parcial";
   if (totalConciliado === 0) {
