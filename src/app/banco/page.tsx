@@ -544,6 +544,15 @@ export default function BancoPage() {
                     </label>
                   ))}
                 </div>
+                <div style={{ marginTop: "0.5rem", paddingTop: "0.5rem", borderTop: "1px solid #e2e8f0" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", cursor: "pointer", fontSize: "0.78rem" }}>
+                    <input type="checkbox"
+                      checked={filtros.soloGastosFinancieros}
+                      onChange={() => updateFiltro("soloGastosFinancieros", !filtros.soloGastosFinancieros)}
+                      style={{ accentColor: "var(--primary-color, #475569)" }} />
+                    Gastos Financieros
+                  </label>
+                </div>
               </div>
 
               {/* Rango match */}
@@ -564,17 +573,6 @@ export default function BancoPage() {
                     </label>
                   ))}
                 </div>
-              </div>
-
-              {/* Gasto Financiero */}
-              <div>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", cursor: "pointer", fontSize: "0.78rem" }}>
-                  <input type="checkbox"
-                    checked={filtros.soloGastosFinancieros}
-                    onChange={() => updateFiltro("soloGastosFinancieros", !filtros.soloGastosFinancieros)}
-                    style={{ accentColor: "var(--primary-color, #475569)" }} />
-                  Solo Gastos Financieros
-                </label>
               </div>
 
               {/* Limpiar filtros */}
