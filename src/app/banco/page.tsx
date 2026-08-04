@@ -843,7 +843,7 @@ export default function BancoPage() {
                               );
                             })()}
                           </MatchTooltipWrapper>
-                        ) : estadoEfectivo === "manual" ? (
+                        ) : estadoEfectivo === "manual" && !mov.es_gasto_financiero ? (
                           <MatchTooltipWrapper
                             label={estadoBadge.label}
                             badgeStyles={{
@@ -870,51 +870,54 @@ export default function BancoPage() {
                             )}
                           </MatchTooltipWrapper>
                         ) : (
-                          <span
-                            onClick={() => {
-                              if (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") {
-                                setConciliacionManualMov({
-                                  id: mov.id,
-                                  importe: Number(mov.importe),
-                                  concepto_original: mov.concepto_original,
-                                  estado: mov.estado,
-                                });
-                              }
-                            }}
-                            style={{
-                              display: "inline-block",
-                              padding: "0.1rem 0.4rem",
-                              borderRadius: "0.25rem",
-                              fontSize: "0.65rem",
-                              fontWeight: "700",
-                              background: estadoBadge.bg,
-                              color: estadoBadge.color,
-                              border: estadoBadge.border,
-                              textTransform: "uppercase",
-                              cursor: (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") ? "pointer" : "default",
-                            }}
-                          >
-                            {estadoBadge.label}
-                          </span>
-                        )}
-                        {mov.es_gasto_financiero && (
-                          <span
-                            style={{
-                              display: "inline-block",
-                              marginLeft: "0.35rem",
-                              padding: "0.1rem 0.4rem",
-                              borderRadius: "0.25rem",
-                              fontSize: "0.65rem",
-                              fontWeight: "700",
-                              background: "#f5e6ff",
-                              color: "#7c3aed",
-                              border: "1px solid #ddd6fe",
-                              textTransform: "uppercase",
-                            }}
-                            title="Gasto Financiero"
-                          >
-                            Gast. Finan
-                          </span>
+                          <>
+                            {!mov.es_gasto_financiero && (
+                              <span
+                                onClick={() => {
+                                  if (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") {
+                                    setConciliacionManualMov({
+                                      id: mov.id,
+                                      importe: Number(mov.importe),
+                                      concepto_original: mov.concepto_original,
+                                      estado: mov.estado,
+                                    });
+                                  }
+                                }}
+                                style={{
+                                  display: "inline-block",
+                                  padding: "0.1rem 0.4rem",
+                                  borderRadius: "0.25rem",
+                                  fontSize: "0.65rem",
+                                  fontWeight: "700",
+                                  background: estadoBadge.bg,
+                                  color: estadoBadge.color,
+                                  border: estadoBadge.border,
+                                  textTransform: "uppercase",
+                                  cursor: (mov.estado === "pendiente" || mov.estado === "parcial" || mov.estado === "conciliado") ? "pointer" : "default",
+                                }}
+                              >
+                                {estadoBadge.label}
+                              </span>
+                            )}
+                            {mov.es_gasto_financiero && (
+                              <span
+                                style={{
+                                  display: "inline-block",
+                                  padding: "0.1rem 0.4rem",
+                                  borderRadius: "0.25rem",
+                                  fontSize: "0.65rem",
+                                  fontWeight: "700",
+                                  background: "#f5e6ff",
+                                  color: "#7c3aed",
+                                  border: "1px solid #ddd6fe",
+                                  textTransform: "uppercase",
+                                }}
+                                title="Gasto Financiero"
+                              >
+                                Gast. Finan
+                              </span>
+                            )}
+                          </>
                         )}
                       </td>
                       <td style={{
