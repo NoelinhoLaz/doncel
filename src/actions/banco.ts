@@ -7,6 +7,7 @@ import { getCurrentAgentePublic } from "@/actions/crm";
 import { processBankMovementMatch, executeMatchRecalculation, executeReembolsoRecalculation } from "@/lib/banco/matchEngine";
 import { sanitizeDocumentStates } from "@/lib/banco/dataSanitizer";
 import { conciliarPagoProveedor as ejecutarConciliarPagoProveedor, ejecutarConciliacionMovimiento, ejecutarConciliacionTutor, ejecutarConciliacionManual } from "@/lib/banco/contabilidadService";
+import { recalcularEstadoMovimientoBanco as recalcularEstadoLib } from "@/lib/conciliacion/contabilidadService";
 import { createBridgeConnectSession, syncBridgeTransactions } from "@/lib/banco/bridgeApi";
 import { getCurrentAgenciaSlug } from "@/actions/agencias";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
@@ -468,4 +469,15 @@ export async function confirmarConciliacionOfiviaje(matches: OfiviajeMatchPropue
 
 export async function enviarInformeOfiviaje(preview: OfiviajePreview, destinatarioEmail: string) {
   return enviarInformeOfiviajePorEmail(preview, destinatarioEmail);
+}
+
+export async function recalcularMovimientosBanco(movimientosIds: string[]) {
+  const agencyDb = await getAgencyDbClient();
+  const resultados = [];
+  for (const id of movimientosIds) {
+    const nuevoEstado = await recalcularEstadoLib(agencyDb, id, "manual");
+    resultados.push({ id, nuevoEstado });
+  }
+  revalidatePath("/banco");
+  return { success: true, resultados };
 }

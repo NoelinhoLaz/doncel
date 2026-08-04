@@ -646,6 +646,7 @@ export async function vincularPagoOfiDesdeConciliacionManual(pagoOfiId: string, 
     .update({
       movimiento_banco_id: pago.movimiento_banco_id || movimientoBancoId,
       movimientos_banco_ids: nuevosIds,
+      importe_conciliado: Math.abs(Number(pago.importe_pendiente || 0)),
       vinculado_por: usuarioId || pago.vinculado_por || null,
       vinculado_en: new Date().toISOString(),
     })
@@ -719,6 +720,7 @@ export async function vincularCobroOfiDesdeConciliacionManual(cobroOfiId: string
     .update({
       movimiento_banco_id: cobro.movimiento_banco_id || movimientoBancoId,
       movimientos_banco_ids: nuevosIds,
+      importe_conciliado: Math.abs(Number(cobro.importe_cobro || 0)),
       vinculado_por: usuarioId || cobro.vinculado_por || null,
       vinculado_en: new Date().toISOString(),
     })

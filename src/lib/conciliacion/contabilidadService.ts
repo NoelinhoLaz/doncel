@@ -1,9 +1,9 @@
 import { ejecutarConciliacionGroomy } from "@/lib/GroomyConciliationService";
 
-/** Recalcula el estado de un movimiento bancario comparando su importe con la suma de los
- *  contabilidad_movimientos confirmados que tiene vinculados (movimiento_banco_id). Si no cubre
- *  el importe total queda 'parcial' en vez de 'conciliado', permitiendo completarlo más adelante
- *  con más pagos de otros expedientes (ej. cobro de aseguradora que agrupa varias pólizas). */
+/** Recalcula el estado de un movimiento bancario comparando su importe con la suma de:
+ *  - contabilidad_movimientos confirmados vinculados (movimiento_banco_id)
+ *  - ofi_pagos y ofi_cobros vinculados (movimiento_banco_id), donde importe_pendiente=0 significa conciliado
+ *  Si no cubre el importe total queda 'parcial', permitiendo completarlo con más OFI/pagos. */
 export async function recalcularEstadoMovimientoBanco(
   agencyDb: any,
   movimientoBancoId: string,
@@ -21,9 +21,37 @@ export async function recalcularEstadoMovimientoBanco(
     .eq("movimiento_banco_id", movimientoBancoId)
     .eq("estado", "confirmado");
 
-  const totalConciliado = (pagos || []).reduce((sum: number, p: any) => sum + Number(p.importe_total || 0), 0);
+  const { data: ofiPagos } = await agencyDb
+    .from("ofi_pagos")
+    .select("importe_conciliado")
+    .eq("movimiento_banco_id", movimientoBancoId);
+
+  const { data: ofiCobros } = await agencyDb
+    .from("ofi_cobros")
+    .select("importe_conciliado")
+    .eq("movimiento_banco_id", movimientoBancoId);
+
+  const totalContable = (pagos || []).reduce((sum: number, p: any) => sum + Number(p.importe_total || 0), 0);
+  const totalOfiPagos = (ofiPagos || []).reduce((sum: number, p: any) => sum + Math.abs(Number(p.importe_conciliado || 0)), 0);
+  const totalOfiCobros = (ofiCobros || []).reduce((sum: number, c: any) => sum + Math.abs(Number(c.importe_conciliado || 0)), 0);
+
+  // Los OFI son la fuente de verdad. Si hay OFI vinculados, contar solo esos.
+  // Si no hay OFI, contar contabilidad_movimientos (legacy).
+  const totalConciliado = (ofiPagos || []).length > 0 || (ofiCobros || []).length > 0
+    ? totalOfiPagos + totalOfiCobros
+    : totalContable;
   const importeMovimiento = Math.abs(Number(banco?.importe || 0));
-  const nuevoEstado: "conciliado" | "parcial" = totalConciliado + 0.01 >= importeMovimiento ? "conciliado" : "parcial";
+
+  console.log(`[recalcularEstadoMovimientoBanco] ${movimientoBancoId}: contable=${totalContable}, ofiPagos=${totalOfiPagos}, ofiCobros=${totalOfiCobros}, totalConciliado=${totalConciliado}, importeMovimiento=${importeMovimiento}`);
+
+  let nuevoEstado: "conciliado" | "pendiente" | "parcial";
+  if (totalConciliado === 0) {
+    nuevoEstado = "pendiente";
+  } else if (totalConciliado + 0.01 >= importeMovimiento) {
+    nuevoEstado = "conciliado";
+  } else {
+    nuevoEstado = "parcial";
+  }
 
   await agencyDb
     .from("contabilidad_movimientos_banco")
