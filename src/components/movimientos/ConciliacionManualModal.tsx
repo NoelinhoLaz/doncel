@@ -165,8 +165,18 @@ export function ConciliacionManualModal({
   const toggleSeleccion = (pagoId: string) => {
     setPagosOfiSeleccionados((prev) => {
       const next = new Set(prev);
-      if (next.has(pagoId)) next.delete(pagoId);
-      else next.add(pagoId);
+      if (next.has(pagoId)) {
+        next.delete(pagoId);
+      } else {
+        next.add(pagoId);
+        // Si es el único seleccionado, auto-llenar el importe con el del OFI
+        if (next.size === 1) {
+          const pago = pagosOfi.find((p) => p.id === pagoId);
+          if (pago) {
+            setImporte(Math.abs(pago.importePendiente).toFixed(2));
+          }
+        }
+      }
       return next;
     });
   };
