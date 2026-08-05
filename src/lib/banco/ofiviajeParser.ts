@@ -106,28 +106,39 @@ export function parseOfiviajePagosXml(xml: string): OfiviajePago[] {
     const gruposNivel3 = asArray(nivel2.FormattedAreaPair).filter((g: any) => g?.["@_Level"] === "3");
 
     for (const g3 of gruposNivel3) {
-      const detailsArea = g3?.FormattedAreaPair?.FormattedArea;
-      const sections = asArray(detailsArea?.FormattedSections?.FormattedSection);
-      for (const section of sections) {
-        const fields = fieldsByObjectName(section?.FormattedReportObjects?.FormattedReportObject);
-        if (!fields["Documento1"]) continue;
-        const formattedFields = formattedValuesByObjectName(section?.FormattedReportObjects?.FormattedReportObject);
+      // g3 puede ser un Level 3 con Type="Group" que contiene múltiples Level 4 Type="Details"
+      // OR un Level 3 directamente con FormattedAreaPair que contiene los detalles.
+      // Soportar ambas estructuras.
+      const detallesAreas = asArray(g3?.FormattedAreaPair).filter((g: any) => g?.["@_Level"] === "4" && g?.["@_Type"] === "Details");
 
-        pagos.push({
-          documento: fields["Documento1"] || "",
-          fechaVencto: fields["FechaVencto1"] || "",
-          fechaDoc: fields["FechaDoc1"] || "",
-          referenciaProvCte: fields["ReferenciaProvCte1"] || "",
-          documentoCobroPago: fields["DocumentoCobroPago1"] || "",
-          tipoOperacion: fields["TipoOperacion1"] || "",
-          cuentaTesoreria: fields["CuentaTesoreria1"] || "",
-          nombrePasajero: fields["NombrePasajero1"] || "",
-          apunte: fields["Apunte1"] || "",
-          importePendiente: parseImporteEspanol(formattedFields["ImportePendiente1"] || ""),
-          situacion: fields["Situac1"] || "",
-          proveedorNombre,
-          proveedorCuentaContable,
-        });
+      // Si no encontramos Level 4, asumir que g3 es directamente un Level 3 con Type="Group"
+      // que tiene dentro sus Level 4 Details hermanos directamente en FormattedAreaPair.
+      const detallesAFiltrar = detallesAreas.length > 0 ? detallesAreas : asArray(g3?.FormattedAreaPair).filter((g: any) => g?.["@_Type"] === "Details");
+
+      for (const detailsAreaPair of detallesAFiltrar) {
+        const detailsArea = detailsAreaPair?.FormattedArea || detailsAreaPair;
+        const sections = asArray(detailsArea?.FormattedSections?.FormattedSection);
+        for (const section of sections) {
+          const fields = fieldsByObjectName(section?.FormattedReportObjects?.FormattedReportObject);
+          if (!fields["Documento1"]) continue;
+          const formattedFields = formattedValuesByObjectName(section?.FormattedReportObjects?.FormattedReportObject);
+
+          pagos.push({
+            documento: fields["Documento1"] || "",
+            fechaVencto: fields["FechaVencto1"] || "",
+            fechaDoc: fields["FechaDoc1"] || "",
+            referenciaProvCte: fields["ReferenciaProvCte1"] || "",
+            documentoCobroPago: fields["DocumentoCobroPago1"] || "",
+            tipoOperacion: fields["TipoOperacion1"] || "",
+            cuentaTesoreria: fields["CuentaTesoreria1"] || "",
+            nombrePasajero: fields["NombrePasajero1"] || "",
+            apunte: fields["Apunte1"] || "",
+            importePendiente: parseImporteEspanol(formattedFields["ImportePendiente1"] || ""),
+            situacion: fields["Situac1"] || "",
+            proveedorNombre,
+            proveedorCuentaContable,
+          });
+        }
       }
     }
   }

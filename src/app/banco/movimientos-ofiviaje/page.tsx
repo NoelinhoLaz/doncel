@@ -512,8 +512,18 @@ const AGENCIA_POR_PREFIJO: Record<string, string> = {
 
 function agenciaDeExpediente(referenciaProvCte: string | null): string | null {
   if (!referenciaProvCte) return null;
-  const prefijo = referenciaProvCte.slice(0, 3);
-  return AGENCIA_POR_PREFIJO[prefijo] ?? null;
+  // Intentar extraer prefijo de los primeros 3 caracteres (ej: "001260182")
+  let prefijo = referenciaProvCte.slice(0, 3);
+  if (AGENCIA_POR_PREFIJO[prefijo]) return AGENCIA_POR_PREFIJO[prefijo];
+
+  // Si no coincide, buscar el patrón en cualquier parte (ej: "Exp.002260182" → "002")
+  const match = referenciaProvCte.match(/[^0-9]*(001|002|003)[0-9]/);
+  if (match) {
+    prefijo = match[1];
+    return AGENCIA_POR_PREFIJO[prefijo] ?? null;
+  }
+
+  return null;
 }
 
 export default function MovimientosOfiviajePage() {
@@ -528,12 +538,26 @@ export default function MovimientosOfiviajePage() {
   const [mostrarDetalleConciliacion, setMostrarDetalleConciliacion] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [filtroConciliado, setFiltroConciliado] = useState<"todos" | "conciliados" | "pendientes">("todos");
-  const [filtroAgencia, setFiltroAgencia] = useState<string[]>([]);
+  const [filtroCuentas, setFiltroCuentas] = useState<string[]>([]);
+  const [cuentasDisponibles, setCuentasDisponibles] = useState<{ numero: string; alias: string }[]>([]);
   const [objetivoBusqueda, setObjetivoBusqueda] = useState<{ tipo: "pago" | "cobro"; registro: any } | null>(null);
   const cargar = () => {
     return Promise.all([getOfiPagos(), getOfiCobros()]).then(([p, c]) => {
       setPagos(p as any[]);
       setCobros(c as any[]);
+
+      // Extraer cuentas bancarias únicas
+      const cuentasSet = new Set<string>();
+      [...(p as any[]), ...(c as any[])].forEach(item => {
+        if (item.cuenta_tesoreria) cuentasSet.add(item.cuenta_tesoreria);
+      });
+
+      const cuentas = Array.from(cuentasSet).map(numero => ({
+        numero,
+        alias: numero // Por ahora usar el número como alias
+      })).sort((a, b) => a.numero.localeCompare(b.numero));
+
+      setCuentasDisponibles(cuentas);
     });
   };
 
@@ -565,27 +589,29 @@ export default function MovimientosOfiviajePage() {
     const q = busqueda.trim().toLowerCase();
     return pagos.filter((p) => {
       if (!pasaFiltroConciliado(p.movimiento_banco_id)) return false;
-      if (filtroAgencia.length > 0) {
-        const agencia = agenciaDeExpediente(p.referencia_prov_cte);
-        if (!agencia || !filtroAgencia.includes(agencia)) return false;
+      if (filtroCuentas.length > 0) {
+        if (!p.cuenta_tesoreria || !filtroCuentas.includes(p.cuenta_tesoreria)) return false;
       }
       if (!q) return true;
       return [p.documento, p.referencia_prov_cte, p.proveedor_nombre, p.nombre_pasajero]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [pagos, busqueda, filtroConciliado, filtroAgencia]);
+  }, [pagos, busqueda, filtroConciliado, filtroCuentas]);
 
   const cobrosFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     return cobros.filter((c) => {
       if (!pasaFiltroConciliado(c.movimiento_banco_id)) return false;
+      if (filtroCuentas.length > 0) {
+        if (!c.cuenta_tesoreria || !filtroCuentas.includes(c.cuenta_tesoreria)) return false;
+      }
       if (!q) return true;
       return [c.factura, c.nombre_pagador, c.concepto_movimiento]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [cobros, busqueda, filtroConciliado]);
+  }, [cobros, busqueda, filtroConciliado, filtroCuentas]);
 
 
   const handleConciliar = async () => {
@@ -703,10 +729,10 @@ export default function MovimientosOfiviajePage() {
         </select>
         <div style={{ width: 220, flex: "0 0 auto" }}>
           <MultiSelectDropdown
-            options={["Alcalá", "Guadalajara", "Palma"]}
-            selected={filtroAgencia}
-            onChange={setFiltroAgencia}
-            placeholder="Todas las agencias"
+            options={cuentasDisponibles.map(c => c.numero)}
+            selected={filtroCuentas}
+            onChange={setFiltroCuentas}
+            placeholder="Todas las cuentas"
           />
         </div>
       </div>
