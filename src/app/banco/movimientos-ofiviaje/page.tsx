@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import NextLink from "next/link";
 import { ArrowLeft, Download, Link2, Search, X } from "lucide-react";
-import { descargarMovimientosOfiviaje, getOfiPagos, getOfiCobros, buscarCandidatosMovimientoBanco, vincularManualmenteMovimientoBanco, conciliarDesdeOfiPagos, conciliarDesdeOfiCobros, vincularOfiDesdeRevision } from "@/actions/banco";
+import { descargarMovimientosOfiviaje, descargarMovimientosOFISinDuplicar, getOfiPagos, getOfiCobros, buscarCandidatosMovimientoBanco, vincularManualmenteMovimientoBanco, conciliarDesdeOfiPagos, conciliarDesdeOfiCobros, vincularOfiDesdeRevision } from "@/actions/banco";
 import { RefreshCw } from "lucide-react";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
 import { MatchTooltipWrapper } from "@/components/movimientos/MatchTooltipWrapper";
@@ -569,9 +569,14 @@ export default function MovimientosOfiviajePage() {
     setDescargando(true);
     setResultado(null);
     try {
-      const r = await descargarMovimientosOfiviaje();
-      setResultado(`${r.ficherosLeidos} fichero(s) leídos · ${r.pagosInsertados} pagos nuevos · ${r.cobrosInsertados} cobros nuevos`);
-      await cargar();
+      const r = await descargarMovimientosOFISinDuplicar();
+      if (r.success) {
+        const informe = `✓ Descarga completada sin duplicar\n\n📊 Registros nuevos encontrados:\n• Pagos: ${r.pagosNuevos || 0}\n• Cobros: ${r.cobrosNuevos || 0}\n\nTotal nuevos: ${(r.pagosNuevos || 0) + (r.cobrosNuevos || 0)}`;
+        setResultado(informe);
+        await cargar();
+      } else {
+        setResultado(`Error: ${r.mensaje}`);
+      }
     } catch (e: any) {
       setResultado(`Error: ${e.message || "no se pudieron descargar los movimientos"}`);
     } finally {
@@ -694,17 +699,29 @@ export default function MovimientosOfiviajePage() {
       </div>
 
       {resultado && (
-        <p style={{ fontSize: "0.85rem", color: resultado.startsWith("Error") ? "#dc2626" : "#15803d", marginBottom: "1rem" }}>
+        <div
+          style={{
+            fontSize: "0.85rem",
+            color: resultado.startsWith("Error") ? "#dc2626" : "#15803d",
+            marginBottom: "1rem",
+            padding: "0.75rem",
+            backgroundColor: resultado.startsWith("Error") ? "#fef2f2" : "#f0fdf4",
+            border: `1px solid ${resultado.startsWith("Error") ? "#fecaca" : "#bbf7d0"}`,
+            borderRadius: "0.375rem",
+            whiteSpace: "pre-wrap",
+            fontFamily: "monospace",
+          }}
+        >
           {resultado}
           {detalleConciliacion && (
             <button
               onClick={() => setMostrarDetalleConciliacion(true)}
-              style={{ marginLeft: "0.6rem", fontSize: "0.8rem", color: "#334155", background: "none", border: "none", textDecoration: "underline", cursor: "pointer", padding: 0 }}
+              style={{ marginLeft: "0.6rem", marginTop: "0.5rem", fontSize: "0.8rem", color: "#334155", background: "none", border: "none", textDecoration: "underline", cursor: "pointer", padding: 0 }}
             >
               Ver detalle
             </button>
           )}
-        </p>
+        </div>
       )}
 
       <div style={{ display: "flex", gap: "0.6rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>

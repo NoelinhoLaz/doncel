@@ -481,3 +481,12 @@ export async function recalcularMovimientosBanco(movimientosIds: string[]) {
   revalidatePath("/banco");
   return { success: true, resultados };
 }
+
+export async function descargarMovimientosOFISinDuplicar() {
+  const { descargarMovimientosOFISinDuplicar: descargarSinDuplicarLib } = await import("@/actions/banco-reimport");
+  const resultado = await descargarSinDuplicarLib();
+  if (resultado.success) {
+    revalidatePath("/banco/movimientos-ofiviaje");
+  }
+  return resultado;
+}
