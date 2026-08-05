@@ -6,6 +6,69 @@ import { getDriveTokensUsuarioActual } from "@/lib/banco/ofiviajeDrive";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 
 /**
+ * Descarga XMLs de Drive sin duplicar: solo inserta documentos nuevos.
+ * Usa `documento` (único) para evitar duplicados.
+ */
+export async function descargarMovimientosOFISinDuplicar(): Promise<{ success: boolean; mensaje: string; pagosNuevos?: number; cobrosNuevos?: number; pagosDuplicados?: number; cobrosDuplicados?: number }> {
+  try {
+    const adminSupabase = await createAdminServerClient();
+    const { data: { user } } = await adminSupabase.auth.getUser();
+    if (!user) {
+      throw new Error("No hay usuario autenticado");
+    }
+
+    const agencyDb = await getAgencyDbClient();
+
+    const adminServiceSupabase = createAdminServiceClient();
+    const { data: usuario } = await adminServiceSupabase
+      .from("usuarios")
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .single();
+
+    if (!usuario) {
+      throw new Error("Usuario no encontrado");
+    }
+
+    const { data: config } = await agencyDb
+      .from("config_usuarios")
+      .select("oficina")
+      .eq("usuario_id", usuario.id)
+      .single();
+
+    const { data: oficinas } = await agencyDb
+      .from("config_oficinas")
+      .select("id")
+      .limit(1);
+
+    const oficinaId = config?.oficina || oficinas?.[0]?.id;
+    if (!oficinaId) {
+      throw new Error("No se encontró oficina configurada");
+    }
+
+    // Obtener tokens de Drive
+    const tokens = await getDriveTokensUsuarioActual();
+
+    // Descargar con la función existente (que ya usa ON CONFLICT DO NOTHING)
+    console.log("Descargando XMLs desde Drive con deduplicación...");
+    const resultado = await descargarMovimientosOfiviajeParaAgencia(agencyDb, tokens, oficinaId);
+
+    return {
+      success: true,
+      mensaje: `✓ Descarga completada: ${resultado.pagosInsertados} pagos nuevos, ${resultado.cobrosInsertados} cobros nuevos`,
+      pagosNuevos: resultado.pagosInsertados,
+      cobrosNuevos: resultado.cobrosInsertados,
+    };
+  } catch (error: any) {
+    console.error("Error en descargarMovimientosOFISinDuplicar:", error);
+    return {
+      success: false,
+      mensaje: `Error: ${error?.message || "Error desconocido"}`,
+    };
+  }
+}
+
+/**
  * Acción para reimportar movimientos OFI de Drive.
  * Limpia primero los datos del archivo especificado antes de reimportar.
  */
