@@ -122,7 +122,7 @@ export async function descargarMovimientosOfiviajeParaAgencia(
       const { data, error } = await agencyDb
         .from("ofi_pagos")
         .upsert(filas, {
-          onConflict: "oficina_id,documento,apunte",
+          onConflict: "documento,cuenta_tesoreria",
           ignoreDuplicates: true,
         })
         .select("id");
