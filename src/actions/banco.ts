@@ -196,7 +196,27 @@ export async function getConciliacionesManuales(movimientoBancoId: string): Prom
     .eq("estado", "confirmado")
     .order("created_at", { ascending: true });
 
-  if (!pagos || pagos.length === 0) return [];
+  // Si no hay movimientos contables, leer desde ofi_pagos vinculados
+  if (!pagos || pagos.length === 0) {
+    const { data: pagosOfi } = await agencyDb
+      .from("ofi_pagos")
+      .select("id, importe_pendiente, fecha_doc")
+      .eq("movimiento_banco_id", movimientoBancoId)
+      .order("fecha_doc", { ascending: true });
+
+    if (!pagosOfi || pagosOfi.length === 0) return [];
+
+    // Mostrar los pagos OFI como histórico (sin usuario específico, solo la vinculación)
+    return pagosOfi.map((p: any) => ({
+      id: p.id,
+      importe: Math.abs(Number(p.importe_pendiente || 0)),
+      fecha: p.fecha_doc,
+      usuarioNombre: "OFI (Vinculación automática)",
+      expedienteOfi: null,
+      voboDc: false,
+      nota: null,
+    }));
+  }
 
   const pagosVisibles = esOwner ? pagos : pagos.filter((p: any) => !p.vobo_dc);
   if (pagosVisibles.length === 0) return [];
