@@ -242,7 +242,7 @@ export async function getImportePendienteConciliar(movimientoBancoId: string): P
   const { data: pagosOfi } = await agencyDb
     .from("ofi_pagos")
     .select("importe_pendiente")
-    .or(`movimiento_banco_id.eq.${movimientoBancoId},movimientos_banco_ids.cs.["${movimientoBancoId}"]`);
+    .eq("movimiento_banco_id", movimientoBancoId);
 
   const yaConciliado = (pagos || []).reduce((sum: number, p: any) => sum + Number(p.importe_total || 0), 0);
   const yaConciliadoOfi = (pagosOfi || []).reduce((sum: number, p: any) => sum + Math.abs(Number(p.importe_pendiente || 0)), 0);
