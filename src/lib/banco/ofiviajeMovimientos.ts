@@ -629,6 +629,48 @@ export async function vincularPagoOfiDesdeConciliacionManual(pagoOfiId: string, 
 
   const pagoOfiviaje = filaOfiPagoComoOfiviajePago(pago);
 
+  // Obtener datos del usuario para guardar en histórico
+  let usuarioNombre = "Usuario desconocido";
+  if (usuarioId) {
+    try {
+      const { createAdminServiceClient } = await import("@/lib/supabaseServer");
+      const adminServiceClient = createAdminServiceClient();
+      const { data: usuario } = await adminServiceClient
+        .from("usuarios")
+        .select("nombre, apellidos")
+        .eq("id", usuarioId)
+        .maybeSingle();
+      if (usuario) {
+        usuarioNombre = `${usuario.nombre || ""} ${usuario.apellidos || ""}`.trim() || "Usuario desconocido";
+      }
+    } catch {
+      // Si falla, usar el nombre por defecto
+    }
+  }
+
+  // Construir registro para agregar al histórico
+  const registroConciliacion = {
+    id: pago.id,
+    usuario_id: usuarioId || null,
+    usuario_nombre: usuarioNombre,
+    cantidad: Math.abs(Number(pago.importe_pendiente || 0)),
+    fecha: new Date().toISOString(),
+    vobo_dc: false,
+    nota: null,
+  };
+
+  // Obtener histórico actual y agregar nuevo registro
+  const { data: movBancoActual } = await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .select("conciliaciones_historico")
+    .eq("id", movimientoBancoId)
+    .maybeSingle();
+
+  const historicoActual = Array.isArray(movBancoActual?.conciliaciones_historico)
+    ? movBancoActual.conciliaciones_historico
+    : [];
+  const historicoNuevo = [...historicoActual, registroConciliacion];
+
   const { error: e3 } = await agencyDb
     .from("contabilidad_movimientos_banco")
     .update({
@@ -636,6 +678,7 @@ export async function vincularPagoOfiDesdeConciliacionManual(pagoOfiId: string, 
       conciliado_externo_origen: "ofiviaje",
       conciliado_externo_en: new Date().toISOString(),
       conciliado_externo_datos: { ...pagoOfiviaje, _driveFileId: pago.drive_file_id },
+      conciliaciones_historico: historicoNuevo,
     })
     .eq("id", movimientoBancoId);
   if (e3) throw e3;

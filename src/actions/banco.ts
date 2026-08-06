@@ -189,6 +189,7 @@ export async function getConciliacionesManuales(movimientoBancoId: string): Prom
   const { rol } = await getCurrentAgentePublic();
   const esOwner = rol === "Owner";
 
+  // Primero intenta leer desde contabilidad_movimientos (para compatibilidad con datos antiguos)
   const { data: pagos } = await agencyDb
     .from("contabilidad_movimientos")
     .select("id, importe_total, created_at, usuario_id, concepto, vobo_dc, nota")
@@ -196,48 +197,55 @@ export async function getConciliacionesManuales(movimientoBancoId: string): Prom
     .eq("estado", "confirmado")
     .order("created_at", { ascending: true });
 
-  // Si no hay movimientos contables, leer desde ofi_pagos vinculados
-  if (!pagos || pagos.length === 0) {
-    const { data: pagosOfi } = await agencyDb
-      .from("ofi_pagos")
-      .select("id, importe_pendiente, fecha_doc")
-      .eq("movimiento_banco_id", movimientoBancoId)
-      .order("fecha_doc", { ascending: true });
+  if (pagos && pagos.length > 0) {
+    const pagosVisibles = esOwner ? pagos : pagos.filter((p: any) => !p.vobo_dc);
+    if (pagosVisibles.length > 0) {
+      const usuarioIds = [...new Set(pagosVisibles.map((p: any) => p.usuario_id).filter(Boolean))];
+      const adminServiceClient = createAdminServiceClient();
+      const { data: usuarios } = await adminServiceClient
+        .from("usuarios")
+        .select("id, nombre, apellidos")
+        .in("id", usuarioIds);
 
-    if (!pagosOfi || pagosOfi.length === 0) return [];
+      const nombrePorId = new Map((usuarios || []).map((u: any) => [u.id, `${u.nombre || ""} ${u.apellidos || ""}`.trim() || "Usuario desconocido"]));
 
-    // Mostrar los pagos OFI como histórico (sin usuario específico, solo la vinculación)
-    return pagosOfi.map((p: any) => ({
-      id: p.id,
-      importe: Math.abs(Number(p.importe_pendiente || 0)),
-      fecha: p.fecha_doc,
-      usuarioNombre: "OFI (Vinculación automática)",
-      expedienteOfi: null,
-      voboDc: false,
-      nota: null,
-    }));
+      return pagosVisibles.map((p: any) => ({
+        id: p.id,
+        importe: Number(p.importe_total || 0),
+        fecha: p.created_at,
+        usuarioNombre: nombrePorId.get(p.usuario_id) || "Usuario desconocido",
+        expedienteOfi: p.concepto?.match(/Expediente OFI: (.+)$/)?.[1] || null,
+        voboDc: !!p.vobo_dc,
+        nota: p.nota || null,
+      }));
+    }
   }
 
-  const pagosVisibles = esOwner ? pagos : pagos.filter((p: any) => !p.vobo_dc);
-  if (pagosVisibles.length === 0) return [];
+  // Si no hay en contabilidad_movimientos, leer desde conciliaciones_historico JSONB
+  const { data: movimientoBanco } = await agencyDb
+    .from("contabilidad_movimientos_banco")
+    .select("conciliaciones_historico")
+    .eq("id", movimientoBancoId)
+    .maybeSingle();
 
-  const usuarioIds = [...new Set(pagosVisibles.map((p: any) => p.usuario_id).filter(Boolean))];
-  const adminServiceClient = createAdminServiceClient();
-  const { data: usuarios } = await adminServiceClient
-    .from("usuarios")
-    .select("id, nombre, apellidos")
-    .in("id", usuarioIds);
+  if (!movimientoBanco?.conciliaciones_historico) return [];
 
-  const nombrePorId = new Map((usuarios || []).map((u: any) => [u.id, `${u.nombre || ""} ${u.apellidos || ""}`.trim() || "Usuario desconocido"]));
+  const historico = Array.isArray(movimientoBanco.conciliaciones_historico)
+    ? movimientoBanco.conciliaciones_historico
+    : [];
 
-  return pagosVisibles.map((p: any) => ({
-    id: p.id,
-    importe: Number(p.importe_total || 0),
-    fecha: p.created_at,
-    usuarioNombre: nombrePorId.get(p.usuario_id) || "Usuario desconocido",
-    expedienteOfi: p.concepto?.match(/Expediente OFI: (.+)$/)?.[1] || null,
-    voboDc: !!p.vobo_dc,
-    nota: p.nota || null,
+  if (historico.length === 0) return [];
+
+  const registrosVisibles = esOwner ? historico : historico.filter((r: any) => !r.vobo_dc);
+
+  return registrosVisibles.map((r: any) => ({
+    id: r.id,
+    importe: Number(r.cantidad || 0),
+    fecha: r.fecha,
+    usuarioNombre: r.usuario_nombre || "Usuario desconocido",
+    expedienteOfi: null,
+    voboDc: !!r.vobo_dc,
+    nota: r.nota || null,
   }));
 }
 
