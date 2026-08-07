@@ -119,28 +119,28 @@ export async function descargarMovimientosOfiviajeParaAgencia(
         proveedor_cuenta_contable: p.proveedorCuentaContable || null,
       }));
 
-      // Filtrar filas que ya existen para evitar violación de constraint
-      const { data: existentes } = await agencyDb
-        .from("ofi_pagos")
-        .select("documento,apunte")
-        .eq("oficina_id", oficinaId);
-
-      const existentesSet = new Set(
-        (existentes || []).map((e: any) => `${e.documento}|${e.apunte}`)
-      );
-
-      const filasNuevas = filas.filter(
-        (f: any) => !existentesSet.has(`${f.documento}|${f.apunte}`)
-      );
-
-      if (filasNuevas.length > 0) {
-        const { data, error } = await agencyDb
-          .from("ofi_pagos")
-          .insert(filasNuevas)
-          .select("id");
-        if (error) throw error;
-        pagosInsertados += data?.length ?? 0;
+      // Deduplicar dentro del propio batch (la misma combinación no debe
+      // insertarse dos veces aunque aparezca repetida en el XML) y dejar que
+      // la constraint única real
+      // (ofi_pagos_oficina_cuenta_doc_fecha_apunte_importe_key) se encargue
+      // de ignorar los que ya existan en BD vía upsert. Se usan estos 5
+      // campos (cuenta_tesoreria+documento+fecha_doc+apunte+importe_pendiente)
+      // porque documento+apunte solos no bastan: informes sucesivos pueden
+      // repetir el mismo apunte con datos distintos.
+      const filasUnicas = new Map<string, (typeof filas)[number]>();
+      for (const f of filas) {
+        filasUnicas.set(`${f.cuenta_tesoreria}|${f.documento}|${f.fecha_doc}|${f.apunte}|${f.importe_pendiente}`, f);
       }
+
+      const { data, error } = await agencyDb
+        .from("ofi_pagos")
+        .upsert([...filasUnicas.values()], {
+          onConflict: "oficina_id,cuenta_tesoreria,documento,fecha_doc,apunte,importe_pendiente",
+          ignoreDuplicates: true,
+        })
+        .select("id");
+      if (error) throw error;
+      pagosInsertados += data?.length ?? 0;
     }
   }
 
