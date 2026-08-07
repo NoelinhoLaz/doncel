@@ -36,7 +36,12 @@ async function resolverOficinaIdUsuarioActual(agencyDb: any): Promise<string> {
     }
   }
 
-  const { data: oficinas } = await agencyDb.from("config_oficinas").select("id").limit(1);
+  // Sin .order() aquí, LIMIT 1 no garantiza qué fila devuelve entre
+  // ejecuciones cuando hay varias oficinas — causó que la misma descarga
+  // cayera en oficinas distintas según el momento, duplicando registros de
+  // ofi_pagos (la unicidad se comprueba por oficina_id). Orden determinista
+  // por created_at para que el fallback sea siempre la misma oficina.
+  const { data: oficinas } = await agencyDb.from("config_oficinas").select("id").order("created_at", { ascending: true }).limit(1);
   if (oficinas && oficinas.length > 0) return oficinas[0].id;
 
   throw new Error("No hay ninguna oficina configurada en el sistema.");
@@ -120,25 +125,24 @@ export async function descargarMovimientosOfiviajeParaAgencia(
       }));
 
       // Deduplicar dentro del propio batch (la misma combinación no debe
-      // insertarse dos veces aunque aparezca repetida en el XML) y dejar que
-      // la constraint única real
-      // (ofi_pagos_oficina_cuenta_doc_fecha_apunte_importe_key) se encargue
-      // de ignorar los que ya existan en BD vía upsert. Se usan estos 5
-      // campos (cuenta_tesoreria+documento+fecha_doc+apunte+importe_pendiente)
-      // porque documento+apunte solos no bastan: informes sucesivos pueden
-      // repetir el mismo apunte con datos distintos.
+      // insertarse dos veces aunque aparezca repetida en el XML). El filtro
+      // contra BD se delega en la RPC insertar_ofi_pagos_sin_duplicar, que
+      // hace INSERT ... ON CONFLICT ON CONSTRAINT ofi_pagos_cuenta_doc_fecha_apunte_importe_key
+      // DO NOTHING en SQL puro (el equivalente vía PostgREST — .upsert con
+      // onConflict como lista de columnas — no detecta el conflicto en esta
+      // base de datos; verificado insertando dos veces la misma fila y
+      // comprobando que solo ON CONFLICT ON CONSTRAINT lo bloquea).
+      // Deliberadamente sin oficina_id en la clave: lo que identifica un
+      // pago real es la cuenta de tesorería, no la oficina (que además se
+      // resolvía de forma no determinista, ver resolverOficinaIdUsuarioActual).
       const filasUnicas = new Map<string, (typeof filas)[number]>();
       for (const f of filas) {
         filasUnicas.set(`${f.cuenta_tesoreria}|${f.documento}|${f.fecha_doc}|${f.apunte}|${f.importe_pendiente}`, f);
       }
 
-      const { data, error } = await agencyDb
-        .from("ofi_pagos")
-        .upsert([...filasUnicas.values()], {
-          onConflict: "oficina_id,cuenta_tesoreria,documento,fecha_doc,apunte,importe_pendiente",
-          ignoreDuplicates: true,
-        })
-        .select("id");
+      const { data, error } = await agencyDb.rpc("insertar_ofi_pagos_sin_duplicar", {
+        filas: [...filasUnicas.values()],
+      });
       if (error) throw error;
       pagosInsertados += data?.length ?? 0;
     }
