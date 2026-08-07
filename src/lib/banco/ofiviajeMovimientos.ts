@@ -119,14 +119,28 @@ export async function descargarMovimientosOfiviajeParaAgencia(
         proveedor_cuenta_contable: p.proveedorCuentaContable || null,
       }));
 
-      const { data, error } = await agencyDb
+      // Filtrar filas que ya existen para evitar violación de constraint
+      const { data: existentes } = await agencyDb
         .from("ofi_pagos")
-        .insert(filas, {
-          ignoreDuplicates: true,
-        })
-        .select("id");
-      if (error) throw error;
-      pagosInsertados += data?.length ?? 0;
+        .select("documento,apunte")
+        .eq("oficina_id", oficinaId);
+
+      const existentesSet = new Set(
+        (existentes || []).map((e: any) => `${e.documento}|${e.apunte}`)
+      );
+
+      const filasNuevas = filas.filter(
+        (f: any) => !existentesSet.has(`${f.documento}|${f.apunte}`)
+      );
+
+      if (filasNuevas.length > 0) {
+        const { data, error } = await agencyDb
+          .from("ofi_pagos")
+          .insert(filasNuevas)
+          .select("id");
+        if (error) throw error;
+        pagosInsertados += data?.length ?? 0;
+      }
     }
   }
 
