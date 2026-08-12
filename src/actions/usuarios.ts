@@ -100,6 +100,7 @@ export async function saveAgencyUsuario(
     rol: string;
     oficina: string | null;
     cuentas_bancarias: string[];
+    password?: string;
   }
 ) {
   try {
@@ -126,19 +127,37 @@ export async function saveAgencyUsuario(
     let targetUserId = userId;
 
     if (!targetUserId) {
-      // A. Invitar al usuario — Supabase envía un email para que establezca su contraseña
-      const appUrl = process.env.APP_URL || "http://localhost:3000";
-      const { data: authUser, error: authError } = await adminServiceSupabase.auth.admin.inviteUserByEmail(
-        payload.email,
-        {
-          data: { nombre: payload.nombre, apellidos: payload.apellidos },
-          redirectTo: `${appUrl}/login`,
-        }
-      );
+      // A. Crear el usuario en Auth. Si se recibe contraseña, el admin la define
+      // directamente (sin email) y el agente puede cambiarla luego desde su perfil.
+      // Si no se recibe, se invita por email para que el propio agente la establezca.
+      let authUser: { user: { id: string } | null } | null = null;
+      let authError: { message?: string } | null = null;
+
+      if (payload.password) {
+        const res = await adminServiceSupabase.auth.admin.createUser({
+          email: payload.email,
+          password: payload.password,
+          email_confirm: true,
+          user_metadata: { nombre: payload.nombre, apellidos: payload.apellidos },
+        });
+        authUser = res.data;
+        authError = res.error;
+      } else {
+        const appUrl = process.env.APP_URL || "http://localhost:3000";
+        const res = await adminServiceSupabase.auth.admin.inviteUserByEmail(
+          payload.email,
+          {
+            data: { nombre: payload.nombre, apellidos: payload.apellidos },
+            redirectTo: `${appUrl}/login`,
+          }
+        );
+        authUser = res.data;
+        authError = res.error;
+      }
 
       if (authError || !authUser?.user) {
-        console.error("Error al invitar usuario:", authError);
-        throw new Error(authError?.message || "Failed to invite user");
+        console.error("Error al crear usuario:", authError);
+        throw new Error(authError?.message || "Failed to create user");
       }
 
       targetUserId = authUser.user.id;
@@ -183,10 +202,14 @@ export async function saveAgencyUsuario(
         throw updateError;
       }
 
-      // B. Sincronizar cambios en Supabase Auth
+      // B. Sincronizar cambios en Supabase Auth.
+      // Si se recibe password, el owner resetea la contraseña del agente sin ver la
+      // anterior (updateUserById no la requiere); el agente podrá volver a cambiarla
+      // luego desde su propio perfil.
       const { error: authUpdateError } = await adminServiceSupabase.auth.admin.updateUserById(targetUserId, {
         email: payload.email,
-        user_metadata: { nombre: payload.nombre, apellidos: payload.apellidos }
+        user_metadata: { nombre: payload.nombre, apellidos: payload.apellidos },
+        ...(payload.password ? { password: payload.password } : {}),
       });
       if (authUpdateError) {
         console.warn("No se pudo actualizar el email de autenticación:", authUpdateError.message);
@@ -241,6 +264,78 @@ export async function saveAgencyUsuario(
   } catch (error: any) {
     console.error("Failed to save agency user:", error);
     throw new Error(error.message || "Failed to save agency user");
+  }
+}
+
+// Permite a cualquier usuario logueado editar sus propios datos básicos
+// (nombre, apellidos, teléfono, email), sin requerir permisos de admin.
+export async function updateMiPerfil(payload: {
+  nombre: string;
+  apellidos: string;
+  telefono: string;
+  email: string;
+}) {
+  try {
+    const adminSupabase = await createAdminServerClient();
+    const { data: { user }, error: userError } = await adminSupabase.auth.getUser();
+    if (userError || !user) {
+      throw new Error("No authenticated session found");
+    }
+
+    const adminServiceSupabase = createAdminServiceClient();
+    const { data: usuario, error: usuarioError } = await adminServiceSupabase
+      .from("usuarios")
+      .select("id, email")
+      .eq("auth_user_id", user.id)
+      .single();
+
+    if (usuarioError || !usuario) {
+      throw new Error("Usuario no encontrado");
+    }
+
+    const { error: updateError } = await adminServiceSupabase
+      .from("usuarios")
+      .update({
+        nombre: payload.nombre,
+        apellidos: payload.apellidos,
+        telefono: payload.telefono || null,
+        email: payload.email,
+      })
+      .eq("id", usuario.id);
+
+    if (updateError) throw updateError;
+
+    if (payload.email !== usuario.email) {
+      const { error: authUpdateError } = await adminServiceSupabase.auth.admin.updateUserById(user.id, {
+        email: payload.email,
+        user_metadata: { nombre: payload.nombre, apellidos: payload.apellidos },
+      });
+      if (authUpdateError) {
+        console.warn("No se pudo actualizar el email de autenticación:", authUpdateError.message);
+      }
+    } else {
+      await adminServiceSupabase.auth.admin.updateUserById(user.id, {
+        user_metadata: { nombre: payload.nombre, apellidos: payload.apellidos },
+      });
+    }
+
+    // Sincronizar espejo en crm_agentes
+    try {
+      const agencyDb = await getAgencyDbClient();
+      await agencyDb.from("crm_agentes").update({
+        nombre: payload.nombre,
+        apellidos: payload.apellidos || null,
+        synced_at: new Date().toISOString(),
+      }).eq("id", usuario.id);
+    } catch (agencyDbErr: any) {
+      console.warn("No se pudo sincronizar crm_agentes:", agencyDbErr.message);
+    }
+
+    revalidatePath("/settings");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to update own profile:", error);
+    throw new Error(error.message || "Failed to update own profile");
   }
 }
 

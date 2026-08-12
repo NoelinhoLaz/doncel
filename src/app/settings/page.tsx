@@ -18,6 +18,8 @@ import ModalUsuario from "@/components/modals/ModalUsuario";
 import ModalTipoServicio from "@/components/modals/ModalTipoServicio";
 import ModalTipoForm from "@/components/modals/ModalTipoForm";
 import ModalApiKey from "@/components/modals/ModalApiKey";
+import { CambiarPasswordForm } from "@/components/CambiarPasswordForm";
+import { MiPerfilForm } from "@/components/MiPerfilForm";
 
 const SECTIONS = [
   { id: "personalizar",   label: "Personalizar",      icon: <Icons.Settings size={16} /> },
@@ -27,6 +29,7 @@ const SECTIONS = [
   { id: "cuentas",        label: "Cuentas Tesorería",  icon: <Icons.Cobros size={16} /> },
   { id: "tiposServicios", label: "Tipos Servicios",    icon: <Icons.Servicios size={16} /> },
   { id: "apikeys",        label: "API Keys",           icon: <Icons.Key size={16} /> },
+  { id: "micuenta",       label: "Mi cuenta",          icon: <LucideIcons.KeyRound size={16} /> },
 ];
 
 export default function SettingsPage() {
@@ -773,11 +776,18 @@ export default function SettingsPage() {
       case "tiposServicios": return renderTiposServicios();
       case "apikeys":        return renderApiKeys();
       case "permisos":       return renderPermisos();
+      case "micuenta":       return (
+        <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
+          <MiPerfilForm />
+          <CambiarPasswordForm />
+        </div>
+      );
       default:               return null;
     }
   };
 
   const visibleSections = SECTIONS.filter(section => {
+    if (section.id === "micuenta") return true;
     if (!currentUser) return true;
     if (currentUser.rol === "Agente") {
       return section.id === "tiposServicios";

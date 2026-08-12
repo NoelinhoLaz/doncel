@@ -23,6 +23,7 @@ const FORM_DEFAULT = {
   rol: "Agente",
   oficina: "",
   cuentas_bancarias: [] as string[],
+  password: "",
 };
 
 export default function ModalUsuario({
@@ -30,6 +31,7 @@ export default function ModalUsuario({
 }: Props) {
   const [form, setForm] = useState(FORM_DEFAULT);
   const [saving, setSaving] = useState(false);
+  const [definirPassword, setDefinirPassword] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -42,7 +44,9 @@ export default function ModalUsuario({
         rol: editingUsuario.rol || "Agente",
         oficina: editingUsuario.oficina || "",
         cuentas_bancarias: editingUsuario.cuentas_bancarias || [],
+        password: "",
       });
+      setDefinirPassword(false);
     } else {
       const defaultOficina = currentUser?.rol === "SubAdmin" ? (currentUser.oficina_id || "") : (oficinas[0]?.id || "");
       setForm({
@@ -50,6 +54,7 @@ export default function ModalUsuario({
         oficina: defaultOficina,
         rol: "Agente",
       });
+      setDefinirPassword(false);
     }
   }, [isOpen, editingUsuario, currentUser, oficinas]);
 
@@ -58,6 +63,11 @@ export default function ModalUsuario({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.nombre || !form.email) return;
+    const requierePassword = !editingUsuario || definirPassword;
+    if (requierePassword && form.password.length < 6) {
+      alert("La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
     try {
       setSaving(true);
       const res = await saveAgencyUsuario(editingUsuario ? editingUsuario.id : null, {
@@ -68,6 +78,7 @@ export default function ModalUsuario({
         rol: form.rol,
         oficina: form.oficina || null,
         cuentas_bancarias: form.cuentas_bancarias,
+        password: requierePassword ? form.password : undefined,
       });
       if (res?.success) {
         onClose();
@@ -123,29 +134,68 @@ export default function ModalUsuario({
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-              <div className={styles.formGroupFull}>
-                <label className={styles.formLabel}>Email *</label>
+            <div className={styles.formGroupFull}>
+              <label className={styles.formLabel}>Email *</label>
+              <input
+                type="email"
+                className={styles.formInput}
+                value={form.email}
+                onChange={e => setForm({ ...form, email: e.target.value })}
+                placeholder="Ej: juan@agencia.com"
+                required
+                disabled={!!editingUsuario}
+              />
+            </div>
+
+            {editingUsuario ? (
+              <div className={styles.formGroupFull} style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "0.85rem", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={definirPassword}
+                    onChange={e => setDefinirPassword(e.target.checked)}
+                  />
+                  Resetear contraseña (el agente podrá cambiarla de nuevo después)
+                </label>
+                {definirPassword && (
+                  <input
+                    type="password"
+                    className={styles.formInput}
+                    style={{ marginTop: "0.5rem" }}
+                    value={form.password}
+                    onChange={e => setForm({ ...form, password: e.target.value })}
+                    placeholder="Mínimo 6 caracteres"
+                    minLength={6}
+                    required={definirPassword}
+                    autoComplete="new-password"
+                  />
+                )}
+              </div>
+            ) : (
+              <div className={styles.formGroupFull} style={{ marginBottom: "1rem" }}>
+                <label className={styles.formLabel}>Contraseña *</label>
                 <input
-                  type="email"
+                  type="password"
                   className={styles.formInput}
-                  value={form.email}
-                  onChange={e => setForm({ ...form, email: e.target.value })}
-                  placeholder="Ej: juan@agencia.com"
+                  value={form.password}
+                  onChange={e => setForm({ ...form, password: e.target.value })}
+                  placeholder="Mínimo 6 caracteres"
+                  minLength={6}
                   required
-                  disabled={!!editingUsuario}
+                  autoComplete="new-password"
                 />
               </div>
-              <div className={styles.formGroupFull}>
-                <label className={styles.formLabel}>Teléfono</label>
-                <input
-                  type="tel"
-                  className={styles.formInput}
-                  value={form.telefono}
-                  onChange={e => setForm({ ...form, telefono: e.target.value })}
-                  placeholder="Ej: +34 600000000"
-                />
-              </div>
+            )}
+
+            <div className={styles.formGroupFull} style={{ marginBottom: "1rem" }}>
+              <label className={styles.formLabel}>Teléfono</label>
+              <input
+                type="tel"
+                className={styles.formInput}
+                value={form.telefono}
+                onChange={e => setForm({ ...form, telefono: e.target.value })}
+                placeholder="Ej: +34 600000000"
+              />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
