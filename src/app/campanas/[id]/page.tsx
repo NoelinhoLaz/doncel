@@ -9,10 +9,11 @@ import { ModalPlacesNearby } from "./ModalPlacesNearby";
 
 import type { Campana, Oportunidad, EntidadDetalle } from "./types";
 import { apiFetch, formatFecha } from "./utils";
-import { NuevaOportunidadModal } from "./modals/NuevaOportunidadModal";
 import { ModalCierreOportunidad } from "./modals/ModalCierreOportunidad";
+import { ConfirmarCampanaModal } from "./modals/ConfirmarCampanaModal";
 import { PanelEntidad } from "./panels/PanelEntidad";
 import { TablaOportunidades } from "./table/TablaOportunidades";
+import { NuevoClientePanel, NuevoClienteResult } from "@/components/modals/NuevoClientePanel";
 
 export default function CampanaDetallePage() {
   const { id } = useParams<{ id: string }>();
@@ -20,7 +21,8 @@ export default function CampanaDetallePage() {
   const [campana, setCampana] = useState<Campana | null>(null);
   const [oportunidades, setOportunidades] = useState<Oportunidad[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
+  const [showNuevoCliente, setShowNuevoCliente] = useState(false);
+  const [confirmarCampanaCliente, setConfirmarCampanaCliente] = useState<NuevoClienteResult | null>(null);
   const [showPlacesNearby, setShowPlacesNearby] = useState(false);
   const [monocromo, setMonocromo] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
@@ -220,7 +222,7 @@ export default function CampanaDetallePage() {
         campanaId={campana.id}
         objetivoTotal={campana.crm_campanas_agentes?.reduce((s, a) => s + (a.objetivo_valor ?? 0), 0) ?? 0}
         agentes={campana.crm_campanas_agentes ?? []}
-        onNuevaOportunidad={() => setShowModal(true)}
+        onNuevaOportunidad={() => setShowNuevoCliente(true)}
         onNuevaOportunidadPlaces={() => setShowPlacesNearby(true)}
         onEstadoChange={handleEstadoChange}
         onPresupuestoClick={abrirPresupuestoParaOportunidad}
@@ -231,12 +233,23 @@ export default function CampanaDetallePage() {
         onOportunidadUpdate={(id, patch) => setOportunidades(prev => prev.map(o => o.id === id ? { ...o, ...patch } : o))}
       />
 
-      {showModal && campana && (
-        <NuevaOportunidadModal
-          campanaId={campana.id}
-          estados={estados}
-          onClose={() => setShowModal(false)}
-          onCreated={loadData}
+      {showNuevoCliente && (
+        <NuevoClientePanel
+          onClose={() => setShowNuevoCliente(false)}
+          onCreated={(cliente) => {
+            setShowNuevoCliente(false);
+            setConfirmarCampanaCliente(cliente);
+          }}
+        />
+      )}
+
+      {confirmarCampanaCliente && (
+        <ConfirmarCampanaModal
+          clienteNombre={confirmarCampanaCliente.nombre}
+          entidadId={confirmarCampanaCliente.id}
+          defaultCampanaId={campana?.id}
+          onClose={() => setConfirmarCampanaCliente(null)}
+          onCreated={() => { setConfirmarCampanaCliente(null); loadData(); }}
         />
       )}
 

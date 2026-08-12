@@ -31,16 +31,12 @@ export async function GET(req: Request) {
     let data: any[] = [];
 
     if (q) {
-      const palabras = q.split(/\s+/).filter(Boolean);
-      let dbQuery = agencyDb
-        .from("contabilidad_entidades")
-        .select("id, nombre, email, telefono, roles, metadatos")
-        .order("nombre", { ascending: true })
-        .limit(50);
-      for (const p of palabras) dbQuery = dbQuery.ilike("nombre", `%${p}%`);
-      const { data: rows, error } = await dbQuery;
+      const { data: rows, error } = await agencyDb.rpc("buscar_entidades", { q, max_rows: 50 });
       if (error) throw error;
-      data = rows ?? [];
+      data = (rows ?? []).map((e: any) => ({
+        id: e.id, nombre: e.nombre, email: e.email, telefono: e.telefono,
+        tipo_entidad: e.tipo_entidad, roles: e.roles, metadatos: e.metadatos,
+      }));
     } else {
       const { data: rows, error } = await agencyDb
         .from("contabilidad_entidades")
@@ -59,6 +55,39 @@ export async function GET(req: Request) {
       return 2;
     };
     data.sort((a, b) => prioridad(a) - prioridad(b));
+
+    return NextResponse.json({ success: true, data });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message || String(err) }, { status: 500 });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const nombre = (body.nombre ?? "").trim();
+    if (!nombre) {
+      return NextResponse.json({ success: false, error: "El nombre es obligatorio" }, { status: 400 });
+    }
+
+    const agencyDb = await getAgencyDbClient();
+    const insert: Record<string, any> = { nombre, roles: { prospecto: true } };
+    if (body.tipo_entidad) insert.tipo_entidad = body.tipo_entidad;
+    if (body.email) insert.email = String(body.email).trim();
+    if (body.telefono) insert.telefono = String(body.telefono).trim();
+    if (body.documento) insert.documento = String(body.documento).trim();
+    if (body.razon_social) insert.razon_social = String(body.razon_social).trim();
+    if (body.direccion) insert.direccion = body.direccion;
+    if (body.lat != null) insert.lat = body.lat;
+    if (body.lng != null) insert.lng = body.lng;
+    if (body.metadatos) insert.metadatos = body.metadatos;
+
+    const { data, error } = await agencyDb
+      .from("contabilidad_entidades")
+      .insert([insert])
+      .select("id, nombre, email, telefono, documento, tipo_entidad, razon_social, metadatos")
+      .single();
+    if (error) throw error;
 
     return NextResponse.json({ success: true, data });
   } catch (err: any) {

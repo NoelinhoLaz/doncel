@@ -553,6 +553,7 @@ export async function createOportunidad(payload: {
   estado_id: string;
   valor_estimado?: number;
   fecha_cierre_est?: string;
+  prioridad?: number | null;
   origen?: string;
 }) {
   const currentUser = await getCurrentUsuario();
@@ -811,6 +812,7 @@ export async function updateContacto(id: string, payload: Partial<{
   return data;
 }
 
+// Un contacto puede estar vinculado a varias entidades a la vez (relación N:M libre)
 export async function cambiarOrganizacionContacto(
   contactoId: string,
   nuevaEntidadId: string,
@@ -818,14 +820,69 @@ export async function cambiarOrganizacionContacto(
 ) {
   const agencyDb = await getAgencyDbClient();
 
-  // Insertar nueva relación — el trigger fn_crm_contacto_org_unica desactiva la anterior
-  const { error } = await agencyDb.from("crm_contactos_organizaciones").insert({
+  const { error } = await agencyDb.from("crm_contactos_organizaciones").upsert({
     contacto_id: contactoId,
     entidad_id: nuevaEntidadId,
     fecha_inicio: new Date().toISOString().split("T")[0],
     es_activa: true,
     motivo: motivo ?? null,
-  });
+  }, { onConflict: "contacto_id,entidad_id" });
+  if (error) throw error;
+}
+
+// Contactos vinculados actualmente a una entidad (vía crm_contactos_organizaciones,
+// no vía crm_contactos.entidad_id — ese campo ya no representa la entidad "actual")
+export async function getContactosEntidad(entidadId: string) {
+  const agencyDb = await getAgencyDbClient();
+  const { data, error } = await agencyDb
+    .from("crm_contactos_organizaciones")
+    .select("crm_contactos(id, nombre, cargo, email, telefono, metadatos, activo)")
+    .eq("entidad_id", entidadId)
+    .eq("es_activa", true);
+  if (error) throw error;
+  return (data ?? [])
+    .map((r: any) => r.crm_contactos)
+    .filter((c: any) => c && c.activo);
+}
+
+// Búsqueda global de contactos por nombre (para reutilizar un contacto existente
+// en vez de duplicarlo al añadirlo a un nuevo cliente)
+export async function buscarContactosGlobal(q: string) {
+  const agencyDb = await getAgencyDbClient();
+  const { data, error } = await agencyDb
+    .from("crm_contactos")
+    .select(`
+      id, nombre, cargo, email, telefono,
+      crm_contactos_organizaciones(entidad_id, es_activa, contabilidad_entidades(nombre))
+    `)
+    .eq("activo", true)
+    .ilike("nombre", `%${q}%`)
+    .order("nombre", { ascending: true })
+    .limit(20);
+  if (error) throw error;
+  return data ?? [];
+}
+
+// Vincula un contacto ya existente a una entidad (idempotente)
+export async function vincularContactoEntidad(contactoId: string, entidadId: string) {
+  const agencyDb = await getAgencyDbClient();
+  const { error } = await agencyDb.from("crm_contactos_organizaciones").upsert({
+    contacto_id: contactoId,
+    entidad_id: entidadId,
+    fecha_inicio: new Date().toISOString().split("T")[0],
+    es_activa: true,
+  }, { onConflict: "contacto_id,entidad_id" });
+  if (error) throw error;
+}
+
+// Desvincula un contacto de una entidad sin borrar el contacto ni sus otros vínculos
+export async function desvincularContactoEntidad(contactoId: string, entidadId: string) {
+  const agencyDb = await getAgencyDbClient();
+  const { error } = await agencyDb
+    .from("crm_contactos_organizaciones")
+    .update({ es_activa: false, fecha_fin: new Date().toISOString().split("T")[0] })
+    .eq("contacto_id", contactoId)
+    .eq("entidad_id", entidadId);
   if (error) throw error;
 }
 
@@ -849,10 +906,10 @@ export async function getEntidadHistorial(entidadId: string) {
   const { data, error } = await agencyDb
     .from("crm_oportunidades")
     .select(`
-      id, titulo, valor_estimado, prioridad,
-      crm_campanas!campana_id(id, nombre, fecha_inicio, fecha_fin),
+      id, titulo, valor_estimado, prioridad, agente_id,
+      crm_campanas!campana_id(id, nombre, fecha_inicio, fecha_fin, crm_campanas_agentes(agente_id, crm_agentes!crm_campanas_agentes_agente_id_fkey(id, nombre, apellidos, avatar_url))),
       crm_campanas_estados!estado_id(id, nombre, color, es_ganado, es_final),
-      crm_agentes!agente_id(id, nombre, apellidos)
+      crm_agentes!agente_id(id, nombre, apellidos, avatar_url)
     `)
     .eq("entidad_id", entidadId)
     .order("created_at", { ascending: false });

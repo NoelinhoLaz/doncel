@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       headers: {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": API_KEY,
-        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.location",
+        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.location,places.addressComponents",
       },
       body: JSON.stringify({ textQuery: q, languageCode: "es" }),
     });
@@ -23,12 +23,24 @@ export async function GET(request: NextRequest) {
     if (!res.ok) throw new Error(`places fetch failed: ${res.status}`);
     const data = await res.json();
 
-    const results = (data.places ?? []).map((p: any) => ({
-      nombre: p.displayName?.text ?? "",
-      direccion: p.formattedAddress ?? "",
-      lat: p.location?.latitude ?? null,
-      lng: p.location?.longitude ?? null,
-    }));
+    const results = (data.places ?? []).map((p: any) => {
+      const comps = p.addressComponents ?? [];
+      const find = (type: string) => comps.find((c: any) => c.types?.includes(type))?.longText ?? "";
+      const streetNumber = find("street_number");
+      const route = find("route");
+      const calle = [route, streetNumber].filter(Boolean).join(" ");
+
+      return {
+        nombre: p.displayName?.text ?? "",
+        direccion: p.formattedAddress ?? "",
+        calle: calle || undefined,
+        cp: find("postal_code") || undefined,
+        ciudad: find("locality") || find("postal_town") || undefined,
+        provincia: find("administrative_area_level_2") || find("administrative_area_level_1") || undefined,
+        lat: p.location?.latitude ?? null,
+        lng: p.location?.longitude ?? null,
+      };
+    });
 
     return NextResponse.json({ results });
   } catch (err: any) {

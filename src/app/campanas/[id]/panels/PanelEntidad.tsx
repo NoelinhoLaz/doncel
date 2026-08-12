@@ -1,11 +1,14 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { X, Pencil, Plus, Phone, Mail, Info, Building2, Rocket } from "lucide-react";
 import { EntidadDetalle, CampanaHistorialRow } from "../types";
 import { EMPTY_CONTACTO_FORM, lbl, inp, th, td } from "../constants";
 import { getEntidadHistorial, getEntidadResumen } from "@/actions/crm";
+import { apiFetch, initials } from "../utils";
+import styles from "../page.module.css";
+import { EtiquetasSelector } from "@/components/EtiquetasSelector";
 
 const EntidadMapaDynamic = dynamic(
   () => import("../EntidadMapa").then(m => m.EntidadMapa),
@@ -31,6 +34,44 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
   const [savingContacto, setSavingContacto] = useState(false);
   const [form, setForm] = useState(EMPTY_CONTACTO_FORM);
   const setF = (k: keyof typeof EMPTY_CONTACTO_FORM) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
+
+  // Buscador de contactos existentes (reutilizar en vez de duplicar)
+  const [contactoSearch, setContactoSearch] = useState("");
+  const [contactoResultados, setContactoResultados] = useState<any[]>([]);
+  const [contactoSearchLoading, setContactoSearchLoading] = useState(false);
+  const [vinculandoId, setVinculandoId] = useState<string | null>(null);
+
+  // Picker de agente en la fila de historial de campañas
+  const [agentePickerRowId, setAgentePickerRowId] = useState<string | null>(null);
+  const [agentePickerPos, setAgentePickerPos] = useState<{ top: number; left: number } | null>(null);
+  const agentePickerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!agentePickerRowId) return;
+    function onDocClick(e: MouseEvent) {
+      if (agentePickerRef.current && agentePickerRef.current.contains(e.target as Node)) return;
+      setAgentePickerRowId(null);
+      setAgentePickerPos(null);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [agentePickerRowId]);
+
+  async function handleHistorialAgenteChange(row: CampanaHistorialRow, agenteId: string | null) {
+    const agEntry = row.crm_campanas?.crm_campanas_agentes?.find(a => a.agente_id === agenteId);
+    const ag = agEntry?.crm_agentes ?? null;
+    setHistorial(prev => prev.map(h => h.id !== row.id ? h : { ...h, agente_id: agenteId, crm_agentes: ag }));
+    try {
+      await apiFetch(`/api/crm/oportunidades/${row.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agente_id: agenteId }),
+      });
+    } catch (e) {
+      console.error("Error al cambiar agente:", e);
+      setHistorial(prev => prev.map(h => h.id !== row.id ? h : row));
+    }
+  }
 
   // Edición de entidad
   const [hoveredEntidad, setHoveredEntidad] = useState(false);
@@ -151,6 +192,54 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
       setExpedientes(resumen.expedientes);
     }).catch(() => {}).finally(() => setLoading(false));
   }, [entidad?.id]);
+
+  useEffect(() => {
+    if (!entidad?.id) return;
+    fetch(`/api/entidades/${entidad.id}/contactos`).then(r => r.json())
+      .then(json => { if (json.success) setContactos(json.data); })
+      .catch(() => {});
+  }, [entidad?.id]);
+
+  useEffect(() => {
+    if (contactoSearch.trim().length < 3) { setContactoResultados([]); return; }
+    setContactoSearchLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/crm/contactos/buscar?q=${encodeURIComponent(contactoSearch)}`);
+        const json = await res.json();
+        setContactoResultados(json.success ? json.data : []);
+      } catch { setContactoResultados([]); }
+      finally { setContactoSearchLoading(false); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [contactoSearch]);
+
+  async function handleVincularContacto(contactoId: string) {
+    if (!entidad?.id) return;
+    setVinculandoId(contactoId);
+    try {
+      await fetch(`/api/entidades/${entidad.id}/contactos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contacto_id: contactoId }),
+      });
+      const res = await fetch(`/api/entidades/${entidad.id}/contactos`);
+      const json = await res.json();
+      if (json.success) setContactos(json.data);
+      setContactoSearch("");
+      setContactoResultados([]);
+      setShowNuevoContacto(false);
+    } catch { }
+    finally { setVinculandoId(null); }
+  }
+
+  async function handleDesvincularContacto(contactoId: string) {
+    if (!entidad?.id) return;
+    setContactos(prev => prev.filter((c: any) => c.id !== contactoId));
+    try {
+      await fetch(`/api/entidades/${entidad.id}/contactos?contacto_id=${contactoId}`, { method: "DELETE" });
+    } catch { }
+  }
 
   function openEditContacto(c: any) {
     const meta = c.metadatos ?? {};
@@ -454,6 +543,54 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
                 <div style={{ fontSize: "0.72rem", fontWeight: 700, color: editingContactoId ? "var(--primary-color, #475569)" : "#334155" }}>
                   {editingContactoId ? "Editar contacto" : "Nuevo contacto"}
                 </div>
+
+                {!editingContactoId && (
+                  <div style={{ position: "relative" }}>
+                    <label style={lbl}>¿Ya existe este contacto?</label>
+                    <input
+                      placeholder="Buscar contacto por nombre… (ej. si ya trabajaba en otro cliente)"
+                      value={contactoSearch}
+                      onChange={e => setContactoSearch(e.target.value)}
+                      style={inp}
+                    />
+                    {contactoSearchLoading && (
+                      <div style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: 4 }}>Buscando…</div>
+                    )}
+                    {contactoResultados.length > 0 && (
+                      <div style={{ marginTop: "0.4rem", border: "1px solid #e2e8f0", borderRadius: 8, overflow: "hidden" }}>
+                        {contactoResultados.map((c: any) => {
+                          const yaVinculado = contactos.some((ct: any) => ct.id === c.id);
+                          const entidadesActivas = (c.crm_contactos_organizaciones ?? [])
+                            .filter((o: any) => o.es_activa)
+                            .map((o: any) => o.contabilidad_entidades?.nombre)
+                            .filter(Boolean);
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              disabled={yaVinculado || vinculandoId === c.id}
+                              onClick={() => handleVincularContacto(c.id)}
+                              style={{ display: "flex", flexDirection: "column", gap: 2, width: "100%", padding: "0.5rem 0.65rem", border: "none", borderBottom: "1px solid #f1f5f9", background: "#fff", cursor: yaVinculado ? "default" : "pointer", textAlign: "left", opacity: yaVinculado ? 0.5 : 1 }}
+                              onMouseEnter={ev => { if (!yaVinculado) ev.currentTarget.style.background = "#f8fafc"; }}
+                              onMouseLeave={ev => (ev.currentTarget.style.background = "#fff")}
+                            >
+                              <span style={{ fontWeight: 600, fontSize: "0.8rem", color: "#1e293b" }}>{c.nombre}{c.cargo ? ` · ${c.cargo}` : ""}</span>
+                              <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>
+                                {yaVinculado ? "Ya vinculado a este cliente" : entidadesActivas.length > 0 ? `Actualmente en: ${entidadesActivas.join(", ")}` : "Sin cliente asignado"}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0.85rem 0" }}>
+                      <div style={{ flex: 1, height: 1, background: "#f1f5f9" }} />
+                      <span style={{ fontSize: "0.65rem", color: "#94a3b8", textTransform: "uppercase" }}>o crear nuevo</span>
+                      <div style={{ flex: 1, height: 1, background: "#f1f5f9" }} />
+                    </div>
+                  </div>
+                )}
+
                 {/* Identificación */}
                 <div style={{ display: "flex", gap: "0.6rem" }}>
                   <div style={{ flex: 1 }}>
@@ -602,15 +739,27 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
                             )}
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          className="contacto-edit-btn"
-                          onClick={() => isEditing ? (setEditingContactoId(null), setForm(EMPTY_CONTACTO_FORM)) : openEditContacto(c)}
-                          title={isEditing ? "Cancelar edición" : "Editar contacto"}
-                          style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, border: "none", borderRadius: 5, background: isEditing ? "var(--primary-color, #475569)" : "#e2e8f0", color: isEditing ? "#fff" : "#64748b", cursor: "pointer", opacity: (isEditing || hoveredContactoId === c.id) ? 1 : 0, transition: "opacity 0.12s" }}
-                        >
-                          {isEditing ? <X size={12} /> : <Pencil size={12} />}
-                        </button>
+                        <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                          <button
+                            type="button"
+                            className="contacto-edit-btn"
+                            onClick={() => isEditing ? (setEditingContactoId(null), setForm(EMPTY_CONTACTO_FORM)) : openEditContacto(c)}
+                            title={isEditing ? "Cancelar edición" : "Editar contacto"}
+                            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, border: "none", borderRadius: 5, background: isEditing ? "var(--primary-color, #475569)" : "#e2e8f0", color: isEditing ? "#fff" : "#64748b", cursor: "pointer", opacity: (isEditing || hoveredContactoId === c.id) ? 1 : 0, transition: "opacity 0.12s" }}
+                          >
+                            {isEditing ? <X size={12} /> : <Pencil size={12} />}
+                          </button>
+                          {!isEditing && (
+                            <button
+                              type="button"
+                              onClick={() => handleDesvincularContacto(c.id)}
+                              title="Quitar de este cliente (el contacto no se elimina)"
+                              style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, border: "none", borderRadius: 5, background: "#fee2e2", color: "#dc2626", cursor: "pointer", opacity: hoveredContactoId === c.id ? 1 : 0, transition: "opacity 0.12s" }}
+                            >
+                              <X size={12} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -632,11 +781,11 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                    <th style={{ ...th, width: 30 }}></th>
                     <th style={th}>Campaña</th>
                     <th style={th}>Estado</th>
                     <th style={{ ...th, textAlign: "center" }}>P</th>
                     <th style={{ ...th, textAlign: "right" }}>Est.</th>
-                    <th style={{ ...th, textAlign: "right" }}>Agente</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -645,13 +794,28 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
                     const ag = h.crm_agentes;
                     return (
                       <tr key={h.id} style={{ borderBottom: i < historial.length - 1 ? "1px solid #f1f5f9" : undefined }}>
+                        <td style={{ ...td, width: 30 }}>
+                          <span
+                            className={styles.agenteCircle}
+                            title={ag ? `${ag.nombre} ${ag.apellidos}` : "Sin agente"}
+                            style={{ width: 22, height: 22, fontSize: "0.56rem", cursor: "pointer", opacity: ag ? 1 : 0.35, outline: agentePickerRowId === h.id ? "2px solid var(--primary-color, #475569)" : undefined, outlineOffset: 2 }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (agentePickerRowId === h.id) { setAgentePickerRowId(null); setAgentePickerPos(null); return; }
+                              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                              setAgentePickerPos({ top: rect.bottom + 6, left: rect.left + rect.width / 2 });
+                              setAgentePickerRowId(h.id);
+                            }}
+                          >
+                            {ag ? initials(ag.nombre, ag.apellidos) : "—"}
+                          </span>
+                        </td>
                         <td style={td} title={h.crm_campanas?.nombre ?? ""}>{h.crm_campanas?.nombre ?? "—"}</td>
                         <td style={{ ...td, paddingLeft: "0.5rem" }}>
                           {estado ? <span style={{ display: "inline-flex", alignItems: "center", height: 18, borderRadius: 99, background: estado.color, color: "#fff", fontSize: "0.62rem", fontWeight: 600, padding: "0 7px", whiteSpace: "nowrap" }}>{estado.nombre}</span> : "—"}
                         </td>
                         <td style={{ ...td, textAlign: "center", paddingLeft: "0.5rem" }}>{h.prioridad ?? "—"}</td>
                         <td style={{ ...td, textAlign: "right", paddingLeft: "0.5rem" }}>{h.valor_estimado ? `${h.valor_estimado.toLocaleString("es-ES")} €` : "—"}</td>
-                        <td style={{ ...td, textAlign: "right", paddingLeft: "0.5rem", color: "#64748b", fontSize: "0.72rem", maxWidth: 110 }}>{ag ? `${ag.nombre} ${ag.apellidos}`.trim() : "—"}</td>
                       </tr>
                     );
                   })}
@@ -789,6 +953,13 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
               </table>
             )}
           </section>
+
+          {/* Etiquetas */}
+          {entidadLocal.id && (
+            <section>
+              <EtiquetasSelector label="Etiquetas" entidadId={entidadLocal.id} />
+            </section>
+          )}
         </div>
       </div>
 
@@ -840,6 +1011,57 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
           </div>
         </div>
       )}
+
+      {agentePickerRowId && agentePickerPos && (() => {
+        const row = historial.find(h => h.id === agentePickerRowId);
+        if (!row) return null;
+        const pool = row.crm_campanas?.crm_campanas_agentes ?? [];
+        return (
+          <div
+            ref={agentePickerRef}
+            style={{
+              position: "fixed", top: agentePickerPos.top, left: agentePickerPos.left,
+              transform: "translateX(-50%)",
+              background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10,
+              boxShadow: "0 8px 32px rgba(15,23,42,0.14)", zIndex: 99999,
+              minWidth: 180, padding: "0.3rem 0", fontSize: "0.8rem",
+            }}
+          >
+            {pool.map(a => {
+              const ag = a.crm_agentes;
+              if (!ag) return null;
+              const isSelected = row.agente_id === a.agente_id;
+              return (
+                <div
+                  key={a.agente_id}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "0.4rem 0.85rem", cursor: "pointer",
+                    background: isSelected ? "color-mix(in srgb, var(--primary-color, #475569) 10%, white)" : undefined,
+                    fontWeight: isSelected ? 600 : 400, color: "#1e293b",
+                  }}
+                  onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "#f8fafc"; }}
+                  onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = ""; }}
+                  onClick={() => { handleHistorialAgenteChange(row, a.agente_id); setAgentePickerRowId(null); setAgentePickerPos(null); }}
+                >
+                  <span className={styles.agenteCircle} style={{ width: 24, height: 24, fontSize: "0.62rem", flexShrink: 0 }}>
+                    {initials(ag.nombre, ag.apellidos)}
+                  </span>
+                  {ag.nombre} {ag.apellidos}
+                </div>
+              );
+            })}
+            {row.agente_id && (
+              <div
+                style={{ padding: "0.3rem 0.85rem", cursor: "pointer", color: "#ef4444", fontSize: "0.74rem", borderTop: "1px solid #f1f5f9", marginTop: 2 }}
+                onClick={() => { handleHistorialAgenteChange(row, null); setAgentePickerRowId(null); setAgentePickerPos(null); }}
+              >
+                Quitar agente
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </>
   );
 }

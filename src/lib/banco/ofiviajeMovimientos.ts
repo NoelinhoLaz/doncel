@@ -179,12 +179,23 @@ async function adjuntarMovimientoBanco<T extends { movimiento_banco_id: string |
   const todosLosIds = [...new Set(idsPorFila.flat())];
   if (todosLosIds.length === 0) return filas.map((f) => ({ ...f, movimiento_banco: null, movimientos_banco: [] }));
 
-  const { data: movimientos } = await agencyDb
-    .from("contabilidad_movimientos_banco")
-    .select("id, concepto_original, fecha_operacion, importe")
-    .in("id", todosLosIds);
+  // Con listados grandes (cientos de pagos conciliados) un único .in() con
+  // todos los IDs genera una query string demasiado larga y Supabase la
+  // devuelve vacía sin error visible, dejando todo el listado sin el icono
+  // de vinculado aunque movimiento_banco_id sí sea válido en BD. Se trocea
+  // en lotes para evitar el límite de longitud de URL.
+  const LOTE = 150;
+  const movimientos: { id: string; concepto_original: string | null; fecha_operacion: string | null; importe: number }[] = [];
+  for (let i = 0; i < todosLosIds.length; i += LOTE) {
+    const lote = todosLosIds.slice(i, i + LOTE);
+    const { data } = await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .select("id, concepto_original, fecha_operacion, importe")
+      .in("id", lote);
+    if (data) movimientos.push(...data);
+  }
 
-  const porId = new Map((movimientos ?? []).map((m: any) => [m.id, m]));
+  const porId = new Map(movimientos.map((m: any) => [m.id, m]));
   return filas.map((f, i) => {
     const movimientosBanco = idsPorFila[i].map((id) => porId.get(id)).filter(Boolean);
     return {

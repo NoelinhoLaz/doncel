@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X, LocateFixed } from "lucide-react";
 
 type Estado = { id: string; nombre: string; color: string; orden: number; es_final: boolean; es_ganado: boolean };
 
@@ -28,6 +28,7 @@ export function ModalPlacesNearby({ campanaId, estados, onClose, onCreated }: {
   const [error, setError] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [buscandoUbic, setBuscandoUbic] = useState(false);
+  const [localizandoAgente, setLocalizandoAgente] = useState(false);
 
   const TIPOS = [
     { value: "", label: "Todos" },
@@ -52,6 +53,27 @@ export function ModalPlacesNearby({ campanaId, estados, onClose, onCreated }: {
       setCoords({ lat: first.lat, lng: first.lng });
     } catch { setError("Error buscando ubicación"); }
     finally { setBuscandoUbic(false); }
+  }
+
+  function localizarAgente() {
+    if (!navigator.geolocation) {
+      setError("Tu navegador no soporta geolocalización");
+      return;
+    }
+    setLocalizandoAgente(true);
+    setError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setUbicacion("Mi ubicación actual");
+        setLocalizandoAgente(false);
+      },
+      () => {
+        setError("No se pudo obtener tu ubicación. Comprueba los permisos del navegador.");
+        setLocalizandoAgente(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   }
 
   async function buscarNegocios() {
@@ -142,6 +164,14 @@ export function ModalPlacesNearby({ campanaId, estados, onClose, onCreated }: {
               style={{ padding: "0.4rem 0.9rem", borderRadius: 7, border: "none", background: coords ? "#22c55e" : "var(--primary-color,#475569)", color: "#fff", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer", flexShrink: 0, opacity: buscandoUbic ? 0.7 : 1 }}
             >
               {buscandoUbic ? "…" : coords ? "✓ Localizado" : "Localizar"}
+            </button>
+            <button
+              onClick={localizarAgente}
+              disabled={localizandoAgente}
+              title="Buscar cerca de mi ubicación actual"
+              style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "0.4rem 0.9rem", borderRadius: 7, border: "1px solid #e2e8f0", background: "#fff", color: "var(--primary-color,#475569)", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer", flexShrink: 0, opacity: localizandoAgente ? 0.6 : 1 }}
+            >
+              <LocateFixed size={13} /> {localizandoAgente ? "Localizando…" : "Cerca de mí"}
             </button>
           </div>
           <div style={{ display: "flex", gap: 8 }}>

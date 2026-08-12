@@ -8,6 +8,11 @@
   50%       { opacity: 0.82; filter: brightness(1.25) saturate(1.3); }
 }
 
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
 :root {
   --background: #edf0f5; /* Color del dashboard para todas las páginas - ligeramente más oscuro */
   --foreground: #171717;

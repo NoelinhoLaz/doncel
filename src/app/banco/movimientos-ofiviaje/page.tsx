@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useMemo } from "react";
 import NextLink from "next/link";
-import { ArrowLeft, Download, Link2, Search, X } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, Download, Filter, Link2, Search, X } from "lucide-react";
 import { descargarMovimientosOfiviaje, descargarMovimientosOFISinDuplicar, getOfiPagos, getOfiCobros, buscarCandidatosMovimientoBanco, vincularManualmenteMovimientoBanco, conciliarDesdeOfiPagos, conciliarDesdeOfiCobros, vincularOfiDesdeRevision } from "@/actions/banco";
 import { RefreshCw } from "lucide-react";
-import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
 import { MatchTooltipWrapper } from "@/components/movimientos/MatchTooltipWrapper";
+import { Icons } from "@/lib/icons";
+import listStyles from "../../expedientes/page.module.css";
 
 function ConciliadoCell({
   movimientosBanco,
@@ -414,6 +415,202 @@ function DetalleConciliacionModal({
   );
 }
 
+export interface FiltrosOfi {
+  cuentas: string[];
+  proveedor: string;
+  fechaDesde: string;
+  fechaHasta: string;
+  importeMin: string;
+  importeMax: string;
+  estado: "todos" | "conciliados" | "pendientes";
+}
+
+const FILTROS_OFI_VACIOS: FiltrosOfi = {
+  cuentas: [],
+  proveedor: "",
+  fechaDesde: "",
+  fechaHasta: "",
+  importeMin: "",
+  importeMax: "",
+  estado: "todos",
+};
+
+function hayFiltrosActivos(f: FiltrosOfi): boolean {
+  return (
+    f.cuentas.length > 0 ||
+    !!f.proveedor ||
+    !!f.fechaDesde ||
+    !!f.fechaHasta ||
+    !!f.importeMin ||
+    !!f.importeMax ||
+    f.estado !== "todos"
+  );
+}
+
+const inputFiltroStyle: React.CSSProperties = {
+  fontSize: "0.75rem",
+  padding: "0.3rem 0.4rem",
+  border: "1px solid #e2e8f0",
+  borderRadius: "0.3rem",
+  width: "100%",
+  boxSizing: "border-box",
+};
+
+/**
+ * Sidebar de filtros al estilo de /banco (mismo layout de 240px + estilos
+ * inline). Cada listado (Pagos / Cobros) instancia su propia copia con
+ * estado independiente — mostrarProveedor se desactiva en Cobros porque ahí
+ * el campo equivalente es "pagador", no "proveedor".
+ */
+function PanelFiltrosOfi({
+  filtros,
+  onChange,
+  onClose,
+  mostrarProveedor,
+  cuentasDisponibles,
+}: {
+  filtros: FiltrosOfi;
+  onChange: (f: FiltrosOfi) => void;
+  onClose: () => void;
+  mostrarProveedor: boolean;
+  cuentasDisponibles: { numero: string; alias: string }[];
+}) {
+  const update = <K extends keyof FiltrosOfi>(key: K, value: FiltrosOfi[K]) => {
+    onChange({ ...filtros, [key]: value });
+  };
+
+  const toggleCuenta = (numero: string) => {
+    update("cuentas", filtros.cuentas.includes(numero) ? filtros.cuentas.filter((c) => c !== numero) : [...filtros.cuentas, numero]);
+  };
+
+  return (
+    <div
+      style={{
+        width: "240px",
+        minWidth: "240px",
+        borderRight: "1px solid #e2e8f0",
+        padding: "1rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "1rem",
+        fontSize: "0.8rem",
+        backgroundColor: "#fafbfc",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontWeight: 700, color: "#0f172a", fontSize: "0.9rem" }}>Filtros</span>
+        <button
+          onClick={onClose}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "2px", display: "flex", borderRadius: "4px" }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "#f1f5f9"; e.currentTarget.style.color = "#0f172a"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#94a3b8"; }}
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* Cuenta bancaria */}
+      <div>
+        <div style={{ fontWeight: 600, color: "#334155", marginBottom: "0.35rem" }}>Cuenta bancaria</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", maxHeight: "150px", overflowY: "auto" }}>
+          {cuentasDisponibles.length === 0 ? (
+            <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Sin cuentas</span>
+          ) : (
+            cuentasDisponibles.map((c) => (
+              <label key={c.numero} style={{ display: "flex", alignItems: "center", gap: "0.35rem", cursor: "pointer", fontSize: "0.78rem" }}>
+                <input
+                  type="checkbox"
+                  checked={filtros.cuentas.includes(c.numero)}
+                  onChange={() => toggleCuenta(c.numero)}
+                  style={{ accentColor: "var(--primary-color, #475569)" }}
+                />
+                {c.alias}
+              </label>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Proveedor (solo Pagos) */}
+      {mostrarProveedor && (
+        <div>
+          <div style={{ fontWeight: 600, color: "#334155", marginBottom: "0.35rem" }}>Proveedor</div>
+          <input
+            type="text"
+            placeholder="Nombre del proveedor"
+            value={filtros.proveedor}
+            onChange={(e) => update("proveedor", e.target.value)}
+            style={inputFiltroStyle}
+          />
+        </div>
+      )}
+
+      {/* Fecha */}
+      <div>
+        <div style={{ fontWeight: 600, color: "#334155", marginBottom: "0.35rem" }}>Fecha</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <input type="date" value={filtros.fechaDesde} onChange={(e) => update("fechaDesde", e.target.value)} style={inputFiltroStyle} />
+          <span style={{ fontSize: "0.7rem", color: "#94a3b8", textAlign: "center" }}>hasta</span>
+          <input type="date" value={filtros.fechaHasta} onChange={(e) => update("fechaHasta", e.target.value)} style={inputFiltroStyle} />
+        </div>
+      </div>
+
+      {/* Importe */}
+      <div>
+        <div style={{ fontWeight: 600, color: "#334155", marginBottom: "0.35rem" }}>Importe (€)</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <input type="number" placeholder="Desde" value={filtros.importeMin} onChange={(e) => update("importeMin", e.target.value)} style={inputFiltroStyle} />
+          <span style={{ fontSize: "0.7rem", color: "#94a3b8", textAlign: "center" }}>hasta</span>
+          <input type="number" placeholder="Hasta" value={filtros.importeMax} onChange={(e) => update("importeMax", e.target.value)} style={inputFiltroStyle} />
+        </div>
+      </div>
+
+      {/* Estado */}
+      <div>
+        <div style={{ fontWeight: 600, color: "#334155", marginBottom: "0.35rem" }}>Estado</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          {[
+            { value: "todos", label: "Todos" },
+            { value: "conciliados", label: "Conciliados" },
+            { value: "pendientes", label: "Pendientes" },
+          ].map((opt) => (
+            <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.35rem", cursor: "pointer", fontSize: "0.78rem" }}>
+              <input
+                type="radio"
+                name="estado-ofi"
+                checked={filtros.estado === opt.value}
+                onChange={() => update("estado", opt.value as FiltrosOfi["estado"])}
+                style={{ accentColor: "var(--primary-color, #475569)" }}
+              />
+              {opt.label}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Limpiar filtros */}
+      {hayFiltrosActivos(filtros) && (
+        <button
+          onClick={() => onChange({ ...FILTROS_OFI_VACIOS })}
+          style={{
+            width: "100%",
+            padding: "0.4rem",
+            backgroundColor: "#f1f5f9",
+            color: "#475569",
+            border: "1px solid #e2e8f0",
+            borderRadius: "0.375rem",
+            fontWeight: 600,
+            fontSize: "0.8rem",
+            cursor: "pointer",
+          }}
+        >
+          Limpiar filtros
+        </button>
+      )}
+    </div>
+  );
+}
+
 const POR_PAGINA = 20;
 
 function formatoImporte(v: number) {
@@ -536,9 +733,14 @@ export default function MovimientosOfiviajePage() {
   const [resultado, setResultado] = useState<string | null>(null);
   const [detalleConciliacion, setDetalleConciliacion] = useState<DetalleConciliacion | null>(null);
   const [mostrarDetalleConciliacion, setMostrarDetalleConciliacion] = useState(false);
-  const [busqueda, setBusqueda] = useState("");
-  const [filtroConciliado, setFiltroConciliado] = useState<"todos" | "conciliados" | "pendientes">("todos");
-  const [filtroCuentas, setFiltroCuentas] = useState<string[]>([]);
+  // Búsqueda y filtros independientes por listado: pagos y cobros no
+  // comparten estado, cada uno con su propio panel de filtros y buscador.
+  const [busquedaPagos, setBusquedaPagos] = useState("");
+  const [busquedaCobros, setBusquedaCobros] = useState("");
+  const [filtrosPagos, setFiltrosPagos] = useState<FiltrosOfi>({ ...FILTROS_OFI_VACIOS });
+  const [filtrosCobros, setFiltrosCobros] = useState<FiltrosOfi>({ ...FILTROS_OFI_VACIOS });
+  const [mostrarFiltrosPagos, setMostrarFiltrosPagos] = useState(false);
+  const [mostrarFiltrosCobros, setMostrarFiltrosCobros] = useState(false);
   const [cuentasDisponibles, setCuentasDisponibles] = useState<{ numero: string; alias: string }[]>([]);
   const [objetivoBusqueda, setObjetivoBusqueda] = useState<{ tipo: "pago" | "cobro"; registro: any } | null>(null);
   const cargar = () => {
@@ -584,39 +786,43 @@ export default function MovimientosOfiviajePage() {
     }
   };
 
-  const pasaFiltroConciliado = (movimientoBancoId: string | null) => {
-    if (filtroConciliado === "conciliados") return !!movimientoBancoId;
-    if (filtroConciliado === "pendientes") return !movimientoBancoId;
+  const pasaFiltrosComunes = (
+    f: FiltrosOfi,
+    datos: { movimientoBancoId: string | null; cuentaTesoreria: string | null; fecha: string | null; importe: number }
+  ) => {
+    if (f.estado === "conciliados" && !datos.movimientoBancoId) return false;
+    if (f.estado === "pendientes" && datos.movimientoBancoId) return false;
+    if (f.cuentas.length > 0 && (!datos.cuentaTesoreria || !f.cuentas.includes(datos.cuentaTesoreria))) return false;
+    if (f.fechaDesde && (!datos.fecha || datos.fecha < f.fechaDesde)) return false;
+    if (f.fechaHasta && (!datos.fecha || datos.fecha > f.fechaHasta)) return false;
+    if (f.importeMin && Math.abs(datos.importe) < Number(f.importeMin)) return false;
+    if (f.importeMax && Math.abs(datos.importe) > Number(f.importeMax)) return false;
     return true;
   };
 
   const pagosFiltrados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
+    const q = busquedaPagos.trim().toLowerCase();
+    const proveedorQ = filtrosPagos.proveedor.trim().toLowerCase();
     return pagos.filter((p) => {
-      if (!pasaFiltroConciliado(p.movimiento_banco_id)) return false;
-      if (filtroCuentas.length > 0) {
-        if (!p.cuenta_tesoreria || !filtroCuentas.includes(p.cuenta_tesoreria)) return false;
-      }
+      if (!pasaFiltrosComunes(filtrosPagos, { movimientoBancoId: p.movimiento_banco_id, cuentaTesoreria: p.cuenta_tesoreria, fecha: p.fecha_doc, importe: Number(p.importe_pendiente || 0) })) return false;
+      if (proveedorQ && !String(p.proveedor_nombre ?? "").toLowerCase().includes(proveedorQ)) return false;
       if (!q) return true;
       return [p.documento, p.referencia_prov_cte, p.proveedor_nombre, p.nombre_pasajero]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [pagos, busqueda, filtroConciliado, filtroCuentas]);
+  }, [pagos, busquedaPagos, filtrosPagos]);
 
   const cobrosFiltrados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
+    const q = busquedaCobros.trim().toLowerCase();
     return cobros.filter((c) => {
-      if (!pasaFiltroConciliado(c.movimiento_banco_id)) return false;
-      if (filtroCuentas.length > 0) {
-        if (!c.cuenta_tesoreria || !filtroCuentas.includes(c.cuenta_tesoreria)) return false;
-      }
+      if (!pasaFiltrosComunes(filtrosCobros, { movimientoBancoId: c.movimiento_banco_id, cuentaTesoreria: c.cuenta_tesoreria, fecha: c.fecha_movimiento, importe: Number(c.importe_cobro || 0) })) return false;
       if (!q) return true;
       return [c.factura, c.nombre_pagador, c.concepto_movimiento]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [cobros, busqueda, filtroConciliado, filtroCuentas]);
+  }, [cobros, busquedaCobros, filtrosCobros]);
 
 
   const handleConciliar = async () => {
@@ -724,101 +930,162 @@ export default function MovimientosOfiviajePage() {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: "0.6rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flex: "1 1 260px", minWidth: 220, padding: "0.4rem 0.7rem", border: "1px solid #e2e8f0", borderRadius: "0.375rem", background: "#fff" }}>
-          <Search size={15} color="#94a3b8" />
-          <input
-            type="text"
-            placeholder="Buscar por documento, factura, proveedor, pasajero, concepto..."
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            style={{ border: "none", outline: "none", fontSize: "0.85rem", width: "100%", background: "transparent" }}
-          />
-        </div>
-        <select
-          value={filtroConciliado}
-          onChange={(e) => setFiltroConciliado(e.target.value as "todos" | "conciliados" | "pendientes")}
-          style={{ padding: "0.4rem 0.7rem", fontSize: "0.85rem", border: "1px solid #e2e8f0", borderRadius: "0.375rem", background: "#fff", color: "#334155" }}
-        >
-          <option value="todos">Todos</option>
-          <option value="conciliados">Conciliados</option>
-          <option value="pendientes">Pendientes</option>
-        </select>
-        <div style={{ width: 220, flex: "0 0 auto" }}>
-          <MultiSelectDropdown
-            options={cuentasDisponibles.map(c => c.numero)}
-            selected={filtroCuentas}
-            onChange={setFiltroCuentas}
-            placeholder="Todas las cuentas"
-          />
-        </div>
-      </div>
-
       {loading ? (
         <p style={{ color: "#94a3b8", fontSize: "0.85rem" }}>Cargando…</p>
       ) : (
         <>
-          <section style={{ marginBottom: "2rem" }}>
-            <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#334155", marginBottom: "0.75rem" }}>Pagos ({pagosFiltrados.length})</h2>
-            <Tabla
-              filas={pagosFiltrados}
-              vacio="Todavía no hay pagos descargados. Pulsa 'Descargar movimientos' para leerlos desde Drive."
-              columnas={[
-                { header: "Fec. Doc", width: "1%", render: (p) => formatoFecha(p.fecha_doc) },
-                { header: "Fec. Vcto", width: "1%", render: (p) => formatoFecha(p.fecha_vencto) },
-                { header: "Expediente", width: "1%", render: (p) => p.referencia_prov_cte ?? "—" },
-                { header: "Proveedor", render: (p) => p.proveedor_nombre ?? "—" },
-                { header: "Pasajero", render: (p) => p.nombre_pasajero ?? "—" },
-                { header: "LOC", width: "1%", render: (p) => p.documento_cobro_pago ?? "—" },
-                { header: "Documento", width: "1%", render: (p) => p.documento ?? "—" },
-                { header: "Importe", render: (p) => formatoImporte(p.importe_pendiente), align: "right" },
-                {
-                  header: "Conciliado",
-                  width: "1%",
-                  render: (p) => (
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                      <ConciliadoCell
-                        movimientosBanco={p.movimientos_banco ?? (p.movimiento_banco ? [p.movimiento_banco] : [])}
-                        onBuscar={() => setObjetivoBusqueda({ tipo: "pago", registro: p })}
-                      />
-                      {idsPagosAmbiguos.has(p.id) && (
-                        <span
-                          title="Hay varios movimientos bancarios candidatos y ninguno se pudo desambiguar automáticamente. Usa la lupa para elegir manualmente."
-                          style={{ fontSize: "0.65rem", fontWeight: 700, padding: "0.1rem 0.4rem", borderRadius: "999px", color: "#b45309", background: "#fef3c7", whiteSpace: "nowrap" }}
-                        >
-                          Ambiguo
-                        </span>
-                      )}
-                    </div>
-                  ),
-                },
-              ]}
-            />
+          <section
+            style={{
+              marginBottom: "2rem",
+              background: "#fff",
+              borderRadius: "0.75rem",
+              border: "1px solid #f1f5f9",
+              boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)",
+              overflow: "hidden",
+            }}
+          >
+            <div className={listStyles.listHeaderTop}>
+              <div className={listStyles.listTitleWrapper}>
+                <Icons.Landmark size={18} className={listStyles.titleIcon} />
+                <h2 className={listStyles.listTitle}>Pagos ({pagosFiltrados.length})</h2>
+              </div>
+              <div className={listStyles.actionsWrapper}>
+                <div className={listStyles.searchWrapper}>
+                  <Search size={16} className={listStyles.searchIcon} />
+                  <input
+                    type="text"
+                    placeholder="Buscar por documento, proveedor, pasajero..."
+                    className={listStyles.searchInput}
+                    value={busquedaPagos}
+                    onChange={(e) => setBusquedaPagos(e.target.value)}
+                  />
+                </div>
+                <button
+                  className={`${listStyles.actionIconButton} ${mostrarFiltrosPagos || hayFiltrosActivos(filtrosPagos) ? listStyles.activeAction : ""}`}
+                  title="Filtrar"
+                  onClick={() => setMostrarFiltrosPagos((v) => !v)}
+                >
+                  <Filter size={18} />
+                </button>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-start" }}>
+              {mostrarFiltrosPagos && (
+                <PanelFiltrosOfi
+                  filtros={filtrosPagos}
+                  onChange={setFiltrosPagos}
+                  onClose={() => setMostrarFiltrosPagos(false)}
+                  mostrarProveedor
+                  cuentasDisponibles={cuentasDisponibles}
+                />
+              )}
+              <div style={{ flex: 1, minWidth: 0, padding: "1rem 1.25rem" }}>
+                <Tabla
+                  filas={pagosFiltrados}
+                  vacio="Todavía no hay pagos descargados. Pulsa 'Descargar movimientos' para leerlos desde Drive."
+                  columnas={[
+                    { header: "Fec. Doc", width: "1%", render: (p) => formatoFecha(p.fecha_doc) },
+                    { header: "Fec. Vcto", width: "1%", render: (p) => formatoFecha(p.fecha_vencto) },
+                    { header: "Expediente", width: "1%", render: (p) => p.referencia_prov_cte ?? "—" },
+                    { header: "Proveedor", render: (p) => p.proveedor_nombre ?? "—" },
+                    { header: "Pasajero", render: (p) => p.nombre_pasajero ?? "—" },
+                    { header: "LOC", width: "1%", render: (p) => p.documento_cobro_pago ?? "—" },
+                    { header: "Documento", width: "1%", render: (p) => p.documento ?? "—" },
+                    { header: "Importe", render: (p) => formatoImporte(p.importe_pendiente), align: "right" },
+                    {
+                      header: "Conciliado",
+                      width: "1%",
+                      render: (p) => (
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                          <ConciliadoCell
+                            movimientosBanco={p.movimientos_banco ?? (p.movimiento_banco ? [p.movimiento_banco] : [])}
+                            onBuscar={() => setObjetivoBusqueda({ tipo: "pago", registro: p })}
+                          />
+                          {idsPagosAmbiguos.has(p.id) && (
+                            <span
+                              title="Hay varios movimientos bancarios candidatos y ninguno se pudo desambiguar automáticamente. Usa la lupa para elegir manualmente."
+                              style={{ fontSize: "0.65rem", fontWeight: 700, padding: "0.1rem 0.4rem", borderRadius: "999px", color: "#b45309", background: "#fef3c7", whiteSpace: "nowrap" }}
+                            >
+                              Ambiguo
+                            </span>
+                          )}
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
+              </div>
+            </div>
           </section>
 
-          <section>
-            <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#334155", marginBottom: "0.75rem" }}>Cobros ({cobrosFiltrados.length})</h2>
-            <Tabla
-              filas={cobrosFiltrados}
-              vacio="Todavía no hay cobros descargados. Pulsa 'Descargar movimientos' para leerlos desde Drive."
-              columnas={[
-                { header: "Factura", render: (c) => c.factura ?? "—" },
-                { header: "Fecha", width: "1%", render: (c) => formatoFecha(c.fecha_movimiento) },
-                { header: "Pagador", render: (c) => c.nombre_pagador ?? "—" },
-                { header: "Concepto", render: (c) => c.concepto_movimiento ?? "—" },
-                { header: "Importe", render: (c) => formatoImporte(c.importe_cobro), align: "right" },
-                {
-                  header: "Conciliado",
-                  width: "1%",
-                  render: (c) => (
-                    <ConciliadoCell
-                      movimientosBanco={c.movimientos_banco ?? (c.movimiento_banco ? [c.movimiento_banco] : [])}
-                      onBuscar={() => setObjetivoBusqueda({ tipo: "cobro", registro: c })}
-                    />
-                  ),
-                },
-              ]}
-            />
+          <section
+            style={{
+              background: "#fff",
+              borderRadius: "0.75rem",
+              border: "1px solid #f1f5f9",
+              boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)",
+              overflow: "hidden",
+            }}
+          >
+            <div className={listStyles.listHeaderTop}>
+              <div className={listStyles.listTitleWrapper}>
+                <ArrowLeftRight size={18} className={listStyles.titleIcon} />
+                <h2 className={listStyles.listTitle}>Cobros ({cobrosFiltrados.length})</h2>
+              </div>
+              <div className={listStyles.actionsWrapper}>
+                <div className={listStyles.searchWrapper}>
+                  <Search size={16} className={listStyles.searchIcon} />
+                  <input
+                    type="text"
+                    placeholder="Buscar por factura, pagador, concepto..."
+                    className={listStyles.searchInput}
+                    value={busquedaCobros}
+                    onChange={(e) => setBusquedaCobros(e.target.value)}
+                  />
+                </div>
+                <button
+                  className={`${listStyles.actionIconButton} ${mostrarFiltrosCobros || hayFiltrosActivos(filtrosCobros) ? listStyles.activeAction : ""}`}
+                  title="Filtrar"
+                  onClick={() => setMostrarFiltrosCobros((v) => !v)}
+                >
+                  <Filter size={18} />
+                </button>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-start" }}>
+              {mostrarFiltrosCobros && (
+                <PanelFiltrosOfi
+                  filtros={filtrosCobros}
+                  onChange={setFiltrosCobros}
+                  onClose={() => setMostrarFiltrosCobros(false)}
+                  mostrarProveedor={false}
+                  cuentasDisponibles={cuentasDisponibles}
+                />
+              )}
+              <div style={{ flex: 1, minWidth: 0, padding: "1rem 1.25rem" }}>
+                <Tabla
+                  filas={cobrosFiltrados}
+                  vacio="Todavía no hay cobros descargados. Pulsa 'Descargar movimientos' para leerlos desde Drive."
+                  columnas={[
+                    { header: "Factura", render: (c) => c.factura ?? "—" },
+                    { header: "Fecha", width: "1%", render: (c) => formatoFecha(c.fecha_movimiento) },
+                    { header: "Pagador", render: (c) => c.nombre_pagador ?? "—" },
+                    { header: "Concepto", render: (c) => c.concepto_movimiento ?? "—" },
+                    { header: "Importe", render: (c) => formatoImporte(c.importe_cobro), align: "right" },
+                    {
+                      header: "Conciliado",
+                      width: "1%",
+                      render: (c) => (
+                        <ConciliadoCell
+                          movimientosBanco={c.movimientos_banco ?? (c.movimiento_banco ? [c.movimiento_banco] : [])}
+                          onBuscar={() => setObjetivoBusqueda({ tipo: "cobro", registro: c })}
+                        />
+                      ),
+                    },
+                  ]}
+                />
+              </div>
+            </div>
           </section>
         </>
       )}

@@ -143,6 +143,7 @@ CREATE TABLE IF NOT EXISTS config_tipos_servicios (
 CREATE TABLE IF NOT EXISTS contabilidad_entidades (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nombre              VARCHAR(255) NOT NULL,
+    razon_social        VARCHAR(255),
     documento           VARCHAR(20),
     documento_caducidad DATE,
     email               VARCHAR(255),
@@ -231,6 +232,21 @@ BEGIN
     END IF;
 END
 $$;
+
+-- Función: búsqueda de entidades insensible a mayúsculas/minúsculas y tildes
+CREATE OR REPLACE FUNCTION buscar_entidades(q TEXT, max_rows INT DEFAULT 8)
+RETURNS SETOF contabilidad_entidades
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT *
+  FROM contabilidad_entidades
+  WHERE unaccent(lower(nombre)) LIKE '%' || unaccent(lower(q)) || '%'
+  ORDER BY nombre ASC
+  LIMIT max_rows;
+$$;
+
+GRANT EXECUTE ON FUNCTION buscar_entidades(TEXT, INT) TO service_role;
 
 -- Trigger: Autogenerar cuentas contables (cliente y anticipo) para entidades con rol cliente
 CREATE OR REPLACE FUNCTION fn_autogenerar_cuentas_cliente()
@@ -2015,6 +2031,42 @@ CREATE TABLE IF NOT EXISTS crm_agentes (
 CREATE INDEX IF NOT EXISTS idx_crm_agentes_auth_uid ON crm_agentes(auth_uid);
 CREATE INDEX IF NOT EXISTS idx_crm_agentes_activo   ON crm_agentes(activo);
 
+-- Agente asignado al cliente/entidad (de momento todas NULL, asignación manual)
+ALTER TABLE contabilidad_entidades
+  ADD COLUMN IF NOT EXISTS agente_id UUID REFERENCES crm_agentes(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_entidades_agente ON contabilidad_entidades(agente_id);
+
+-- Etiquetas para clientes/entidades.
+-- Toda etiqueta pertenece a su creador (agente_id) y a la sucursal de este en el
+-- momento de crearla (oficina_id). La visibilidad no se decide al crear, sino al
+-- LISTAR: quien consulta elige ver solo las suyas, las de su sucursal, o todas.
+CREATE TABLE IF NOT EXISTS crm_etiquetas (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre      VARCHAR(60) NOT NULL,
+    color       VARCHAR(20) NOT NULL DEFAULT '#64748b',
+    oficina_id  UUID REFERENCES config_oficinas(id) ON DELETE CASCADE,
+    agente_id   UUID NOT NULL REFERENCES crm_agentes(id) ON DELETE CASCADE,
+    created_by  UUID REFERENCES crm_agentes(id) ON DELETE SET NULL,
+    created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_crm_etiquetas_oficina ON crm_etiquetas(oficina_id);
+CREATE INDEX IF NOT EXISTS idx_crm_etiquetas_agente  ON crm_etiquetas(agente_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_etiquetas_uniq_nombre_agente
+    ON crm_etiquetas(nombre, agente_id);
+
+CREATE TABLE IF NOT EXISTS crm_entidades_etiquetas (
+    entidad_id   UUID NOT NULL REFERENCES contabilidad_entidades(id) ON DELETE CASCADE,
+    etiqueta_id  UUID NOT NULL REFERENCES crm_etiquetas(id) ON DELETE CASCADE,
+    added_by     UUID REFERENCES crm_agentes(id) ON DELETE SET NULL,
+    added_at     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (entidad_id, etiqueta_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_crm_entidades_etiquetas_etiqueta ON crm_entidades_etiquetas(etiqueta_id);
+
 -- ------------------------------------------------------------
 -- 3. CAMPAÑAS
 -- ------------------------------------------------------------
@@ -2125,30 +2177,10 @@ CREATE TABLE IF NOT EXISTS crm_contactos_organizaciones (
 CREATE INDEX IF NOT EXISTS idx_crm_cont_org_contacto ON crm_contactos_organizaciones(contacto_id);
 CREATE INDEX IF NOT EXISTS idx_crm_cont_org_activa   ON crm_contactos_organizaciones(contacto_id) WHERE es_activa = true;
 
--- Trigger: al activar una relación, desactiva las anteriores del mismo contacto
-CREATE OR REPLACE FUNCTION fn_crm_contacto_org_unica()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF NEW.es_activa = true THEN
-        UPDATE crm_contactos_organizaciones
-        SET es_activa = false, fecha_fin = CURRENT_DATE
-        WHERE contacto_id = NEW.contacto_id
-          AND id <> NEW.id
-          AND es_activa = true;
-
-        -- Mantener entidad_id en sync con el registro principal
-        UPDATE crm_contactos
-        SET entidad_id = NEW.entidad_id, updated_at = NOW()
-        WHERE id = NEW.contacto_id;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS tr_crm_contacto_org_unica ON crm_contactos_organizaciones;
-CREATE TRIGGER tr_crm_contacto_org_unica
-    AFTER INSERT OR UPDATE OF es_activa ON crm_contactos_organizaciones
-    FOR EACH ROW EXECUTE FUNCTION fn_crm_contacto_org_unica();
+-- Un contacto puede estar vinculado a varias entidades a la vez (relación N:M libre).
+-- Evita duplicar la misma relación contacto-entidad.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_cont_org_uniq
+    ON crm_contactos_organizaciones(contacto_id, entidad_id);
 
 -- ------------------------------------------------------------
 -- 8. OPORTUNIDADES
