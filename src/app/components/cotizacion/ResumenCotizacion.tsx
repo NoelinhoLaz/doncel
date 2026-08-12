@@ -37,9 +37,9 @@ export default function ResumenCotizacion({ totalCost, totalRevenue, summaryPlaz
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h3 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>Resumen</h3>
-        {summaryPvpViajero < costViajero && (
+        {benefitPercentage < 15 && (
           <span style={{ backgroundColor: '#fee2e2', color: '#ef4444', borderRadius: '9999px', padding: '0.2rem 0.6rem', fontSize: '0.7rem', fontWeight: '700', letterSpacing: '0.05em' }}>
-            {summaryPvpViajero <= costViajero * 0.85 ? 'CRÍTICO' : 'AJUSTAR'}
+            CRÍTICO
           </span>
         )}
       </div>

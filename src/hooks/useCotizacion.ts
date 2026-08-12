@@ -345,13 +345,14 @@ export function useCotizacion(
     }
   };
 
-  const handleAddItemByTipo = (t: any) => {
+  const handleAddItemByTipo = (t: any, opcional?: boolean) => {
     setShowAddTipoPopup(false);
     const newItem: any = {
       id: `new-${Date.now()}`, tipo: t.id, descripcion: "", proveedor: "", destino: "",
       plazas: null, noches: null, neto: null, pvp: null, total_neto: null, total_pvp: null, detalles: {},
     };
-    if (opcionalFilter !== undefined) newItem.opcional = opcionalFilter;
+    if (opcional !== undefined) newItem.opcional = opcional;
+    else if (opcionalFilter !== undefined) newItem.opcional = opcionalFilter;
     setItems(prev => [newItem, ...prev]);
     setCurrentPage(1);
     if (cotizacionId) createLineaOnServer(newItem.id, newItem);

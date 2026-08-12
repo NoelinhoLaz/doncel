@@ -18,9 +18,10 @@ interface CotizacionesTabProps {
   cotizacionId?: string | null;
   initialCotizacion?: any | null;
   opcionalFilter?: boolean;
+  autoOpenSheetsImport?: boolean;
 }
 
-export default function CotizacionesTab({ expedienteId, hideHeader, compactHeader, hideSummary, onTotalsChange, title, cotizacionId, initialCotizacion, opcionalFilter }: CotizacionesTabProps) {
+export default function CotizacionesTab({ expedienteId, hideHeader, compactHeader, hideSummary, onTotalsChange, title, cotizacionId, initialCotizacion, opcionalFilter, autoOpenSheetsImport }: CotizacionesTabProps) {
   const c = useCotizacion(cotizacionId, initialCotizacion, opcionalFilter);
 
   useEffect(() => {
@@ -44,7 +45,7 @@ export default function CotizacionesTab({ expedienteId, hideHeader, compactHeade
   return (
     <>
       <div className={styles.tabContainer} style={{ overflow: 'visible', marginTop: compactHeader ? '-0.75rem' : '0px', borderRadius: '0.75rem' }}>
-        <TablaCotizacion c={c} hideHeader={hideHeader} compactHeader={compactHeader} title={title} sidePanel={resumen} cotizacionId={cotizacionId} />
+        <TablaCotizacion c={c} hideHeader={hideHeader} compactHeader={compactHeader} title={title} sidePanel={resumen} cotizacionId={cotizacionId} autoOpenSheetsImport={autoOpenSheetsImport} />
       </div>
 
       <ModalHistorialCotizacion

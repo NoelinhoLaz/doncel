@@ -61,6 +61,7 @@ export default function NuevaCotizacionPage() {
       const search = useSearchParams();
       const router = useRouter();
       const cotId = search?.get('id') || null;
+      const autoOpenSheetsImport = search?.get('importar') === '1';
   // Currency formatter
       useEffect(() => {
         if (cotId) {
@@ -256,7 +257,7 @@ export default function NuevaCotizacionPage() {
           {/* Section 1: Title and Status Badge */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '120px' }}>
             <h3 style={{ fontSize: '1.2rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>Resumen</h3>
-            {summaryPvpViajero < costViajero && (
+            {benefitPercentage < 15 && (
               <span style={{
                 backgroundColor: '#fee2e2',
                 color: '#ef4444',
@@ -268,7 +269,7 @@ export default function NuevaCotizacionPage() {
                 alignSelf: 'flex-start',
                 marginTop: '0.1rem'
               }}>
-                {summaryPvpViajero <= costViajero * 0.85 ? 'CRÍTICO' : 'AJUSTAR'}
+                CRÍTICO
               </span>
             )}
           </div>
@@ -391,6 +392,7 @@ export default function NuevaCotizacionPage() {
             hideSummary
             cotizacionId={cotId}
             onTotalsChange={setTotals}
+            autoOpenSheetsImport={autoOpenSheetsImport}
           />
         </div>
 

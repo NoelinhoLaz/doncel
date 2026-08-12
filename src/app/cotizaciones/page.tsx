@@ -3,107 +3,21 @@
 import listStyles from "../expedientes/page.module.css";
 import styles from "../expedientes/[id]/page.module.css";
 import { Icons } from "@/lib/icons";
-import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from "react";
+import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Trash2, UserRound, X, Search, MapPin, SlidersHorizontal, ChevronRight, ChevronDown, Compass, DatabaseZap, Link2 } from "lucide-react";
-import { PresupuestoDetalleDrawer } from "@/components/modals/PresupuestoDetalleDrawer";
+import { Copy, Trash2, UserRound, X, Search, MapPin, SlidersHorizontal, ChevronRight, ChevronDown, Compass, Link2, ClipboardPaste } from "lucide-react";
 import Pagination from "@/app/components/Pagination";
 import { duplicateCotizacion, deleteCotizacion, updateCotizacionLinea, tieneCotizacionPropuestasVinculadas } from "@/actions/cotizaciones";
 import { getCurrentUsuario } from "@/actions/usuarios";
 import TipoIcon from "@/app/components/cotizacion/TipoIcon";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
+import SingleSelectDropdown from "@/app/components/SingleSelectDropdown";
 import dynamic from "next/dynamic";
 
 const MapComponent = dynamic(() => import("../expedientes/MapComponent"), {
   ssr: false,
   loading: () => <div style={{ height: 600, display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b", background: "#f8fafc", borderRadius: 10 }}>Cargando mapa...</div>,
 });
-
-type ContactoModal = { cotizacionId: string; currentId: string | null; currentNombre: string | null };
-
-function ModalBuscarContacto({ modal, onClose, onSelect }: {
-  modal: ContactoModal;
-  onClose: () => void;
-  onSelect: (cotizacionId: string, entidad: { id: string; nombre: string } | null) => void;
-}) {
-  const [q, setQ] = useState("");
-  const [resultados, setResultados] = useState<any[]>([]);
-  const [buscando, setBuscando] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => { inputRef.current?.focus(); }, []);
-
-  useEffect(() => {
-    const t = setTimeout(async () => {
-      setBuscando(true);
-      try {
-        const res = await fetch(`/api/entidades?q=${encodeURIComponent(q)}`);
-        const j = await res.json();
-        setResultados(j?.data || []);
-      } finally {
-        setBuscando(false);
-      }
-    }, 220);
-    return () => clearTimeout(t);
-  }, [q]);
-
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.35)" }} onClick={onClose}>
-      <div style={{ background: "#fff", borderRadius: "0.75rem", width: 480, maxWidth: "95vw", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem 0.75rem", borderBottom: "1px solid #f1f5f9" }}>
-          <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#1e293b" }}>Asignar contacto</span>
-          <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex" }}><X size={16} /></button>
-        </div>
-        {/* Search */}
-        <div style={{ padding: "0.75rem 1.25rem", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: 8 }}>
-          <Search size={14} style={{ color: "#94a3b8", flexShrink: 0 }} />
-          <input
-            ref={inputRef}
-            value={q}
-            onChange={e => setQ(e.target.value)}
-            placeholder="Buscar entidad por nombre..."
-            style={{ border: "none", outline: "none", width: "100%", fontSize: "0.85rem", color: "#1e293b" }}
-          />
-        </div>
-        {/* Quitar contacto */}
-        {modal.currentId && (
-          <div style={{ padding: "0.5rem 1.25rem", borderBottom: "1px solid #f1f5f9" }}>
-            <button
-              onClick={() => onSelect(modal.cotizacionId, null)}
-              style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "1px solid #fecaca", borderRadius: 6, padding: "0.35rem 0.75rem", cursor: "pointer", color: "#dc2626", fontSize: "0.75rem", fontWeight: 600 }}
-            >
-              <X size={12} /> Quitar contacto actual ({modal.currentNombre})
-            </button>
-          </div>
-        )}
-        {/* Resultados */}
-        <div style={{ maxHeight: 320, overflowY: "auto" }}>
-          {buscando ? (
-            <div style={{ padding: "1.5rem", textAlign: "center", color: "#94a3b8", fontSize: "0.8rem" }}>Buscando...</div>
-          ) : resultados.length === 0 ? (
-            <div style={{ padding: "1.5rem", textAlign: "center", color: "#94a3b8", fontSize: "0.8rem" }}>Sin resultados</div>
-          ) : resultados.map((e: any) => (
-            <button
-              key={e.id}
-              onClick={() => onSelect(modal.cotizacionId, { id: e.id, nombre: e.nombre })}
-              style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "0.65rem 1.25rem", border: "none", background: modal.currentId === e.id ? "#f0f9ff" : "none", cursor: "pointer", textAlign: "left", borderBottom: "1px solid #f8fafc" }}
-            >
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#e0f2fe", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <UserRound size={13} style={{ color: "#0369a1" }} />
-              </div>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: "0.82rem", color: "#1e293b" }}>{e.nombre}</div>
-                {e.email && <div style={{ fontSize: "0.72rem", color: "#64748b" }}>{e.email}</div>}
-              </div>
-              {modal.currentId === e.id && <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: "#0369a1", fontWeight: 700 }}>Actual</span>}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function CotizacionesPage() {
   const router = useRouter();
@@ -116,8 +30,8 @@ export default function CotizacionesPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [duplicating, setDuplicating] = useState<string | null>(null);
   const [duplicarModal, setDuplicarModal] = useState<string | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ id: string; titulo: string } | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [contactoModal, setContactoModal] = useState<ContactoModal | null>(null);
   const [selectedLineIds, setSelectedLineIds] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [agenteFilter, setAgenteFilter] = useState<string[]>([]);
@@ -127,19 +41,11 @@ export default function CotizacionesPage() {
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
   const [tipoFilter, setTipoFilter] = useState<string[]>([]);
+  const [estadoFilter, setEstadoFilter] = useState<string[]>([]);
   const [showMap, setShowMap] = useState(false);
   const [expandedCotizacionIds, setExpandedCotizacionIds] = useState<string[]>([]);
   const [collapsedTipoGroups, setCollapsedTipoGroups] = useState<Set<string>>(new Set());
   const [allServiceTypes, setAllServiceTypes] = useState<any[]>([]);
-  const [showMigracion, setShowMigracion] = useState(false);
-  const [migracionPreview, setMigracionPreview] = useState<any[]>([]);
-  const [migracionLoading, setMigracionLoading] = useState(false);
-  const [migracionResult, setMigracionResult] = useState<any>(null);
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const csvInputRef = useRef<HTMLInputElement>(null);
-  const [selectedImportIds, setSelectedImportIds] = useState<Set<string>>(new Set());
-  const [migracionSearch, setMigracionSearch] = useState("");
-  const [selectedPresupuestoId, setSelectedPresupuestoId] = useState<string | null>(null);
 
   const toggleExpandCotizacion = (id: string) => {
     if (expandedCotizacionIds.includes(id)) {
@@ -347,9 +253,13 @@ export default function CotizacionesPage() {
       if (fechaDesde && l.fecha_salida && l.fecha_salida < fechaDesde) return false;
       if (fechaHasta && l.fecha_regreso && l.fecha_regreso > fechaHasta) return false;
       if (tipoFilter.length > 0 && (!l.config_tipos_servicios?.etiqueta || !tipoFilter.includes(l.config_tipos_servicios.etiqueta))) return false;
+      if (agruparPor === "desagrupar" && estadoFilter.length > 0) {
+        const estadoServicio = l.confirmado ? "Confirmado" : "Pendiente";
+        if (!estadoFilter.includes(estadoServicio)) return false;
+      }
       return true;
     });
-  }, [allLines, search, agenteFilter, destinoFilter, fechaDesde, fechaHasta, tipoFilter]);
+  }, [allLines, search, agenteFilter, destinoFilter, fechaDesde, fechaHasta, tipoFilter, estadoFilter, agruparPor]);
 
   const cotizacionesMapPoints = useMemo(() => {
     const points: any[] = [];
@@ -421,16 +331,6 @@ export default function CotizacionesPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agruparPor]);
-
-  const filteredMigracionPreview = useMemo(() => {
-    if (!migracionSearch.trim()) return migracionPreview;
-    const query = migracionSearch.toLowerCase();
-    return migracionPreview.filter((c: any) =>
-      (c.titulo ?? "").toLowerCase().includes(query) ||
-      (c.agente_nombre ?? "").toLowerCase().includes(query) ||
-      (c.entidad_nombre ?? "").toLowerCase().includes(query)
-    );
-  }, [migracionPreview, migracionSearch]);
 
   const formatDate = (d: string) => {
     if (!d) return "—";
@@ -596,9 +496,15 @@ export default function CotizacionesPage() {
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: string, titulo: string) => {
+  const handleDelete = (e: React.MouseEvent, id: string, titulo: string) => {
     e.stopPropagation();
-    if (!window.confirm(`¿Eliminar la cotización "${titulo || 'Cotización'}" y todas sus líneas? Esta acción no se puede deshacer.`)) return;
+    setDeleteModal({ id, titulo });
+  };
+
+  const confirmarDelete = async () => {
+    if (!deleteModal) return;
+    const { id } = deleteModal;
+    setDeleteModal(null);
     setDeleting(id);
     try {
       const result = await deleteCotizacion(id);
@@ -611,19 +517,6 @@ export default function CotizacionesPage() {
       setDeleting(null);
     }
   };
-
-  const handleSelectContacto = useCallback(async (cotizacionId: string, entidad: { id: string; nombre: string } | null) => {
-    setContactoModal(null);
-    await fetch(`/api/cotizaciones?id=${cotizacionId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contacto: entidad?.id ?? null }),
-    });
-    setCotizaciones(prev => prev.map(c => c.id === cotizacionId
-      ? { ...c, contacto: entidad?.id ?? null, contabilidad_entidades: entidad ? { id: entidad.id, nombre: entidad.nombre } : null }
-      : c
-    ));
-  }, []);
 
   const handleDuplicate = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -664,308 +557,6 @@ export default function CotizacionesPage() {
 
   return (
     <div className={listStyles.container}>
-      {/* Modal importar desde CSV legacy */}
-      {showMigracion && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.45)" }} onClick={() => { setShowMigracion(false); setCsvFile(null); setMigracionPreview([]); setMigracionResult(null); setMigracionSearch(""); }}>
-          <div style={{ background: "#fff", borderRadius: "1rem", width: 720, maxWidth: "95vw", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(0,0,0,0.18)" }} onClick={e => e.stopPropagation()}>
-            {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", borderBottom: "1px solid #f1f5f9" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <DatabaseZap size={16} style={{ color: "#6366f1" }} />
-                <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#1e293b" }}>Importar cotizaciones desde CSV</span>
-              </div>
-              <button onClick={() => { setShowMigracion(false); setCsvFile(null); setMigracionPreview([]); setMigracionResult(null); setMigracionSearch(""); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex" }}><X size={16} /></button>
-            </div>
-
-            {/* Body */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.25rem" }}>
-              {migracionResult ? (
-                /* ── Resultado final ── */
-                <div>
-                  <div style={{ marginBottom: "1rem", padding: "0.75rem 1rem", borderRadius: "0.5rem", background: migracionResult.errores > 0 ? "#fef9c3" : "#dcfce7", color: migracionResult.errores > 0 ? "#854d0e" : "#16a34a", fontWeight: 600, fontSize: "0.85rem" }}>
-                    ✓ Importación completada: <strong>{migracionResult.importadas}</strong> cotizaciones importadas
-                    {migracionResult.errores > 0 && <>, <strong style={{ color: "#dc2626" }}>{migracionResult.errores} errores</strong></>}.
-                  </div>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
-                    <thead><tr style={{ borderBottom: "1px solid #f1f5f9" }}>
-                      <th style={{ padding: "0.4rem 0.6rem", textAlign: "left", color: "#64748b", fontWeight: 600 }}>Título</th>
-                      <th style={{ padding: "0.4rem 0.6rem", textAlign: "center", color: "#64748b", fontWeight: 600 }}>Servicios</th>
-                      <th style={{ padding: "0.4rem 0.6rem", textAlign: "right", color: "#64748b", fontWeight: 600 }}>Resultado</th>
-                    </tr></thead>
-                    <tbody>
-                      {(migracionResult.data ?? []).map((r: any) => (
-                        <tr key={r.id} style={{ borderBottom: "1px solid #f8fafc" }}>
-                          <td style={{ padding: "0.4rem 0.6rem", color: "#1e293b" }}>{r.titulo ?? "—"}</td>
-                          <td style={{ padding: "0.4rem 0.6rem", textAlign: "center", color: "#475569" }}>{r.lineas ?? "—"}</td>
-                          <td style={{ padding: "0.4rem 0.6rem", textAlign: "right" }}>
-                            {r.ok ? <span style={{ color: "#16a34a", fontWeight: 600 }}>✓ OK</span> : <span style={{ color: "#dc2626", fontWeight: 600 }}>✗ {r.error}</span>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : migracionLoading ? (
-                /* ── Cargando ── */
-                <div style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>
-                  <div style={{ marginBottom: "0.5rem", fontSize: "0.9rem", fontWeight: 600 }}>Procesando CSV…</div>
-                  <div style={{ fontSize: "0.78rem" }}>Esto puede tardar unos segundos.</div>
-                </div>
-              ) : migracionPreview.length > 0 ? (
-                /* ── Preview ── */
-                <>
-                  {/* Buscador */}
-                  <div style={{ marginBottom: "1rem", display: "flex", gap: "0.5rem" }}>
-                    <input
-                      type="text"
-                      placeholder="Buscar por título, agente o entidad..."
-                      value={migracionSearch}
-                      onChange={(e) => setMigracionSearch(e.target.value)}
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem 0.75rem",
-                        borderRadius: "0.5rem",
-                        border: "1px solid #cbd5e1",
-                        fontSize: "0.82rem",
-                        outline: "none",
-                        boxSizing: "border-box"
-                      }}
-                    />
-                  </div>
-
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
-                    <p style={{ fontSize: "0.82rem", color: "#64748b", margin: 0 }}>
-                      <strong style={{ color: "#1e293b" }}>
-                        {Array.from(selectedImportIds).filter(id => filteredMigracionPreview.some(fp => fp.id === id)).length}
-                      </strong> de <strong style={{ color: "#1e293b" }}>{filteredMigracionPreview.length}</strong> seleccionadas
-                      {csvFile && <span style={{ color: "#94a3b8" }}> · {csvFile.name}</span>}
-                    </p>
-                    <button
-                      onClick={() => {
-                        const allVisibleIds = filteredMigracionPreview.map((c: any) => c.id);
-                        const allVisibleSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selectedImportIds.has(id));
-                        const next = new Set(selectedImportIds);
-                        if (allVisibleSelected) {
-                          allVisibleIds.forEach(id => next.delete(id));
-                        } else {
-                          allVisibleIds.forEach(id => next.add(id));
-                        }
-                        setSelectedImportIds(next);
-                      }}
-                      style={{ fontSize: "0.75rem", color: "#6366f1", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
-                    >
-                      {filteredMigracionPreview.length > 0 && filteredMigracionPreview.map((c: any) => c.id).every(id => selectedImportIds.has(id))
-                        ? "Deseleccionar visibles"
-                        : "Seleccionar visibles"}
-                    </button>
-                  </div>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
-                    <thead><tr style={{ borderBottom: "2px solid #f1f5f9", background: "#f8fafc" }}>
-                      <th style={{ padding: "0.4rem 0.5rem", width: 32 }}>
-                        <input
-                          type="checkbox"
-                          checked={filteredMigracionPreview.length > 0 && filteredMigracionPreview.map((c: any) => c.id).every(id => selectedImportIds.has(id))}
-                          onChange={(e) => {
-                            const next = new Set(selectedImportIds);
-                            const allVisibleIds = filteredMigracionPreview.map((c: any) => c.id);
-                            if (e.target.checked) {
-                              allVisibleIds.forEach(id => next.add(id));
-                            } else {
-                              allVisibleIds.forEach(id => next.delete(id));
-                            }
-                            setSelectedImportIds(next);
-                          }}
-                          style={{ cursor: "pointer", accentColor: "#6366f1" }}
-                        />
-                      </th>
-                      <th style={{ padding: "0.4rem 0.6rem", textAlign: "left", color: "#64748b", fontWeight: 600 }}>Título</th>
-                      <th style={{ padding: "0.4rem 0.6rem", textAlign: "left", color: "#64748b", fontWeight: 600 }}>Agente</th>
-                      <th style={{ padding: "0.4rem 0.6rem", textAlign: "left", color: "#64748b", fontWeight: 600 }}>Estado</th>
-                      <th style={{ padding: "0.4rem 0.6rem", textAlign: "center", color: "#64748b", fontWeight: 600 }}>Servicios</th>
-                      <th style={{ padding: "0.4rem 0.6rem", textAlign: "right", color: "#64748b", fontWeight: 600 }}>Total</th>
-                    </tr></thead>
-                    <tbody>
-                      {filteredMigracionPreview.map((c: any) => {
-                        const isSelected = selectedImportIds.has(c.id);
-                        return (
-                          <tr
-                            key={c.id}
-                            style={{ borderBottom: "1px solid #f8fafc", background: isSelected ? "#fafafa" : "#fff", cursor: "pointer" }}
-                            onClick={() => {
-                              const next = new Set(selectedImportIds);
-                              if (isSelected) next.delete(c.id); else next.add(c.id);
-                              setSelectedImportIds(next);
-                            }}
-                          >
-                            <td style={{ padding: "0.4rem 0.5rem" }} onClick={e => e.stopPropagation()}>
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={(e) => {
-                                  const next = new Set(selectedImportIds);
-                                  if (e.target.checked) next.add(c.id); else next.delete(c.id);
-                                  setSelectedImportIds(next);
-                                }}
-                                style={{ cursor: "pointer", accentColor: "#6366f1" }}
-                              />
-                            </td>
-                            <td style={{ padding: "0.4rem 0.6rem", maxWidth: 220 }}>
-                              <div style={{ fontWeight: 600, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={c.titulo || "Sin título"}>
-                                {c.titulo ?? "Sin título"}
-                              </div>
-                              {c.entidad_nombre ? (
-                                <div style={{ fontSize: "0.68rem", color: "#16a34a", fontWeight: 500, marginTop: "2px" }} title="Contacto asociado automáticamente">
-                                  ✓ {c.entidad_nombre}
-                                </div>
-                              ) : (
-                                <div style={{ fontSize: "0.68rem", color: "#94a3b8", marginTop: "2px" }}>
-                                  Sin contacto
-                                </div>
-                              )}
-                            </td>
-                            <td style={{ padding: "0.4rem 0.6rem" }}>
-                              <div
-                                title={c.agente_nombre ?? 'Agente'}
-                                style={{
-                                  width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center',
-                                  justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700, flexShrink: 0,
-                                  background: 'color-mix(in srgb, var(--primary-color, #6366f1) 25%, transparent)',
-                                  color: 'var(--primary-color, #4f46e5)',
-                                }}
-                              >
-                                {c.agente_nombre
-                                  ? c.agente_nombre.split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase()
-                                  : "?"
-                                }
-                              </div>
-                            </td>
-                            <td style={{ padding: "0.4rem 0.6rem" }}>
-                              <span style={{ fontSize: "0.7rem", fontWeight: 600, padding: "0.15rem 0.45rem", borderRadius: "0.3rem", background: c.estado === "aceptada" ? "#dcfce7" : c.estado === "rechazada" ? "#fee2e2" : "#f1f5f9", color: c.estado === "aceptada" ? "#16a34a" : c.estado === "rechazada" ? "#dc2626" : "#64748b" }}>{c.estado ?? "—"}</span>
-                            </td>
-                            <td style={{ padding: "0.4rem 0.6rem", textAlign: "center", color: "#475569" }}>{c.lineas_count}</td>
-                            <td style={{ padding: "0.4rem 0.6rem", textAlign: "right", color: "#0f172a", fontWeight: 600 }}>
-                              {c.total ? `${Number(c.total).toLocaleString("es-ES", { maximumFractionDigits: 0 })} €` : "—"}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </>
-              ) : (
-                /* ── Paso 1: Seleccionar fichero ── */
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1.25rem", padding: "2rem 1rem" }}>
-                  <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#ede9fe", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <DatabaseZap size={24} style={{ color: "#6366f1" }} />
-                  </div>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "#1e293b", marginBottom: "0.35rem" }}>Selecciona el fichero CSV exportado</div>
-                    <div style={{ fontSize: "0.8rem", color: "#64748b", maxWidth: 420 }}>Exporta la tabla <code style={{ background: "#f1f5f9", padding: "0.1rem 0.3rem", borderRadius: 4 }}>cotizaciones</code> desde Supabase como CSV y selecciónalo aquí. Solo se importarán las versiones actuales (<code style={{ background: "#f1f5f9", padding: "0.1rem 0.3rem", borderRadius: 4 }}>es_version_actual = true</code>).</div>
-                  </div>
-                  <input
-                    ref={csvInputRef}
-                    type="file"
-                    accept=".csv,text/csv"
-                    style={{ display: "none" }}
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      setCsvFile(file);
-                      setMigracionLoading(true);
-                      try {
-                        const fd = new FormData();
-                        fd.append("csv", file);
-                        fd.append("modo", "preview");
-                        const r = await fetch("/api/migracion/cotizaciones-csv", { method: "POST", body: fd });
-                        const j = await r.json();
-                        if (j.success) {
-                          setMigracionPreview(j.data ?? []);
-                          setSelectedImportIds(new Set((j.data ?? []).map((c: any) => c.id)));
-                        }
-                        else { alert("Error procesando CSV: " + j.error); }
-                      } finally {
-                        setMigracionLoading(false);
-                      }
-                    }}
-                  />
-                  <button
-                    onClick={() => csvInputRef.current?.click()}
-                    style={{ padding: "0.6rem 1.5rem", borderRadius: "0.6rem", border: "2px dashed #c7d2fe", background: "#f5f3ff", color: "#6366f1", fontWeight: 700, fontSize: "0.85rem", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
-                  >
-                    <DatabaseZap size={15} /> Seleccionar fichero CSV…
-                  </button>
-                  {csvFile && <div style={{ fontSize: "0.78rem", color: "#64748b" }}>📄 {csvFile.name}</div>}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "0.85rem 1.25rem", borderTop: "1px solid #f1f5f9" }}>
-              <div>
-                {migracionPreview.length > 0 && !migracionResult && (
-                  <button
-                    onClick={() => { setCsvFile(null); setMigracionPreview([]); setSelectedImportIds(new Set()); if (csvInputRef.current) csvInputRef.current.value = ""; }}
-                    style={{ padding: "0.4rem 0.85rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: "#fff", color: "#94a3b8", fontWeight: 600, fontSize: "0.78rem", cursor: "pointer" }}
-                  >
-                    ← Cambiar fichero
-                  </button>
-                )}
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                {migracionResult ? (
-                  <button
-                    onClick={() => { setShowMigracion(false); setCsvFile(null); setMigracionPreview([]); setMigracionResult(null); setMigracionSearch(""); loadCotizaciones(); }}
-                    style={{ padding: "0.45rem 1.1rem", borderRadius: "0.5rem", border: "none", background: "#6366f1", color: "#fff", fontWeight: 700, fontSize: "0.82rem", cursor: "pointer" }}
-                  >
-                    Cerrar y recargar
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => { setShowMigracion(false); setCsvFile(null); setMigracionPreview([]); setMigracionResult(null); setMigracionSearch(""); }}
-                      style={{ padding: "0.45rem 1rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", fontWeight: 600, fontSize: "0.82rem", cursor: "pointer" }}
-                    >
-                      Cancelar
-                    </button>
-                    {migracionPreview.length > 0 && (
-                      <button
-                        disabled={migracionLoading || selectedImportIds.size === 0}
-                        onClick={async () => {
-                          if (!csvFile) return;
-                          setMigracionLoading(true);
-                          try {
-                            const fd = new FormData();
-                            fd.append("csv", csvFile);
-                            fd.append("modo", "import");
-                            fd.append("selectedIds", JSON.stringify(Array.from(selectedImportIds)));
-                            const r = await fetch("/api/migracion/cotizaciones-csv", { method: "POST", body: fd });
-                            const j = await r.json();
-                            setMigracionResult(j);
-                          } finally {
-                            setMigracionLoading(false);
-                          }
-                        }}
-                        style={{ padding: "0.45rem 1.1rem", borderRadius: "0.5rem", border: "none", background: "#6366f1", color: "#fff", fontWeight: 700, fontSize: "0.82rem", cursor: (migracionLoading || selectedImportIds.size === 0) ? "not-allowed" : "pointer", opacity: (migracionLoading || selectedImportIds.size === 0) ? 0.6 : 1 }}
-                      >
-                        {migracionLoading ? "Importando…" : `Importar ${selectedImportIds.size} cotizaciones`}
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {contactoModal && (
-        <ModalBuscarContacto
-          modal={contactoModal}
-          onClose={() => setContactoModal(null)}
-          onSelect={handleSelectContacto}
-        />
-      )}
-
       {duplicarModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.35)" }} onClick={() => setDuplicarModal(null)}>
           <div style={{ background: "#fff", borderRadius: "0.75rem", width: 420, maxWidth: "95vw", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
@@ -982,6 +573,25 @@ export default function CotizacionesPage() {
               <button onClick={() => setDuplicarModal(null)} style={{ border: "1px solid #e2e8f0", background: "#fff", borderRadius: 6, padding: "0.4rem 0.85rem", cursor: "pointer", color: "#475569", fontSize: "0.8rem", fontWeight: 600 }}>Cancelar</button>
               <button onClick={() => confirmarDuplicar(false)} style={{ border: "1px solid #e2e8f0", background: "#fff", borderRadius: 6, padding: "0.4rem 0.85rem", cursor: "pointer", color: "#475569", fontSize: "0.8rem", fontWeight: 600 }}>Solo cotización</button>
               <button onClick={() => confirmarDuplicar(true)} style={{ border: "none", background: "#1e293b", borderRadius: 6, padding: "0.4rem 0.85rem", cursor: "pointer", color: "#fff", fontSize: "0.8rem", fontWeight: 600 }}>Duplicar ambas</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {deleteModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.35)" }} onClick={() => setDeleteModal(null)}>
+          <div style={{ background: "#fff", borderRadius: "0.75rem", width: 420, maxWidth: "95vw", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem 0.75rem", borderBottom: "1px solid #f1f5f9" }}>
+              <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#1e293b" }}>Eliminar cotización</span>
+              <button onClick={() => setDeleteModal(null)} style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex" }}><X size={16} /></button>
+            </div>
+            <div style={{ padding: "1rem 1.25rem" }}>
+              <p style={{ fontSize: "0.85rem", color: "#475569", margin: 0 }}>
+                ¿Eliminar la cotización <strong>"{deleteModal.titulo || 'Cotización'}"</strong> y todas sus líneas? Esta acción no se puede deshacer.
+              </p>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "0.75rem 1.25rem 1rem" }}>
+              <button onClick={() => setDeleteModal(null)} style={{ border: "1px solid #e2e8f0", background: "#fff", borderRadius: 6, padding: "0.4rem 0.85rem", cursor: "pointer", color: "#475569", fontSize: "0.8rem", fontWeight: 600 }}>Cancelar</button>
+              <button onClick={confirmarDelete} style={{ border: "none", background: "#dc2626", borderRadius: 6, padding: "0.4rem 0.85rem", cursor: "pointer", color: "#fff", fontSize: "0.8rem", fontWeight: 600 }}>Eliminar</button>
             </div>
           </div>
         </div>
@@ -1113,20 +723,6 @@ export default function CotizacionesPage() {
                   onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
                 />
               </div>
-              <button
-                type="button"
-                title="Importar cotizaciones desde CSV"
-                onClick={() => {
-                  setShowMigracion(true);
-                  setCsvFile(null);
-                  setMigracionPreview([]);
-                  setMigracionResult(null);
-                  setMigracionLoading(false);
-                }}
-                style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: "0.5rem", border: "1px solid #cbd5e1", background: "#fff", color: "#6366f1", cursor: "pointer", padding: 0 }}
-              >
-                <DatabaseZap size={15} />
-              </button>
             </div>
             <button
               type="button"
@@ -1157,22 +753,51 @@ export default function CotizacionesPage() {
               <MapPin size={15} />
             </button>
             <button
+              type="button"
+              className={styles.addActionButton}
+              title="Importar cotización desde Excel/Sheets"
+              onClick={async () => {
+                try {
+                  const res = await fetch('/api/cotizaciones', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ titulo: 'Cotización' }),
+                  });
+                  const j = await res.json();
+                  if (j?.success && j.data?.id) {
+                    router.push(`/cotizaciones/nueva?id=${j.data.id}&importar=1`);
+                  } else {
+                    alert('Error al crear cotización: ' + (j?.error || 'unknown'));
+                  }
+                } catch (err: any) {
+                  alert('Error al crear cotización: ' + (err?.message || String(err)));
+                }
+              }}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center",
+                width: 32, height: 32, borderRadius: "0.5rem", border: "1px solid #cbd5e1",
+                background: "#fff", color: "#475569", cursor: "pointer", padding: 0
+              }}
+            >
+              <ClipboardPaste size={15} />
+            </button>
+            <button
               className={styles.addActionButton}
               title={viewMode === "lineas" && selectedLineIds.length > 0 ? "Crear cotización con líneas seleccionadas" : "Nueva cotización"}
               onClick={async () => {
                 try {
                   const isCopy = viewMode === "lineas" && selectedLineIds.length > 0;
                   const title = isCopy ? 'Nueva Cotización (Copia)' : 'Cotización';
-                  
-                  const res = await fetch('/api/cotizaciones', { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify({ titulo: title }) 
+
+                  const res = await fetch('/api/cotizaciones', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ titulo: title })
                   });
                   const j = await res.json();
                   if (j?.success && j.data?.id) {
                     const newCotId = j.data.id;
-                    
+
                     if (isCopy) {
                       const selectedLinesData = allLines.filter((l: any) => selectedLineIds.includes(l.id));
                       await Promise.all(selectedLinesData.map((l: any) => {
@@ -1198,7 +823,7 @@ export default function CotizacionesPage() {
                         });
                       }));
                     }
-                    
+
                     router.push(`/cotizaciones/nueva?id=${newCotId}`);
                   } else {
                     alert('Error al crear cotización: ' + (j?.error || 'unknown'));
@@ -1217,20 +842,21 @@ export default function CotizacionesPage() {
           <div className={styles.filterRow} style={{ display: "flex", gap: "1rem", flexWrap: "wrap", padding: "1rem", background: "#f8fafc", borderBottom: "1px solid #f1f5f9" }}>
             <div className={styles.filterGroup} style={{ width: "180px" }}>
               <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "0.25rem" }}>Agrupar por</label>
-              <select
+              <SingleSelectDropdown
+                options={[
+                  { value: "cotizacion", label: "Cotización" },
+                  { value: "tipo", label: "Tipo" },
+                  { value: "desagrupar", label: "Desagrupar" },
+                ]}
                 value={agruparPor}
-                onChange={(e) => {
-                  setAgruparPor(e.target.value as "cotizacion" | "tipo" | "desagrupar");
+                onChange={(v) => {
+                  setAgruparPor(v as "cotizacion" | "tipo" | "desagrupar");
                   setSelectedLineIds([]);
-                  if (e.target.value !== "tipo") setTipoFilter([]);
+                  if (v !== "tipo") setTipoFilter([]);
                   setCurrentPage(1);
                 }}
-                style={{ padding: "0.3rem 0.5rem", borderRadius: "0.375rem", border: "1px solid #cbd5e1", fontSize: "0.8rem", background: "#fff", width: "100%" }}
-              >
-                <option value="cotizacion">Cotización</option>
-                <option value="tipo">Tipo</option>
-                <option value="desagrupar">Desagrupar</option>
-              </select>
+                style={{ padding: "0.3rem 0.5rem" }}
+              />
             </div>
             <div className={styles.filterGroup} style={{ width: "200px" }}>
               <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "0.25rem" }}>Agente</label>
@@ -1260,6 +886,18 @@ export default function CotizacionesPage() {
                   selected={tipoFilter}
                   onChange={(selected) => { setTipoFilter(selected); setCurrentPage(1); }}
                   placeholder="Tipos de servicio"
+                  style={{ padding: "0.3rem 0.5rem" }}
+                />
+              </div>
+            )}
+            {agruparPor === "desagrupar" && (
+              <div className={styles.filterGroup} style={{ width: "200px" }}>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "0.25rem" }}>Estado</label>
+                <MultiSelectDropdown
+                  options={["Pendiente", "Confirmado"]}
+                  selected={estadoFilter}
+                  onChange={(selected) => { setEstadoFilter(selected); setCurrentPage(1); }}
+                  placeholder="Estados"
                   style={{ padding: "0.3rem 0.5rem" }}
                 />
               </div>
@@ -1376,36 +1014,17 @@ export default function CotizacionesPage() {
                               </div>
                             )}
                           </td>
-                          <td style={{ paddingLeft: "0.5rem" }} onClick={(e) => {
-                            if (!c.contabilidad_entidades) {
-                              e.stopPropagation();
-                              setContactoModal({
-                                cotizacionId: c.id,
-                                currentId: null,
-                                currentNombre: null,
-                              });
-                            }
-                          }}>
+                          <td style={{ paddingLeft: "0.5rem" }}>
                             {c.contabilidad_entidades ? (
-                              <div 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setContactoModal({
-                                    cotizacionId: c.id,
-                                    currentId: c.contabilidad_entidades.id,
-                                    currentNombre: c.contabilidad_entidades.nombre,
-                                  });
-                                }}
-                                style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 500, marginBottom: "2px", cursor: "pointer", display: "inline-block" }}
-                                className="hover-underline"
-                                title="Cambiar contacto"
+                              <div
+                                style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 500, marginBottom: "2px", display: "inline-block" }}
                               >
                                 {c.contabilidad_entidades.nombre}
                               </div>
                             ) : (
-                              <div 
-                                style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 400, marginBottom: "2px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "3px" }}
-                                title="Asignar contacto"
+                              <div
+                                style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 400, marginBottom: "2px", display: "inline-flex", alignItems: "center", gap: "3px" }}
+                                title="Sin contacto"
                               >
                                 <UserRound size={10} /> Sin contacto
                               </div>
@@ -1413,17 +1032,9 @@ export default function CotizacionesPage() {
                             <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
                               {c.titulo || "Cotización"}
                               {c.presupuesto_id && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedPresupuestoId(c.presupuesto_id);
-                                  }}
-                                  style={{ background: "none", border: "none", color: "var(--primary-color, #4f46e5)", cursor: "pointer", display: "inline-flex", alignItems: "center", padding: 0 }}
-                                  title="Ver presupuesto vinculado"
-                                >
+                                <span title="Tiene presupuesto vinculado" style={{ display: "inline-flex", alignItems: "center", color: "var(--primary-color, #4f46e5)" }}>
                                   <Link2 size={13} />
-                                </button>
+                                </span>
                               )}
                             </div>
                           </td>
@@ -1740,11 +1351,6 @@ export default function CotizacionesPage() {
              )}
           </>
         )}
-        <PresupuestoDetalleDrawer
-          isOpen={!!selectedPresupuestoId}
-          onClose={() => setSelectedPresupuestoId(null)}
-          presupuestoId={selectedPresupuestoId || ""}
-        />
       </div>
     </div>
   );

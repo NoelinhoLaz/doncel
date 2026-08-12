@@ -397,6 +397,114 @@ export async function getContactosByEntity(params: {
   return [{ key: `p-${ent.id}`, nombre: ent.nombre || "Sin nombre", email: ent.email || "", telefono: ent.telefono || "", rol: "pagador" }];
 }
 
+interface SendCotizacionEmailParams {
+  cotizacionId?: string | null;
+  to: string;
+  toNombre?: string;
+  cc?: string[];
+  cco?: string[];
+  asunto: string;
+  cuerpo: string;
+  adjuntos?: AdjuntoInfo[];
+}
+
+// Envío de email simple (sin tracking por destinatario) para casos como
+// contactar al proveedor de una línea de cotización, con CC/CCO y adjuntos.
+export async function sendCotizacionEmail(params: SendCotizacionEmailParams) {
+  const { cotizacionId, to, toNombre, cc = [], cco = [], asunto, cuerpo, adjuntos = [] } = params;
+
+  if (!to || !to.includes("@")) {
+    return { success: false, error: "El destinatario no tiene un email válido." };
+  }
+
+  const adminSupabase = await createAdminServerClient();
+  const { data: { user }, error: userError } = await adminSupabase.auth.getUser();
+  if (userError || !user) return { success: false, error: "Usuario no autenticado." };
+
+  const configRes = await getCurrentUserEmailConfig();
+  if (!configRes.success || !configRes.data?.email_address) {
+    return { success: false, error: "No hay configuración de correo activa. Configura tu cuenta en Ajustes > Correo." };
+  }
+
+  const config = configRes.data;
+  const isGmail = config.email_provider === "gmail" || config.email_address?.endsWith("@gmail.com") || config.email_address?.endsWith("@googlemail.com");
+  const smtpHost = config.email_smtp_host || (isGmail ? "smtp.gmail.com" : "smtp.office365.com");
+  const smtpPort = config.email_smtp_port ? Number(config.email_smtp_port) : 587;
+  const secure = smtpPort === 465;
+
+  const emailPassword = verifyToken(config.email_password_enc || "");
+  if (!emailPassword) {
+    return { success: false, error: "No se pudo descifrar la contraseña de correo. Vuelve a guardar tu configuración en Ajustes → Correo." };
+  }
+
+  let transporter: nodemailer.Transporter;
+  try {
+    transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure,
+      auth: { type: "LOGIN", user: config.email_address, pass: emailPassword },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 15000,
+      socketTimeout: 30000,
+    });
+    await transporter.verify();
+  } catch (err: any) {
+    return { success: false, error: `Error de conexión SMTP: ${err.message}` };
+  }
+
+  const attachments = adjuntos.map((a) => ({
+    filename: a.nombre,
+    content: Buffer.from(a.contenido, "base64"),
+    contentType: a.tipo,
+  }));
+
+  const htmlCuerpo = `<div style="font-family:sans-serif;font-size:14px;line-height:1.6;color:#334155;">${cuerpo.replace(/\n/g, "<br/>")}</div>`;
+
+  let estado = "enviado";
+  let errorDetalle: string | null = null;
+  try {
+    await transporter.sendMail({
+      from: `"${config.email_address}" <${config.email_address}>`,
+      to,
+      cc: cc.filter((e) => e.includes("@")),
+      bcc: [...cco.filter((e) => e.includes("@")), config.email_address],
+      subject: asunto,
+      text: cuerpo,
+      html: htmlCuerpo,
+      attachments,
+    });
+  } catch (err: any) {
+    const raw: string = err.message ?? "";
+    estado = "error";
+    errorDetalle = raw.includes("535") || raw.toLowerCase().includes("authentication failed")
+      ? (isGmail ? "GMAIL_AUTH_FAILED" : "AUTH_FAILED:" + raw)
+      : raw;
+  }
+
+  const agencyDb = await getAgencyDbClient();
+  await agencyDb.from("comunicaciones_expediente").insert({
+    cotizacion_id: cotizacionId || null,
+    agente_id: user.id,
+    canal: "email",
+    asunto,
+    cuerpo,
+    destinatarios: [
+      { nombre: toNombre || to, email: to, rol: "proveedor" },
+      ...cc.map((e) => ({ nombre: e, email: e, rol: "cc" })),
+      ...cco.map((e) => ({ nombre: e, email: e, rol: "cco" })),
+    ],
+    adjuntos: adjuntos.map((a) => ({ nombre: a.nombre, tamanio: a.tamanio })),
+    estado,
+    error_detalle: errorDetalle,
+  });
+
+  if (estado === "error") {
+    return { success: false, error: errorDetalle || "Error desconocido al enviar." };
+  }
+  return { success: true };
+}
+
 export async function getAllSavedCommunications() {
   const agencyDb = await getAgencyDbClient();
   const { data, error } = await agencyDb
