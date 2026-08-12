@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
 import {
   Search, SlidersHorizontal, Plus, ChevronLeft, ChevronRight,
-  ChevronUp, ChevronDown, X, Pencil, Trash2, MapPin, Rocket,
+  ChevronUp, ChevronDown, X, Pencil, Trash2, MapPin, Rocket, List,
 } from "lucide-react";
 import styles from "../page.module.css";
 import { Oportunidad, Estado, AgenteObjetivo, EntidadDetalle } from "../types";
@@ -14,6 +14,7 @@ import { StatePill } from "../components/StatePill";
 import { EstadosBubbles } from "../components/EstadosBubbles";
 import { ResponsablesTooltip } from "../components/ResponsablesTooltip";
 import { ModalEstrategia } from "../modals/ModalEstrategia";
+import { BuscarNegocioModal, LugarPlaces } from "@/components/modals/BuscarNegocioModal";
 
 const MapaOportunidadesDynamic = dynamic(
   () => import("../MapaOportunidades").then(m => m.MapaOportunidades),
@@ -71,7 +72,39 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
   const [confirmarEliminarId, setConfirmarEliminarId] = useState<string | null>(null);
   const [dragOverCell, setDragOverCell] = useState<{ opId: string; estadoId: string } | null>(null);
   const [showMapa, setShowMapa] = useState(false);
-  const [sinCoordsFilter, setSinCoordsFilter] = useState(false);
+  const [ubicacionModalOpId, setUbicacionModalOpId] = useState<string | null>(null);
+  const [savingUbicacion, setSavingUbicacion] = useState(false);
+
+  async function guardarUbicacion(oportunidadId: string, entidadId: string, lugar: LugarPlaces) {
+    if (lugar.lat == null || lugar.lng == null) return;
+    setSavingUbicacion(true);
+    try {
+      const op = oportunidades.find(o => o.id === oportunidadId);
+      const nuevaDireccion = {
+        ...(op?.contabilidad_entidades?.direccion ?? {}),
+        direccion: lugar.calle || op?.contabilidad_entidades?.direccion?.direccion,
+        cp: lugar.cp || op?.contabilidad_entidades?.direccion?.cp,
+        ciudad: lugar.ciudad || op?.contabilidad_entidades?.direccion?.ciudad,
+        provincia: lugar.provincia || op?.contabilidad_entidades?.direccion?.provincia,
+      };
+      const res = await fetch(`/api/crm/entidades/${entidadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat: lugar.lat, lng: lugar.lng, direccion: nuevaDireccion }),
+      });
+      if (!res.ok) throw new Error("Error guardando ubicación");
+      if (op?.contabilidad_entidades) {
+        onOportunidadUpdate?.(oportunidadId, {
+          contabilidad_entidades: { ...op.contabilidad_entidades, lat: lugar.lat, lng: lugar.lng, direccion: nuevaDireccion },
+        });
+      }
+      setUbicacionModalOpId(null);
+    } catch {
+      // silencioso: el icono seguirá en gris si falla
+    } finally {
+      setSavingUbicacion(false);
+    }
+  }
   const [editingCell, setEditingCell] = useState<{ opId: string; field: "prioridad" | "valor_estimado" } | null>(null);
   const [editingVal, setEditingVal] = useState("");
   const editingCellRef = useRef<{ opId: string; field: "prioridad" | "valor_estimado" } | null>(null);
@@ -98,14 +131,27 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
     return () => document.removeEventListener("mousedown", handleClick, true);
   }, [openDropdown]);
 
+  const SIN_ASIGNAR = "__sin_asignar__";
+
   const agentesUnicos = useMemo(() => {
     const map = new Map<string, string>();
+    let haySinAsignar = false;
     oportunidades.forEach(o => {
       if (o.agente_id && o.crm_agentes)
         map.set(o.agente_id, `${o.crm_agentes.nombre} ${o.crm_agentes.apellidos}`);
+      else if (!o.agente_id)
+        haySinAsignar = true;
     });
-    return [...map.entries()].map(([id, nombre]) => ({ id, nombre }));
+    const lista = [...map.entries()].map(([id, nombre]) => ({ id, nombre }));
+    if (haySinAsignar) lista.push({ id: SIN_ASIGNAR, nombre: "Sin asignar" });
+    return lista;
   }, [oportunidades]);
+
+  function matchAgenteFilter(agenteId: string | null): boolean {
+    if (agenteFilter.length === 0) return true;
+    if (!agenteId) return agenteFilter.includes(SIN_ASIGNAR);
+    return agenteFilter.includes(agenteId);
+  }
 
   function normalizarCiudad(c: string): string {
     return c.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
@@ -143,22 +189,21 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
         ].join(" ").toLowerCase();
         if (!haystack.includes(q)) return false;
       }
-      if (agenteFilter.length > 0 && !agenteFilter.includes(o.agente_id ?? "")) return false;
+      if (!matchAgenteFilter(o.agente_id)) return false;
       if (estadoFilter.length > 0 && !estadoFilter.includes(o.estado_id)) return false;
       if (ciudadFilter.length > 0) {
         const ciudad = o.contabilidad_entidades?.direccion?.ciudad ?? "";
         if (!ciudadFilter.includes(normalizarCiudad(ciudad))) return false;
       }
       if (prioridadFilter.length > 0 && !prioridadFilter.includes(o.prioridad ?? -1)) return false;
-      if (sinCoordsFilter && o.contabilidad_entidades?.lat != null) return false;
       return true;
     });
-  }, [oportunidades, search, agenteFilter, estadoFilter, ciudadFilter, prioridadFilter, sinCoordsFilter]);
+  }, [oportunidades, search, agenteFilter, estadoFilter, ciudadFilter, prioridadFilter]);
 
   // filtrado para KPIs y gráficos (sin filtro de estado ni búsqueda)
   const filteredKpi = useMemo(() => {
     return oportunidades.filter(o => {
-      if (agenteFilter.length > 0 && !agenteFilter.includes(o.agente_id ?? "")) return false;
+      if (!matchAgenteFilter(o.agente_id)) return false;
       if (ciudadFilter.length > 0) {
         const ciudad = o.contabilidad_entidades?.direccion?.ciudad ?? "";
         if (!ciudadFilter.includes(normalizarCiudad(ciudad))) return false;
@@ -183,6 +228,9 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
       } else if (sortCol === "resp") {
         va = a.contabilidad_entidades?.crm_contactos?.length ?? 0;
         vb = b.contabilidad_entidades?.crm_contactos?.length ?? 0;
+      } else if (sortCol === "ubic") {
+        va = a.contabilidad_entidades?.lat != null ? 1 : 0;
+        vb = b.contabilidad_entidades?.lat != null ? 1 : 0;
       } else if (sortCol === "estimacion") {
         va = a.valor_estimado; vb = b.valor_estimado;
       }
@@ -195,9 +243,9 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
   const safePage = Math.min(page, totalPages);
   const paginated = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  const totalFiltrosActivos = agenteFilter.length + estadoFilter.length + ciudadFilter.length + prioridadFilter.length + (sinCoordsFilter ? 1 : 0);
+  const totalFiltrosActivos = agenteFilter.length + estadoFilter.length + ciudadFilter.length + prioridadFilter.length;
 
-  useEffect(() => { setPage(1); }, [search, agenteFilter, estadoFilter, ciudadFilter, prioridadFilter, sinCoordsFilter, pageSize, sortCol, sortDir]);
+  useEffect(() => { setPage(1); }, [search, agenteFilter, estadoFilter, ciudadFilter, prioridadFilter, pageSize, sortCol, sortDir]);
 
   async function saveEditingCell() {
     if (savedRef.current) return;
@@ -321,9 +369,8 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
             className={styles.filterIconBtn}
             onClick={() => setShowMapa(v => !v)}
             title={showMapa ? "Ver listado" : "Ver mapa"}
-            style={{ color: showMapa ? "var(--primary-color,#475569)" : undefined }}
           >
-            <MapPin size={15} />
+            {showMapa ? <List size={15} /> : <MapPin size={15} />}
           </button>
           {isOwner && <div ref={addBtnRef} style={{ position: "relative" }}>
             <button className={styles.addBtn} onClick={() => setShowAddMenu(v => !v)} title="Nueva oportunidad">
@@ -463,15 +510,8 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
             </div>
           )}
 
-          <button
-            onClick={() => setSinCoordsFilter(v => !v)}
-            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "0.25rem 0.65rem", fontSize: "0.72rem", fontWeight: 600, borderRadius: 6, border: `1.5px solid ${sinCoordsFilter ? "var(--primary-color,#475569)" : "#e2e8f0"}`, background: sinCoordsFilter ? "var(--primary-color,#475569)" : "#fff", color: sinCoordsFilter ? "#fff" : "#64748b", cursor: "pointer", whiteSpace: "nowrap" }}
-          >
-            <MapPin size={11} /> Sin coords
-          </button>
-
           {totalFiltrosActivos > 0 && (
-            <button className={styles.filterClear} onClick={() => { setAgenteFilter([]); setEstadoFilter([]); setCiudadFilter([]); setPrioridadFilter([]); setSinCoordsFilter(false); }}>Limpiar todo</button>
+            <button className={styles.filterClear} onClick={() => { setAgenteFilter([]); setEstadoFilter([]); setCiudadFilter([]); setPrioridadFilter([]); }}>Limpiar todo</button>
           )}
         </div>
       )}
@@ -506,6 +546,7 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
             <th className={styles.th} style={{ width: 46, cursor: "pointer", userSelect: "none" }} onClick={() => toggleSort("prioridad")}><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 2 }}>P<SortIcon col="prioridad" /></span></th>
             <th className={styles.th} style={{ textAlign: "left", cursor: "pointer", userSelect: "none" }} onClick={() => toggleSort("oportunidad")}><span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>Oportunidad<SortIcon col="oportunidad" /></span></th>
             <th className={styles.th} style={{ width: 58, cursor: "pointer", userSelect: "none" }} onClick={() => toggleSort("resp")}><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 2 }}>Resp.<SortIcon col="resp" /></span></th>
+            <th className={styles.th} style={{ width: 50, cursor: "pointer", userSelect: "none" }} onClick={() => toggleSort("ubic")}><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 2 }}>Ubic<SortIcon col="ubic" /></span></th>
             <th className={styles.th} style={{ textAlign: "left", whiteSpace: "nowrap" }}>Camp. ant.</th>
             {estadosNormales.map(e => (
               <th key={e.id} className={`${styles.th} ${styles.thEstado}`} style={{ textAlign: "center" }}>{e.nombre}</th>
@@ -582,6 +623,29 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
               </td>
               <td className={styles.tdCenter}>
                 <ResponsablesTooltip contactos={o.contabilidad_entidades?.crm_contactos ?? []} />
+              </td>
+              <td className={styles.tdCenter}>
+                {o.contabilidad_entidades?.lat != null ? (
+                  <span
+                    title={[
+                      o.contabilidad_entidades.direccion?.direccion ?? o.contabilidad_entidades.direccion?.calle,
+                      o.contabilidad_entidades.direccion?.ciudad,
+                      o.contabilidad_entidades.direccion?.provincia,
+                    ].filter(Boolean).join(", ") || "Ubicación registrada"}
+                    style={{ display: "inline-flex" }}
+                  >
+                    <MapPin size={13} style={{ color: "var(--primary-color,#475569)" }} />
+                  </span>
+                ) : o.contabilidad_entidades ? (
+                  <button
+                    type="button"
+                    title="Añadir ubicación"
+                    onClick={e => { e.stopPropagation(); setUbicacionModalOpId(o.id); }}
+                    style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", padding: 0, color: "#cbd5e1" }}
+                  >
+                    <MapPin size={13} />
+                  </button>
+                ) : null}
               </td>
               <td className={styles.td}>
                 <EstadosBubbles estados={o.estados_campanas_anteriores ?? []} mono={monocromo} />
@@ -876,6 +940,18 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
         }}
       />
     )}
+
+    {/* Modal buscar ubicación en Places */}
+    {ubicacionModalOpId && (() => {
+      const op = oportunidades.find(o => o.id === ubicacionModalOpId);
+      if (!op?.contabilidad_entidades) return null;
+      return (
+        <BuscarNegocioModal
+          onClose={() => setUbicacionModalOpId(null)}
+          onSelect={lugar => guardarUbicacion(op.id, op.contabilidad_entidades!.id, lugar)}
+        />
+      );
+    })()}
     </>
   );
 }

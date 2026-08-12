@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Calendar } from "lucide-react";
 import styles from "./page.module.css";
 import NuevoPresupuestoModal from "@/app/presupuestos/NuevoPresupuestoModal";
-import { ModalPlacesNearby } from "./ModalPlacesNearby";
 
 import type { Campana, Oportunidad, EntidadDetalle } from "./types";
 import { apiFetch, formatFecha } from "./utils";
@@ -14,6 +13,7 @@ import { ConfirmarCampanaModal } from "./modals/ConfirmarCampanaModal";
 import { PanelEntidad } from "./panels/PanelEntidad";
 import { TablaOportunidades } from "./table/TablaOportunidades";
 import { NuevoClientePanel, NuevoClienteResult } from "@/components/modals/NuevoClientePanel";
+import { BuscarNegocioModal, LugarPlaces } from "@/components/modals/BuscarNegocioModal";
 
 export default function CampanaDetallePage() {
   const { id } = useParams<{ id: string }>();
@@ -23,7 +23,8 @@ export default function CampanaDetallePage() {
   const [loading, setLoading] = useState(true);
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
   const [confirmarCampanaCliente, setConfirmarCampanaCliente] = useState<NuevoClienteResult | null>(null);
-  const [showPlacesNearby, setShowPlacesNearby] = useState(false);
+  const [showBuscarNegocio, setShowBuscarNegocio] = useState(false);
+  const [creandoDesdeLugar, setCreandoDesdeLugar] = useState(false);
   const [monocromo, setMonocromo] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [currentAgenteId, setCurrentAgenteId] = useState<string | null>(null);
@@ -223,7 +224,7 @@ export default function CampanaDetallePage() {
         objetivoTotal={campana.crm_campanas_agentes?.reduce((s, a) => s + (a.objetivo_valor ?? 0), 0) ?? 0}
         agentes={campana.crm_campanas_agentes ?? []}
         onNuevaOportunidad={() => setShowNuevoCliente(true)}
-        onNuevaOportunidadPlaces={() => setShowPlacesNearby(true)}
+        onNuevaOportunidadPlaces={() => setShowBuscarNegocio(true)}
         onEstadoChange={handleEstadoChange}
         onPresupuestoClick={abrirPresupuestoParaOportunidad}
         onCierreClick={(oportunidadId, estadoId) => setPendingClosure({ oportunidadId, estadoId })}
@@ -253,12 +254,40 @@ export default function CampanaDetallePage() {
         />
       )}
 
-      {showPlacesNearby && campana && (
-        <ModalPlacesNearby
-          campanaId={campana.id}
-          estados={estados}
-          onClose={() => setShowPlacesNearby(false)}
-          onCreated={loadData}
+      {showBuscarNegocio && (
+        <BuscarNegocioModal
+          onClose={() => setShowBuscarNegocio(false)}
+          onSelect={async (lugar: LugarPlaces) => {
+            if (creandoDesdeLugar) return;
+            setCreandoDesdeLugar(true);
+            try {
+              const res = await fetch("/api/entidades", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  nombre: lugar.nombre,
+                  tipo_entidad: "empresa",
+                  telefono: lugar.telefono || undefined,
+                  direccion: {
+                    direccion: lugar.calle || undefined,
+                    cp: lugar.cp || undefined,
+                    ciudad: lugar.ciudad || undefined,
+                    provincia: lugar.provincia || undefined,
+                  },
+                  lat: lugar.lat,
+                  lng: lugar.lng,
+                }),
+              });
+              const json = await res.json();
+              if (!json.success) throw new Error(json.error || "Error al crear cliente");
+              setShowBuscarNegocio(false);
+              setConfirmarCampanaCliente(json.data);
+            } catch (e) {
+              console.error(e);
+            } finally {
+              setCreandoDesdeLugar(false);
+            }
+          }}
         />
       )}
 

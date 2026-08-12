@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, type ChangeEvent } from "react";
-import { X, MapPin, Plus, Phone, Building2, Info, Rocket } from "lucide-react";
+import { X, MapPin, Plus, Phone, Building2, Info, Rocket, Search, Loader2 } from "lucide-react";
 import styles from "./nuevoClientePanel.module.css";
 import { EtiquetasSelector, Etiqueta } from "@/components/EtiquetasSelector";
 import { BuscarNegocioModal, LugarPlaces } from "@/components/modals/BuscarNegocioModal";
+import { searchNominatim, type NominatimResult } from "@/actions/nominatim";
 
 const lbl: React.CSSProperties = { display: "block", fontSize: "0.72rem", fontWeight: 600, color: "#64748b", marginBottom: "0.25rem" };
 const inp: React.CSSProperties = { width: "100%", fontSize: "0.8rem", padding: "0.35rem 0.55rem", borderRadius: 6, border: "1.5px solid #e2e8f0", outline: "none", boxSizing: "border-box" };
@@ -75,7 +76,61 @@ export function NuevoClientePanel({
     setForm(p => ({ ...p, nombre: lugar.nombre || p.nombre, telefono: p.telefono || lugar.telefono || "" }));
     setDireccion({ direccion: lugar.calle || undefined, cp: lugar.cp || undefined, ciudad: lugar.ciudad || undefined, provincia: lugar.provincia || undefined });
     if (lugar.lat != null && lugar.lng != null) setCoords({ lat: lugar.lat, lng: lugar.lng });
+    setDireccionQuery(lugar.direccion || [lugar.calle, lugar.ciudad, lugar.provincia].filter(Boolean).join(", ") || lugar.nombre || "");
     setShowBuscarNegocio(false);
+  }
+
+  // Buscador de dirección validada (Nominatim / OpenStreetMap) — no se permite texto libre
+  const [direccionQuery, setDireccionQuery] = useState("");
+  const [direccionResultados, setDireccionResultados] = useState<NominatimResult[]>([]);
+  const [direccionLoading, setDireccionLoading] = useState(false);
+  const [showDireccionDropdown, setShowDireccionDropdown] = useState(false);
+
+  useEffect(() => {
+    if (direccionQuery.trim().length < 3) { setDireccionResultados([]); return; }
+    setDireccionLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const data = await searchNominatim(direccionQuery);
+        setDireccionResultados(data);
+        setShowDireccionDropdown(true);
+      } catch {
+        setDireccionResultados([]);
+      } finally {
+        setDireccionLoading(false);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [direccionQuery]);
+
+  // Nominatim devuelve "número, calle, ..." — lo invertimos a "calle número, ..."
+  function normalizarDireccion(displayName: string) {
+    const partes = displayName.split(",").map(s => s.trim());
+    const numero = /^\d+[a-zA-Z]?$/.test(partes[0]) ? partes[0] : "";
+    const calle = numero ? partes[1] : partes[0];
+    const calleConNumero = numero ? `${calle} ${numero}` : calle;
+    const resto = partes.slice(numero ? 2 : 1);
+    return { calleConNumero, display: [calleConNumero, ...resto].filter(Boolean).join(", ") };
+  }
+
+  function seleccionarDireccion(item: NominatimResult) {
+    const { calleConNumero, display } = normalizarDireccion(item.displayName);
+    setDireccion({
+      direccion: calleConNumero || undefined,
+      cp: undefined,
+      ciudad: item.city || undefined,
+      provincia: item.state || undefined,
+    });
+    setCoords({ lat: item.lat, lng: item.lng });
+    setDireccionQuery(display);
+    setShowDireccionDropdown(false);
+  }
+
+  function limpiarDireccion() {
+    setDireccion(null);
+    setCoords(null);
+    setDireccionQuery("");
+    setDireccionResultados([]);
   }
 
   function buildContactoPayload(c: ContactoForm) {
@@ -242,42 +297,55 @@ export function NuevoClientePanel({
 
           <div className={styles.field}>
             <label className={styles.label}>Dirección</label>
-            <input
-              className={styles.input}
-              placeholder="Calle y número"
-              value={direccion?.direccion ?? ""}
-              onChange={e => setDireccion(p => ({ ...(p ?? {}), direccion: e.target.value }))}
-            />
-          </div>
-
-          <div className={styles.fieldRow}>
-            <div className={styles.field}>
-              <label className={styles.label}>Código postal</label>
-              <input
-                className={styles.input}
-                placeholder="14700"
-                value={direccion?.cp ?? ""}
-                onChange={e => setDireccion(p => ({ ...(p ?? {}), cp: e.target.value }))}
-              />
-            </div>
-            <div className={styles.field}>
-              <label className={styles.label}>Localidad</label>
-              <input
-                className={styles.input}
-                placeholder="Ej: Córdoba"
-                value={direccion?.ciudad ?? ""}
-                onChange={e => setDireccion(p => ({ ...(p ?? {}), ciudad: e.target.value }))}
-              />
-            </div>
-            <div className={styles.field}>
-              <label className={styles.label}>Provincia</label>
-              <input
-                className={styles.input}
-                placeholder="Ej: Córdoba"
-                value={direccion?.provincia ?? ""}
-                onChange={e => setDireccion(p => ({ ...(p ?? {}), provincia: e.target.value }))}
-              />
-            </div>
+            {coords ? (
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "0.5rem 0.65rem", border: "1.5px solid #e2e8f0", borderRadius: 6, background: "#f8fafc" }}>
+                <MapPin size={14} style={{ color: "var(--primary-color, #475569)", flexShrink: 0, marginTop: 2 }} />
+                <span style={{ fontSize: "0.8rem", color: "#1e293b", flex: 1 }}>{direccionQuery}</span>
+                <button type="button" onClick={limpiarDireccion} style={{ display: "flex", border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", flexShrink: 0 }}>
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <div style={{ position: "relative" }}>
+                <div style={{ position: "relative" }}>
+                  <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                  <input
+                    className={styles.input}
+                    style={{ width: "100%", boxSizing: "border-box", paddingLeft: "1.9rem", paddingRight: direccionLoading ? "2rem" : undefined }}
+                    placeholder="Busca la dirección real (calle, ciudad...)"
+                    value={direccionQuery}
+                    onChange={e => setDireccionQuery(e.target.value)}
+                    onFocus={() => { if (direccionResultados.length > 0) setShowDireccionDropdown(true); }}
+                  />
+                  {direccionLoading && (
+                    <Loader2 size={13} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", animation: "spin 0.8s linear infinite" }} />
+                  )}
+                </div>
+                {showDireccionDropdown && direccionResultados.length > 0 && (
+                  <div className={styles.dropdown}>
+                    {direccionResultados.map(item => {
+                      const { display } = normalizarDireccion(item.displayName);
+                      return (
+                        <button
+                          key={`${item.osmType}-${item.osmId}`}
+                          type="button"
+                          className={styles.dropdownItem}
+                          onClick={() => seleccionarDireccion(item)}
+                          style={{ flexDirection: "column", alignItems: "flex-start", gap: 1 }}
+                        >
+                          <span style={{ fontWeight: 600 }}>{item.city || item.state || display.split(",")[0].trim()}</span>
+                          <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>{display}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {!direccionLoading && direccionQuery.trim().length >= 3 && direccionResultados.length === 0 && (
+                  <p style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: 4 }}>Sin resultados. Prueba con otro término.</p>
+                )}
+                <p style={{ fontSize: "0.68rem", color: "#94a3b8", marginTop: 4 }}>Selecciona una dirección de la lista para validarla.</p>
+              </div>
+            )}
           </div>
 
           <div className={styles.fieldRow}>
