@@ -11,21 +11,24 @@ export interface NominatimResult {
   country: string | null;
   state: string | null;
   city: string | null;
+  postcode: string | null;
   fullAddress: string;
   boundingbox: [string, string, string, string] | null;
 }
 
-export async function searchNominatim(query: string): Promise<NominatimResult[]> {
+export async function searchNominatim(query: string, opts?: { countrycodes?: string }): Promise<NominatimResult[]> {
   if (!query || query.trim().length < 2) return [];
 
+  const countryParam = opts?.countrycodes ? `&countrycodes=${encodeURIComponent(opts.countrycodes)}` : "";
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1&accept-language=es${countryParam}`;
+  const res = await fetch(url, {
+    headers: { "User-Agent": "GroomySaas_TravelApp_Contact/dev@noellazueng.com" },
+  });
+
+  if (res.status === 429) throw new Error("NOMINATIM_RATE_LIMIT");
+  if (!res.ok) return [];
+
   try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1&accept-language=es`;
-    const res = await fetch(url, {
-      headers: { "User-Agent": "GroomySaas_TravelApp_Contact/dev@noellazueng.com" },
-    });
-
-    if (!res.ok) return [];
-
     const data = await res.json();
 
     return (data || []).map((item: any) => ({
@@ -39,6 +42,7 @@ export async function searchNominatim(query: string): Promise<NominatimResult[]>
       country: item.address?.country || null,
       state: item.address?.state || null,
       city: item.address?.city || item.address?.town || item.address?.village || null,
+      postcode: item.address?.postcode || null,
       fullAddress: item.display_name,
       boundingbox: item.boundingbox?.length === 4 ? item.boundingbox : null,
     }));

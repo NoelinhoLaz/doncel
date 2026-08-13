@@ -136,6 +136,17 @@ CREATE TABLE IF NOT EXISTS config_tipos_servicios (
     updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+-- Catálogo de tipos de cliente por agencia (Persona, Empresa, Grupo, y los que cada
+-- agencia quiera añadir desde Ajustes). Sustituye al CHECK fijo de tipo_entidad.
+CREATE TABLE IF NOT EXISTS config_tipos_cliente (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    etiqueta        VARCHAR(100) NOT NULL,
+    orden           INTEGER NOT NULL DEFAULT 0,
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT config_tipos_cliente_etiqueta_uniq UNIQUE (etiqueta)
+);
+
 -- ------------------------------------------------------------
 -- CONTABILIDAD
 -- ------------------------------------------------------------
@@ -157,9 +168,12 @@ CREATE TABLE IF NOT EXISTS contabilidad_entidades (
     roles               JSONB NOT NULL DEFAULT '{}',
     cuentas_contables   JSONB NOT NULL DEFAULT '{}',
     metadatos           JSONB NOT NULL DEFAULT '{}',
+    tipo_cliente_id     UUID REFERENCES config_tipos_cliente(id) ON DELETE SET NULL,
     created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_entidades_tipo_cliente ON contabilidad_entidades(tipo_cliente_id);
 
 CREATE TABLE IF NOT EXISTS contabilidad_entidades_emails (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1078,6 +1092,12 @@ ALTER TABLE operativa_cotizaciones ADD COLUMN IF NOT EXISTS fecha_regreso DATE;
 ALTER TABLE operativa_cotizaciones ADD COLUMN IF NOT EXISTS agente_id TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_cotizaciones_agente ON operativa_cotizaciones(agente_id);
+
+-- Persona de contacto responsable dentro de la empresa/grupo seleccionada en `contacto`
+-- (solo aplica cuando `contacto` es una entidad tipo Empresa/Grupo; para clientes tipo
+-- Persona, `contacto` ya identifica directamente a la persona y esto queda NULL).
+ALTER TABLE operativa_cotizaciones ADD COLUMN IF NOT EXISTS contacto_persona_id UUID REFERENCES crm_contactos(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_cotizaciones_contacto_persona ON operativa_cotizaciones(contacto_persona_id);
 
 CREATE TABLE IF NOT EXISTS operativa_cotizacion_lineas (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),

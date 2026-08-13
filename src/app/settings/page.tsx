@@ -9,6 +9,7 @@ import { getCuentasBancarias, updateCuentaBancaria } from "@/actions/cuentasBanc
 import { getCuentasContables } from "@/actions/libroDiario";
 import { getCurrentAgencyDetails, updateAgencyColor, updateAgencyLogo, updateAgencySecondaryColor, getTenantParameters, updateTenantParameters } from "@/actions/agencias";
 import { getTiposServicios, deleteTipoServicio } from "@/actions/tiposServicios";
+import { getTiposCliente, deleteTipoCliente } from "@/actions/tiposCliente";
 import { obtenerApiKeys } from "@/actions/apikeys";
 import * as LucideIcons from "lucide-react";
 import { renderLucideIcon, getInitials } from "@/lib/utils/settingsUtils";
@@ -16,6 +17,7 @@ import ModalOficina from "@/components/modals/ModalOficina";
 import ModalCuenta from "@/components/modals/ModalCuenta";
 import ModalUsuario from "@/components/modals/ModalUsuario";
 import ModalTipoServicio from "@/components/modals/ModalTipoServicio";
+import ModalTipoCliente from "@/components/modals/ModalTipoCliente";
 import ModalTipoForm from "@/components/modals/ModalTipoForm";
 import ModalApiKey from "@/components/modals/ModalApiKey";
 import { CambiarPasswordForm } from "@/components/CambiarPasswordForm";
@@ -28,6 +30,7 @@ const SECTIONS = [
   { id: "oficinas",       label: "Oficinas",           icon: <Icons.Servicios size={16} /> },
   { id: "cuentas",        label: "Cuentas Tesorería",  icon: <Icons.Cobros size={16} /> },
   { id: "tiposServicios", label: "Tipos Servicios",    icon: <Icons.Servicios size={16} /> },
+  { id: "tiposCliente",   label: "Tipos de Cliente",   icon: <Icons.Viajeros size={16} /> },
   { id: "apikeys",        label: "API Keys",           icon: <Icons.Key size={16} /> },
   { id: "micuenta",       label: "Mi cuenta",          icon: <LucideIcons.KeyRound size={16} /> },
 ];
@@ -61,6 +64,8 @@ export default function SettingsPage() {
   const [loadingCuentas, setLoadingCuentas] = useState(false);
   const [tiposServicios, setTiposServicios] = useState<any[]>([]);
   const [loadingTipos, setLoadingTipos] = useState(false);
+  const [tiposCliente, setTiposCliente] = useState<any[]>([]);
+  const [loadingTiposCliente, setLoadingTiposCliente] = useState(false);
   const [apiKeysList, setApiKeysList] = useState<any[]>([]);
   const [loadingApiKeys, setLoadingApiKeys] = useState(false);
 
@@ -75,6 +80,9 @@ export default function SettingsPage() {
 
   const [isTipoModalOpen, setIsTipoModalOpen] = useState(false);
   const [editingTipo, setEditingTipo] = useState<any | null>(null);
+
+  const [isTipoClienteModalOpen, setIsTipoClienteModalOpen] = useState(false);
+  const [editingTipoCliente, setEditingTipoCliente] = useState<any | null>(null);
 
   const [isTipoFormModalOpen, setIsTipoFormModalOpen] = useState(false);
   const [editingTipoForm, setEditingTipoForm] = useState<any | null>(null);
@@ -184,6 +192,12 @@ export default function SettingsPage() {
     finally { setLoadingTipos(false); }
   }
 
+  async function fetchTiposCliente() {
+    try { setLoadingTiposCliente(true); setTiposCliente(await getTiposCliente()); }
+    catch (err) { console.error(err); }
+    finally { setLoadingTiposCliente(false); }
+  }
+
   async function fetchApiKeys() {
     setLoadingApiKeys(true);
     const res = await obtenerApiKeys();
@@ -196,6 +210,7 @@ export default function SettingsPage() {
     else if (activeSection === "usuarios") { fetchUsuarios(); fetchOficinas(); fetchCuentas(); }
     else if (activeSection === "cuentas") { fetchCuentas(); fetchOficinas(); }
     else if (activeSection === "tiposServicios") { fetchTiposServicios(); }
+    else if (activeSection === "tiposCliente") { fetchTiposCliente(); }
     else if (activeSection === "apikeys") { fetchApiKeys(); }
     else if (activeSection === "permisos") {
       // Load current parameters on entry
@@ -262,6 +277,15 @@ export default function SettingsPage() {
     try {
       await deleteTipoServicio(id);
       fetchTiposServicios();
+    } catch (err: any) { alert("Error al eliminar: " + err.message); }
+  };
+
+  // ── Tipo de cliente: delete ─────────────────────────────────
+  const handleDeleteTipoCliente = async (id: string) => {
+    if (!confirm("¿Estás seguro de que quieres eliminar este tipo de cliente? Los clientes que lo tengan asignado se quedarán sin tipo.")) return;
+    try {
+      await deleteTipoCliente(id);
+      fetchTiposCliente();
     } catch (err: any) { alert("Error al eliminar: " + err.message); }
   };
 
@@ -597,6 +621,62 @@ export default function SettingsPage() {
     </div>
   );
 
+  const renderTiposCliente = () => (
+    <div className={styles.sectionCard}>
+      <div className={styles.listHeaderTop} style={{ margin: "-1.25rem -1.25rem 1.5rem", borderRadius: "1rem 1rem 0 0" }}>
+        <div className={styles.listTitleWrapper}>
+          <Icons.Viajeros size={18} className={styles.titleIcon} />
+          <h2 className={styles.listTitle}>Tipos de Cliente</h2>
+        </div>
+        <div className={styles.actionsWrapper}>
+          <button className={styles.addActionButton} title="Añadir Tipo de Cliente"
+            onClick={() => { setEditingTipoCliente(null); setIsTipoClienteModalOpen(true); }}
+            style={{ backgroundColor: "var(--primary-color)", color: "#ffffff" }}>
+            <span style={{ fontSize: "1rem", lineHeight: 1 }}>+</span>
+          </button>
+        </div>
+      </div>
+
+      {loadingTiposCliente ? (
+        <div style={{ padding: "2rem", textAlign: "center", color: "#64748b" }}>Cargando tipos de cliente...</div>
+      ) : tiposCliente.length === 0 ? (
+        <div style={{ padding: "3rem 1rem", textAlign: "center", color: "#64748b" }}>No hay tipos de cliente configurados aún. ¡Crea el primero!</div>
+      ) : (
+        <div className={styles.tableWrapper}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Etiqueta</th>
+                <th style={{ width: "80px" }}>Orden</th>
+                <th style={{ textAlign: "right" }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tiposCliente.map(t => (
+                <tr key={t.id}>
+                  <td style={{ fontWeight: 600, color: "#0f172a" }}>{t.etiqueta}</td>
+                  <td>{t.orden}</td>
+                  <td style={{ textAlign: "right" }}>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+                      <button onClick={() => { setEditingTipoCliente(t); setIsTipoClienteModalOpen(true); }}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b" }} title="Editar">
+                        <LucideIcons.Pencil size={16} />
+                      </button>
+                      <button onClick={() => handleDeleteTipoCliente(t.id)}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444" }} title="Eliminar">
+                        <LucideIcons.Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+
   const renderApiKeys = () => (
     <div className={styles.tableContainer}>
       <div className={styles.listHeaderTop}>
@@ -774,6 +854,7 @@ export default function SettingsPage() {
       case "oficinas":       return renderOficinas();
       case "cuentas":        return renderCuentas();
       case "tiposServicios": return renderTiposServicios();
+      case "tiposCliente": return renderTiposCliente();
       case "apikeys":        return renderApiKeys();
       case "permisos":       return renderPermisos();
       case "micuenta":       return (
@@ -790,7 +871,7 @@ export default function SettingsPage() {
     if (section.id === "micuenta") return true;
     if (!currentUser) return true;
     if (currentUser.rol === "Agente") {
-      return section.id === "tiposServicios";
+      return section.id === "tiposServicios" || section.id === "tiposCliente";
     }
     if (currentUser.rol === "SubAdmin") {
       return section.id === "usuarios";
@@ -857,6 +938,13 @@ export default function SettingsPage() {
         onClose={() => setIsTipoModalOpen(false)}
         editingTipo={editingTipo}
         onSuccess={fetchTiposServicios}
+      />
+
+      <ModalTipoCliente
+        isOpen={isTipoClienteModalOpen}
+        onClose={() => setIsTipoClienteModalOpen(false)}
+        editingTipo={editingTipoCliente}
+        onSuccess={fetchTiposCliente}
       />
 
       <ModalTipoForm

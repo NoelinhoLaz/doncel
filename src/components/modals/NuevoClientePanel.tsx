@@ -30,7 +30,16 @@ export function NuevoClientePanel({
   onCreated: (entidad: NuevoClienteResult) => void;
 }) {
   const [tipoCliente, setTipoCliente] = useState<"persona" | "empresa">("persona");
+  const [tiposCliente, setTiposCliente] = useState<{ id: string; etiqueta: string }[]>([]);
+  const [tipoClienteId, setTipoClienteId] = useState<string>("");
   const [form, setForm] = useState({ nombre: "", razonSocial: "", email: "", telefono: "", documento: "", fechaNacimiento: "", notas: "" });
+
+  useEffect(() => {
+    fetch("/api/config/tipos-cliente")
+      .then(r => r.json())
+      .then(json => { if (json?.success) setTiposCliente(json.data ?? []); })
+      .catch(() => {});
+  }, []);
   const [direccion, setDireccion] = useState<{ direccion?: string; cp?: string; ciudad?: string; provincia?: string } | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
@@ -175,6 +184,7 @@ export function NuevoClientePanel({
           documento: form.documento.trim() || undefined,
           fecha_nacimiento: tipoCliente === "persona" ? (form.fechaNacimiento || undefined) : undefined,
           tipo_entidad: tipoCliente,
+          tipo_cliente_id: tipoClienteId || undefined,
           roles: { cliente: true },
           direccion: direccion || undefined,
           lat: coords?.lat,
@@ -250,6 +260,22 @@ export function NuevoClientePanel({
               </label>
             ))}
           </div>
+
+          {tiposCliente.length > 0 && (
+            <div className={styles.field}>
+              <label className={styles.label}>Tipo de cliente</label>
+              <select
+                className={styles.input}
+                value={tipoClienteId}
+                onChange={e => setTipoClienteId(e.target.value)}
+              >
+                <option value="">Sin especificar</option>
+                {tiposCliente.map(t => (
+                  <option key={t.id} value={t.id}>{t.etiqueta}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className={styles.field}>
             <label className={styles.label}>{tipoCliente === "empresa" ? "Nombre comercial *" : "Nombre *"}</label>

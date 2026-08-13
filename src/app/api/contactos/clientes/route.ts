@@ -8,7 +8,7 @@ export async function GET() {
     // Entidades con rol cliente/organizacion
     const { data: conRol, error: e1 } = await db
       .from("contabilidad_entidades")
-      .select("id, nombre, email, telefono, direccion, agente_id, tipo_entidad, otros_tlfs, otros_emails, lat, lng, documento, fecha_nacimiento, created_at")
+      .select("id, nombre, email, telefono, direccion, agente_id, tipo_entidad, otros_tlfs, otros_emails, lat, lng, documento, fecha_nacimiento, created_at, tipo_cliente_id")
       .or("roles->cliente.eq.true,roles->organizacion.eq.true");
 
     if (e1) throw e1;
@@ -27,11 +27,17 @@ export async function GET() {
     if (crmIds.length > 0) {
       const { data, error: e3 } = await db
         .from("contabilidad_entidades")
-        .select("id, nombre, email, telefono, direccion, agente_id, tipo_entidad, otros_tlfs, otros_emails, lat, lng, documento, fecha_nacimiento, created_at")
+        .select("id, nombre, email, telefono, direccion, agente_id, tipo_entidad, otros_tlfs, otros_emails, lat, lng, documento, fecha_nacimiento, created_at, tipo_cliente_id")
         .in("id", crmIds);
       if (e3) throw e3;
       conCrm = data ?? [];
     }
+
+    // Tipos de cliente configurados por la agencia
+    const { data: tiposClienteRows } = await db
+      .from("config_tipos_cliente")
+      .select("id, etiqueta");
+    const tipoClientePorId = new Map((tiposClienteRows ?? []).map((t: any) => [t.id, t]));
 
     // Oficina/sucursal de cada agente (vía config_usuarios -> config_oficinas)
     const { data: configUsuarios } = await db
@@ -125,6 +131,8 @@ export async function GET() {
         documento: r.documento ?? null,
         fecha_nacimiento: r.fecha_nacimiento ?? null,
         created_at: r.created_at ?? null,
+        tipo_cliente_id: r.tipo_cliente_id ?? null,
+        tipo_cliente: r.tipo_cliente_id ? (tipoClientePorId.get(r.tipo_cliente_id) ?? null) : null,
       });
     }
 

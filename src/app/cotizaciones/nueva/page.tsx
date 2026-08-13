@@ -16,6 +16,8 @@ import ExpedienteActionsToolbar from "@/app/components/ExpedienteActionsToolbar"
 export default function NuevaCotizacionPage() {
   const [contactoId, setContactoId] = useState<string | null>(null);
   const [contactoNombre, setContactoNombre] = useState<string | null>(null);
+  const [contactoPersonaId, setContactoPersonaId] = useState<string | null>(null);
+  const [contactoPersonaNombre, setContactoPersonaNombre] = useState<string | null>(null);
   const [title, setTitle] = useState("Nombre de la cotización");
   const [isContactoModalOpen, setIsContactoModalOpen] = useState(false);
   const [fechaSalida, setFechaSalida] = useState<string>("");
@@ -62,6 +64,28 @@ export default function NuevaCotizacionPage() {
       const router = useRouter();
       const cotId = search?.get('id') || null;
       const autoOpenSheetsImport = search?.get('importar') === '1';
+
+  // Identidad del agente logueado, para determinar si puede editar esta cotización
+  const [currentAuthUserId, setCurrentAuthUserId] = useState<string | null>(null);
+  const [currentRol, setCurrentRol] = useState<string | null>(null);
+  const [authLoaded, setAuthLoaded] = useState(false);
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(r => r.json())
+      .then(d => {
+        if (d?.success) {
+          setCurrentAuthUserId(d.data.authUserId);
+          setCurrentRol(d.data.rol);
+        }
+      })
+      .catch(console.error)
+      .finally(() => setAuthLoaded(true));
+  }, []);
+  const isAdminRol = currentRol ? ["Admin", "SuperAdmin", "Owner"].includes(currentRol) : false;
+  // Sin cotId (nueva, aún no guardada) o sin agente_id (legado): siempre editable.
+  // Si no ha cargado aún la identidad, se asume editable para no bloquear de más antes de tiempo.
+  const isOwner = !cotId || !cotizacion?.agente_id || isAdminRol || !authLoaded || cotizacion.agente_id === currentAuthUserId;
+
   // Currency formatter
       useEffect(() => {
         if (cotId) {
@@ -72,6 +96,8 @@ export default function NuevaCotizacionPage() {
                 setCotizacion(d.data);
                 setContactoId(d.data.contacto || null);
                 setContactoNombre(d.data.contabilidad_entidades?.nombre || null);
+                setContactoPersonaId(d.data.contacto_persona_id || null);
+                setContactoPersonaNombre(d.data.crm_contactos?.nombre || null);
                 setTitle(d.data.titulo || d.data.nombre || 'Nombre de la cotización');
                 setDestinos(d.data.destinos || []);
                 setFechaSalida(d.data.fecha_salida || "");
@@ -128,23 +154,33 @@ export default function NuevaCotizacionPage() {
 
           <div className={styles.titleGroup}>
             <button
-              onClick={() => setIsContactoModalOpen(true)}
+              onClick={() => isOwner && setIsContactoModalOpen(true)}
               className={styles.entityName}
+              disabled={!isOwner}
               style={{
                 border: "none",
                 background: "transparent",
                 outline: "none",
                 padding: 0,
-                cursor: "pointer",
+                cursor: isOwner ? "pointer" : "default",
                 textAlign: "left",
                 color: contactoNombre ? "inherit" : "#94a3b8",
                 fontWeight: contactoNombre ? undefined : 400,
               }}
             >
               {contactoNombre || "Sin contacto"}
+              {contactoPersonaNombre && (
+                <span style={{ fontWeight: 400, color: "#64748b" }}> · {contactoPersonaNombre}</span>
+              )}
             </button>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: "0.15rem" }}>
+            {!isOwner && (
+              <div style={{ fontSize: "0.7rem", color: "#b45309", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "0.2rem 0.5rem", display: "inline-flex", width: "fit-content", marginTop: "0.3rem" }}>
+                Solo lectura: esta cotización pertenece a otro agente
+              </div>
+            )}
+
+            <fieldset disabled={!isOwner} style={{ border: "none", padding: 0, margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: "0.15rem" }}>
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -226,7 +262,7 @@ export default function NuevaCotizacionPage() {
                   if (cotId) updateCotizacionMeta(cotId, { fecha_regreso: v || null }).catch(console.error);
                 }}
               />
-            </div>
+            </fieldset>
           </div>
 
           <div style={{ flexGrow: 1 }} />
@@ -235,8 +271,8 @@ export default function NuevaCotizacionPage() {
       </header>
 
       {/* Main Page Layout - Stacked row structure */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '0.25rem 0px 0px 0px', marginTop: '-1rem' }}>
-        
+      <fieldset disabled={!isOwner} style={{ border: "none", margin: 0, display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '0.25rem 0px 0px 0px', marginTop: '-1rem' }}>
+
         {/* Full-width Horizontal Summary Card (Dashboard Bar) */}
         <div style={{
           width: '100%',
@@ -393,21 +429,26 @@ export default function NuevaCotizacionPage() {
             cotizacionId={cotId}
             onTotalsChange={setTotals}
             autoOpenSheetsImport={autoOpenSheetsImport}
+            readOnly={!isOwner}
           />
         </div>
 
-      </div>
+      </fieldset>
 
       {isContactoModalOpen && (
         <ContactoModal
           cotizacionId={cotId}
           currentId={contactoId}
           currentNombre={contactoNombre}
+          currentPersonaId={contactoPersonaId}
+          currentPersonaNombre={contactoPersonaNombre}
           currentTitulo={title}
-          onSave={(id, nombre, titulo) => {
+          onSave={(id, nombre, titulo, personaId, personaNombre) => {
             setContactoId(id);
             setContactoNombre(nombre);
             setTitle(titulo);
+            setContactoPersonaId(personaId);
+            setContactoPersonaNombre(personaNombre);
             setIsContactoModalOpen(false);
           }}
           onClose={() => setIsContactoModalOpen(false)}
@@ -423,12 +464,14 @@ export default function NuevaCotizacionPage() {
   );
 }
 
-function ContactoModal({ cotizacionId, currentId, currentNombre, currentTitulo, onSave, onClose }: {
+function ContactoModal({ cotizacionId, currentId, currentNombre, currentPersonaId, currentPersonaNombre, currentTitulo, onSave, onClose }: {
   cotizacionId: string | null;
   currentId: string | null;
   currentNombre: string | null;
+  currentPersonaId: string | null;
+  currentPersonaNombre: string | null;
   currentTitulo: string;
-  onSave: (id: string | null, nombre: string | null, titulo: string) => void;
+  onSave: (id: string | null, nombre: string | null, titulo: string, personaId: string | null, personaNombre: string | null) => void;
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
@@ -437,6 +480,12 @@ function ContactoModal({ cotizacionId, currentId, currentNombre, currentTitulo, 
   const [saving, setSaving] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(currentId);
   const [selectedNombre, setSelectedNombre] = useState<string | null>(currentNombre);
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(currentPersonaId);
+  const [selectedPersonaNombre, setSelectedPersonaNombre] = useState<string | null>(currentPersonaNombre);
+  const [showBuscador, setShowBuscador] = useState(!currentId);
+  const [showBuscadorPersona, setShowBuscadorPersona] = useState(false);
+  const [personasEntidad, setPersonasEntidad] = useState<any[]>([]);
+  const [loadingPersonas, setLoadingPersonas] = useState(false);
   const [titulo, setTitulo] = useState(currentTitulo);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -444,6 +493,21 @@ function ContactoModal({ cotizacionId, currentId, currentNombre, currentTitulo, 
     inputRef.current?.focus();
     getEntidades().then(setEntidades).catch(console.error).finally(() => setLoading(false));
   }, []);
+
+  // Al seleccionar un cliente, comprobar si tiene contactos vinculados (crm_contactos)
+  useEffect(() => {
+    if (!selectedId) { setPersonasEntidad([]); return; }
+    setLoadingPersonas(true);
+    fetch(`/api/entidades/${selectedId}/contactos`)
+      .then(r => r.json())
+      .then(json => { if (json?.success) setPersonasEntidad(json.data ?? []); else setPersonasEntidad([]); })
+      .catch(() => setPersonasEntidad([]))
+      .finally(() => setLoadingPersonas(false));
+  }, [selectedId]);
+
+  function abrirBuscadorPersona() {
+    setShowBuscadorPersona(v => !v);
+  }
 
   const filtered = entidades.filter(e =>
     e.nombre?.toLowerCase().includes(query.toLowerCase())
@@ -453,8 +517,8 @@ function ContactoModal({ cotizacionId, currentId, currentNombre, currentTitulo, 
     if (!cotizacionId) return;
     setSaving(true);
     try {
-      await updateCotizacionMeta(cotizacionId, { contacto: selectedId, titulo });
-      onSave(selectedId, selectedNombre, titulo);
+      await updateCotizacionMeta(cotizacionId, { contacto: selectedId, contacto_persona_id: selectedPersonaId, titulo });
+      onSave(selectedId, selectedNombre, titulo, selectedPersonaId, selectedPersonaNombre);
     } catch (err) {
       console.error("Error al guardar contacto:", err);
     } finally {
@@ -501,57 +565,113 @@ function ContactoModal({ cotizacionId, currentId, currentNombre, currentTitulo, 
           {selectedNombre && (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.4rem 0.75rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "0.375rem" }}>
               <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#166534" }}>{selectedNombre}</span>
-              <button onClick={() => { setSelectedId(null); setSelectedNombre(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b", display: "flex" }}>
-                <X size={14} />
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <button onClick={() => setShowBuscador(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", color: "#166534", fontSize: "0.72rem", fontWeight: 600, textDecoration: "underline" }}>
+                  {showBuscador ? "Ocultar" : "Cambiar"}
+                </button>
+                <button onClick={() => { setSelectedId(null); setSelectedNombre(null); setSelectedPersonaId(null); setSelectedPersonaNombre(null); setShowBuscador(true); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b", display: "flex" }}>
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Responsable/contacto vinculado al cliente seleccionado */}
+          {selectedId && (loadingPersonas || personasEntidad.length > 0 || selectedPersonaNombre) && (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.35rem" }}>
+                <label style={{ fontSize: "0.7rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Responsable / contacto
+                </label>
+                <button onClick={abrirBuscadorPersona} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--primary-color,#475569)", fontSize: "0.72rem", fontWeight: 600, textDecoration: "underline" }}>
+                  {showBuscadorPersona ? "Ocultar" : selectedPersonaNombre ? "Cambiar" : "Asignar"}
+                </button>
+              </div>
+
+              {selectedPersonaNombre && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.4rem 0.75rem", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "0.375rem", marginBottom: showBuscadorPersona ? "0.4rem" : 0 }}>
+                  <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#1e40af" }}>{selectedPersonaNombre}</span>
+                  <button onClick={() => { setSelectedPersonaId(null); setSelectedPersonaNombre(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b", display: "flex" }}>
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
+              {showBuscadorPersona && (
+                <div style={{ maxHeight: "160px", overflowY: "auto", border: "1px solid #f1f5f9", borderRadius: "0.375rem" }}>
+                  {loadingPersonas ? (
+                    <div style={{ padding: "0.75rem", textAlign: "center", fontSize: "0.75rem", color: "#94a3b8" }}>Cargando...</div>
+                  ) : personasEntidad.length === 0 ? (
+                    <div style={{ padding: "0.75rem", textAlign: "center", fontSize: "0.75rem", color: "#94a3b8" }}>Sin contactos para este cliente</div>
+                  ) : personasEntidad.map((p: any) => (
+                    <div
+                      key={p.id}
+                      onClick={() => { setSelectedPersonaId(p.id); setSelectedPersonaNombre(p.nombre); setShowBuscadorPersona(false); }}
+                      style={{
+                        padding: "0.4rem 0.75rem", cursor: "pointer", fontSize: "0.78rem",
+                        color: selectedPersonaId === p.id ? "#fff" : "#334155",
+                        background: selectedPersonaId === p.id ? "var(--primary-color,#475569)" : "transparent",
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                      }}
+                      onMouseEnter={(el) => { if (selectedPersonaId !== p.id) el.currentTarget.style.background = "#f1f5f9"; }}
+                      onMouseLeave={(el) => { if (selectedPersonaId !== p.id) el.currentTarget.style.background = "transparent"; }}
+                    >
+                      <span>{p.nombre}{p.cargo ? ` · ${p.cargo}` : ""}</span>
+                      {p.email && <span style={{ fontSize: "0.65rem", color: selectedPersonaId === p.id ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>{p.email}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
           {/* Buscador de contactos */}
-          <div>
-            <label style={{ fontSize: "0.7rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "0.35rem" }}>
-              {selectedNombre ? "Cambiar contacto" : "Asignar contacto"}
-            </label>
-            <div style={{ position: "relative", marginBottom: "0.4rem" }}>
-              <Search size={14} style={{ position: "absolute", left: "8px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
-              <input
-                ref={inputRef}
-                type="text"
-                placeholder="Buscar contacto..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                style={{
-                  width: "100%", padding: "0.4rem 0.5rem 0.4rem 1.75rem",
-                  borderRadius: "0.375rem", border: "1px solid #cbd5e1",
-                  fontSize: "0.78rem", outline: "none", color: "#0f172a",
-                  backgroundColor: "#ffffff", boxSizing: "border-box",
-                }}
-              />
-            </div>
-            <div style={{ maxHeight: "180px", overflowY: "auto", border: "1px solid #f1f5f9", borderRadius: "0.375rem" }}>
-              {loading ? (
-                <div style={{ padding: "1rem", textAlign: "center", fontSize: "0.75rem", color: "#94a3b8" }}>Cargando...</div>
-              ) : filtered.length === 0 ? (
-                <div style={{ padding: "1rem", textAlign: "center", fontSize: "0.75rem", color: "#94a3b8" }}>Sin resultados</div>
-              ) : filtered.map((e: any) => (
-                <div
-                  key={e.id}
-                  onClick={() => { setSelectedId(e.id); setSelectedNombre(e.nombre); setQuery(""); }}
+          {showBuscador && (
+            <div>
+              <label style={{ fontSize: "0.7rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "0.35rem" }}>
+                {selectedNombre ? "Cambiar contacto" : "Asignar contacto"}
+              </label>
+              <div style={{ position: "relative", marginBottom: "0.4rem" }}>
+                <Search size={14} style={{ position: "absolute", left: "8px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                <input
+                  ref={inputRef}
+                  type="text"
+                  placeholder="Buscar contacto..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
                   style={{
-                    padding: "0.45rem 0.75rem", cursor: "pointer", fontSize: "0.8rem",
-                    color: selectedId === e.id ? "#fff" : "#334155",
-                    background: selectedId === e.id ? "var(--primary-color,#475569)" : "transparent",
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    width: "100%", padding: "0.4rem 0.5rem 0.4rem 1.75rem",
+                    borderRadius: "0.375rem", border: "1px solid #cbd5e1",
+                    fontSize: "0.78rem", outline: "none", color: "#0f172a",
+                    backgroundColor: "#ffffff", boxSizing: "border-box",
                   }}
-                  onMouseEnter={(el) => { if (selectedId !== e.id) el.currentTarget.style.background = "#f1f5f9"; }}
-                  onMouseLeave={(el) => { if (selectedId !== e.id) el.currentTarget.style.background = "transparent"; }}
-                >
-                  <span>{e.nombre}</span>
-                  {e.email && <span style={{ fontSize: "0.68rem", color: selectedId === e.id ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>{e.email}</span>}
-                </div>
-              ))}
+                />
+              </div>
+              <div style={{ maxHeight: "180px", overflowY: "auto", border: "1px solid #f1f5f9", borderRadius: "0.375rem" }}>
+                {loading ? (
+                  <div style={{ padding: "1rem", textAlign: "center", fontSize: "0.75rem", color: "#94a3b8" }}>Cargando...</div>
+                ) : filtered.length === 0 ? (
+                  <div style={{ padding: "1rem", textAlign: "center", fontSize: "0.75rem", color: "#94a3b8" }}>Sin resultados</div>
+                ) : filtered.map((e: any) => (
+                  <div
+                    key={e.id}
+                    onClick={() => { setSelectedId(e.id); setSelectedNombre(e.nombre); setQuery(""); setSelectedPersonaId(null); setSelectedPersonaNombre(null); setShowBuscador(false); setShowBuscadorPersona(false); setPersonasEntidad([]); }}
+                    style={{
+                      padding: "0.45rem 0.75rem", cursor: "pointer", fontSize: "0.8rem",
+                      color: selectedId === e.id ? "#fff" : "#334155",
+                      background: selectedId === e.id ? "var(--primary-color,#475569)" : "transparent",
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                    }}
+                    onMouseEnter={(el) => { if (selectedId !== e.id) el.currentTarget.style.background = "#f1f5f9"; }}
+                    onMouseLeave={(el) => { if (selectedId !== e.id) el.currentTarget.style.background = "transparent"; }}
+                  >
+                    <span>{e.nombre}</span>
+                    {e.email && <span style={{ fontSize: "0.68rem", color: selectedId === e.id ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>{e.email}</span>}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div style={{ padding: "1rem 1.5rem", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
@@ -761,21 +881,36 @@ function DestinoPopover({ destinos, position, isUpdating, onAdd, onRemove, onClo
           loadingMaestros ? (
             <div style={{ padding: "1rem", textAlign: "center", fontSize: "0.7rem", color: "#94a3b8" }}>Cargando...</div>
           ) : filteredMaestros.length > 0 ? (
-            filteredMaestros.filter(d => !alreadySelectedIds.has(d.id)).map((d: any) => (
-              <div
-                key={d.id}
-                onClick={() => handleSelectMaestro(d)}
-                style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.4rem 0.6rem", borderRadius: "0.25rem", cursor: "pointer", fontSize: "0.75rem", color: "#0f172a" }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#f1f5f9"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
-              >
-                <MapPin size={12} style={{ minWidth: 12, color: "#64748b" }} />
-                <div>
-                  <div style={{ fontWeight: 600 }}>{d.nombre_comercial || d.nombre}</div>
-                  {d.country && <div style={{ fontSize: "0.65rem", color: "#94a3b8" }}>{d.country}</div>}
+            <>
+              {filteredMaestros.filter(d => !alreadySelectedIds.has(d.id)).map((d: any) => (
+                <div
+                  key={d.id}
+                  onClick={() => handleSelectMaestro(d)}
+                  style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.4rem 0.6rem", borderRadius: "0.25rem", cursor: "pointer", fontSize: "0.75rem", color: "#0f172a" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#f1f5f9"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+                >
+                  <MapPin size={12} style={{ minWidth: 12, color: "#64748b" }} />
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{d.nombre_comercial || d.nombre}</div>
+                    {d.country && <div style={{ fontSize: "0.65rem", color: "#94a3b8" }}>{d.country}</div>}
+                  </div>
                 </div>
-              </div>
-            ))
+              ))}
+              {query.trim().length >= 2 && (
+                <button
+                  onClick={() => setShowNominatim(true)}
+                  style={{
+                    width: "100%", padding: "0.4rem 0.6rem", borderRadius: "0.375rem",
+                    border: "1px dashed #cbd5e1", background: "none", cursor: "pointer",
+                    fontSize: "0.72rem", color: "#475569", fontWeight: 600, textAlign: "left",
+                    display: "flex", alignItems: "center", gap: "0.4rem", marginTop: "0.25rem",
+                  }}
+                >
+                  <Search size={12} /> Buscar "{query}" en OpenStreetMap
+                </button>
+              )}
+            </>
           ) : query.trim().length >= 2 ? (
             <div style={{ padding: "0.75rem 0.6rem" }}>
               <div style={{ fontSize: "0.72rem", color: "#64748b", marginBottom: "0.5rem" }}>

@@ -163,6 +163,14 @@ export async function createDestinoFromNominatim(result: {
     const tipoDestino = inferTipoDestinoFromNominatim(result.type);
     const name = result.city || result.state || result.displayName.split(",")[0].trim();
 
+    // Evita duplicados por nombre (ej. "Madrid" vs "MADRID") aunque el osm_id sea distinto
+    const { data: porNombre } = await agencyDb
+      .from("maestro_destinos")
+      .select("*")
+      .ilike("nombre_comercial", name)
+      .limit(1);
+    if (porNombre && porNombre.length > 0) return porNombre[0];
+
     const record = {
       nombre: name,
       nombre_comercial: name,

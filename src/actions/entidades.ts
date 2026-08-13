@@ -12,7 +12,7 @@ export async function getEntidades() {
     while (true) {
       const { data, error } = await agencyDb
         .from("contabilidad_entidades")
-        .select("id, nombre, documento, email, telefono, roles, metadatos, direccion")
+        .select("id, nombre, documento, email, telefono, roles, metadatos, direccion, tipo_cliente_id, config_tipos_cliente:tipo_cliente_id(id, etiqueta)")
         .order("nombre", { ascending: true })
         .range(from, from + pageSize - 1);
 

@@ -374,7 +374,7 @@ export async function getOportunidades(campanaId?: string) {
       *,
       crm_campanas_estados(id, nombre, color, es_final, es_ganado),
       crm_agentes(id, nombre, apellidos, avatar_url),
-      contabilidad_entidades!entidad_id(id, nombre, tipo_entidad, email, telefono, otros_tlfs, otros_emails, lat, lng, direccion, agente_id, documento, fecha_nacimiento, created_at, crm_agentes:agente_id(id, nombre, apellidos, avatar_url), crm_contactos!entidad_id(id, nombre, cargo, telefono, email, metadatos)),
+      contabilidad_entidades!entidad_id(id, nombre, tipo_entidad, tipo_cliente_id, email, telefono, otros_tlfs, otros_emails, lat, lng, direccion, agente_id, documento, fecha_nacimiento, created_at, crm_agentes:agente_id(id, nombre, apellidos, avatar_url), config_tipos_cliente:tipo_cliente_id(id, etiqueta), crm_contactos!entidad_id(id, nombre, cargo, telefono, email, metadatos)),
       crm_contactos!contacto_id(id, nombre, cargo, email, telefono)
     `)
     .order("created_at", { ascending: false });

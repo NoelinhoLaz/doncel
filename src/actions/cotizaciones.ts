@@ -5,6 +5,36 @@ import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabas
 import { revalidatePath } from "next/cache";
 import { ingestMetricaCotizacion, deleteMetricaCotizacion, deleteTodasMetricasCotizacion } from "@/lib/analyticsIngest";
 
+const ROLES_ADMIN = ["Admin", "SuperAdmin", "Owner"];
+
+// Verifica que el usuario autenticado puede editar la cotización indicada:
+// es su agente_id, la cotización no tiene agente_id (legado), o tiene rol admin.
+// Lanza si no autenticado o si otro agente intenta editar. No bloquea la lectura.
+async function assertPuedeEditarCotizacion(agencyDb: any, cotizacionId: string) {
+  const adminSupabase = await createAdminServerClient();
+  const { data: { user }, error: userError } = await adminSupabase.auth.getUser();
+  if (userError || !user) throw new Error("No autenticado");
+
+  const { data: cot } = await agencyDb
+    .from("operativa_cotizaciones")
+    .select("agente_id")
+    .eq("id", cotizacionId)
+    .single();
+
+  if (!cot?.agente_id || cot.agente_id === user.id) return;
+
+  const adminServiceSupabase = createAdminServiceClient();
+  const { data: usuario } = await adminServiceSupabase
+    .from("usuarios")
+    .select("rol")
+    .eq("auth_user_id", user.id)
+    .single();
+
+  if (usuario?.rol && ROLES_ADMIN.includes(usuario.rol)) return;
+
+  throw new Error("No tienes permiso para editar esta cotización");
+}
+
 // Recalcula las métricas de un destino concreto dentro de una cotización.
 // Agrupa las líneas activas por servicio_categoria → una fila por (cotizacion, localidad, categoria).
 // Así MP + PC del mismo grupo = 1 fila con las plazas reales, no la suma de alternativas.
@@ -83,7 +113,7 @@ async function getDefaultTipoId(agencyDb: any): Promise<string | null> {
     const agencyDb = await getAgencyDbClient();
     const { data, error } = await agencyDb
       .from("operativa_cotizaciones")
-      .select("*, contabilidad_entidades!contacto(id, nombre), operativa_cotizacion_lineas(id, tipo, descripcion, plazas, noches, neto, pvp, total_neto, total_pvp, checked, opcional, confirmado, maestro_destinos(id, nombre, nombre_comercial, lat, lng), contabilidad_proveedores!proveedor(id, nombre, email), config_tipos_servicios(id, etiqueta, icono, contenido))")
+      .select("*, contabilidad_entidades!contacto(id, nombre), crm_contactos!contacto_persona_id(id, nombre, cargo, email, telefono), operativa_cotizacion_lineas(id, tipo, descripcion, plazas, noches, neto, pvp, total_neto, total_pvp, checked, opcional, confirmado, maestro_destinos(id, nombre, nombre_comercial, lat, lng), contabilidad_proveedores!proveedor(id, nombre, email), config_tipos_servicios(id, etiqueta, icono, contenido))")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -140,15 +170,8 @@ async function getDefaultTipoId(agencyDb: any): Promise<string | null> {
       const total_beneficio = total_ingresos - total_coste;
       const margen_beneficio = total_ingresos > 0 ? (total_beneficio / total_ingresos) * 100 : 0;
 
-      // Extract unique destinations
-      const uniqueDestinosMap = new Map();
-      lineas.forEach((l: any) => {
-        const d = l.maestro_destinos;
-        if (d && d.id) {
-          uniqueDestinosMap.set(d.id, d.nombre_comercial || d.nombre);
-        }
-      });
-      const destinos_unicos = Array.from(uniqueDestinosMap.values());
+      // Destinos de la cotización (los seleccionados arriba en la cabecera), no los de las líneas de servicio
+      const destinos_unicos = (c.destinos || []).map((d: any) => d.nombre).filter(Boolean);
 
       const agent = adminUsers.find(
         (u: any) => u.id === c.agente_id || u.auth_user_id === c.agente_id
@@ -202,7 +225,7 @@ export async function getCotizacionWithLineas(cotizacionId: string) {
 
     const { data: cotizacion, error: err1 } = await agencyDb
       .from("operativa_cotizaciones")
-      .select("*, contabilidad_entidades!contacto(id, nombre)")
+      .select("*, contabilidad_entidades!contacto(id, nombre), crm_contactos!contacto_persona_id(id, nombre, cargo, email, telefono)")
       .eq("id", cotizacionId)
       .single();
 
@@ -332,6 +355,7 @@ export async function createCotizacionLinea(payload: {
 }) {
   try {
     const agencyDb = await getAgencyDbClient();
+    await assertPuedeEditarCotizacion(agencyDb, payload.cotizacion_id);
     const tipoId = payload.tipo?.trim() ? payload.tipo : await getDefaultTipoId(agencyDb);
     if (!tipoId) throw new Error("No hay tipos de servicio disponibles");
 
@@ -386,6 +410,13 @@ export async function updateCotizacionLinea(id: string, payload: {
 }) {
   try {
     const agencyDb = await getAgencyDbClient();
+    const { data: lineaActual } = await agencyDb
+      .from("operativa_cotizacion_lineas")
+      .select("cotizacion_id")
+      .eq("id", id)
+      .single();
+    if (lineaActual?.cotizacion_id) await assertPuedeEditarCotizacion(agencyDb, lineaActual.cotizacion_id);
+
     const updatePayload: any = {};
     if (payload.tipo !== undefined) updatePayload.tipo = payload.tipo;
     if (payload.descripcion !== undefined) updatePayload.descripcion = payload.descripcion;
@@ -514,6 +545,8 @@ export async function deleteCotizacionLinea(id: string) {
       .eq("id", id)
       .single();
 
+    if (linea?.cotizacion_id) await assertPuedeEditarCotizacion(agencyDb, linea.cotizacion_id);
+
     const { error } = await agencyDb
       .from("operativa_cotizacion_lineas")
       .delete()
@@ -534,14 +567,17 @@ export async function deleteCotizacionLinea(id: string) {
   }
 }
 
-export async function updateCotizacionMeta(cotizacionId: string, payload: { titulo?: string; contacto?: string | null; fecha_salida?: string | null; fecha_regreso?: string | null; pvp_viajero?: number | null; plazas?: number | null; free?: number | null }) {
+export async function updateCotizacionMeta(cotizacionId: string, payload: { titulo?: string; contacto?: string | null; contacto_persona_id?: string | null; fecha_salida?: string | null; fecha_regreso?: string | null; pvp_viajero?: number | null; plazas?: number | null; free?: number | null; estado?: "borrador" | "presentada" | "aceptada" | "rechazada" }) {
   try {
     const agencyDb = await getAgencyDbClient();
+    await assertPuedeEditarCotizacion(agencyDb, cotizacionId);
     const { error } = await agencyDb
       .from("operativa_cotizaciones")
       .update(payload)
       .eq("id", cotizacionId);
     if (error) throw error;
+
+    if (payload.estado !== undefined) revalidatePath("/cotizaciones");
 
     // Si cambian plazas o fecha, recalcular métricas de todos los destinos de esta cotización
     if (payload.plazas !== undefined || payload.fecha_salida !== undefined) {
@@ -566,6 +602,7 @@ export async function updateCotizacionMeta(cotizacionId: string, payload: { titu
 export async function addDestinoCotizacion(cotizacionId: string, destino: { id: string; nombre: string }) {
   try {
     const agencyDb = await getAgencyDbClient();
+    await assertPuedeEditarCotizacion(agencyDb, cotizacionId);
     const { data: current, error: fetchError } = await agencyDb
       .from("operativa_cotizaciones")
       .select("destinos")
@@ -593,6 +630,7 @@ export async function addDestinoCotizacion(cotizacionId: string, destino: { id: 
 export async function removeDestinoCotizacion(cotizacionId: string, destinoId: string) {
   try {
     const agencyDb = await getAgencyDbClient();
+    await assertPuedeEditarCotizacion(agencyDb, cotizacionId);
     const { data: current, error: fetchError } = await agencyDb
       .from("operativa_cotizaciones")
       .select("destinos")

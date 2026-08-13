@@ -9,6 +9,8 @@ export interface ViajeroForm {
   email: string;
   telefono: string;
   direccion: string;
+  lat?: number | null;
+  lng?: number | null;
   sexo?: "M" | "F" | null;
   numero_soporte?: string;
   alergias?: string[];
@@ -21,6 +23,8 @@ export interface PagadorForm {
   apellidos: string;
   dni: string;
   direccion: string;
+  lat?: number | null;
+  lng?: number | null;
   email?: string;
   telefono?: string;
 }

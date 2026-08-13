@@ -73,12 +73,13 @@ export async function POST(req: Request) {
     const agencyDb = await getAgencyDbClient();
     const insert: Record<string, any> = { nombre, roles: body.roles ?? { prospecto: true } };
     if (body.tipo_entidad) insert.tipo_entidad = body.tipo_entidad;
+    if (body.tipo_cliente_id) insert.tipo_cliente_id = body.tipo_cliente_id;
     if (body.email) insert.email = String(body.email).trim();
     if (body.telefono) insert.telefono = String(body.telefono).trim();
     if (body.documento) insert.documento = String(body.documento).trim();
     if (body.fecha_nacimiento) insert.fecha_nacimiento = body.fecha_nacimiento;
     if (body.razon_social) insert.razon_social = String(body.razon_social).trim();
-    if (body.direccion) insert.direccion = body.direccion;
+    if (body.direccion) insert.direccion = typeof body.direccion === "string" ? { direccion: body.direccion } : body.direccion;
     if (body.lat != null) insert.lat = body.lat;
     if (body.lng != null) insert.lng = body.lng;
     if (body.metadatos) insert.metadatos = body.metadatos;

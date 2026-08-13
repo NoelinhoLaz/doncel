@@ -18,6 +18,8 @@ type Cliente = {
   sucursal: string | null;
   expedientes: { id: string; numero: string | null; referencia: string }[];
   tipo_entidad?: string | null;
+  tipo_cliente_id?: string | null;
+  tipo_cliente?: { id: string; etiqueta: string } | null;
   direccion?: any;
   otros_tlfs?: string[] | null;
   otros_emails?: string[] | null;
@@ -68,7 +70,11 @@ export default function ClientesPage() {
     return Array.from(labels).sort();
   }, [clientes]);
 
-  const tipoLabel = (t?: string | null) => (t === "empresa" ? "Empresa" : "Persona");
+  const tipoClienteOptions = useMemo(() => {
+    const labels = new Set<string>();
+    clientes.forEach((c) => { if (c.tipo_cliente?.etiqueta) labels.add(c.tipo_cliente.etiqueta); });
+    return Array.from(labels).sort();
+  }, [clientes]);
 
   const filtered = clientes.filter((c) => {
     const q = search.toLowerCase();
@@ -79,7 +85,7 @@ export default function ClientesPage() {
     if (!matchesSearch) return false;
     if (expedienteFilter.length > 0 && !c.expedientes.some((e) => expedienteFilter.includes(expedienteLabel(e)))) return false;
     if (sucursalFilter.length > 0 && !(c.sucursal && sucursalFilter.includes(c.sucursal))) return false;
-    if (tipoFilter.length > 0 && !tipoFilter.includes(tipoLabel(c.tipo_entidad))) return false;
+    if (tipoFilter.length > 0 && !(c.tipo_cliente?.etiqueta && tipoFilter.includes(c.tipo_cliente.etiqueta))) return false;
     return true;
   });
 
@@ -120,7 +126,7 @@ export default function ClientesPage() {
         </div>
         <div style={{ width: 180, flexShrink: 0 }}>
           <MultiSelectDropdown
-            options={["Persona", "Empresa"]}
+            options={tipoClienteOptions}
             selected={tipoFilter}
             onChange={handleTipoFilter}
             placeholder="Todos los tipos"

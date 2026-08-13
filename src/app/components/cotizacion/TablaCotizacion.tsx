@@ -30,6 +30,7 @@ interface Props {
   sidePanel?: ReactNode;
   cotizacionId?: string | null;
   autoOpenSheetsImport?: boolean;
+  readOnly?: boolean;
 }
 
 const fieldStyle: React.CSSProperties = {
@@ -72,7 +73,7 @@ function OpcionalBadge() {
   );
 }
 
-export default function TablaCotizacion({ c, hideHeader, compactHeader, title, sidePanel, cotizacionId, autoOpenSheetsImport }: Props) {
+export default function TablaCotizacion({ c, hideHeader, compactHeader, title, sidePanel, cotizacionId, autoOpenSheetsImport, readOnly }: Props) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [mailModalProveedor, setMailModalProveedor] = useState<{ nombre: string; email: string } | null>(null);
   const [openTipoRowId, setOpenTipoRowId] = useState<string | null>(null);
@@ -408,6 +409,7 @@ export default function TablaCotizacion({ c, hideHeader, compactHeader, title, s
             <button className={styles.actionIconButton} title="Historial de cotizaciones" onClick={() => c.openHistoryModal()}>
               <Icons.History size={16} />
             </button>
+            {!readOnly && (
             <div ref={c.addBtnRef} style={{ position: 'relative' }}>
               <button
                 className={styles.addActionButton}
@@ -468,12 +470,13 @@ export default function TablaCotizacion({ c, hideHeader, compactHeader, title, s
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
       )}
 
       {/* ── Google Sheets Import Modal ─────────────────────────────── */}
-      {showSheetsModal && (
+      {!readOnly && showSheetsModal && (
         <div
           style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(3px)' }}
           onClick={(e) => { if (e.target === e.currentTarget) { setShowSheetsModal(false); setOpenTipoPopupIdx(null); } }}

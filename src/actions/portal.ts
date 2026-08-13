@@ -452,6 +452,8 @@ export async function submitRegistro(payload: {
     email: string;
     telefono: string;
     direccion: string;
+    lat?: number | null;
+    lng?: number | null;
     alergias: string[];
     extras: { id: string; nombre: string; pvp: number; cantidad: number }[];
     tutor?: { nombre: string; telefono: string; email: string } | null;
@@ -461,6 +463,8 @@ export async function submitRegistro(payload: {
     apellidos: string;
     dni: string;
     direccion: string;
+    lat?: number | null;
+    lng?: number | null;
     email?: string;
     telefono?: string;
   };
@@ -494,6 +498,8 @@ export async function submitRegistro(payload: {
       email?: string | null;
       telefono?: string | null;
       direccion?: string | null;
+      lat?: number | null;
+      lng?: number | null;
       metadatos?: Record<string, any>;
       rolNuevo: string;
     }): Promise<string | null> {
@@ -515,7 +521,9 @@ export async function submitRegistro(payload: {
             ...(datos.documento_caducidad && { documento_caducidad: datos.documento_caducidad }),
             ...(datos.email && { email: datos.email }),
             ...(datos.telefono && { telefono: datos.telefono }),
-            ...(datos.direccion && { direccion: datos.direccion }),
+            ...(datos.direccion && { direccion: { direccion: datos.direccion } }),
+            ...(datos.lat != null && { lat: datos.lat }),
+            ...(datos.lng != null && { lng: datos.lng }),
           })
           .eq("id", existing.id);
         return existing.id;
@@ -528,7 +536,9 @@ export async function submitRegistro(payload: {
             documento_caducidad: datos.documento_caducidad || null,
             email: datos.email || null,
             telefono: datos.telefono || null,
-            direccion: datos.direccion || null,
+            direccion: datos.direccion ? { direccion: datos.direccion } : null,
+            lat: datos.lat ?? null,
+            lng: datos.lng ?? null,
             roles: { [datos.rolNuevo]: true },
             metadatos: datos.metadatos || {},
           })
@@ -549,6 +559,8 @@ export async function submitRegistro(payload: {
       email: payload.pagador.email || null,
       telefono: payload.pagador.telefono || null,
       direccion: payload.pagador.direccion || null,
+      lat: payload.pagador.lat ?? null,
+      lng: payload.pagador.lng ?? null,
       rolNuevo: "cliente",
     });
 
@@ -576,6 +588,8 @@ export async function submitRegistro(payload: {
         email: v.email || null,
         telefono: v.telefono || null,
         direccion: v.direccion || null,
+        lat: v.lat ?? null,
+        lng: v.lng ?? null,
         metadatos: Object.keys(metadatosViajero).length ? metadatosViajero : undefined,
         rolNuevo: "viajero",
       });

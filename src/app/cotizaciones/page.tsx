@@ -3,11 +3,11 @@
 import listStyles from "../expedientes/page.module.css";
 import styles from "../expedientes/[id]/page.module.css";
 import { Icons } from "@/lib/icons";
-import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Trash2, UserRound, X, Search, MapPin, SlidersHorizontal, ChevronRight, ChevronDown, Compass, Link2, ClipboardPaste } from "lucide-react";
+import { Copy, Trash2, UserRound, X, Search, MapPin, SlidersHorizontal, ChevronRight, ChevronDown, Compass, Link2, ClipboardPaste, FilePlus, Layers, ListChecks } from "lucide-react";
 import Pagination from "@/app/components/Pagination";
-import { duplicateCotizacion, deleteCotizacion, updateCotizacionLinea, tieneCotizacionPropuestasVinculadas } from "@/actions/cotizaciones";
+import { duplicateCotizacion, deleteCotizacion, updateCotizacionLinea, updateCotizacionMeta, tieneCotizacionPropuestasVinculadas } from "@/actions/cotizaciones";
 import { getCurrentUsuario } from "@/actions/usuarios";
 import TipoIcon from "@/app/components/cotizacion/TipoIcon";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
@@ -30,6 +30,7 @@ export default function CotizacionesPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [duplicating, setDuplicating] = useState<string | null>(null);
   const [duplicarModal, setDuplicarModal] = useState<string | null>(null);
+  const [nuevaCotizacionModal, setNuevaCotizacionModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState<{ id: string; titulo: string } | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [selectedLineIds, setSelectedLineIds] = useState<string[]>([]);
@@ -46,6 +47,9 @@ export default function CotizacionesPage() {
   const [expandedCotizacionIds, setExpandedCotizacionIds] = useState<string[]>([]);
   const [collapsedTipoGroups, setCollapsedTipoGroups] = useState<Set<string>>(new Set());
   const [allServiceTypes, setAllServiceTypes] = useState<any[]>([]);
+  const [estadoPickerRowId, setEstadoPickerRowId] = useState<string | null>(null);
+  const [estadoPickerPos, setEstadoPickerPos] = useState<{ top: number; left: number } | null>(null);
+  const estadoPickerRef = useRef<HTMLDivElement | null>(null);
 
   const toggleExpandCotizacion = (id: string) => {
     if (expandedCotizacionIds.includes(id)) {
@@ -60,6 +64,36 @@ export default function CotizacionesPage() {
     next.has(key) ? next.delete(key) : next.add(key);
     return next;
   });
+
+  const ESTADOS_COTIZACION: { value: "borrador" | "presentada" | "aceptada" | "rechazada"; label: string }[] = [
+    { value: "borrador", label: "Borrador" },
+    { value: "presentada", label: "Presentada" },
+    { value: "aceptada", label: "Aceptada" },
+    { value: "rechazada", label: "Rechazada" },
+  ];
+
+  useEffect(() => {
+    if (!estadoPickerRowId) return;
+    function onDocClick(e: MouseEvent) {
+      if (estadoPickerRef.current && estadoPickerRef.current.contains(e.target as Node)) return;
+      setEstadoPickerRowId(null);
+      setEstadoPickerPos(null);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [estadoPickerRowId]);
+
+  const handleEstadoChange = async (cotizacionId: string, estado: "borrador" | "presentada" | "aceptada" | "rechazada") => {
+    setEstadoPickerRowId(null);
+    setEstadoPickerPos(null);
+    setCotizaciones(prev => prev.map(c => c.id === cotizacionId ? { ...c, estado } : c));
+    try {
+      await updateCotizacionMeta(cotizacionId, { estado });
+    } catch (err) {
+      console.error(err);
+      loadCotizaciones();
+    }
+  };
 
   const loadCotizaciones = () => {
     fetch("/api/cotizaciones")
@@ -122,17 +156,47 @@ export default function CotizacionesPage() {
     setAgenteFilterInicializado(true);
   }, [nombreAgenteActual, agenteOptions, agenteFilterInicializado]);
 
-  const destinoOptions = useMemo(() => {
+  // Normaliza para agrupar variantes de un mismo destino (MADRID / Madrid / Paris / París...)
+  const normalizeDestino = (s: string) =>
+    s.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+  // Mapa clave normalizada -> label a mostrar (la variante más frecuente) y todas las variantes reales
+  const { destinoOptions, destinoVariantesPorClave } = useMemo(() => {
     const names: string[] = [];
-    cotizaciones.forEach((c: any) => {
-      const lineas = c.operativa_cotizacion_lineas || [];
-      lineas.forEach((l: any) => {
-        const destName = l.maestro_destinos ? (l.maestro_destinos.nombre_comercial || l.maestro_destinos.nombre) : "";
-        if (destName) names.push(destName);
+    if (viewMode === "cotizaciones") {
+      cotizaciones.forEach((c: any) => {
+        (c.destinos_unicos || []).forEach((destName: string) => {
+          if (destName) names.push(destName);
+        });
       });
+    } else {
+      cotizaciones.forEach((c: any) => {
+        const lineas = c.operativa_cotizacion_lineas || [];
+        lineas.forEach((l: any) => {
+          const destName = l.maestro_destinos ? (l.maestro_destinos.nombre_comercial || l.maestro_destinos.nombre) : "";
+          if (destName) names.push(destName);
+        });
+      });
+    }
+    const countByVariant = new Map<string, number>();
+    const variantsByKey = new Map<string, Set<string>>();
+    names.forEach(n => {
+      const key = normalizeDestino(n);
+      countByVariant.set(n, (countByVariant.get(n) ?? 0) + 1);
+      const set = variantsByKey.get(key) ?? new Set<string>();
+      set.add(n);
+      variantsByKey.set(key, set);
     });
-    return Array.from(new Set(names)).sort() as string[];
-  }, [cotizaciones]);
+    const labelByKey = new Map<string, string>();
+    variantsByKey.forEach((variants, key) => {
+      const best = Array.from(variants).sort((a, b) => (countByVariant.get(b)! - countByVariant.get(a)!) || a.localeCompare(b))[0];
+      labelByKey.set(key, best);
+    });
+    const options = Array.from(labelByKey.values()).sort() as string[];
+    const variantesPorClave = new Map<string, string[]>();
+    variantsByKey.forEach((variants, key) => variantesPorClave.set(labelByKey.get(key)!, Array.from(variants)));
+    return { destinoOptions: options, destinoVariantesPorClave: variantesPorClave };
+  }, [cotizaciones, viewMode]);
 
   const tipoOptions = useMemo(() => {
     const labels = allLines
@@ -220,18 +284,16 @@ export default function CotizacionesPage() {
       }
       if (agenteFilter.length > 0 && (!c.agente?.nombre || !agenteFilter.includes(c.agente.nombre))) return false;
       if (destinoFilter.length > 0) {
-        const lineas = c.operativa_cotizacion_lineas || [];
-        const hasDest = lineas.some((l: any) => {
-          const destName = l.maestro_destinos ? (l.maestro_destinos.nombre_comercial || l.maestro_destinos.nombre) : "";
-          return destinoFilter.includes(destName);
-        });
-        if (!hasDest) return false;
+        const destinosCotizacion: string[] = c.destinos_unicos || [];
+        if (destinosCotizacion.length === 0) return false;
+        const variantesSeleccionadas = new Set(destinoFilter.flatMap(label => destinoVariantesPorClave.get(label) ?? [label]));
+        if (!destinosCotizacion.some(d => variantesSeleccionadas.has(d))) return false;
       }
       if (fechaDesde && c.fecha_salida && c.fecha_salida < fechaDesde) return false;
       if (fechaHasta && c.fecha_regreso && c.fecha_regreso > fechaHasta) return false;
       return true;
     });
-  }, [cotizaciones, search, agenteFilter, destinoFilter, fechaDesde, fechaHasta]);
+  }, [cotizaciones, search, agenteFilter, destinoFilter, fechaDesde, fechaHasta, destinoVariantesPorClave]);
 
   const filteredLines = useMemo(() => {
     return allLines.filter((l: any) => {
@@ -248,7 +310,8 @@ export default function CotizacionesPage() {
       if (agenteFilter.length > 0 && (!l.agente?.nombre || !agenteFilter.includes(l.agente.nombre))) return false;
       if (destinoFilter.length > 0) {
         const destName = l.maestro_destinos ? (l.maestro_destinos.nombre_comercial || l.maestro_destinos.nombre) : "";
-        if (!destinoFilter.includes(destName)) return false;
+        const variantesSeleccionadas = new Set(destinoFilter.flatMap(label => destinoVariantesPorClave.get(label) ?? [label]));
+        if (!variantesSeleccionadas.has(destName)) return false;
       }
       if (fechaDesde && l.fecha_salida && l.fecha_salida < fechaDesde) return false;
       if (fechaHasta && l.fecha_regreso && l.fecha_regreso > fechaHasta) return false;
@@ -259,7 +322,7 @@ export default function CotizacionesPage() {
       }
       return true;
     });
-  }, [allLines, search, agenteFilter, destinoFilter, fechaDesde, fechaHasta, tipoFilter, estadoFilter, agruparPor]);
+  }, [allLines, search, agenteFilter, destinoFilter, fechaDesde, fechaHasta, tipoFilter, estadoFilter, agruparPor, destinoVariantesPorClave]);
 
   const cotizacionesMapPoints = useMemo(() => {
     const points: any[] = [];
@@ -577,6 +640,69 @@ export default function CotizacionesPage() {
           </div>
         </div>
       )}
+      {nuevaCotizacionModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.35)" }} onClick={() => setNuevaCotizacionModal(false)}>
+          <div style={{ background: "#fff", borderRadius: "0.75rem", width: 460, maxWidth: "95vw", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem 0.75rem", borderBottom: "1px solid #f1f5f9" }}>
+              <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#1e293b" }}>Nueva cotización</span>
+              <button onClick={() => setNuevaCotizacionModal(false)} style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex" }}><X size={16} /></button>
+            </div>
+            <div style={{ padding: "1rem 1.25rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+              <button
+                onClick={async () => {
+                  setNuevaCotizacionModal(false);
+                  try {
+                    const res = await fetch('/api/cotizaciones', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ titulo: 'Cotización' })
+                    });
+                    const j = await res.json();
+                    if (j?.success && j.data?.id) {
+                      router.push(`/cotizaciones/nueva?id=${j.data.id}`);
+                    } else {
+                      alert('Error al crear cotización: ' + (j?.error || 'unknown'));
+                    }
+                  } catch (err: any) {
+                    alert('Error al crear cotización: ' + (err?.message || String(err)));
+                  }
+                }}
+                style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", padding: "0.75rem 0.9rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", textAlign: "left" }}
+                onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")}
+                onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
+              >
+                <FilePlus size={18} style={{ color: "var(--primary-color, #475569)", flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b" }}>Cotización desde cero</div>
+                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Cotización sin servicios de inicio</div>
+                </div>
+              </button>
+
+              <button
+                disabled
+                style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", padding: "0.75rem 0.9rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "not-allowed", textAlign: "left", opacity: 0.6 }}
+              >
+                <Copy size={18} style={{ color: "#64748b", flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b" }}>Duplicar cotización completa</div>
+                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Duplicar todos los servicios de una cotización</div>
+                </div>
+              </button>
+
+              <button
+                disabled
+                style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", padding: "0.75rem 0.9rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "not-allowed", textAlign: "left", opacity: 0.6 }}
+              >
+                <ListChecks size={18} style={{ color: "#64748b", flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b" }}>Cotización a la carta</div>
+                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Seleccionar servicios de varias cotizaciones</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {deleteModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.35)" }} onClick={() => setDeleteModal(null)}>
           <div style={{ background: "#fff", borderRadius: "0.75rem", width: 420, maxWidth: "95vw", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
@@ -785,6 +911,10 @@ export default function CotizacionesPage() {
               className={styles.addActionButton}
               title={viewMode === "lineas" && selectedLineIds.length > 0 ? "Crear cotización con líneas seleccionadas" : "Nueva cotización"}
               onClick={async () => {
+                if (!(viewMode === "lineas" && selectedLineIds.length > 0)) {
+                  setNuevaCotizacionModal(true);
+                  return;
+                }
                 try {
                   const isCopy = viewMode === "lineas" && selectedLineIds.length > 0;
                   const title = isCopy ? 'Nueva Cotización (Copia)' : 'Cotización';
@@ -959,7 +1089,7 @@ export default function CotizacionesPage() {
                       <th style={{ width: 40, paddingLeft: '0.75rem' }} />
                       <th style={{ paddingLeft: "0.5rem" }}>Título</th>
                       <th style={{ width: 60, textAlign: 'center' }} title="Servicios">Serv.</th>
-                      <th style={{ width: 50, textAlign: 'center' }} title="Destinos"><MapPin size={15} style={{ display: 'inline' }} /></th>
+                      <th style={{ width: "140px" }}>Destino</th>
                       <th>Salida</th>
                       <th>Regreso</th>
                       <th style={{ textAlign: "right" }}>PVP Viajero</th>
@@ -1053,25 +1183,31 @@ export default function CotizacionesPage() {
                               {lineas.length}
                             </span>
                           </td>
-                          <td style={{ textAlign: "center" }} onClick={e => e.stopPropagation()}>
+                          <td onClick={e => e.stopPropagation()}>
                             {c.destinos_unicos && c.destinos_unicos.length > 0 ? (
-                              <div 
-                                title={c.destinos_unicos.join(", ")}
-                                style={{ 
-                                  display: "inline-flex", 
-                                  alignItems: "center", 
-                                  gap: "3px", 
-                                  color: "var(--primary-color, #4f46e5)", 
-                                  background: "color-mix(in srgb, var(--primary-color, #6366f1) 12%, transparent)",
-                                  padding: "2px 7px",
-                                  borderRadius: "12px",
-                                  fontSize: "0.72rem",
-                                  fontWeight: 600,
-                                  cursor: "help"
-                                }}
-                              >
-                                <MapPin size={11} />
-                                {c.destinos_unicos.length}
+                              <div style={{ display: "inline-flex", alignItems: "center", gap: "5px", maxWidth: "100%" }}>
+                                <span style={{ fontSize: "0.78rem", color: "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={c.destinos_unicos[0]}>
+                                  {c.destinos_unicos[0]}
+                                </span>
+                                {c.destinos_unicos.length > 1 && (
+                                  <span
+                                    title={c.destinos_unicos.slice(1).join(", ")}
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      color: "var(--primary-color, #4f46e5)",
+                                      background: "color-mix(in srgb, var(--primary-color, #6366f1) 12%, transparent)",
+                                      padding: "1px 6px",
+                                      borderRadius: "10px",
+                                      fontSize: "0.68rem",
+                                      fontWeight: 600,
+                                      cursor: "help",
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    +{c.destinos_unicos.length - 1}
+                                  </span>
+                                )}
                               </div>
                             ) : (
                               <span style={{ color: "#cbd5e1" }}>—</span>
@@ -1118,17 +1254,26 @@ export default function CotizacionesPage() {
                               {formatDate(c.created_at)}
                             </span>
                           </td>
-                          <td>
-                            <span style={{
-                              display: "inline-block",
-                              padding: "0.2rem 0.6rem",
-                              borderRadius: "0.5rem",
-                              fontSize: "0.7rem",
-                              fontWeight: 600,
-                              textTransform: "capitalize",
-                              backgroundColor: ec.bg,
-                              color: ec.color
-                            }}>
+                          <td onClick={(e) => e.stopPropagation()}>
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (estadoPickerRowId === c.id) { setEstadoPickerRowId(null); setEstadoPickerPos(null); return; }
+                                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                setEstadoPickerPos({ top: rect.bottom + 6, left: rect.left });
+                                setEstadoPickerRowId(c.id);
+                              }}
+                              style={{
+                                display: "inline-block",
+                                padding: "0.2rem 0.6rem",
+                                borderRadius: "0.5rem",
+                                fontSize: "0.7rem",
+                                fontWeight: 600,
+                                textTransform: "capitalize",
+                                backgroundColor: ec.bg,
+                                color: ec.color,
+                                cursor: "pointer"
+                              }}>
                               {c.estado || "borrador"}
                             </span>
                           </td>
@@ -1352,6 +1497,40 @@ export default function CotizacionesPage() {
           </>
         )}
       </div>
+      {estadoPickerRowId && estadoPickerPos && (
+        <div
+          ref={estadoPickerRef}
+          style={{
+            position: "fixed", top: estadoPickerPos.top, left: estadoPickerPos.left,
+            background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10,
+            boxShadow: "0 8px 32px rgba(15,23,42,0.14)", zIndex: 99999,
+            minWidth: 150, padding: "0.3rem 0", fontSize: "0.8rem",
+          }}
+        >
+          {ESTADOS_COTIZACION.map(opt => {
+            const cot = cotizaciones.find(c => c.id === estadoPickerRowId);
+            const isSelected = (cot?.estado || "borrador") === opt.value;
+            const oc = estadoColor(opt.value);
+            return (
+              <div
+                key={opt.value}
+                onClick={() => handleEstadoChange(estadoPickerRowId, opt.value)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "0.4rem 0.85rem", cursor: "pointer",
+                  fontWeight: isSelected ? 600 : 400, color: "#1e293b",
+                  background: isSelected ? "#f8fafc" : undefined,
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#f8fafc"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = isSelected ? "#f8fafc" : ""; }}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: oc.color, flexShrink: 0 }} />
+                {opt.label}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -140,10 +140,10 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
     otros_tlfs: (entidad?.otros_tlfs ?? []) as string[],
     email: entidad?.email ?? "",
     otros_emails: (entidad?.otros_emails ?? []) as string[],
-    direccion: entidad?.direccion?.direccion ?? entidad?.direccion?.calle ?? "",
-    ciudad: entidad?.direccion?.ciudad ?? "",
-    provincia: entidad?.direccion?.provincia ?? "",
-    cp: entidad?.direccion?.cp ?? "",
+    direccion: typeof entidad?.direccion === "string" ? entidad.direccion : (entidad?.direccion?.direccion ?? entidad?.direccion?.calle ?? ""),
+    ciudad: typeof entidad?.direccion === "string" ? "" : (entidad?.direccion?.ciudad ?? ""),
+    provincia: typeof entidad?.direccion === "string" ? "" : (entidad?.direccion?.provincia ?? ""),
+    cp: typeof entidad?.direccion === "string" ? "" : (entidad?.direccion?.cp ?? ""),
   });
   const setEF = (k: keyof typeof entidadForm) => (e: React.ChangeEvent<HTMLInputElement>) => setEntidadForm(p => ({ ...p, [k]: e.target.value }));
 
@@ -171,15 +171,24 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
     } catch { } finally { setSavingNombre(false); }
   }
 
-  // Edición de datos del cliente (NIF/CIF, fecha de nacimiento)
+  // Edición de datos del cliente (NIF/CIF, fecha de nacimiento, tipo de cliente)
   const [editingDatosCliente, setEditingDatosCliente] = useState(false);
   const [hoveredDatosCliente, setHoveredDatosCliente] = useState(false);
   const [savingDatosCliente, setSavingDatosCliente] = useState(false);
+  const [tiposCliente, setTiposCliente] = useState<{ id: string; etiqueta: string }[]>([]);
   const [datosClienteForm, setDatosClienteForm] = useState({
     documento: entidad?.documento ?? "",
     fecha_nacimiento: entidad?.fecha_nacimiento ?? "",
+    tipo_cliente_id: entidad?.tipo_cliente_id ?? "",
   });
-  const setDCF = (k: keyof typeof datosClienteForm) => (e: React.ChangeEvent<HTMLInputElement>) => setDatosClienteForm(p => ({ ...p, [k]: e.target.value }));
+  const setDCF = (k: "documento" | "fecha_nacimiento") => (e: React.ChangeEvent<HTMLInputElement>) => setDatosClienteForm(p => ({ ...p, [k]: e.target.value }));
+
+  useEffect(() => {
+    fetch("/api/config/tipos-cliente")
+      .then(r => r.json())
+      .then(json => { if (json?.success) setTiposCliente(json.data ?? []); })
+      .catch(() => {});
+  }, []);
 
   async function guardarDatosCliente() {
     setSavingDatosCliente(true);
@@ -190,9 +199,17 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
         body: JSON.stringify({
           documento: datosClienteForm.documento || null,
           fecha_nacimiento: datosClienteForm.fecha_nacimiento || null,
+          tipo_cliente_id: datosClienteForm.tipo_cliente_id || null,
         }),
       });
-      const updated = { ...entidadLocal, documento: datosClienteForm.documento || null, fecha_nacimiento: datosClienteForm.fecha_nacimiento || null };
+      const tipoSeleccionado = tiposCliente.find(t => t.id === datosClienteForm.tipo_cliente_id) ?? null;
+      const updated = {
+        ...entidadLocal,
+        documento: datosClienteForm.documento || null,
+        fecha_nacimiento: datosClienteForm.fecha_nacimiento || null,
+        tipo_cliente_id: datosClienteForm.tipo_cliente_id || null,
+        config_tipos_cliente: tipoSeleccionado,
+      };
       setEntidadLocal(updated);
       onEntidadUpdated?.(updated);
       setEditingDatosCliente(false);
@@ -445,7 +462,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
         <div style={{ padding: "1.25rem 1.25rem 1rem", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: "0.65rem", fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
-              {entidadLocal.tipo_entidad ?? "Entidad"}
+              {entidadLocal.config_tipos_cliente?.etiqueta ?? entidadLocal.tipo_entidad ?? "Entidad"}
             </div>
             {editingNombre ? (
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -565,6 +582,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
                     setDatosClienteForm({
                       documento: entidadLocal.documento ?? "",
                       fecha_nacimiento: entidadLocal.fecha_nacimiento ?? "",
+                      tipo_cliente_id: entidadLocal.tipo_cliente_id ?? "",
                     });
                     setEditingDatosCliente(true);
                   }}
@@ -579,8 +597,23 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
               <div style={{ border: "1.5px solid var(--primary-color, #475569)", borderRadius: "0.75rem", padding: "1rem", background: "#fff", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                 <div style={{ display: "flex", gap: "0.6rem" }}>
                   <div style={{ flex: 1 }}>
-                    <label style={lbl}>{entidadLocal.tipo_entidad === "empresa" ? "CIF" : "NIF"}</label>
-                    <input value={datosClienteForm.documento} onChange={setDCF("documento")} style={inp} placeholder={entidadLocal.tipo_entidad === "empresa" ? "B12345678" : "12345678A"} />
+                    <label style={lbl}>Tipo de cliente</label>
+                    <select
+                      value={datosClienteForm.tipo_cliente_id}
+                      onChange={e => setDatosClienteForm(p => ({ ...p, tipo_cliente_id: e.target.value }))}
+                      style={inp}
+                    >
+                      <option value="">Sin especificar</option>
+                      {tiposCliente.map(t => (
+                        <option key={t.id} value={t.id}>{t.etiqueta}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "0.6rem" }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={lbl}>NIF/CIF</label>
+                    <input value={datosClienteForm.documento} onChange={setDCF("documento")} style={inp} placeholder="12345678A / B12345678" />
                   </div>
                   <div style={{ flex: 1 }}>
                     <label style={lbl}>Fecha de nacimiento</label>
@@ -597,7 +630,13 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
             ) : (
               <div style={{ display: "flex", flexWrap: "wrap", gap: "1.25rem", fontSize: "0.8rem" }}>
                 <div>
-                  <div style={{ fontSize: "0.62rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>{entidadLocal.tipo_entidad === "empresa" ? "CIF" : "NIF"}</div>
+                  <div style={{ fontSize: "0.62rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Tipo de cliente</div>
+                  <div style={{ color: entidadLocal.config_tipos_cliente?.etiqueta ? "#1e293b" : "#94a3b8", fontStyle: entidadLocal.config_tipos_cliente?.etiqueta ? "normal" : "italic" }}>
+                    {entidadLocal.config_tipos_cliente?.etiqueta ?? "Sin especificar"}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.62rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>NIF/CIF</div>
                   <div style={{ color: entidadLocal.documento ? "#1e293b" : "#94a3b8", fontStyle: entidadLocal.documento ? "normal" : "italic" }}>{entidadLocal.documento ?? "Sin especificar"}</div>
                 </div>
                 <div>
@@ -750,7 +789,8 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
                   )
                 }
                 <div style={{ fontSize: "0.82rem", color: "#334155", lineHeight: 1.6, flex: 1 }}>
-                  {dir && Object.entries(dir).filter(([, v]) => v).map(([k, v]) => (
+                  {dir && typeof dir === "string" && <div>{dir}</div>}
+                  {dir && typeof dir === "object" && Object.entries(dir).filter(([, v]) => v).map(([k, v]) => (
                     <div key={k}><span style={{ color: "#94a3b8", fontSize: "0.72rem" }}>{k}: </span>{String(v)}</div>
                   ))}
                   {entidadLocal.telefono && (

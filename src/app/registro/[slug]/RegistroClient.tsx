@@ -26,6 +26,9 @@ import {
   Mars,
   Venus,
   CircleDashed,
+  Search,
+  Loader2,
+  X,
 } from "lucide-react";
 import type {
   ViajeInfo,
@@ -33,6 +36,7 @@ import type {
   PagadorForm,
   ExtraSeleccionado,
 } from "@/types/registro";
+import { searchNominatim, type NominatimResult } from "@/actions/nominatim";
 import styles from "./registro.module.css";
 import chatStyles from "./chat.module.css";
 
@@ -673,6 +677,8 @@ function ChatRegistro({
         email: v.email,
         telefono: v.telefono,
         direccion: v.direccion,
+        lat: v.lat ?? null,
+        lng: v.lng ?? null,
         alergias: v.alergias ?? [],
         extras: (v.extras ?? []).map((e) => ({
           id: e.id,
@@ -1488,6 +1494,7 @@ function WidgetDatosPagador({ prefill, onSubmit }: { prefill?: PagadorForm; onSu
   const [provincia, setProvincia] = useState("");
   const [sugerencias, setSugerencias] = useState<{ id: string; texto: string; subtexto: string }[]>([]);
   const [cargando, setCargando] = useState(false);
+  const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>({ lat: prefill?.lat ?? null, lng: prefill?.lng ?? null });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipRef = useRef(false);
 
@@ -1520,6 +1527,7 @@ function WidgetDatosPagador({ prefill, onSubmit }: { prefill?: PagadorForm; onSu
       if (det?.postalCode) setCp(det.postalCode);
       if (det?.locality) setLocalidad(det.locality);
       if (det?.adminAreaL2 || det?.adminAreaL1) setProvincia(det.adminAreaL2 || det.adminAreaL1 || "");
+      setCoords({ lat: det?.lat ?? null, lng: det?.lng ?? null });
     } catch { /* usa valores del texto */ }
   }
 
@@ -1558,7 +1566,7 @@ function WidgetDatosPagador({ prefill, onSubmit }: { prefill?: PagadorForm; onSu
       <button
         className={[chatStyles.sendBtn, valido ? chatStyles.sendBtnActive : ""].join(" ")}
         disabled={!valido}
-        onClick={() => onSubmit({ nombre: nombre.trim(), apellidos: apellidos.trim(), dni: dni.trim(), direccion: direccionFinal, email: email.trim(), telefono: telefono.trim() })}
+        onClick={() => onSubmit({ nombre: nombre.trim(), apellidos: apellidos.trim(), dni: dni.trim(), direccion: direccionFinal, lat: coords.lat, lng: coords.lng, email: email.trim(), telefono: telefono.trim() })}
       >
         <Check size={14} /> Confirmar datos de facturación
       </button>
@@ -2147,6 +2155,14 @@ function FormularioClasico({
     });
   }
 
+  function actualizarViajeroDireccion(index: number, direccion: string, lat: number | null, lng: number | null) {
+    setViajeros((prev) => {
+      const copia = [...prev];
+      copia[index] = { ...copia[index], direccion, lat, lng };
+      return copia;
+    });
+  }
+
   function agregarViajero() {
     setViajeros((prev) => [...prev, { ...VIAJERO_VACIO }]);
     setViajeroActivo(viajeros.length);
@@ -2250,6 +2266,8 @@ function FormularioClasico({
         email: v.email,
         telefono: v.telefono,
         direccion: v.direccion,
+        lat: v.lat ?? null,
+        lng: v.lng ?? null,
         alergias: v.alergias ?? [],
         extras: (v.extras ?? []).map((e) => ({
           id: e.id,
@@ -2327,7 +2345,7 @@ function FormularioClasico({
 
       <div className={styles.contentWrap}>
         {paso === "viajeros" && (
-          <PasoViajeros viajeros={viajeros} viajeroActivo={viajeroActivo} setViajeroActivo={setViajeroActivo} actualizarViajero={actualizarViajero} agregarViajero={agregarViajero} eliminarViajero={eliminarViajero} errores={errores} />
+          <PasoViajeros viajeros={viajeros} viajeroActivo={viajeroActivo} setViajeroActivo={setViajeroActivo} actualizarViajero={actualizarViajero} actualizarViajeroDireccion={actualizarViajeroDireccion} agregarViajero={agregarViajero} eliminarViajero={eliminarViajero} errores={errores} />
         )}
         {paso === "pagador" && (
           <PasoPagador pagador={pagador} setPagador={setPagador} viajeros={viajeros} copiarDatosViajero={copiarDatosViajeroAPagador} errores={errores} />
@@ -2358,9 +2376,10 @@ function FormularioClasico({
 
 // ── Sub-pasos del formulario clásico ─────────────────────────────────────────
 
-function PasoViajeros({ viajeros, viajeroActivo, setViajeroActivo, actualizarViajero, agregarViajero, eliminarViajero, errores }: {
+function PasoViajeros({ viajeros, viajeroActivo, setViajeroActivo, actualizarViajero, actualizarViajeroDireccion, agregarViajero, eliminarViajero, errores }: {
   viajeros: ViajeroForm[]; viajeroActivo: number; setViajeroActivo: (i: number) => void;
   actualizarViajero: (i: number, campo: keyof ViajeroForm, valor: string) => void;
+  actualizarViajeroDireccion: (i: number, direccion: string, lat: number | null, lng: number | null) => void;
   agregarViajero: () => void; eliminarViajero: (i: number) => void; errores: Record<string, string>;
 }) {
   return (
@@ -2402,7 +2421,14 @@ function PasoViajeros({ viajeros, viajeroActivo, setViajeroActivo, actualizarVia
             <Campo label="Email" tipo="email" placeholder="correo@ejemplo.com" valor={v.email} onChange={(val) => actualizarViajero(i, "email", val)} />
             <Campo label="Teléfono" tipo="tel" placeholder="+34 600 000 000" valor={v.telefono} onChange={(val) => actualizarViajero(i, "telefono", val)} />
           </div>
-          <Campo label="Dirección" placeholder="Calle, número, ciudad" valor={v.direccion} onChange={(val) => actualizarViajero(i, "direccion", val)} />
+          <CampoDireccionNominatim
+            label="Dirección"
+            valor={v.direccion}
+            lat={v.lat}
+            lng={v.lng}
+            onSeleccionar={(direccion, lat, lng) => actualizarViajeroDireccion(i, direccion, lat, lng)}
+            onLimpiar={() => actualizarViajeroDireccion(i, "", null, null)}
+          />
         </div>
       ))}
       <button className={styles.btnAnadirViajero} onClick={agregarViajero}>+ Añadir otro viajero</button>
@@ -2433,7 +2459,16 @@ function PasoPagador({ pagador, setPagador, viajeros, copiarDatosViajero, errore
         <Campo label="Apellidos" obligatorio valor={pagador.apellidos} onChange={(val) => setPagador({ ...pagador, apellidos: val })} error={errores["p_apellidos"]} />
       </div>
       <Campo label="DNI / NIF" obligatorio placeholder="12345678Z" valor={pagador.dni} onChange={(val) => setPagador({ ...pagador, dni: val })} error={errores["p_dni"]} />
-      <Campo label="Dirección completa" obligatorio placeholder="Calle, número, código postal, ciudad" valor={pagador.direccion} onChange={(val) => setPagador({ ...pagador, direccion: val })} error={errores["p_direccion"]} />
+      <CampoDireccionNominatim
+        label="Dirección completa"
+        obligatorio
+        valor={pagador.direccion}
+        lat={pagador.lat}
+        lng={pagador.lng}
+        onSeleccionar={(direccion, lat, lng) => setPagador({ ...pagador, direccion, lat, lng })}
+        onLimpiar={() => setPagador({ ...pagador, direccion: "", lat: null, lng: null })}
+        error={errores["p_direccion"]}
+      />
     </section>
   );
 }
@@ -2562,6 +2597,123 @@ function Campo({ label, valor, onChange, tipo = "text", placeholder, obligatorio
       <label className={styles.campoLabel}>{label}{obligatorio && <span className={styles.campoObl}> *</span>}</label>
       <input type={tipo} value={valor} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
         className={[styles.campoInput, error ? styles.campoInputError : ""].join(" ")} />
+      {error && <p className={styles.errorMsg}>{error}</p>}
+    </div>
+  );
+}
+
+function normalizarCalleNominatim(displayName: string) {
+  const partes = displayName.split(",").map((s) => s.trim());
+  const numero = /^\d+[a-zA-Z]?$/.test(partes[0]) ? partes[0] : "";
+  const calle = numero ? partes[1] : partes[0];
+  const calleConNumero = numero ? `${calle} ${numero}` : calle;
+  const resto = partes.slice(numero ? 2 : 1);
+  return { calleConNumero, display: [calleConNumero, ...resto].filter(Boolean).join(", ") };
+}
+
+// Campo de dirección con autocompletado vía Nominatim/OpenStreetMap, igual que
+// en NuevoClientePanel: no se permite texto libre, hay que elegir un resultado.
+function CampoDireccionNominatim({ label, valor, lat, lng, onSeleccionar, onLimpiar, obligatorio = false, error }: {
+  label: string;
+  valor: string;
+  lat?: number | null;
+  lng?: number | null;
+  onSeleccionar: (direccionTexto: string, lat: number, lng: number) => void;
+  onLimpiar: () => void;
+  obligatorio?: boolean;
+  error?: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [resultados, setResultados] = useState<NominatimResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const seleccionado = !!(lat && lng);
+
+  useEffect(() => {
+    if (query.trim().length < 3) { setResultados([]); return; }
+    setLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await searchNominatim(query);
+        setResultados(res);
+        setShowDropdown(true);
+      } catch {
+        setResultados([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const seleccionar = (item: NominatimResult) => {
+    const { calleConNumero, display } = normalizarCalleNominatim(item.displayName);
+    onSeleccionar(calleConNumero || display, item.lat, item.lng);
+    setQuery("");
+    setResultados([]);
+    setShowDropdown(false);
+  };
+
+  return (
+    <div className={styles.campoWrap} style={{ position: "relative" }}>
+      <label className={styles.campoLabel}>{label}{obligatorio && <span className={styles.campoObl}> *</span>}</label>
+      {seleccionado ? (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8, padding: "0.6rem 0.75rem",
+          border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafc", fontSize: "0.85rem",
+        }}>
+          <MapPin size={14} style={{ color: "#64748b", flexShrink: 0 }} />
+          <span style={{ flex: 1, color: "#1e293b" }}>{valor}</span>
+          <button type="button" onClick={onLimpiar} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", display: "flex" }}>
+            <X size={14} />
+          </button>
+        </div>
+      ) : (
+        <div style={{ position: "relative" }}>
+          <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => { if (resultados.length > 0) setShowDropdown(true); }}
+            placeholder="Busca tu calle y número..."
+            className={[styles.campoInput, error ? styles.campoInputError : ""].join(" ")}
+            style={{ paddingLeft: "2rem" }}
+          />
+          {loading && <Loader2 size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", animation: "spin 0.8s linear infinite" }} />}
+          {showDropdown && resultados.length > 0 && (
+            <div style={{
+              position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 50,
+              background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8,
+              boxShadow: "0 8px 24px rgba(15,23,42,0.12)", maxHeight: 220, overflowY: "auto",
+            }}>
+              {resultados.map((item) => (
+                <button
+                  key={`${item.osmType}-${item.osmId}`}
+                  type="button"
+                  onClick={() => seleccionar(item)}
+                  style={{
+                    display: "block", width: "100%", textAlign: "left", padding: "0.5rem 0.75rem",
+                    border: "none", borderBottom: "1px solid #f1f5f9", background: "none", cursor: "pointer",
+                  }}
+                >
+                  <div style={{ fontWeight: 600, fontSize: "0.82rem", color: "#1e293b" }}>{item.city || item.state || item.displayName.split(",")[0]}</div>
+                  <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>{item.displayName}</div>
+                </button>
+              ))}
+            </div>
+          )}
+          {showDropdown && !loading && query.trim().length >= 3 && resultados.length === 0 && (
+            <div style={{
+              position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 50,
+              background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8,
+              padding: "0.5rem 0.75rem", fontSize: "0.78rem", color: "#94a3b8",
+            }}>
+              Sin resultados
+            </div>
+          )}
+        </div>
+      )}
       {error && <p className={styles.errorMsg}>{error}</p>}
     </div>
   );
