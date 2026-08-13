@@ -374,7 +374,7 @@ export async function getOportunidades(campanaId?: string) {
       *,
       crm_campanas_estados(id, nombre, color, es_final, es_ganado),
       crm_agentes(id, nombre, apellidos, avatar_url),
-      contabilidad_entidades!entidad_id(id, nombre, tipo_entidad, email, telefono, otros_tlfs, otros_emails, lat, lng, direccion, crm_contactos!entidad_id(id, nombre, cargo, telefono, email, metadatos)),
+      contabilidad_entidades!entidad_id(id, nombre, tipo_entidad, email, telefono, otros_tlfs, otros_emails, lat, lng, direccion, agente_id, documento, fecha_nacimiento, created_at, crm_agentes:agente_id(id, nombre, apellidos, avatar_url), crm_contactos!entidad_id(id, nombre, cargo, telefono, email, metadatos)),
       crm_contactos!contacto_id(id, nombre, cargo, email, telefono)
     `)
     .order("created_at", { ascending: false });
@@ -896,7 +896,20 @@ export async function getAgentes() {
     .eq("activo", true)
     .order("nombre", { ascending: true });
   if (error) throw error;
-  return data ?? [];
+
+  const { data: configUsuarios } = await agencyDb
+    .from("config_usuarios")
+    .select("usuario_id, oficina");
+  const { data: oficinas } = await agencyDb
+    .from("config_oficinas")
+    .select("id, nombre");
+  const oficinaNombrePorId = new Map((oficinas ?? []).map((o: any) => [o.id, o.nombre]));
+  const oficinaIdPorAgente = new Map((configUsuarios ?? []).map((cu: any) => [cu.usuario_id, cu.oficina]));
+
+  return (data ?? []).map((a: any) => {
+    const oficinaId = oficinaIdPorAgente.get(a.id);
+    return { ...a, sucursal: oficinaId ? (oficinaNombrePorId.get(oficinaId) ?? null) : null };
+  });
 }
 
 // ─── Historial completo de una entidad (todas sus campañas) ──────────────────
@@ -919,7 +932,7 @@ export async function getEntidadHistorial(entidadId: string) {
 
 export async function getEntidadResumen(entidadId: string) {
   const agencyDb = await getAgencyDbClient();
-  const [presupuestosRes, expedientesRes, cotizacionesDirectasRes] = await Promise.all([
+  const [presupuestosRes, expedientesRes, cotizacionesDirectasRes, viajeroRows, tutorRows, pagadorRows] = await Promise.all([
     agencyDb
       .from("operativa_presupuestos")
       .select("id, titulo_viaje, estado, tipo_presupuesto, pvp_estimado, fecha_salida_estimada, created_at")
@@ -927,7 +940,7 @@ export async function getEntidadResumen(entidadId: string) {
       .order("created_at", { ascending: false }),
     agencyDb
       .from("operativa_expedientes")
-      .select("id, numero, referencia, estado, fecha_inicio, fecha_fin, pvp_total, created_at, operativa_cotizaciones(id, titulo, estado, pvp_viajero, plazas, total_ingresos, fecha_salida, created_at)")
+      .select("id, numero, referencia, estado, fecha_inicio, fecha_fin, pvp_total, created_at, contabilidad_entidades(nombre), operativa_cotizaciones(id, titulo, estado, pvp_viajero, plazas, total_ingresos, fecha_salida, created_at)")
       .eq("entidad_id", entidadId)
       .order("created_at", { ascending: false }),
     agencyDb
@@ -935,8 +948,41 @@ export async function getEntidadResumen(entidadId: string) {
       .select("id, titulo, estado, pvp_viajero, plazas, total_ingresos, fecha_salida, created_at")
       .eq("contacto", entidadId)
       .order("created_at", { ascending: false }),
+    agencyDb.from("operativa_viajeros_expedientes").select("expediente_id").eq("entidad_id", entidadId),
+    agencyDb.from("operativa_viajeros_expedientes").select("expediente_id").eq("tutor_id", entidadId),
+    agencyDb.from("operativa_pagadores_expedientes").select("expediente_id").eq("entidad_id", entidadId),
   ]);
-  const expedientes = expedientesRes.data ?? [];
+
+  const expedientesPrincipal = expedientesRes.data ?? [];
+  const idsViajero = new Set((viajeroRows.data ?? []).map((r: any) => r.expediente_id));
+  const idsTutor = new Set((tutorRows.data ?? []).map((r: any) => r.expediente_id));
+  const idsPagador = new Set((pagadorRows.data ?? []).map((r: any) => r.expediente_id));
+  const idsAdicionales = [...new Set([...idsViajero, ...idsTutor, ...idsPagador])]
+    .filter((id: string) => !expedientesPrincipal.some((e: any) => e.id === id));
+
+  let expedientesAdicionales: any[] = [];
+  if (idsAdicionales.length > 0) {
+    const { data } = await agencyDb
+      .from("operativa_expedientes")
+      .select("id, numero, referencia, estado, fecha_inicio, fecha_fin, pvp_total, created_at, contabilidad_entidades(nombre), operativa_cotizaciones(id, titulo, estado, pvp_viajero, plazas, total_ingresos, fecha_salida, created_at)")
+      .in("id", idsAdicionales)
+      .order("created_at", { ascending: false });
+    expedientesAdicionales = data ?? [];
+  }
+
+  const rolesPorExpediente = (id: string) => {
+    const roles: string[] = [];
+    if (expedientesPrincipal.some((e: any) => e.id === id)) roles.push("Contacto");
+    if (idsPagador.has(id)) roles.push("Cliente");
+    if (idsViajero.has(id)) roles.push("Viajero");
+    if (idsTutor.has(id)) roles.push("Tutor");
+    return roles;
+  };
+
+  const expedientes = [...expedientesPrincipal, ...expedientesAdicionales]
+    .map((e: any) => ({ ...e, roles: rolesPorExpediente(e.id) }))
+    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
   const cotizacionesDeExpedientes = expedientes.flatMap((e: any) =>
     (e.operativa_cotizaciones ?? []).map((c: any) => ({ ...c, expediente_ref: e.numero || e.referencia?.slice(0, 20) }))
   );

@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS contabilidad_entidades (
     razon_social        VARCHAR(255),
     documento           VARCHAR(20),
     documento_caducidad DATE,
+    fecha_nacimiento    DATE,
     email               VARCHAR(255),
     telefono            VARCHAR(20),
     otros_tlfs          JSONB NULL,

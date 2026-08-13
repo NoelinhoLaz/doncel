@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { X, Pencil, Plus, Phone, Mail, Info, Building2, Rocket } from "lucide-react";
+import { X, Pencil, Plus, Phone, Mail, Info, Building2, Rocket, IdCard } from "lucide-react";
 import { EntidadDetalle, CampanaHistorialRow } from "../types";
 import { EMPTY_CONTACTO_FORM, lbl, inp, th, td } from "../constants";
 import { getEntidadHistorial, getEntidadResumen } from "@/actions/crm";
@@ -46,6 +46,59 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
   const [agentePickerPos, setAgentePickerPos] = useState<{ top: number; left: number } | null>(null);
   const agentePickerRef = useRef<HTMLDivElement | null>(null);
 
+  // Picker de agente asignado a la entidad (cliente)
+  const [showEntidadAgentePicker, setShowEntidadAgentePicker] = useState(false);
+  const [agentesAgencia, setAgentesAgencia] = useState<{ id: string; nombre: string; apellidos: string; avatar_url: string | null; sucursal?: string | null }[]>([]);
+  const [loadingAgentesAgencia, setLoadingAgentesAgencia] = useState(false);
+  const entidadAgenteRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    fetch("/api/crm/agentes")
+      .then(r => r.json())
+      .then(json => { if (json?.success) setAgentesAgencia(json.data ?? []); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!showEntidadAgentePicker) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (entidadAgenteRef.current && !entidadAgenteRef.current.contains(e.target as Node)) {
+        setShowEntidadAgentePicker(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showEntidadAgentePicker]);
+
+  async function abrirEntidadAgentePicker() {
+    if (showEntidadAgentePicker) { setShowEntidadAgentePicker(false); return; }
+    setShowEntidadAgentePicker(true);
+    if (agentesAgencia.length === 0) {
+      setLoadingAgentesAgencia(true);
+      try {
+        const res = await fetch("/api/crm/agentes");
+        const json = await res.json();
+        if (json?.success) setAgentesAgencia(json.data ?? []);
+      } catch { /* noop */ } finally { setLoadingAgentesAgencia(false); }
+    }
+  }
+
+
+  async function handleEntidadAgenteChange(agenteId: string | null) {
+    setShowEntidadAgentePicker(false);
+    const ag = agenteId ? agentesAgencia.find(a => a.id === agenteId) ?? null : null;
+    const updated = { ...entidadLocal, agente_id: agenteId, crm_agentes: ag };
+    setEntidadLocal(updated);
+    onEntidadUpdated?.(updated);
+    try {
+      await fetch(`/api/crm/entidades/${entidadLocal.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agente_id: agenteId }),
+      });
+    } catch { /* noop */ }
+  }
+
   useEffect(() => {
     if (!agentePickerRowId) return;
     function onDocClick(e: MouseEvent) {
@@ -78,6 +131,9 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
   const [editingEntidad, setEditingEntidad] = useState(false);
   const [savingEntidad, setSavingEntidad] = useState(false);
   const [entidadLocal, setEntidadLocal] = useState<any>(entidad);
+  const entidadAgenteSucursal = entidadLocal.crm_agentes
+    ? (agentesAgencia.find(a => a.id === entidadLocal.crm_agentes.id)?.sucursal ?? entidadLocal.crm_agentes.sucursal ?? null)
+    : null;
   const [entidadForm, setEntidadForm] = useState({
     nombre: entidad?.nombre ?? "",
     telefono: entidad?.telefono ?? "",
@@ -90,6 +146,58 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
     cp: entidad?.direccion?.cp ?? "",
   });
   const setEF = (k: keyof typeof entidadForm) => (e: React.ChangeEvent<HTMLInputElement>) => setEntidadForm(p => ({ ...p, [k]: e.target.value }));
+
+  // Edición inline del nombre en el header
+  const [editingNombre, setEditingNombre] = useState(false);
+  const [nombreDraft, setNombreDraft] = useState(entidad?.nombre ?? "");
+  const [savingNombre, setSavingNombre] = useState(false);
+
+  async function guardarNombre() {
+    const nuevoNombre = nombreDraft.trim();
+    if (!nuevoNombre || nuevoNombre === entidadLocal.nombre) { setEditingNombre(false); return; }
+    setSavingNombre(true);
+    try {
+      await fetch(`/api/crm/entidades/${entidadLocal.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre: nuevoNombre }),
+      });
+      const updated = { ...entidadLocal, nombre: nuevoNombre };
+      setEntidadLocal(updated);
+      onEntidadUpdated?.(updated);
+      setEditingEntidad(false);
+      setEntidadForm(p => ({ ...p, nombre: nuevoNombre }));
+      setEditingNombre(false);
+    } catch { } finally { setSavingNombre(false); }
+  }
+
+  // Edición de datos del cliente (NIF/CIF, fecha de nacimiento)
+  const [editingDatosCliente, setEditingDatosCliente] = useState(false);
+  const [hoveredDatosCliente, setHoveredDatosCliente] = useState(false);
+  const [savingDatosCliente, setSavingDatosCliente] = useState(false);
+  const [datosClienteForm, setDatosClienteForm] = useState({
+    documento: entidad?.documento ?? "",
+    fecha_nacimiento: entidad?.fecha_nacimiento ?? "",
+  });
+  const setDCF = (k: keyof typeof datosClienteForm) => (e: React.ChangeEvent<HTMLInputElement>) => setDatosClienteForm(p => ({ ...p, [k]: e.target.value }));
+
+  async function guardarDatosCliente() {
+    setSavingDatosCliente(true);
+    try {
+      await fetch(`/api/crm/entidades/${entidadLocal.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          documento: datosClienteForm.documento || null,
+          fecha_nacimiento: datosClienteForm.fecha_nacimiento || null,
+        }),
+      });
+      const updated = { ...entidadLocal, documento: datosClienteForm.documento || null, fecha_nacimiento: datosClienteForm.fecha_nacimiento || null };
+      setEntidadLocal(updated);
+      onEntidadUpdated?.(updated);
+      setEditingDatosCliente(false);
+    } catch { } finally { setSavingDatosCliente(false); }
+  }
 
   // Modal Places
   const [showPlaces, setShowPlaces] = useState(false);
@@ -339,9 +447,100 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
             <div style={{ fontSize: "0.65rem", fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
               {entidadLocal.tipo_entidad ?? "Entidad"}
             </div>
-            <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#1e293b", lineHeight: 1.3, margin: 0, wordBreak: "break-word" }}>
-              {entidadLocal.nombre}
-            </h2>
+            {editingNombre ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <input
+                  autoFocus
+                  value={nombreDraft}
+                  onChange={e => setNombreDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") guardarNombre(); if (e.key === "Escape") { setNombreDraft(entidadLocal.nombre ?? ""); setEditingNombre(false); } }}
+                  disabled={savingNombre}
+                  style={{ fontSize: "1rem", fontWeight: 700, color: "#1e293b", border: "1.5px solid var(--primary-color, #475569)", borderRadius: 6, padding: "0.15rem 0.4rem", flex: 1, minWidth: 0 }}
+                />
+                <button type="button" onClick={guardarNombre} disabled={savingNombre} style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 22, padding: "0 0.5rem", border: "none", borderRadius: 5, background: "var(--primary-color, #475569)", color: "#fff", cursor: "pointer", flexShrink: 0, fontSize: "0.7rem", fontWeight: 600 }}>
+                  Ok
+                </button>
+              </div>
+            ) : (
+              <h2
+                onClick={() => { setNombreDraft(entidadLocal.nombre ?? ""); setEditingNombre(true); }}
+                onMouseEnter={() => setHoveredEntidad(true)}
+                onMouseLeave={() => setHoveredEntidad(false)}
+                style={{ fontSize: "1rem", fontWeight: 700, color: "#1e293b", lineHeight: 1.3, margin: 0, wordBreak: "break-word", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
+              >
+                {entidadLocal.nombre}
+                <Pencil size={11} style={{ color: "#94a3b8", opacity: hoveredEntidad ? 1 : 0, transition: "opacity 0.12s", flexShrink: 0 }} />
+              </h2>
+            )}
+            <div ref={entidadAgenteRef} style={{ position: "relative", marginTop: 6 }}>
+              <div
+                onClick={abrirEntidadAgentePicker}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", padding: "2px 4px", marginLeft: -4, borderRadius: 6 }}
+                onMouseEnter={e => (e.currentTarget.style.background = "#f1f5f9")}
+                onMouseLeave={e => (e.currentTarget.style.background = "")}
+              >
+                <IdCard size={15} color="#64748b" style={{ flexShrink: 0 }} />
+                {entidadLocal.crm_agentes ? (
+                  <span style={{ fontSize: "0.72rem", color: "#64748b" }}>
+                    <strong style={{ color: "#334155" }}>{entidadLocal.crm_agentes.nombre} {entidadLocal.crm_agentes.apellidos}</strong>
+                    {entidadAgenteSucursal && <> / {entidadAgenteSucursal}</>}
+                  </span>
+                ) : (
+                  <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontStyle: "italic" }}>Sin agente asignado</span>
+                )}
+              </div>
+
+              {showEntidadAgentePicker && (
+                <div
+                  style={{
+                    position: "absolute", top: "100%", left: -4, marginTop: 4,
+                    background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10,
+                    boxShadow: "0 8px 32px rgba(15,23,42,0.14)", zIndex: 9999,
+                    minWidth: 200, maxHeight: 260, overflowY: "auto", padding: "0.3rem 0", fontSize: "0.8rem",
+                  }}
+                >
+                  {loadingAgentesAgencia ? (
+                    <div style={{ padding: "0.5rem 0.85rem", color: "#94a3b8" }}>Cargando…</div>
+                  ) : agentesAgencia.length === 0 ? (
+                    <div style={{ padding: "0.5rem 0.85rem", color: "#94a3b8" }}>Sin agentes</div>
+                  ) : (
+                    agentesAgencia.map(ag => {
+                      const isSelected = entidadLocal.agente_id === ag.id;
+                      return (
+                        <div
+                          key={ag.id}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 8,
+                            padding: "0.4rem 0.85rem", cursor: "pointer",
+                            background: isSelected ? "color-mix(in srgb, var(--primary-color, #475569) 10%, white)" : undefined,
+                            fontWeight: isSelected ? 600 : 400, color: "#1e293b",
+                          }}
+                          onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "#f8fafc"; }}
+                          onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = ""; }}
+                          onClick={() => handleEntidadAgenteChange(ag.id)}
+                        >
+                          <span className={styles.agenteCircle} style={{ width: 22, height: 22, fontSize: "0.6rem", flexShrink: 0 }}>
+                            {initials(ag.nombre, ag.apellidos)}
+                          </span>
+                          <span>
+                            {ag.nombre} {ag.apellidos}
+                            {ag.sucursal && <span style={{ color: "#94a3b8", fontWeight: 400 }}> / {ag.sucursal}</span>}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                  {entidadLocal.agente_id && (
+                    <div
+                      style={{ padding: "0.3rem 0.85rem", cursor: "pointer", color: "#ef4444", fontSize: "0.74rem", borderTop: "1px solid #f1f5f9", marginTop: 2 }}
+                      onClick={() => handleEntidadAgenteChange(null)}
+                    >
+                      Quitar agente
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           <button onClick={onClose} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, border: "none", background: "#f1f5f9", borderRadius: "0.4rem", cursor: "pointer", color: "#64748b", flexShrink: 0 }}>
             <X size={14} />
@@ -350,6 +549,72 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
 
         {/* Cuerpo */}
         <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.25rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+
+          {/* Datos del cliente: NIF/CIF, fecha de nacimiento, fecha de alta */}
+          <section
+            onMouseEnter={() => setHoveredDatosCliente(true)}
+            onMouseLeave={() => setHoveredDatosCliente(false)}
+            style={{ position: "relative" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+              <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Datos del cliente</div>
+              {!editingDatosCliente && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDatosClienteForm({
+                      documento: entidadLocal.documento ?? "",
+                      fecha_nacimiento: entidadLocal.fecha_nacimiento ?? "",
+                    });
+                    setEditingDatosCliente(true);
+                  }}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, border: "none", borderRadius: 5, background: "#e2e8f0", color: "#64748b", cursor: "pointer", opacity: hoveredDatosCliente ? 1 : 0, transition: "opacity 0.12s" }}
+                >
+                  <Pencil size={12} />
+                </button>
+              )}
+            </div>
+
+            {editingDatosCliente ? (
+              <div style={{ border: "1.5px solid var(--primary-color, #475569)", borderRadius: "0.75rem", padding: "1rem", background: "#fff", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <div style={{ display: "flex", gap: "0.6rem" }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={lbl}>{entidadLocal.tipo_entidad === "empresa" ? "CIF" : "NIF"}</label>
+                    <input value={datosClienteForm.documento} onChange={setDCF("documento")} style={inp} placeholder={entidadLocal.tipo_entidad === "empresa" ? "B12345678" : "12345678A"} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={lbl}>Fecha de nacimiento</label>
+                    <input type="date" value={datosClienteForm.fecha_nacimiento} onChange={setDCF("fecha_nacimiento")} style={inp} />
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+                  <button type="button" onClick={() => setEditingDatosCliente(false)} style={{ fontSize: "0.75rem", padding: "0.35rem 0.85rem", borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", color: "#64748b" }}>Cancelar</button>
+                  <button type="button" onClick={guardarDatosCliente} disabled={savingDatosCliente} style={{ fontSize: "0.75rem", padding: "0.35rem 0.85rem", borderRadius: 6, border: "none", background: "var(--primary-color, #475569)", color: "#fff", cursor: "pointer", opacity: savingDatosCliente ? 0.6 : 1 }}>
+                    {savingDatosCliente ? "Guardando…" : "Guardar"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "1.25rem", fontSize: "0.8rem" }}>
+                <div>
+                  <div style={{ fontSize: "0.62rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>{entidadLocal.tipo_entidad === "empresa" ? "CIF" : "NIF"}</div>
+                  <div style={{ color: entidadLocal.documento ? "#1e293b" : "#94a3b8", fontStyle: entidadLocal.documento ? "normal" : "italic" }}>{entidadLocal.documento ?? "Sin especificar"}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.62rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Fecha de nacimiento</div>
+                  <div style={{ color: entidadLocal.fecha_nacimiento ? "#1e293b" : "#94a3b8", fontStyle: entidadLocal.fecha_nacimiento ? "normal" : "italic" }}>
+                    {entidadLocal.fecha_nacimiento ? new Date(entidadLocal.fecha_nacimiento).toLocaleDateString("es-ES") : "Sin especificar"}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.62rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Fecha de alta</div>
+                  <div style={{ color: "#1e293b" }}>
+                    {entidadLocal.created_at ? new Date(entidadLocal.created_at).toLocaleDateString("es-ES") : "—"}
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
 
           {/* Dirección + mapa + teléfono + email */}
           <section
@@ -921,10 +1186,9 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                    <th style={th}>Referencia</th>
-                    <th style={{ ...th, textAlign: "left" }}>Estado</th>
-                    <th style={{ ...th, textAlign: "right" }}>Fechas</th>
-                    <th style={{ ...th, textAlign: "right" }}>PVP</th>
+                    <th style={th}>Nº</th>
+                    <th style={{ ...th, textAlign: "left" }}>Expediente</th>
+                    <th style={{ ...th, textAlign: "left" }}>Rol</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -936,17 +1200,20 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
                       onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")}
                       onMouseLeave={e => (e.currentTarget.style.background = "")}
                     >
-                      <td style={{ ...td, color: "var(--primary-color, #475569)", fontWeight: 600 }}>{e.numero ? `#${e.numero}` : e.referencia?.slice(0, 22) ?? "—"}</td>
+                      <td style={{ ...td, color: "var(--primary-color, #475569)", fontWeight: 600 }}>{e.numero ? `#${e.numero}` : "—"}</td>
                       <td style={{ ...td }}>
-                        <span style={{ fontSize: "0.68rem", fontWeight: 600, color: e.estado === "confirmado" ? "#16a34a" : e.estado === "anulado" ? "#dc2626" : "#475569" }}>
-                          {e.estado ?? "—"}
-                        </span>
+                        <div style={{ fontWeight: 600, color: "#1e293b" }}>{e.contabilidad_entidades?.nombre ?? "—"}</div>
+                        {e.referencia && <div style={{ fontSize: "0.68rem", color: "#94a3b8" }}>{e.referencia}</div>}
                       </td>
-                      <td style={{ ...td, textAlign: "right", color: "#64748b", fontSize: "0.72rem" }}>
-                        {e.fecha_inicio ? new Date(e.fecha_inicio).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—"}
-                        {e.fecha_fin ? ` → ${new Date(e.fecha_fin).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" })}` : ""}
+                      <td style={{ ...td }}>
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                          {(e.roles ?? []).filter((rol: string) => rol !== "Tutor").map((rol: string) => (
+                            <span key={rol} style={{ fontSize: "0.62rem", fontWeight: 600, padding: "1px 6px", borderRadius: 999, background: "#eef2ff", color: "#4338ca" }}>
+                              {rol}
+                            </span>
+                          ))}
+                        </div>
                       </td>
-                      <td style={{ ...td, textAlign: "right" }}>{e.pvp_total ? `${Number(e.pvp_total).toLocaleString("es-ES")} €` : "—"}</td>
                     </tr>
                   ))}
                 </tbody>

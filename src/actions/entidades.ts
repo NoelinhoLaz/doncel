@@ -8,7 +8,7 @@ export async function getEntidades() {
     const agencyDb = await getAgencyDbClient();
     const { data, error } = await agencyDb
       .from("contabilidad_entidades")
-      .select("id, nombre, documento, email, telefono, roles, metadatos")
+      .select("id, nombre, documento, email, telefono, roles, metadatos, direccion")
       .order("nombre", { ascending: true });
 
     if (error) {

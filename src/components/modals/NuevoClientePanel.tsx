@@ -30,7 +30,7 @@ export function NuevoClientePanel({
   onCreated: (entidad: NuevoClienteResult) => void;
 }) {
   const [tipoCliente, setTipoCliente] = useState<"persona" | "empresa">("persona");
-  const [form, setForm] = useState({ nombre: "", razonSocial: "", email: "", telefono: "", documento: "", notas: "" });
+  const [form, setForm] = useState({ nombre: "", razonSocial: "", email: "", telefono: "", documento: "", fechaNacimiento: "", notas: "" });
   const [direccion, setDireccion] = useState<{ direccion?: string; cp?: string; ciudad?: string; provincia?: string } | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
@@ -173,7 +173,9 @@ export function NuevoClientePanel({
           email: form.email.trim() || undefined,
           telefono: form.telefono.trim() || undefined,
           documento: form.documento.trim() || undefined,
+          fecha_nacimiento: tipoCliente === "persona" ? (form.fechaNacimiento || undefined) : undefined,
           tipo_entidad: tipoCliente,
+          roles: { cliente: true },
           direccion: direccion || undefined,
           lat: coords?.lat,
           lng: coords?.lng,
@@ -285,14 +287,27 @@ export function NuevoClientePanel({
             </div>
           )}
 
-          <div className={styles.field}>
-            <label className={styles.label}>{tipoCliente === "empresa" ? "CIF" : "NIF"}</label>
-            <input
-              className={styles.input}
-              placeholder={tipoCliente === "empresa" ? "B12345678" : "12345678A"}
-              value={form.documento}
-              onChange={e => setForm(p => ({ ...p, documento: e.target.value }))}
-            />
+          <div className={styles.fieldRow}>
+            <div className={styles.field}>
+              <label className={styles.label}>{tipoCliente === "empresa" ? "CIF" : "NIF"}</label>
+              <input
+                className={styles.input}
+                placeholder={tipoCliente === "empresa" ? "B12345678" : "12345678A"}
+                value={form.documento}
+                onChange={e => setForm(p => ({ ...p, documento: e.target.value }))}
+              />
+            </div>
+            {tipoCliente === "persona" && (
+              <div className={styles.field}>
+                <label className={styles.label}>Fecha de nacimiento</label>
+                <input
+                  type="date"
+                  className={styles.input}
+                  value={form.fechaNacimiento}
+                  onChange={e => setForm(p => ({ ...p, fechaNacimiento: e.target.value }))}
+                />
+              </div>
+            )}
           </div>
 
           <div className={styles.field}>

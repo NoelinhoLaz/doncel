@@ -19,6 +19,9 @@ export async function PATCH(
     if (body.lat !== undefined) update.lat = body.lat;
     if (body.lng !== undefined) update.lng = body.lng;
     if (body.direccion !== undefined) update.direccion = body.direccion;
+    if (body.agente_id !== undefined) update.agente_id = body.agente_id;
+    if (body.documento !== undefined) update.documento = body.documento;
+    if (body.fecha_nacimiento !== undefined) update.fecha_nacimiento = body.fecha_nacimiento;
 
     const { data, error } = await db
       .from("contabilidad_entidades")
