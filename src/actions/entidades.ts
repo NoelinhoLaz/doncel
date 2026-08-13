@@ -6,17 +6,26 @@ import { getCurrentUsuario } from "@/actions/usuarios";
 export async function getEntidades() {
   try {
     const agencyDb = await getAgencyDbClient();
-    const { data, error } = await agencyDb
-      .from("contabilidad_entidades")
-      .select("id, nombre, documento, email, telefono, roles, metadatos, direccion")
-      .order("nombre", { ascending: true });
+    const pageSize = 1000;
+    let from = 0;
+    let all: any[] = [];
+    while (true) {
+      const { data, error } = await agencyDb
+        .from("contabilidad_entidades")
+        .select("id, nombre, documento, email, telefono, roles, metadatos, direccion")
+        .order("nombre", { ascending: true })
+        .range(from, from + pageSize - 1);
 
-    if (error) {
-      console.error("Error fetching entidades:", error);
-      throw error;
+      if (error) {
+        console.error("Error fetching entidades:", error);
+        throw error;
+      }
+      all = all.concat(data ?? []);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
     }
 
-    return data || [];
+    return all;
   } catch (error: any) {
     console.error("Failed to get entidades:", error.message);
     throw new Error(error.message || "Failed to fetch entidades");
