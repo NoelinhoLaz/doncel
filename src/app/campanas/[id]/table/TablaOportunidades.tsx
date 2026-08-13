@@ -69,6 +69,14 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
   const [agentePickerOpId, setAgentePickerOpId] = useState<string | null>(null);
   const [agentePickerPos, setAgentePickerPos] = useState<{ top: number; left: number } | null>(null);
   const agentePickerRef = useRef<HTMLDivElement | null>(null);
+  const [agentesAgencia, setAgentesAgencia] = useState<{ id: string; nombre: string; apellidos: string; avatar_url?: string | null }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/crm/agentes")
+      .then(r => r.json())
+      .then(json => { if (json?.success) setAgentesAgencia(json.data ?? []); })
+      .catch(() => {});
+  }, []);
   const [confirmarEliminarId, setConfirmarEliminarId] = useState<string | null>(null);
   const [dragOverCell, setDragOverCell] = useState<{ opId: string; estadoId: string } | null>(null);
   const [showMapa, setShowMapa] = useState(false);
@@ -885,13 +893,11 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
             minWidth: 180, padding: "0.3rem 0", fontSize: "0.8rem",
           }}
         >
-          {agentes.map(a => {
-            const ag = a.crm_agentes;
-            if (!ag) return null;
-            const isSelected = op.agente_id === a.agente_id;
+          {agentesAgencia.map(ag => {
+            const isSelected = op.agente_id === ag.id;
             return (
               <div
-                key={a.agente_id}
+                key={ag.id}
                 style={{
                   display: "flex", alignItems: "center", gap: 8,
                   padding: "0.4rem 0.85rem", cursor: "pointer",
@@ -900,7 +906,7 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
                 }}
                 onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "#f8fafc"; }}
                 onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = ""; }}
-                onClick={() => { onAgenteChange?.(op.id, a.agente_id); setAgentePickerOpId(null); setAgentePickerPos(null); }}
+                onClick={() => { onAgenteChange?.(op.id, ag.id); setAgentePickerOpId(null); setAgentePickerPos(null); }}
               >
                 <span className={styles.agenteCircle} style={{ width: 24, height: 24, fontSize: "0.62rem", flexShrink: 0 }}>
                   {initials(ag.nombre, ag.apellidos)}
