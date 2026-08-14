@@ -632,6 +632,17 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
           </button>
         </div>
 
+        {loading && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.5rem 1.25rem", background: "#eef2f7", borderBottom: "1px solid #e2e8f0", fontSize: "0.75rem", color: "#475569", fontWeight: 500 }}>
+            <span style={{
+              width: 12, height: 12, borderRadius: "50%",
+              border: "2px solid #cbd5e1", borderTopColor: "var(--primary-color, #475569)",
+              animation: "spin 0.7s linear infinite", flexShrink: 0,
+            }} />
+            Cargando datos del cliente…
+          </div>
+        )}
+
         {/* Cuerpo */}
         <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.25rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
 

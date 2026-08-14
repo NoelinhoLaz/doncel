@@ -587,6 +587,9 @@ function ContactoModal({ cotizacionId, currentId, currentNombre, currentPersonaI
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.4rem 0.75rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "0.375rem" }}>
               <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#166534" }}>{selectedNombre}</span>
               <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                {loadingEditEntidad && (
+                  <span style={{ fontSize: "0.68rem", color: "#166534", fontStyle: "italic" }}>Cargando...</span>
+                )}
                 <button
                   onClick={abrirEditarCliente}
                   disabled={loadingEditEntidad}
