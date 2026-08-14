@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { X, Pencil, Plus, Phone, Mail, Info, Building2, Rocket, IdCard, Trash2 } from "lucide-react";
+import { X, Pencil, Plus, Phone, Mail, Info, Building2, Rocket, IdCard, Trash2, User, Users, Target, FileText, Calculator, FolderOpen, Tag, ChevronDown, ChevronRight } from "lucide-react";
 import { EntidadDetalle, CampanaHistorialRow } from "../types";
 import { EMPTY_CONTACTO_FORM, lbl, inp, th, td } from "../constants";
 import { getEntidadHistorial, getEntidadResumen } from "@/actions/crm";
@@ -18,6 +18,31 @@ const EntidadMapaPlaceholder = dynamic(
   () => import("../EntidadMapa").then(m => m.EntidadMapaPlaceholder),
   { ssr: false }
 );
+
+function SeccionColapsable({ icon, titulo, count, isOpen, onToggle, children }: {
+  icon: React.ReactNode;
+  titulo: string;
+  count?: number;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <section>
+      <div
+        onClick={onToggle}
+        style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: isOpen ? "0.5rem" : 0, userSelect: "none" }}
+      >
+        {isOpen ? <ChevronDown size={14} color="#94a3b8" /> : <ChevronRight size={14} color="#94a3b8" />}
+        <span style={{ display: "flex", color: "#64748b" }}>{icon}</span>
+        <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", flex: 1 }}>
+          {titulo}{count !== undefined && ` (${count})`}
+        </div>
+      </div>
+      {isOpen && children}
+    </section>
+  );
+}
 
 export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted }: { data: EntidadDetalle; onClose: () => void; onEntidadUpdated?: (entidad: any) => void; onEntidadDeleted?: (id: string) => void }) {
   const router = useRouter();
@@ -131,6 +156,9 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
   const [editingEntidad, setEditingEntidad] = useState(false);
   const [savingEntidad, setSavingEntidad] = useState(false);
   const [entidadLocal, setEntidadLocal] = useState<any>(entidad);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [etiquetasCount, setEtiquetasCount] = useState<number | undefined>(undefined);
+  const toggleSection = (key: string) => setOpenSections(p => ({ ...p, [key]: !p[key] }));
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteBlockedInfo, setDeleteBlockedInfo] = useState<{ label: string; count: number }[] | null>(null);
@@ -607,14 +635,19 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
         {/* Cuerpo */}
         <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.25rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
 
-          {/* Datos del cliente: NIF/CIF, fecha de nacimiento, fecha de alta */}
-          <section
+          {/* Datos del cliente (incluye Dirección): NIF/CIF, fecha de nacimiento, fecha de alta, dirección */}
+          <SeccionColapsable
+            icon={entidadLocal.config_tipos_cliente?.etiqueta === "Persona" ? <User size={14} /> : <Building2 size={14} />}
+            titulo="Datos del cliente"
+            isOpen={!!openSections.datos}
+            onToggle={() => toggleSection("datos")}
+          >
+          <div
             onMouseEnter={() => setHoveredDatosCliente(true)}
             onMouseLeave={() => setHoveredDatosCliente(false)}
-            style={{ position: "relative" }}
+            style={{ position: "relative", marginBottom: "1.25rem" }}
           >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-              <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Datos del cliente</div>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "0.35rem" }}>
               {!editingDatosCliente && (
                 <button
                   type="button"
@@ -655,10 +688,12 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                     <label style={lbl}>NIF/CIF</label>
                     <input value={datosClienteForm.documento} onChange={setDCF("documento")} style={inp} placeholder="12345678A / B12345678" />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={lbl}>Fecha de nacimiento</label>
-                    <input type="date" value={datosClienteForm.fecha_nacimiento} onChange={setDCF("fecha_nacimiento")} style={inp} />
-                  </div>
+                  {entidadLocal.config_tipos_cliente?.etiqueta === "Persona" && (
+                    <div style={{ flex: 1 }}>
+                      <label style={lbl}>Fecha de nacimiento</label>
+                      <input type="date" value={datosClienteForm.fecha_nacimiento} onChange={setDCF("fecha_nacimiento")} style={inp} />
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
                   <button type="button" onClick={() => setEditingDatosCliente(false)} style={{ fontSize: "0.75rem", padding: "0.35rem 0.85rem", borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", color: "#64748b" }}>Cancelar</button>
@@ -679,12 +714,14 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                   <div style={{ fontSize: "0.62rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>NIF/CIF</div>
                   <div style={{ color: entidadLocal.documento ? "#1e293b" : "#94a3b8", fontStyle: entidadLocal.documento ? "normal" : "italic" }}>{entidadLocal.documento ?? "Sin especificar"}</div>
                 </div>
-                <div>
-                  <div style={{ fontSize: "0.62rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Fecha de nacimiento</div>
-                  <div style={{ color: entidadLocal.fecha_nacimiento ? "#1e293b" : "#94a3b8", fontStyle: entidadLocal.fecha_nacimiento ? "normal" : "italic" }}>
-                    {entidadLocal.fecha_nacimiento ? new Date(entidadLocal.fecha_nacimiento).toLocaleDateString("es-ES") : "Sin especificar"}
+                {entidadLocal.config_tipos_cliente?.etiqueta === "Persona" && (
+                  <div>
+                    <div style={{ fontSize: "0.62rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Fecha de nacimiento</div>
+                    <div style={{ color: entidadLocal.fecha_nacimiento ? "#1e293b" : "#94a3b8", fontStyle: entidadLocal.fecha_nacimiento ? "normal" : "italic" }}>
+                      {entidadLocal.fecha_nacimiento ? new Date(entidadLocal.fecha_nacimiento).toLocaleDateString("es-ES") : "Sin especificar"}
+                    </div>
                   </div>
-                </div>
+                )}
                 <div>
                   <div style={{ fontSize: "0.62rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Fecha de alta</div>
                   <div style={{ color: "#1e293b" }}>
@@ -693,10 +730,10 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                 </div>
               </div>
             )}
-          </section>
+          </div>
 
-          {/* Dirección + mapa + teléfono + email */}
-          <section
+          {/* Dirección + mapa + teléfono + email (sub-bloque dentro de Datos del cliente) */}
+          <div
             onMouseEnter={() => setHoveredEntidad(true)}
             onMouseLeave={() => setHoveredEntidad(false)}
             style={{ position: "relative" }}
@@ -875,15 +912,19 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                 </div>
               </div>
             )}
-          </section>
+          </div>
+          </SeccionColapsable>
 
           {/* Contactos (no aplica a clientes tipo Persona) */}
           {entidadLocal.config_tipos_cliente?.etiqueta !== "Persona" && (
-          <section>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-              <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                Contactos {contactos.length > 0 && `(${contactos.length})`}
-              </div>
+          <SeccionColapsable
+            icon={<Users size={14} />}
+            titulo="Contactos"
+            count={contactos.length}
+            isOpen={!!openSections.contactos}
+            onToggle={() => toggleSection("contactos")}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: "0.5rem" }}>
               {!showNuevoContacto && !editingContactoId && (
                 <button
                   type="button"
@@ -1123,14 +1164,17 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                 })}
               </div>
             )}
-          </section>
+          </SeccionColapsable>
           )}
 
           {/* Campañas */}
-          <section>
-            <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
-              Campañas {!loading && historial.length > 0 && `(${historial.length})`}
-            </div>
+          <SeccionColapsable
+            icon={<Target size={14} />}
+            titulo="Campañas"
+            count={!loading ? historial.length : undefined}
+            isOpen={!!openSections.campanas}
+            onToggle={() => toggleSection("campanas")}
+          >
             {loading ? (
               <div style={{ color: "#94a3b8", fontSize: "0.78rem" }}>Cargando...</div>
             ) : historial.length === 0 ? (
@@ -1180,13 +1224,16 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                 </tbody>
               </table>
             )}
-          </section>
+          </SeccionColapsable>
 
           {/* Presupuestos */}
-          <section>
-            <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
-              Presupuestos {!loading && presupuestos.length > 0 && `(${presupuestos.length})`}
-            </div>
+          <SeccionColapsable
+            icon={<FileText size={14} />}
+            titulo="Presupuestos"
+            count={!loading ? presupuestos.length : undefined}
+            isOpen={!!openSections.presupuestos}
+            onToggle={() => toggleSection("presupuestos")}
+          >
             {loading ? (
               <div style={{ color: "#94a3b8", fontSize: "0.78rem" }}>Cargando...</div>
             ) : presupuestos.length === 0 ? (
@@ -1219,13 +1266,16 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                 </tbody>
               </table>
             )}
-          </section>
+          </SeccionColapsable>
 
           {/* Cotizaciones */}
-          <section>
-            <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
-              Cotizaciones {!loading && cotizaciones.length > 0 && `(${cotizaciones.length})`}
-            </div>
+          <SeccionColapsable
+            icon={<Calculator size={14} />}
+            titulo="Cotizaciones"
+            count={!loading ? cotizaciones.length : undefined}
+            isOpen={!!openSections.cotizaciones}
+            onToggle={() => toggleSection("cotizaciones")}
+          >
             {loading ? (
               <div style={{ color: "#94a3b8", fontSize: "0.78rem" }}>Cargando...</div>
             ) : cotizaciones.length === 0 ? (
@@ -1264,13 +1314,16 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                 </tbody>
               </table>
             )}
-          </section>
+          </SeccionColapsable>
 
           {/* Expedientes */}
-          <section>
-            <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
-              Expedientes {!loading && expedientes.length > 0 && `(${expedientes.length})`}
-            </div>
+          <SeccionColapsable
+            icon={<FolderOpen size={14} />}
+            titulo="Expedientes"
+            count={!loading ? expedientes.length : undefined}
+            isOpen={!!openSections.expedientes}
+            onToggle={() => toggleSection("expedientes")}
+          >
             {loading ? (
               <div style={{ color: "#94a3b8", fontSize: "0.78rem" }}>Cargando...</div>
             ) : expedientes.length === 0 ? (
@@ -1312,12 +1365,24 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                 </tbody>
               </table>
             )}
-          </section>
+          </SeccionColapsable>
 
           {/* Etiquetas */}
           {entidadLocal.id && (
             <section>
-              <EtiquetasSelector label="Etiquetas" entidadId={entidadLocal.id} />
+              <div
+                onClick={() => toggleSection("etiquetas")}
+                style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: openSections.etiquetas ? "0.5rem" : 0, userSelect: "none" }}
+              >
+                {openSections.etiquetas ? <ChevronDown size={14} color="#94a3b8" /> : <ChevronRight size={14} color="#94a3b8" />}
+                <span style={{ display: "flex", color: "#64748b" }}><Tag size={14} /></span>
+                <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", flex: 1 }}>
+                  Etiquetas{etiquetasCount !== undefined && ` (${etiquetasCount})`}
+                </div>
+              </div>
+              <div style={{ display: openSections.etiquetas ? "block" : "none" }}>
+                <EtiquetasSelector label="Etiquetas" entidadId={entidadLocal.id} onCountChange={setEtiquetasCount} />
+              </div>
             </section>
           )}
         </div>

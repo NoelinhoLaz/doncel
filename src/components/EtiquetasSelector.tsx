@@ -32,15 +32,19 @@ export function EtiquetasSelector({
   value,
   onChange,
   label,
+  onCountChange,
 }: {
   entidadId?: string;
   value?: Etiqueta[];
   onChange?: (etiquetas: Etiqueta[]) => void;
   label?: string;
+  onCountChange?: (count: number) => void;
 }) {
   const controlado = entidadId == null;
   const [asignadasInternas, setAsignadasInternas] = useState<Etiqueta[]>([]);
   const asignadas = controlado ? (value ?? []) : asignadasInternas;
+
+  useEffect(() => { onCountChange?.(asignadas.length); }, [asignadas.length]);
 
   const [scope, setScope] = useState<Scope>("agencia");
   const [disponibles, setDisponibles] = useState<Etiqueta[]>([]);
