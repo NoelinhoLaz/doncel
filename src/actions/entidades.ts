@@ -65,8 +65,9 @@ export async function createEntidadCompleta(payload: {
   nombre: string;
   email?: string;
   direccion?: {
-    calle?: string;
-    city?: string;
+    direccion?: string;
+    cp?: string;
+    ciudad?: string;
     provincia?: string;
   };
 }) {

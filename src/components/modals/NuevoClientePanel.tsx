@@ -29,7 +29,6 @@ export function NuevoClientePanel({
   onClose: () => void;
   onCreated: (entidad: NuevoClienteResult) => void;
 }) {
-  const [tipoCliente, setTipoCliente] = useState<"persona" | "empresa">("persona");
   const [tiposCliente, setTiposCliente] = useState<{ id: string; etiqueta: string }[]>([]);
   const [tipoClienteId, setTipoClienteId] = useState<string>("");
   const [form, setForm] = useState({ nombre: "", razonSocial: "", email: "", telefono: "", documento: "", fechaNacimiento: "", notas: "" });
@@ -37,9 +36,23 @@ export function NuevoClientePanel({
   useEffect(() => {
     fetch("/api/config/tipos-cliente")
       .then(r => r.json())
-      .then(json => { if (json?.success) setTiposCliente(json.data ?? []); })
+      .then(json => {
+        if (json?.success) {
+          const data = json.data ?? [];
+          setTiposCliente(data);
+          if (!tipoClienteId && data.length > 0) {
+            const persona = data.find((t: any) => t.etiqueta === "Persona");
+            setTipoClienteId((persona ?? data[0]).id);
+          }
+        }
+      })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // "empresa" para cualquier tipo que no sea "Persona" (Empresa, Grupo, u otro tipo custom de la agencia)
+  const tipoCliente: "persona" | "empresa" =
+    tiposCliente.find(t => t.id === tipoClienteId)?.etiqueta === "Persona" ? "persona" : "empresa";
   const [direccion, setDireccion] = useState<{ direccion?: string; cp?: string; ciudad?: string; provincia?: string } | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
@@ -246,36 +259,20 @@ export function NuevoClientePanel({
         </div>
 
         <div className={styles.modalBody}>
-          <div style={{ display: "flex", gap: "1rem" }}>
-            {(["persona", "empresa"] as const).map(t => (
-              <label key={t} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "0.78rem", color: "#334155", cursor: "pointer" }}>
+          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+            {tiposCliente.map(t => (
+              <label key={t.id} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "0.78rem", color: "#334155", cursor: "pointer" }}>
                 <input
                   type="radio"
                   name="tipoCliente"
-                  checked={tipoCliente === t}
-                  onChange={() => setTipoCliente(t)}
+                  checked={tipoClienteId === t.id}
+                  onChange={() => setTipoClienteId(t.id)}
                   style={{ accentColor: "var(--primary-color, #475569)" }}
                 />
-                {t === "persona" ? "Persona" : "Empresa"}
+                {t.etiqueta}
               </label>
             ))}
           </div>
-
-          {tiposCliente.length > 0 && (
-            <div className={styles.field}>
-              <label className={styles.label}>Tipo de cliente</label>
-              <select
-                className={styles.input}
-                value={tipoClienteId}
-                onChange={e => setTipoClienteId(e.target.value)}
-              >
-                <option value="">Sin especificar</option>
-                {tiposCliente.map(t => (
-                  <option key={t.id} value={t.id}>{t.etiqueta}</option>
-                ))}
-              </select>
-            </div>
-          )}
 
           <div className={styles.field}>
             <label className={styles.label}>{tipoCliente === "empresa" ? "Nombre comercial *" : "Nombre *"}</label>

@@ -51,6 +51,7 @@ export function EntidadMapa({ lat, lng, nombre }: { lat: number; lng: number; no
       style={{ flexShrink: 0, borderRadius: "0.5rem", overflow: "hidden", display: "block", border: "1px solid #e2e8f0", width: W, height: H }}
     >
       <MapContainer
+        key={`${lat}-${lng}`}
         center={[lat, lng]}
         zoom={15}
         style={{ width: "100%", height: "100%" }}

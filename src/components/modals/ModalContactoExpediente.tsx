@@ -143,7 +143,7 @@ export default function ModalContactoExpediente({ isOpen, onClose, expediente, o
         nombre: name,
         email: email || undefined,
         direccion: address.trim()
-          ? { calle: address, ciudad: city, provincia: province, codigo_postal: postalCode }
+          ? { direccion: address, ciudad: city, provincia: province, cp: postalCode }
           : undefined,
       };
       const newEntity = await createEntidadCompleta(payload);

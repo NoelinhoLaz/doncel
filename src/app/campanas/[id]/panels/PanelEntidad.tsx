@@ -248,7 +248,6 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
       const provincia = cpIdx >= 0 && cpIdx + 1 < partes.length ? partes[cpIdx + 1] : "";
 
       const nuevaDireccion = {
-        ...(entidadLocal.direccion ?? {}),
         direccion: calle,
         cp: cp || undefined,
         ciudad: ciudad || entidadLocal.direccion?.ciudad || undefined,
@@ -282,7 +281,6 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
           email: entidadForm.email || null,
           otros_emails: entidadForm.otros_emails.filter(Boolean),
           direccion: {
-            ...(entidadLocal.direccion ?? {}),
             direccion: entidadForm.direccion || null,
             ciudad: entidadForm.ciudad || null,
             provincia: entidadForm.provincia || null,
@@ -297,7 +295,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
         otros_tlfs: entidadForm.otros_tlfs.filter(Boolean),
         email: entidadForm.email || null,
         otros_emails: entidadForm.otros_emails.filter(Boolean),
-        direccion: { ...(entidadLocal.direccion ?? {}), direccion: entidadForm.direccion || null, ciudad: entidadForm.ciudad || null, provincia: entidadForm.provincia || null, cp: entidadForm.cp || null },
+        direccion: { direccion: entidadForm.direccion || null, ciudad: entidadForm.ciudad || null, provincia: entidadForm.provincia || null, cp: entidadForm.cp || null },
       };
       setEntidadLocal(updated);
       onEntidadUpdated?.(updated);
@@ -674,9 +672,9 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
                       email: entidadLocal.email ?? "",
                       otros_emails: entidadLocal.otros_emails ?? [],
                       direccion: entidadLocal.direccion?.direccion ?? entidadLocal.direccion?.calle ?? "",
-                      ciudad: entidadLocal.direccion?.ciudad ?? "",
+                      ciudad: entidadLocal.direccion?.ciudad ?? entidadLocal.direccion?.localidad ?? "",
                       provincia: entidadLocal.direccion?.provincia ?? "",
-                      cp: entidadLocal.direccion?.cp ?? "",
+                      cp: entidadLocal.direccion?.cp ?? entidadLocal.direccion?.codigo_postal ?? "",
                     });
                     setEditingEntidad(true);
                   }}
@@ -790,9 +788,20 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
                 }
                 <div style={{ fontSize: "0.82rem", color: "#334155", lineHeight: 1.6, flex: 1 }}>
                   {dir && typeof dir === "string" && <div>{dir}</div>}
-                  {dir && typeof dir === "object" && Object.entries(dir).filter(([, v]) => v).map(([k, v]) => (
-                    <div key={k}><span style={{ color: "#94a3b8", fontSize: "0.72rem" }}>{k}: </span>{String(v)}</div>
-                  ))}
+                  {dir && typeof dir === "object" && (() => {
+                    const calle = dir.direccion || dir.calle || "";
+                    const cp = dir.cp || dir.codigo_postal || "";
+                    const ciudad = dir.ciudad || dir.localidad || "";
+                    const provincia = dir.provincia || "";
+                    const linea2 = [cp, ciudad, provincia].filter(Boolean).join(", ");
+                    if (!calle && !linea2) return null;
+                    return (
+                      <>
+                        {calle && <div>{calle}</div>}
+                        {linea2 && <div style={{ color: "#64748b" }}>{linea2}</div>}
+                      </>
+                    );
+                  })()}
                   {entidadLocal.telefono && (
                     <div style={{ marginTop: "0.35rem" }}>
                       <a href={`tel:${entidadLocal.telefono}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "0.82rem", color: "var(--primary-color, #475569)", textDecoration: "none" }}>
