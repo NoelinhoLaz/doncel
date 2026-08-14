@@ -20,6 +20,10 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
         document.documentElement.style.setProperty("--header-bg", savedColor);
         document.documentElement.style.setProperty("--primary-color", savedColor);
       }
+      const savedSecondaryColor = localStorage.getItem("momo_secondary_color");
+      if (savedSecondaryColor) {
+        document.documentElement.style.setProperty("--secondary-color", savedSecondaryColor);
+      }
     }
   }, []);
 

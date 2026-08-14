@@ -53,7 +53,12 @@ export function useCotizacion(
           if (cot.id !== cotizacionId) {
             const lines = (cot.operativa_cotizacion_lineas || []).map((l: any) => ({
               ...l,
+              cotizacionId: cot.id,
               cotizacionTitulo: cot.titulo,
+              agente: cot.agente,
+              fecha_salida: l.fecha_salida ?? cot.fecha_salida,
+              fecha_regreso: l.fecha_regreso ?? cot.fecha_regreso,
+              destinosPrincipales: cot.destinos || [],
             }));
             otherLines.push(...lines);
           }
@@ -195,10 +200,20 @@ export function useCotizacion(
     [items, opcionalFilter]
   );
 
-  const filtered = useMemo(
-    () => displayItems.filter(i => (i.title || "").toLowerCase().includes(search.toLowerCase())),
-    [displayItems, search]
-  );
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    if (!q) return displayItems;
+    return displayItems.filter(i => {
+      const descripcion = i.descripcion || "";
+      const proveedor = i.contabilidad_proveedores?.nombre || i.contabilidad_proveedores?.razon_social || "";
+      const destino = i.maestro_destinos?.nombre_comercial || i.maestro_destinos?.nombre || "";
+      return (
+        descripcion.toLowerCase().includes(q) ||
+        proveedor.toLowerCase().includes(q) ||
+        destino.toLowerCase().includes(q)
+      );
+    });
+  }, [displayItems, search]);
 
   const paginated = useMemo(
     () => filtered.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage),

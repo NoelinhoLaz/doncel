@@ -393,8 +393,9 @@ export default function TablaCotizacion({ c, hideHeader, compactHeader, title, s
               <Icons.Search size={16} className={styles.searchIcon} />
               <input
                 type="text"
-                placeholder="Buscar línea cotización..."
+                placeholder="Buscar por descripción, proveedor o destino..."
                 className={styles.searchInput}
+                style={{ width: 380 }}
                 value={c.search}
                 onChange={(e) => c.setSearch(e.target.value)}
               />

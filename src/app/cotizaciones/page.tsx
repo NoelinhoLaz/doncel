@@ -5,7 +5,7 @@ import styles from "../expedientes/[id]/page.module.css";
 import { Icons } from "@/lib/icons";
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Trash2, UserRound, X, Search, MapPin, SlidersHorizontal, ChevronRight, ChevronDown, Compass, Link2, ClipboardPaste, FilePlus, Layers, ListChecks } from "lucide-react";
+import { Copy, Trash2, UserRound, X, Search, MapPin, SlidersHorizontal, ChevronRight, ChevronDown, Compass, Link2, ClipboardPaste, Layers } from "lucide-react";
 import Pagination from "@/app/components/Pagination";
 import { duplicateCotizacion, deleteCotizacion, updateCotizacionLinea, updateCotizacionMeta, tieneCotizacionPropuestasVinculadas } from "@/actions/cotizaciones";
 import { getCurrentUsuario } from "@/actions/usuarios";
@@ -31,7 +31,6 @@ export default function CotizacionesPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [duplicating, setDuplicating] = useState<string | null>(null);
   const [duplicarModal, setDuplicarModal] = useState<string | null>(null);
-  const [nuevaCotizacionModal, setNuevaCotizacionModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState<{ id: string; titulo: string } | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [selectedLineIds, setSelectedLineIds] = useState<string[]>([]);
@@ -671,69 +670,6 @@ export default function CotizacionesPage() {
           </div>
         </div>
       )}
-      {nuevaCotizacionModal && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.35)" }} onClick={() => setNuevaCotizacionModal(false)}>
-          <div style={{ background: "#fff", borderRadius: "0.75rem", width: 460, maxWidth: "95vw", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem 0.75rem", borderBottom: "1px solid #f1f5f9" }}>
-              <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#1e293b" }}>Nueva cotización</span>
-              <button onClick={() => setNuevaCotizacionModal(false)} style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex" }}><X size={16} /></button>
-            </div>
-            <div style={{ padding: "1rem 1.25rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-              <button
-                onClick={async () => {
-                  setNuevaCotizacionModal(false);
-                  try {
-                    const res = await fetch('/api/cotizaciones', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ titulo: 'Cotización' })
-                    });
-                    const j = await res.json();
-                    if (j?.success && j.data?.id) {
-                      router.push(`/cotizaciones/nueva?id=${j.data.id}`);
-                    } else {
-                      alert('Error al crear cotización: ' + (j?.error || 'unknown'));
-                    }
-                  } catch (err: any) {
-                    alert('Error al crear cotización: ' + (err?.message || String(err)));
-                  }
-                }}
-                style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", padding: "0.75rem 0.9rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", textAlign: "left" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")}
-                onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
-              >
-                <FilePlus size={18} style={{ color: "var(--primary-color, #475569)", flexShrink: 0, marginTop: 2 }} />
-                <div>
-                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b" }}>Cotización desde cero</div>
-                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Cotización sin servicios de inicio</div>
-                </div>
-              </button>
-
-              <button
-                disabled
-                style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", padding: "0.75rem 0.9rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "not-allowed", textAlign: "left", opacity: 0.6 }}
-              >
-                <Copy size={18} style={{ color: "#64748b", flexShrink: 0, marginTop: 2 }} />
-                <div>
-                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b" }}>Duplicar cotización completa</div>
-                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Duplicar todos los servicios de una cotización</div>
-                </div>
-              </button>
-
-              <button
-                disabled
-                style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", padding: "0.75rem 0.9rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "not-allowed", textAlign: "left", opacity: 0.6 }}
-              >
-                <ListChecks size={18} style={{ color: "#64748b", flexShrink: 0, marginTop: 2 }} />
-                <div>
-                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b" }}>Cotización a la carta</div>
-                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Seleccionar servicios de varias cotizaciones</div>
-                </div>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {deleteModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.35)" }} onClick={() => setDeleteModal(null)}>
           <div style={{ background: "#fff", borderRadius: "0.75rem", width: 420, maxWidth: "95vw", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
@@ -860,7 +796,7 @@ export default function CotizacionesPage() {
         }
       })()}
 
-      <div style={{ background: "#ffffff", borderRadius: "0.75rem", border: "1px solid #f1f5f9", overflow: "hidden", boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)", marginTop: "-1rem" }}>
+      <div style={{ background: "#ffffff", borderRadius: "0.75rem", border: "1px solid #f1f5f9", boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)", marginTop: "-1rem" }}>
         <div className={styles.listHeaderTop} style={{ marginBottom: "0" }}>
           <div className={styles.listTitleWrapper}>
             <Icons.Facturacion size={18} className={styles.titleIcon} />
@@ -941,14 +877,29 @@ export default function CotizacionesPage() {
             </button>
             <button
               className={styles.addActionButton}
-              title={viewMode === "lineas" && selectedLineIds.length > 0 ? "Crear cotización con líneas seleccionadas" : "Nueva cotización"}
+              style={{ position: "relative" }}
+              title={selectedLineIds.length > 0 ? "Crear cotización con líneas seleccionadas" : "Nueva cotización"}
               onClick={async () => {
-                if (!(viewMode === "lineas" && selectedLineIds.length > 0)) {
-                  setNuevaCotizacionModal(true);
+                if (!(selectedLineIds.length > 0)) {
+                  try {
+                    const res = await fetch('/api/cotizaciones', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ titulo: 'Cotización' })
+                    });
+                    const j = await res.json();
+                    if (j?.success && j.data?.id) {
+                      router.push(`/cotizaciones/nueva?id=${j.data.id}`);
+                    } else {
+                      alert('Error al crear cotización: ' + (j?.error || 'unknown'));
+                    }
+                  } catch (err: any) {
+                    alert('Error al crear cotización: ' + (err?.message || String(err)));
+                  }
                   return;
                 }
                 try {
-                  const isCopy = viewMode === "lineas" && selectedLineIds.length > 0;
+                  const isCopy = selectedLineIds.length > 0;
                   const title = isCopy ? 'Nueva Cotización (Copia)' : 'Cotización';
 
                   const res = await fetch('/api/cotizaciones', {
@@ -970,8 +921,8 @@ export default function CotizacionesPage() {
                             cotizacion_id: newCotId,
                             tipo: l.tipo,
                             descripcion: l.descripcion,
-                            proveedor: l.proveedor,
-                            destino: l.destino,
+                            proveedor: l.proveedor ?? l.contabilidad_proveedores?.id ?? null,
+                            destino: l.destino ?? l.maestro_destinos?.id ?? null,
                             plazas: l.plazas,
                             noches: l.noches,
                             neto: l.neto,
@@ -986,6 +937,7 @@ export default function CotizacionesPage() {
                       }));
                     }
 
+                    setSelectedLineIds([]);
                     router.push(`/cotizaciones/nueva?id=${newCotId}`);
                   } else {
                     alert('Error al crear cotización: ' + (j?.error || 'unknown'));
@@ -996,6 +948,31 @@ export default function CotizacionesPage() {
               }}
             >
               <Icons.Add size={14} />
+              {selectedLineIds.length > 0 && (
+                <span
+                  key={selectedLineIds.length}
+                  className={styles.selectedLinesBadge}
+                  style={{
+                    position: "absolute",
+                    top: -6,
+                    right: -6,
+                    minWidth: "16px",
+                    height: "16px",
+                    padding: "0 4px",
+                    borderRadius: "999px",
+                    background: "#e60073",
+                    color: "#fff",
+                    fontSize: "0.62rem",
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    lineHeight: 1,
+                  }}
+                >
+                  {selectedLineIds.length}
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -1014,7 +991,6 @@ export default function CotizacionesPage() {
                 value={agruparPor}
                 onChange={(v) => {
                   setAgruparPor(v as "cotizacion" | "tipo" | "proveedor" | "desagrupar");
-                  setSelectedLineIds([]);
                   if (v !== "tipo") setTipoFilter([]);
                   setCurrentPage(1);
                 }}
@@ -1300,7 +1276,7 @@ export default function CotizacionesPage() {
                                 display: "inline-block",
                                 padding: "0.2rem 0.6rem",
                                 borderRadius: "0.5rem",
-                                fontSize: "0.7rem",
+                                fontSize: "0.6rem",
                                 fontWeight: 600,
                                 textTransform: "capitalize",
                                 backgroundColor: ec.bg,
@@ -1353,88 +1329,31 @@ export default function CotizacionesPage() {
                                   ) : (
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', marginTop: '0.25rem' }}>
                                       <thead>
-                                        <tr style={{ borderBottom: '1px solid #e2e8f0', textAlign: 'left', color: '#64748b' }}>
-                                          <th style={{ padding: '4px 8px', fontWeight: 600, width: '22px' }}>Tipo</th>
-                                          <th style={{ padding: '4px 8px', fontWeight: 600 }}>Descripción / Proveedor</th>
-                                          <th style={{ padding: '4px 8px', fontWeight: 600, width: '350px' }}>Destino</th>
-                                          <th style={{ padding: '4px 8px', fontWeight: 600, width: '60px', textAlign: 'right' }}>Plazas</th>
-                                          <th style={{ padding: '4px 8px', fontWeight: 600, width: '60px', textAlign: 'right' }}>Noches</th>
-                                          <th style={{ padding: '4px 8px', fontWeight: 600, width: '110px', textAlign: 'right' }}>Neto / PVP</th>
-                                          <th style={{ padding: '4px 8px', fontWeight: 600, width: '110px', textAlign: 'right' }}>Tot. Neto / PVP</th>
-                                          <th style={{ padding: '4px 8px', fontWeight: 600, width: '80px', textAlign: 'center' }}>Estado</th>
+                                        <tr>
+                                          <th style={{ width: "24px", padding: "0.25rem" }} />
+                                          <th style={{ width: "32px", paddingLeft: "0.1rem" }} />
+                                          <th style={{ width: "22px", paddingLeft: "0.1rem" }}>Tipo</th>
+                                          <th style={{ width: "450px" }}>Descripción / Proveedor</th>
+                                          <th style={{ width: "140px" }}>Destino</th>
+                                          <th style={{ width: "95px" }}>Salida</th>
+                                          <th style={{ width: "95px" }}>Regreso</th>
+                                          <th style={{ width: "70px", textAlign: "right" }}>Plazas</th>
+                                          <th style={{ width: "70px", textAlign: "right" }}>Noches</th>
+                                          <th style={{ width: "110px", textAlign: "right" }}>Neto / PVP</th>
+                                          <th style={{ width: "110px", textAlign: "right" }}>Tot. Neto / PVP</th>
+                                          <th style={{ width: "95px", textAlign: "center" }}>Estado</th>
+                                          <th style={{ width: "200px" }}>Cotización / Agente</th>
                                         </tr>
                                       </thead>
                                       <tbody>
-                                        {lineas.map((l: any) => {
-                                          const provName = l.contabilidad_proveedores 
-                                            ? (l.contabilidad_proveedores.nombre || l.contabilidad_proveedores.razon_social)
-                                            : "—";
-                                          const destName = l.maestro_destinos 
-                                            ? (l.maestro_destinos.nombre_comercial || l.maestro_destinos.nombre)
-                                            : "—";
-                                          return (
-                                            <tr key={l.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                              <td style={{ padding: '6px 8px' }}>
-                                                <div title={l.config_tipos_servicios?.etiqueta || 'Tipo'} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
-                                                  <TipoIcon iconName={l.config_tipos_servicios?.icono || 'compass'} size={13} />
-                                                  {l.opcional && (
-                                                    <span
-                                                      title="Opcional"
-                                                      style={{
-                                                        position: 'absolute', top: -6, left: 9, fontSize: '0.48rem', fontWeight: 700,
-                                                        color: '#d97706', background: '#fef3c7', borderRadius: '0.2rem', padding: '0 2px', lineHeight: '1.1'
-                                                      }}
-                                                    >
-                                                      Op.
-                                                    </span>
-                                                  )}
-                                                </div>
-                                              </td>
-                                              <td style={{ padding: '6px 8px' }}>
-                                                <div style={{ fontWeight: 600, color: '#334155' }}>{l.descripcion || '—'}</div>
-                                                <div style={{ fontSize: '0.68rem', color: '#64748b' }}>{provName}</div>
-                                              </td>
-                                              <td style={{ padding: '6px 8px', color: '#475569' }}>
-                                                {destName}
-                                              </td>
-                                              <td style={{ padding: '6px 8px', textAlign: 'right', color: '#475569' }}>
-                                                {l.plazas || '—'}
-                                              </td>
-                                              <td style={{ padding: '6px 8px', textAlign: 'right', color: '#475569' }}>
-                                                {l.noches || '—'}
-                                              </td>
-                                              <td style={{ padding: '6px 8px', textAlign: 'right' }}>
-                                                <div style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                                                  {f(l.neto)}
-                                                </div>
-                                                <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: '2px', whiteSpace: 'nowrap' }}>
-                                                  {f(l.pvp)}
-                                                </div>
-                                              </td>
-                                              <td style={{ padding: '6px 8px', textAlign: 'right' }}>
-                                                <div style={{ fontSize: '0.78rem', color: '#0f172a', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                                                  {f(l.total_neto)}
-                                                </div>
-                                                <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: '2px', whiteSpace: 'nowrap' }}>
-                                                  {f(l.total_pvp)}
-                                                </div>
-                                              </td>
-                                              <td style={{ padding: '6px 8px', textAlign: 'center' }}>
-                                                <span style={{
-                                                  display: "inline-block",
-                                                  padding: "0.1rem 0.35rem",
-                                                  borderRadius: "0.25rem",
-                                                  fontSize: "0.62rem",
-                                                  fontWeight: 600,
-                                                  background: l.confirmado ? "#dcfce7" : "#fffbeb",
-                                                  color: l.confirmado ? "#16a34a" : "#d97706"
-                                                }}>
-                                                  {l.confirmado ? "Confirmada" : "Pendiente"}
-                                                </span>
-                                              </td>
-                                            </tr>
-                                          );
-                                        })}
+                                        {lineas.map((l: any) => renderLineaRow({
+                                          ...l,
+                                          cotizacionId: c.id,
+                                          cotizacionTitulo: c.titulo || "Cotización",
+                                          agente: c.agente,
+                                          fecha_salida: l.fecha_salida ?? c.fecha_salida,
+                                          fecha_regreso: l.fecha_regreso ?? c.fecha_regreso,
+                                        }))}
                                       </tbody>
                                     </table>
                                   )}
