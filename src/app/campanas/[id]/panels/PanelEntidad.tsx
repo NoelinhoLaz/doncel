@@ -348,7 +348,10 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
       });
       const res = await fetch(`/api/entidades/${entidad.id}/contactos`);
       const json = await res.json();
-      if (json.success) setContactos(json.data);
+      if (json.success) {
+        setContactos(json.data);
+        onEntidadUpdated?.({ ...entidadLocal, crm_contactos: json.data });
+      }
       setContactoSearch("");
       setContactoResultados([]);
       setShowNuevoContacto(false);
@@ -358,7 +361,9 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
 
   async function handleDesvincularContacto(contactoId: string) {
     if (!entidad?.id) return;
-    setContactos(prev => prev.filter((c: any) => c.id !== contactoId));
+    const nuevosContactos = contactos.filter((c: any) => c.id !== contactoId);
+    setContactos(nuevosContactos);
+    onEntidadUpdated?.({ ...entidadLocal, crm_contactos: nuevosContactos });
     try {
       await fetch(`/api/entidades/${entidad.id}/contactos?contacto_id=${contactoId}`, { method: "DELETE" });
     } catch { }
@@ -415,7 +420,9 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
       });
       const json = await res.json();
       if (json.success && json.data) {
-        setContactos(prev => [...prev, json.data]);
+        const nuevosContactos = [...contactos, json.data];
+        setContactos(nuevosContactos);
+        onEntidadUpdated?.({ ...entidadLocal, crm_contactos: nuevosContactos });
         setForm(EMPTY_CONTACTO_FORM);
         setShowNuevoContacto(false);
       }
@@ -434,7 +441,9 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
       });
       const json = await res.json();
       if (json.success && json.data) {
-        setContactos(prev => prev.map(c => c.id === editingContactoId ? json.data : c));
+        const nuevosContactos = contactos.map(c => c.id === editingContactoId ? json.data : c);
+        setContactos(nuevosContactos);
+        onEntidadUpdated?.({ ...entidadLocal, crm_contactos: nuevosContactos });
         setForm(EMPTY_CONTACTO_FORM);
         setEditingContactoId(null);
       }

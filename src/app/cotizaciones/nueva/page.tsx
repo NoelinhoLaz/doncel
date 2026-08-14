@@ -12,6 +12,9 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { addDestinoCotizacion, removeDestinoCotizacion, updateCotizacionMeta } from "@/actions/cotizaciones";
 import { getEntidades } from "@/actions/entidades";
 import ExpedienteActionsToolbar from "@/app/components/ExpedienteActionsToolbar";
+import { PanelEntidad } from "@/app/campanas/[id]/panels/PanelEntidad";
+import { NuevoClientePanel } from "@/components/modals/NuevoClientePanel";
+import { Pencil } from "lucide-react";
 
 export default function NuevaCotizacionPage() {
   const [contactoId, setContactoId] = useState<string | null>(null);
@@ -487,6 +490,9 @@ function ContactoModal({ cotizacionId, currentId, currentNombre, currentPersonaI
   const [personasEntidad, setPersonasEntidad] = useState<any[]>([]);
   const [loadingPersonas, setLoadingPersonas] = useState(false);
   const [titulo, setTitulo] = useState(currentTitulo);
+  const [editEntidad, setEditEntidad] = useState<any | null>(null);
+  const [loadingEditEntidad, setLoadingEditEntidad] = useState(false);
+  const [showNuevoCliente, setShowNuevoCliente] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -494,8 +500,7 @@ function ContactoModal({ cotizacionId, currentId, currentNombre, currentPersonaI
     getEntidades().then(setEntidades).catch(console.error).finally(() => setLoading(false));
   }, []);
 
-  // Al seleccionar un cliente, comprobar si tiene contactos vinculados (crm_contactos)
-  useEffect(() => {
+  function recargarPersonasEntidad() {
     if (!selectedId) { setPersonasEntidad([]); return; }
     setLoadingPersonas(true);
     fetch(`/api/entidades/${selectedId}/contactos`)
@@ -503,7 +508,23 @@ function ContactoModal({ cotizacionId, currentId, currentNombre, currentPersonaI
       .then(json => { if (json?.success) setPersonasEntidad(json.data ?? []); else setPersonasEntidad([]); })
       .catch(() => setPersonasEntidad([]))
       .finally(() => setLoadingPersonas(false));
+  }
+
+  // Al seleccionar un cliente, comprobar si tiene contactos vinculados (crm_contactos)
+  useEffect(() => {
+    recargarPersonasEntidad();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
+
+  function abrirEditarCliente() {
+    if (!selectedId) return;
+    setLoadingEditEntidad(true);
+    fetch(`/api/entidades/${selectedId}`)
+      .then(r => r.json())
+      .then(json => { if (json?.success) setEditEntidad(json.data); })
+      .catch(console.error)
+      .finally(() => setLoadingEditEntidad(false));
+  }
 
   function abrirBuscadorPersona() {
     setShowBuscadorPersona(v => !v);
@@ -566,6 +587,14 @@ function ContactoModal({ cotizacionId, currentId, currentNombre, currentPersonaI
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.4rem 0.75rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "0.375rem" }}>
               <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#166534" }}>{selectedNombre}</span>
               <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <button
+                  onClick={abrirEditarCliente}
+                  disabled={loadingEditEntidad}
+                  title="Editar cliente"
+                  style={{ background: "none", border: "none", cursor: loadingEditEntidad ? "default" : "pointer", color: "#166534", display: "flex", opacity: loadingEditEntidad ? 0.5 : 1 }}
+                >
+                  <Pencil size={13} />
+                </button>
                 <button onClick={() => setShowBuscador(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", color: "#166534", fontSize: "0.72rem", fontWeight: 600, textDecoration: "underline" }}>
                   {showBuscador ? "Ocultar" : "Cambiar"}
                 </button>
@@ -651,24 +680,45 @@ function ContactoModal({ cotizacionId, currentId, currentNombre, currentPersonaI
                 {loading ? (
                   <div style={{ padding: "1rem", textAlign: "center", fontSize: "0.75rem", color: "#94a3b8" }}>Cargando...</div>
                 ) : filtered.length === 0 ? (
-                  <div style={{ padding: "1rem", textAlign: "center", fontSize: "0.75rem", color: "#94a3b8" }}>Sin resultados</div>
-                ) : filtered.map((e: any) => (
-                  <div
-                    key={e.id}
-                    onClick={() => { setSelectedId(e.id); setSelectedNombre(e.nombre); setQuery(""); setSelectedPersonaId(null); setSelectedPersonaNombre(null); setShowBuscador(false); setShowBuscadorPersona(false); setPersonasEntidad([]); }}
-                    style={{
-                      padding: "0.45rem 0.75rem", cursor: "pointer", fontSize: "0.8rem",
-                      color: selectedId === e.id ? "#fff" : "#334155",
-                      background: selectedId === e.id ? "var(--primary-color,#475569)" : "transparent",
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                    }}
-                    onMouseEnter={(el) => { if (selectedId !== e.id) el.currentTarget.style.background = "#f1f5f9"; }}
-                    onMouseLeave={(el) => { if (selectedId !== e.id) el.currentTarget.style.background = "transparent"; }}
-                  >
-                    <span>{e.nombre}</span>
-                    {e.email && <span style={{ fontSize: "0.68rem", color: selectedId === e.id ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>{e.email}</span>}
+                  <div style={{ padding: "1rem", textAlign: "center" }}>
+                    <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginBottom: "0.6rem" }}>Sin resultados</div>
+                    <button
+                      onClick={() => setShowNuevoCliente(true)}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        padding: "0.4rem 0.8rem", borderRadius: "0.375rem", border: "none",
+                        background: "var(--primary-color,#475569)", color: "#fff",
+                        fontSize: "0.75rem", fontWeight: 600, cursor: "pointer",
+                      }}
+                    >
+                      + Crear cliente {query.trim() ? `"${query.trim()}"` : ""}
+                    </button>
                   </div>
-                ))}
+                ) : filtered.map((e: any) => {
+                  const ciudad = e.direccion?.ciudad || e.direccion?.localidad || "";
+                  return (
+                    <div
+                      key={e.id}
+                      onClick={() => { setSelectedId(e.id); setSelectedNombre(e.nombre); setQuery(""); setSelectedPersonaId(null); setSelectedPersonaNombre(null); setShowBuscador(false); setShowBuscadorPersona(false); setPersonasEntidad([]); }}
+                      style={{
+                        padding: "0.45rem 0.75rem", cursor: "pointer", fontSize: "0.8rem",
+                        color: selectedId === e.id ? "#fff" : "#334155",
+                        background: selectedId === e.id ? "var(--primary-color,#475569)" : "transparent",
+                        display: "flex", flexDirection: "column", gap: 2,
+                      }}
+                      onMouseEnter={(el) => { if (selectedId !== e.id) el.currentTarget.style.background = "#f1f5f9"; }}
+                      onMouseLeave={(el) => { if (selectedId !== e.id) el.currentTarget.style.background = "transparent"; }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span>{e.nombre}</span>
+                        {e.email && <span style={{ fontSize: "0.68rem", color: selectedId === e.id ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>{e.email}</span>}
+                      </div>
+                      {ciudad && (
+                        <span style={{ fontSize: "0.68rem", color: selectedId === e.id ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>{ciudad}</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -687,6 +737,34 @@ function ContactoModal({ cotizacionId, currentId, currentNombre, currentPersonaI
           </button>
         </div>
       </div>
+
+      {editEntidad && (
+        <PanelEntidad
+          data={{ entidad: editEntidad }}
+          onClose={() => setEditEntidad(null)}
+          onEntidadUpdated={(actualizada) => {
+            setEditEntidad(actualizada);
+            if (actualizada?.nombre) setSelectedNombre(actualizada.nombre);
+            recargarPersonasEntidad();
+          }}
+        />
+      )}
+
+      {showNuevoCliente && (
+        <NuevoClientePanel
+          onClose={() => setShowNuevoCliente(false)}
+          onCreated={(nuevo) => {
+            setShowNuevoCliente(false);
+            setSelectedId(nuevo.id);
+            setSelectedNombre(nuevo.nombre);
+            setSelectedPersonaId(null);
+            setSelectedPersonaNombre(null);
+            setShowBuscador(false);
+            setQuery("");
+            getEntidades().then(setEntidades).catch(console.error);
+          }}
+        />
+      )}
     </div>
   );
 }
