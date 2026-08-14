@@ -3,6 +3,11 @@
 @tailwind components;
 @tailwind utilities;
 
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 999 !important;
+}
+
 @keyframes overachieve-pulse {
   0%, 100% { opacity: 1; filter: brightness(1); }
   50%       { opacity: 0.82; filter: brightness(1.25) saturate(1.3); }

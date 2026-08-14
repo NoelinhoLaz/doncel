@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, Fragment } from "react";
-import { Info, Layers, Unlink, Copy, Trash2, ClipboardPaste, Mail, Users, Moon, ChevronDown, ChevronRight, MapPin } from "lucide-react";
+import { Info, Layers, Unlink, Copy, Trash2, Mail, Users, Moon, ChevronDown, ChevronRight, MapPin } from "lucide-react";
+import { LiaGoogleDrive } from "react-icons/lia";
 import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 const InlineCotizacionMap = dynamic(() => import("@/app/expedientes/[id]/components/InlineCotizacionMap"), { ssr: false });
@@ -465,7 +466,7 @@ export default function TablaCotizacion({ c, hideHeader, compactHeader, title, s
                       className={tablaStyles.tipoPopupItem}
                       onClick={() => { c.setShowAddTipoPopup(false); openSheetsModal(); }}
                     >
-                      <ClipboardPaste size={14} />
+                      <LiaGoogleDrive size={16} />
                     </div>
                   </div>
                 </div>
@@ -486,7 +487,7 @@ export default function TablaCotizacion({ c, hideHeader, compactHeader, title, s
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                <ClipboardPaste size={20} style={{ color: '#6366f1', flexShrink: 0 }} />
+                <LiaGoogleDrive size={20} style={{ color: '#6366f1', flexShrink: 0 }} />
                 <div>
                   <h3 style={{ margin: 0, fontSize: '0.97rem', fontWeight: 700, color: '#1e293b' }}>Importar desde Google Sheets / Excel</h3>
                   <p style={{ margin: 0, fontSize: '0.72rem', color: '#94a3b8' }}>

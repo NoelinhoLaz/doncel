@@ -783,7 +783,7 @@ export default function CotizacionesPage() {
       </div>
 
       <div style={{ background: "#ffffff", borderRadius: "0.75rem", border: "1px solid #f1f5f9", boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)", marginTop: "-1rem" }}>
-        <div className={styles.listHeaderTop} style={{ marginBottom: "0" }}>
+        <div className={styles.listHeaderTop} style={{ marginBottom: "0", borderTopLeftRadius: "0.75rem", borderTopRightRadius: "0.75rem" }}>
           <div className={styles.listTitleWrapper}>
             <Icons.Facturacion size={18} className={styles.titleIcon} />
             <h2 className={styles.listTitle}>
@@ -1066,6 +1066,7 @@ export default function CotizacionesPage() {
           </div>
         )}
 
+        <div style={{ borderBottomLeftRadius: "0.75rem", borderBottomRightRadius: "0.75rem", overflow: "hidden" }}>
         {loading ? (
           <div style={{ padding: "2rem", textAlign: "center", color: "#64748b" }}>Cargando cotizaciones...</div>
         ) : showMap ? (
@@ -1436,6 +1437,7 @@ export default function CotizacionesPage() {
              )}
           </>
         )}
+        </div>
       </div>
       {estadoPickerRowId && estadoPickerPos && (
         <div

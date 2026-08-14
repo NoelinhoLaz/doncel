@@ -4,6 +4,7 @@ import styles from "./MenuPrincipal.module.css";
 import { useRouter, usePathname } from "next/navigation";
 import { Icons } from "@/lib/icons";
 import { Sparkles } from "lucide-react";
+import { LiaGoogleDrive } from "react-icons/lia";
 import { useState, useRef, useEffect } from "react";
 import { getCurrentUsuario } from "@/actions/usuarios";
 
@@ -361,7 +362,7 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
         title="Documentos"
         disabled
       >
-        <Icons.Documentos size={20} strokeWidth={2} />
+        <LiaGoogleDrive size={22} />
       </button>
 
       <button

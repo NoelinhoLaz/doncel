@@ -252,7 +252,7 @@ function MapSearchControl() {
   };
 
   return (
-    <div ref={containerRef} style={{ position: "absolute", top: 10, right: 10, zIndex: 1000, width: 260 }}>
+    <div ref={containerRef} style={{ position: "absolute", top: 10, right: 10, zIndex: 999, width: 260 }}>
       <div style={{ position: "relative" }}>
         <Search size={14} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none" }} />
         <input

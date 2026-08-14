@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Calculator, Globe, FolderOpen, Mail, Paperclip, Loader2, Link2, Plus, FileText } from "lucide-react";
+import { Calculator, Globe, FolderOpen, Mail, Loader2, Link2, Plus, FileText } from "lucide-react";
+import { LiaGoogleDrive } from "react-icons/lia";
 import {
   getEntityLinks,
   linkCotizacionToExpediente,
@@ -392,7 +393,7 @@ export default function ExpedienteActionsToolbar({
           onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
         >
-          <Paperclip size={17} />
+          <LiaGoogleDrive size={19} />
         </button>
       </div>
 
