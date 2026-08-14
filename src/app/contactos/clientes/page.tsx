@@ -40,7 +40,7 @@ export default function ClientesPage() {
   const [tipoFilter, setTipoFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(15);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
   const [entidadPanel, setEntidadPanel] = useState<Cliente | null>(null);
 
@@ -54,6 +54,13 @@ export default function ClientesPage() {
   }
 
   useEffect(() => { cargarClientes(); }, []);
+
+  const TIPO_COLORES: Record<string, { bg: string; color: string }> = {
+    Persona: { bg: "#dbeafe", color: "#2563eb" },
+    Empresa: { bg: "#fef3c7", color: "#b45309" },
+    Grupo: { bg: "#dcfce7", color: "#16a34a" },
+  };
+  const colorTipo = (etiqueta?: string | null) => (etiqueta && TIPO_COLORES[etiqueta]) || { bg: "#f1f5f9", color: "#64748b" };
 
   const expedienteLabel = (e: { numero: string | null; referencia: string }) =>
     e.numero ? `${e.numero} · ${e.referencia}` : e.referencia;
@@ -152,36 +159,60 @@ export default function ClientesPage() {
         <div className={styles.emptyState}>Cargando…</div>
       ) : (
         <>
-          <table className={styles.table}>
+          <table className={styles.table} style={{ tableLayout: "fixed", width: "100%" }}>
+            <colgroup>
+              <col style={{ width: "24%" }} />
+              <col style={{ width: "22%" }} />
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "14%" }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>Nombre</th>
                 <th>Email</th>
                 <th>Teléfono</th>
                 <th>Ciudad</th>
+                <th>Tipo</th>
                 <th>Agencia</th>
               </tr>
             </thead>
             <tbody>
               {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className={styles.emptyState}>No hay clientes</td>
+                  <td colSpan={6} className={styles.emptyState}>No hay clientes</td>
                 </tr>
               ) : (
-                paginated.map((c) => (
-                  <tr key={c.id} onClick={() => setEntidadPanel(c)} style={{ cursor: "pointer" }}>
-                    <td>{c.nombre?.toUpperCase()}</td>
-                    <td>{c.email ?? "—"}</td>
-                    <td>{c.telefono ?? "—"}</td>
-                    <td>{c.ciudad?.toUpperCase() ?? "—"}</td>
-                    <td>{c.sucursal ?? "—"}</td>
-                  </tr>
-                ))
+                paginated.map((c) => {
+                  const ct = colorTipo(c.tipo_cliente?.etiqueta);
+                  return (
+                    <tr key={c.id} onClick={() => setEntidadPanel(c)} style={{ cursor: "pointer" }}>
+                      <td style={{ padding: "0.15rem 1rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nombre?.toUpperCase()}</td>
+                      <td style={{ padding: "0.15rem 1rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.email ?? "—"}</td>
+                      <td style={{ padding: "0.15rem 1rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.telefono ?? "—"}</td>
+                      <td style={{ padding: "0.15rem 1rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.ciudad?.toUpperCase() ?? "—"}</td>
+                      <td style={{ padding: "0.15rem 1rem" }}>
+                        {c.tipo_cliente?.etiqueta ? (
+                          <span style={{
+                            display: "inline-block", width: 70, padding: "0.2rem 0", borderRadius: "0.5rem",
+                            fontSize: "0.65rem", fontWeight: 600, textAlign: "center",
+                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                            backgroundColor: ct.bg, color: ct.color,
+                          }}>
+                            {c.tipo_cliente.etiqueta}
+                          </span>
+                        ) : "—"}
+                      </td>
+                      <td style={{ padding: "0.15rem 1rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.sucursal ?? "—"}</td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={5} style={{ padding: 0 }}>
+                <td colSpan={6} style={{ padding: 0 }}>
                   <Pagination
                     currentPage={currentPage}
                     totalItems={filtered.length}
@@ -198,7 +229,7 @@ export default function ClientesPage() {
 
       {entidadPanel && (
         <PanelEntidad
-          data={{ entidad: { ...entidadPanel, crm_agentes: entidadPanel.agente ?? null } as any }}
+          data={{ entidad: { ...entidadPanel, crm_agentes: entidadPanel.agente ?? null, config_tipos_cliente: entidadPanel.tipo_cliente ?? null } as any }}
           onClose={() => setEntidadPanel(null)}
           onEntidadUpdated={(entidadActualizada) => {
             setEntidadPanel((p) => (p ? { ...p, ...entidadActualizada } : p));

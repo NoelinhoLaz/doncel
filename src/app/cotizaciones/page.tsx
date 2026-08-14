@@ -21,8 +21,9 @@ const MapComponent = dynamic(() => import("../expedientes/MapComponent"), {
 
 export default function CotizacionesPage() {
   const router = useRouter();
-  const [agruparPor, setAgruparPor] = useState<"cotizacion" | "tipo" | "desagrupar">("cotizacion");
+  const [agruparPor, setAgruparPor] = useState<"cotizacion" | "tipo" | "proveedor" | "desagrupar">("cotizacion");
   const viewMode: "cotizaciones" | "lineas" = agruparPor === "cotizacion" ? "cotizaciones" : "lineas";
+  const isGrupoLineas = agruparPor === "tipo" || agruparPor === "proveedor";
   const [cotizaciones, setCotizaciones] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -375,12 +376,20 @@ export default function CotizacionesPage() {
   }, [viewMode, filteredCotizaciones, filteredLines, startIndex, itemsPerPage]);
 
   const gruposPorTipo = useMemo(() => {
-    if (agruparPor !== "tipo") return null;
-    const map = new Map<string, { key: string; label: string; icono: string; items: any[] }>();
+    if (agruparPor !== "tipo" && agruparPor !== "proveedor") return null;
+    const map = new Map<string, { key: string; label: string; icono: string | null; items: any[] }>();
     for (const l of filteredLines) {
-      const key = l.config_tipos_servicios?.etiqueta || "__sin_tipo__";
-      const label = l.config_tipos_servicios?.etiqueta || "Sin tipo";
-      const icono = l.config_tipos_servicios?.icono || "compass";
+      let key: string, label: string, icono: string | null;
+      if (agruparPor === "proveedor") {
+        const provName = l.contabilidad_proveedores ? (l.contabilidad_proveedores.nombre || l.contabilidad_proveedores.razon_social) : null;
+        key = provName || "__sin_proveedor__";
+        label = provName || "Sin proveedor";
+        icono = null;
+      } else {
+        key = l.config_tipos_servicios?.etiqueta || "__sin_tipo__";
+        label = l.config_tipos_servicios?.etiqueta || "Sin tipo";
+        icono = l.config_tipos_servicios?.icono || "compass";
+      }
       const grupo = map.get(key) || { key, label, icono, items: [] as any[] };
       grupo.items.push(l);
       map.set(key, grupo);
@@ -389,7 +398,7 @@ export default function CotizacionesPage() {
   }, [agruparPor, filteredLines]);
 
   useEffect(() => {
-    if (agruparPor === "tipo" && gruposPorTipo) {
+    if (isGrupoLineas && gruposPorTipo) {
       setCollapsedTipoGroups(new Set(gruposPorTipo.map((g) => g.key)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -483,6 +492,12 @@ export default function CotizacionesPage() {
           >
             {truncatedDest}
           </div>
+        </td>
+        <td style={{ width: "95px", fontSize: "0.78rem", color: "#64748b", whiteSpace: "nowrap" }}>
+          {l.fecha_salida ? formatDate(l.fecha_salida) : "—"}
+        </td>
+        <td style={{ width: "95px", fontSize: "0.78rem", color: "#64748b", whiteSpace: "nowrap" }}>
+          {l.fecha_regreso ? formatDate(l.fecha_regreso) : "—"}
         </td>
         <td style={{ width: "70px", textAlign: "right", color: "#334155", fontWeight: 500 }}>
           {l.plazas || "—"}
@@ -976,11 +991,12 @@ export default function CotizacionesPage() {
                 options={[
                   { value: "cotizacion", label: "Cotización" },
                   { value: "tipo", label: "Tipo" },
+                  { value: "proveedor", label: "Proveedor" },
                   { value: "desagrupar", label: "Desagrupar" },
                 ]}
                 value={agruparPor}
                 onChange={(v) => {
-                  setAgruparPor(v as "cotizacion" | "tipo" | "desagrupar");
+                  setAgruparPor(v as "cotizacion" | "tipo" | "proveedor" | "desagrupar");
                   setSelectedLineIds([]);
                   if (v !== "tipo") setTipoFilter([]);
                   setCurrentPage(1);
@@ -1008,7 +1024,7 @@ export default function CotizacionesPage() {
                 style={{ padding: "0.3rem 0.5rem" }}
               />
             </div>
-            {agruparPor === "tipo" && (
+            {(agruparPor === "tipo" || agruparPor === "proveedor" || agruparPor === "desagrupar") && (
               <div className={styles.filterGroup} style={{ width: "200px" }}>
                 <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "0.25rem" }}>Tipo</label>
                 <MultiSelectDropdown
@@ -1441,6 +1457,8 @@ export default function CotizacionesPage() {
                       <th style={{ width: "22px", paddingLeft: "0.1rem" }}>Tipo</th>
                       <th style={{ width: "450px" }}>Descripción / Proveedor</th>
                       <th style={{ width: "140px" }}>Destino</th>
+                      <th style={{ width: "95px" }}>Salida</th>
+                      <th style={{ width: "95px" }}>Regreso</th>
                       <th style={{ width: "70px", textAlign: "right" }}>Plazas</th>
                       <th style={{ width: "70px", textAlign: "right" }}>Noches</th>
                       <th style={{ width: "110px", textAlign: "right" }}>Neto / PVP</th>
@@ -1452,11 +1470,11 @@ export default function CotizacionesPage() {
                   <tbody>
                     {filteredLines.length === 0 ? (
                       <tr>
-                        <td colSpan={11} style={{ textAlign: "center", color: "#94a3b8", padding: "2rem" }}>
+                        <td colSpan={13} style={{ textAlign: "center", color: "#94a3b8", padding: "2rem" }}>
                           No hay líneas de cotización.
                         </td>
                       </tr>
-                    ) : agruparPor === "tipo" && gruposPorTipo ? (
+                    ) : isGrupoLineas && gruposPorTipo ? (
                       gruposPorTipo.map((grupo) => {
                         const isCollapsed = collapsedTipoGroups.has(grupo.key);
                         return (
@@ -1465,10 +1483,10 @@ export default function CotizacionesPage() {
                               onClick={() => toggleTipoGroup(grupo.key)}
                               style={{ cursor: "pointer", background: "#f1f5f9" }}
                             >
-                              <td colSpan={11} style={{ padding: "0.4rem 0.75rem" }}>
+                              <td colSpan={13} style={{ padding: "0.4rem 0.75rem" }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: "0.78rem", color: "#334155" }}>
                                   {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-                                  <TipoIcon iconName={grupo.icono} size={14} />
+                                  {grupo.icono && <TipoIcon iconName={grupo.icono} size={14} />}
                                   {grupo.label}
                                   <span style={{ fontWeight: 500, color: "#94a3b8" }}>({grupo.items.length})</span>
                                 </div>
@@ -1485,7 +1503,7 @@ export default function CotizacionesPage() {
                 </>
               )}
              </table>
-             {agruparPor !== "tipo" && (
+             {!isGrupoLineas && (
                <Pagination
                  currentPage={currentPage}
                  totalItems={totalItems}

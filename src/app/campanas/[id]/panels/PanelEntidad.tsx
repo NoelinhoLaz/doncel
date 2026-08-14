@@ -462,7 +462,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
         <div style={{ padding: "1.25rem 1.25rem 1rem", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: "0.65rem", fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
-              {entidadLocal.config_tipos_cliente?.etiqueta ?? entidadLocal.tipo_entidad ?? "Entidad"}
+              {entidadLocal.config_tipos_cliente?.etiqueta ?? "Entidad"}
             </div>
             {editingNombre ? (
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -826,7 +826,8 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
             )}
           </section>
 
-          {/* Contactos */}
+          {/* Contactos (no aplica a clientes tipo Persona) */}
+          {entidadLocal.config_tipos_cliente?.etiqueta !== "Persona" && (
           <section>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
               <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>
@@ -1072,6 +1073,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
               </div>
             )}
           </section>
+          )}
 
           {/* Campañas */}
           <section>
