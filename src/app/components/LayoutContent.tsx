@@ -6,11 +6,20 @@ import { NextUIProvider } from "@nextui-org/react";
 import AgentBar from "@/app/components/Header";
 import MenuPrincipal from "@/app/components/Sidebar";
 import GlobalCopilotoDrawer from "@/components/modals/GlobalCopilotoDrawer";
+import { CopilotoProvider, useCopiloto } from "@/contexts/CopilotoContext";
 
 export default function LayoutContent({ children }: { children: React.ReactNode }) {
+  return (
+    <CopilotoProvider>
+      <LayoutContentInner>{children}</LayoutContentInner>
+    </CopilotoProvider>
+  );
+}
+
+function LayoutContentInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
-  const [copilotoOpen, setCopilotoOpen] = useState(false);
+  const { isOpen: copilotoOpen, open: openCopiloto, close: closeCopiloto } = useCopiloto();
 
   useEffect(() => {
     setMounted(true);
@@ -45,7 +54,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
   return (
     <NextUIProvider>
       <AgentBar />
-      <MenuPrincipal onOpenCopiloto={() => setCopilotoOpen(true)} />
+      <MenuPrincipal onOpenCopiloto={openCopiloto} />
       <main className="appMain" style={{
         marginLeft: "40px",
         paddingTop: "60px",
@@ -54,7 +63,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
       }}>
         {children}
       </main>
-      <GlobalCopilotoDrawer isOpen={copilotoOpen} onClose={() => setCopilotoOpen(false)} />
+      <GlobalCopilotoDrawer isOpen={copilotoOpen} onClose={closeCopiloto} />
     </NextUIProvider>
   );
 }

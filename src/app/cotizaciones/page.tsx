@@ -4,7 +4,7 @@ import listStyles from "../expedientes/page.module.css";
 import styles from "../expedientes/[id]/page.module.css";
 import { Icons } from "@/lib/icons";
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Copy, Trash2, UserRound, X, Search, MapPin, SlidersHorizontal, ChevronRight, ChevronDown, Compass, Link2, ClipboardPaste, Layers } from "lucide-react";
 import Pagination from "@/app/components/Pagination";
 import { duplicateCotizacion, deleteCotizacion, updateCotizacionLinea, updateCotizacionMeta, tieneCotizacionPropuestasVinculadas } from "@/actions/cotizaciones";
@@ -22,6 +22,7 @@ const MapComponent = dynamic(() => import("../expedientes/MapComponent"), {
 
 export default function CotizacionesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [agruparPor, setAgruparPor] = useState<"cotizacion" | "tipo" | "proveedor" | "desagrupar">("cotizacion");
   const viewMode: "cotizaciones" | "lineas" = agruparPor === "cotizacion" ? "cotizaciones" : "lineas";
   const isGrupoLineas = agruparPor === "tipo" || agruparPor === "proveedor";
@@ -44,6 +45,10 @@ export default function CotizacionesPage() {
   const [fechaHasta, setFechaHasta] = useState("");
   const [tipoFilter, setTipoFilter] = useState<string[]>([]);
   const [estadoFilter, setEstadoFilter] = useState<string[]>([]);
+  const [estadoCotizacionFilter, setEstadoCotizacionFilter] = useState<string[]>(() => {
+    const estadoParam = searchParams.get("estado");
+    return estadoParam ? [estadoParam] : [];
+  });
   const [showMap, setShowMap] = useState(false);
   const [expandedCotizacionIds, setExpandedCotizacionIds] = useState<string[]>([]);
   const [collapsedTipoGroups, setCollapsedTipoGroups] = useState<Set<string>>(new Set());
@@ -320,9 +325,10 @@ export default function CotizacionesPage() {
       }
       if (fechaDesde && c.fecha_salida && c.fecha_salida < fechaDesde) return false;
       if (fechaHasta && c.fecha_regreso && c.fecha_regreso > fechaHasta) return false;
+      if (estadoCotizacionFilter.length > 0 && !estadoCotizacionFilter.includes(c.estado || "borrador")) return false;
       return true;
     });
-  }, [cotizaciones, search, agenteFilter, destinoFilter, fechaDesde, fechaHasta, destinoVariantesPorClave]);
+  }, [cotizaciones, search, agenteFilter, destinoFilter, fechaDesde, fechaHasta, destinoVariantesPorClave, estadoCotizacionFilter]);
 
   const filteredLines = useMemo(() => {
     return allLines.filter((l: any) => {

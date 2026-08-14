@@ -1,34 +1,52 @@
 import styles from "./page.module.css";
 import { getCurrentUsuario } from "@/actions/usuarios";
-import WelcomeCard from "./WelcomeCard";
-import PresupuestosCard from "./PresupuestosCard";
-import CotizacionesCard from "./CotizacionesCard";
-import MovimientosMatchCard from "./MovimientosMatchCard";
-import CentrosCampanaCard from "./CentrosCampanaCard";
+import SaludoBanner from "./SaludoBanner";
+import ClientesNuevosPresupuestosCard from "./ClientesNuevosPresupuestosCard";
+import TipRotativoCard from "./TipRotativoCard";
+import AccionesRapidasCard from "./AccionesRapidasCard";
+import PotencialCampanasCard from "./PotencialCampanasCard";
+import ClientesEnDestinoCard from "./ClientesEnDestinoCard";
+import ClientesProximosViajesCard from "./ClientesProximosViajesCard";
+import ClientesProximosRegresosCard from "./ClientesProximosRegresosCard";
+import PresupuestosSolicitadosCard from "./PresupuestosSolicitadosCard";
+import ItinerariosEntregadosCard from "./ItinerariosEntregadosCard";
+import CotizacionesDesestimadasCard from "./CotizacionesDesestimadasCard";
+import PendientesEntregaCard from "./PendientesEntregaCard";
 
 export default async function DashboardPage() {
   const usuario = await getCurrentUsuario();
-  const nombre = usuario?.nombre ?? "there";
+  const nombre = usuario?.nombre ?? "";
 
   return (
-    <div className={styles.container}>
-      <h1 className={styles.title}>Dashboard</h1>
-      <div className={styles.grid}>
-        <PresupuestosCard />
-        <CentrosCampanaCard />
-        <div className={styles.topCard}><span className={styles.topCardNum}>3</span></div>
+    <div className={styles.pageOuter}>
+      <SaludoBanner nombre={nombre} />
 
-        <CotizacionesCard />
-        <WelcomeCard nombre={nombre} />
-        <MovimientosMatchCard />
+      <div className={styles.page}>
+        <div className={styles.main}>
+          <PotencialCampanasCard />
 
-        <div className={styles.topCard}><span className={styles.topCardNum}>7</span></div>
-        <div className={styles.topCard}><span className={styles.topCardNum}>8</span></div>
-        <div className={styles.topCard}><span className={styles.topCardNum}>9</span></div>
+          <div className={styles.rowTwo}>
+            <ClientesEnDestinoCard />
+            <div className={styles.stackedColumn}>
+              <ClientesProximosViajesCard />
+              <ClientesProximosRegresosCard />
+            </div>
+          </div>
 
-        <div className={styles.topCard}><span className={styles.topCardNum}>10</span></div>
-        <div className={styles.topCard}><span className={styles.topCardNum}>11</span></div>
-        <div className={styles.topCard}><span className={styles.topCardNum}>12</span></div>
+          <div className={styles.rowThree}>
+            <PresupuestosSolicitadosCard />
+            <ItinerariosEntregadosCard />
+            <CotizacionesDesestimadasCard />
+          </div>
+
+          <PendientesEntregaCard />
+        </div>
+
+        <aside className={styles.sidebar}>
+          <ClientesNuevosPresupuestosCard />
+          <TipRotativoCard />
+          <AccionesRapidasCard />
+        </aside>
       </div>
     </div>
   );

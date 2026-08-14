@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Calculator, Globe, FolderOpen, Mail, Loader2, Link2, Plus, FileText } from "lucide-react";
+import { Calculator, Presentation, FolderOpen, Mail, Loader2, Link2, Plus, FileText } from "lucide-react";
 import { LiaGoogleDrive } from "react-icons/lia";
 import {
   getEntityLinks,
@@ -324,7 +324,7 @@ export default function ExpedienteActionsToolbar({
           onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
         >
-          <Globe size={17} />
+          <Presentation size={17} />
         </button>
 
         {/* Expediente / Open Folder Button */}

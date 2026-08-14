@@ -76,7 +76,7 @@ import {
   Mails,
   Percent,
   ShoppingCart,
-  Globe,
+  Presentation,
   Target
 } from "lucide-react";
 
@@ -85,7 +85,7 @@ export const Icons = {
   Users,
   Expedientes: FolderOpen,
   Presupuestos: FileText,
-  Propuestas: Globe,
+  Propuestas: Presentation,
   Target,
   Settings,
   Mensajes: Mail,
