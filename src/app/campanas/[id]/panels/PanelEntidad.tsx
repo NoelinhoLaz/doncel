@@ -1324,7 +1324,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
       {agentePickerRowId && agentePickerPos && (() => {
         const row = historial.find(h => h.id === agentePickerRowId);
         if (!row) return null;
-        const pool = row.crm_campanas?.crm_campanas_agentes ?? [];
+        const pool = agentesAgencia;
         return (
           <div
             ref={agentePickerRef}
@@ -1336,13 +1336,11 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
               minWidth: 180, padding: "0.3rem 0", fontSize: "0.8rem",
             }}
           >
-            {pool.map(a => {
-              const ag = a.crm_agentes;
-              if (!ag) return null;
-              const isSelected = row.agente_id === a.agente_id;
+            {pool.map(ag => {
+              const isSelected = row.agente_id === ag.id;
               return (
                 <div
-                  key={a.agente_id}
+                  key={ag.id}
                   style={{
                     display: "flex", alignItems: "center", gap: 8,
                     padding: "0.4rem 0.85rem", cursor: "pointer",
@@ -1351,7 +1349,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
                   }}
                   onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "#f8fafc"; }}
                   onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = ""; }}
-                  onClick={() => { handleHistorialAgenteChange(row, a.agente_id); setAgentePickerRowId(null); setAgentePickerPos(null); }}
+                  onClick={() => { handleHistorialAgenteChange(row, ag.id); setAgentePickerRowId(null); setAgentePickerPos(null); }}
                 >
                   <span className={styles.agenteCircle} style={{ width: 24, height: 24, fontSize: "0.62rem", flexShrink: 0 }}>
                     {initials(ag.nombre, ag.apellidos)}
