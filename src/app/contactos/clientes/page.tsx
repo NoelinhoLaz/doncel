@@ -235,6 +235,10 @@ export default function ClientesPage() {
             setEntidadPanel((p) => (p ? { ...p, ...entidadActualizada } : p));
             setClientes((prev) => prev.map((c) => (c.id === entidadActualizada.id ? { ...c, ...entidadActualizada } : c)));
           }}
+          onEntidadDeleted={(id) => {
+            setClientes((prev) => prev.filter((c) => c.id !== id));
+            setEntidadPanel(null);
+          }}
         />
       )}
     </div>

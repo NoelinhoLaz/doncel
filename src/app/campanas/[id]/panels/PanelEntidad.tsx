@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { X, Pencil, Plus, Phone, Mail, Info, Building2, Rocket, IdCard } from "lucide-react";
+import { X, Pencil, Plus, Phone, Mail, Info, Building2, Rocket, IdCard, Trash2 } from "lucide-react";
 import { EntidadDetalle, CampanaHistorialRow } from "../types";
 import { EMPTY_CONTACTO_FORM, lbl, inp, th, td } from "../constants";
 import { getEntidadHistorial, getEntidadResumen } from "@/actions/crm";
@@ -19,7 +19,7 @@ const EntidadMapaPlaceholder = dynamic(
   { ssr: false }
 );
 
-export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: EntidadDetalle; onClose: () => void; onEntidadUpdated?: (entidad: any) => void }) {
+export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted }: { data: EntidadDetalle; onClose: () => void; onEntidadUpdated?: (entidad: any) => void; onEntidadDeleted?: (id: string) => void }) {
   const router = useRouter();
   const { entidad } = data;
   const [historial, setHistorial] = useState<CampanaHistorialRow[]>([]);
@@ -131,6 +131,32 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
   const [editingEntidad, setEditingEntidad] = useState(false);
   const [savingEntidad, setSavingEntidad] = useState(false);
   const [entidadLocal, setEntidadLocal] = useState<any>(entidad);
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteBlockedInfo, setDeleteBlockedInfo] = useState<{ label: string; count: number }[] | null>(null);
+
+  async function handleEliminarEntidad() {
+    if (!entidadLocal?.id) return;
+    setDeleting(true);
+    setDeleteBlockedInfo(null);
+    try {
+      const res = await fetch(`/api/crm/entidades/${entidadLocal.id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (json.success) {
+        setShowConfirmDelete(false);
+        onEntidadDeleted?.(entidadLocal.id);
+        onClose();
+      } else if (json.vinculaciones) {
+        setDeleteBlockedInfo(json.vinculaciones);
+      } else {
+        setDeleteBlockedInfo([{ label: json.error || "Error desconocido", count: 0 }]);
+      }
+    } catch {
+      setDeleteBlockedInfo([{ label: "Error de conexión", count: 0 }]);
+    } finally {
+      setDeleting(false);
+    }
+  }
   const entidadAgenteSucursal = entidadLocal.crm_agentes
     ? (agentesAgencia.find(a => a.id === entidadLocal.crm_agentes.id)?.sucursal ?? entidadLocal.crm_agentes.sucursal ?? null)
     : null;
@@ -566,6 +592,13 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
               )}
             </div>
           </div>
+          <button
+            onClick={() => { setShowConfirmDelete(true); setDeleteBlockedInfo(null); }}
+            title="Eliminar cliente"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, border: "none", background: "#f1f5f9", borderRadius: "0.4rem", cursor: "pointer", color: "#64748b", flexShrink: 0 }}
+          >
+            <Trash2 size={14} />
+          </button>
           <button onClick={onClose} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, border: "none", background: "#f1f5f9", borderRadius: "0.4rem", cursor: "pointer", color: "#64748b", flexShrink: 0 }}>
             <X size={14} />
           </button>
@@ -1387,6 +1420,61 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated }: { data: Entida
           </div>
         );
       })()}
+
+      {showConfirmDelete && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "#fff", borderRadius: "0.75rem", width: "90%", maxWidth: 420, boxShadow: "0 20px 40px -8px rgba(0,0,0,0.2)", padding: "1.5rem" }}>
+            {deleteBlockedInfo ? (
+              <>
+                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "#0f172a", marginBottom: "0.5rem" }}>
+                  No se puede eliminar
+                </div>
+                <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: "0.75rem" }}>
+                  Este cliente tiene elementos vinculados que impiden su eliminación:
+                </p>
+                <ul style={{ margin: 0, paddingLeft: "1.1rem", fontSize: "0.82rem", color: "#334155", marginBottom: "1.25rem" }}>
+                  {deleteBlockedInfo.map((v, i) => (
+                    <li key={i}>{v.count > 0 ? `${v.count} ${v.label}` : v.label}</li>
+                  ))}
+                </ul>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    onClick={() => setShowConfirmDelete(false)}
+                    style={{ padding: "0.45rem 1rem", borderRadius: "0.375rem", border: "1px solid #cbd5e1", background: "#fff", fontSize: "0.82rem", cursor: "pointer", color: "#475569" }}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "#0f172a", marginBottom: "0.5rem" }}>
+                  Eliminar cliente
+                </div>
+                <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: "1.25rem" }}>
+                  ¿Seguro que quieres eliminar a <strong>{entidadLocal.nombre}</strong>? Esta acción no se puede deshacer.
+                </p>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
+                  <button
+                    onClick={() => setShowConfirmDelete(false)}
+                    disabled={deleting}
+                    style={{ padding: "0.45rem 1rem", borderRadius: "0.375rem", border: "1px solid #cbd5e1", background: "#fff", fontSize: "0.82rem", cursor: "pointer", color: "#475569" }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleEliminarEntidad}
+                    disabled={deleting}
+                    style={{ padding: "0.45rem 1rem", borderRadius: "0.375rem", border: "none", background: "#dc2626", color: "#fff", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer", opacity: deleting ? 0.7 : 1 }}
+                  >
+                    {deleting ? "Eliminando..." : "Eliminar"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }

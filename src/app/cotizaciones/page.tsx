@@ -134,7 +134,9 @@ export default function CotizacionesPage() {
           cotizacionTitulo: c.titulo || "Cotización",
           agente: c.agente,
           fecha_salida: c.fecha_salida,
-          fecha_regreso: c.fecha_regreso
+          fecha_regreso: c.fecha_regreso,
+          cotizacionContacto: c.contabilidad_entidades?.nombre || "",
+          cotizacionResponsable: c.crm_contactos?.nombre || "",
         });
       });
     });
@@ -280,7 +282,19 @@ export default function CotizacionesPage() {
     return cotizaciones.filter((c: any) => {
       if (search) {
         const q = search.toLowerCase();
-        const matchesSearch = (c.titulo || "").toLowerCase().includes(q) || (c.id || "").toLowerCase().includes(q);
+        const destinoPrincipal = (c.destinos_unicos || [])[0] || "";
+        const contactoNombre = c.contabilidad_entidades?.nombre || "";
+        const responsableNombre = c.crm_contactos?.nombre || "";
+        const proveedores = (c.operativa_cotizacion_lineas || [])
+          .map((l: any) => l.contabilidad_proveedores?.nombre || "")
+          .join(" ");
+        const matchesSearch =
+          (c.titulo || "").toLowerCase().includes(q) ||
+          (c.id || "").toLowerCase().includes(q) ||
+          destinoPrincipal.toLowerCase().includes(q) ||
+          contactoNombre.toLowerCase().includes(q) ||
+          responsableNombre.toLowerCase().includes(q) ||
+          proveedores.toLowerCase().includes(q);
         if (!matchesSearch) return false;
       }
       if (agenteFilter.length > 0 && (!c.agente?.nombre || !agenteFilter.includes(c.agente.nombre))) return false;
@@ -305,7 +319,9 @@ export default function CotizacionesPage() {
         const matchesSearch = (l.descripcion || "").toLowerCase().includes(q) ||
           (l.cotizacionTitulo || "").toLowerCase().includes(q) ||
           destName.toLowerCase().includes(q) ||
-          provName.toLowerCase().includes(q);
+          provName.toLowerCase().includes(q) ||
+          (l.cotizacionContacto || "").toLowerCase().includes(q) ||
+          (l.cotizacionResponsable || "").toLowerCase().includes(q);
         if (!matchesSearch) return false;
       }
       if (agenteFilter.length > 0 && (!l.agente?.nombre || !agenteFilter.includes(l.agente.nombre))) return false;
@@ -858,8 +874,9 @@ export default function CotizacionesPage() {
                 <Icons.Search size={16} className={styles.searchIcon} />
                 <input
                   type="text"
-                  placeholder={viewMode === "cotizaciones" ? "Buscar cotización..." : "Buscar línea..."}
+                  placeholder={viewMode === "cotizaciones" ? "Buscar por título, destino, cliente, responsable o proveedor..." : "Buscar línea..."}
                   className={styles.searchInput}
+                  style={{ width: 380 }}
                   value={search}
                   onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
                 />
