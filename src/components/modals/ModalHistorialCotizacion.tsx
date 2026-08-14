@@ -139,10 +139,10 @@ export default function ModalHistorialCotizacion({ isOpen, onClose, items, tipos
   [historyFilteredItems]);
 
   const tiposUnicos = Array.from(new Map(items.map((it: any) => [it.tipo, it.config_tipos_servicios])).entries()).filter(([, cs]: any) => cs);
-  const destinosUnicos = Array.from(new Map(items.map((it: any) => [it.maestro_destinos?.id, it.maestro_destinos]).filter(([id]: any) => id)).values()) as any[];
-  const destinosPrincipalesUnicos = Array.from(new Map(
-    items.flatMap((it: any) => (it.destinosPrincipales || []).map((d: any) => [d.id, d]))
-  ).values()) as any[];
+  const destinosUnicos = Array.from(new Map<string, any>(items.map((it: any) => [it.maestro_destinos?.id, it.maestro_destinos] as [string, any]).filter(([id]) => id)).values());
+  const destinosPrincipalesUnicos = Array.from(new Map<string, any>(
+    items.flatMap((it: any) => (it.destinosPrincipales || []).map((d: any) => [d.id, d] as [string, any]))
+  ).values());
   const isAll = historyTipoFilter === null;
   const pageSize = 12;
   const totalPages = Math.max(1, Math.ceil(historyFilteredItems.length / pageSize));

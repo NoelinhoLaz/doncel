@@ -13,6 +13,7 @@ import TipoIcon from "@/app/components/cotizacion/TipoIcon";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
 import SingleSelectDropdown from "@/app/components/SingleSelectDropdown";
 import dynamic from "next/dynamic";
+import { computeMonthsData, computeDaysData } from "@/lib/utils/expedientesUtils";
 
 const MapComponent = dynamic(() => import("../expedientes/MapComponent"), {
   ssr: false,
@@ -276,6 +277,20 @@ export default function CotizacionesPage() {
       types: sortedTypes
     };
   }, [allLines, allServiceTypes]);
+
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+
+  const cotizacionesFechaRows = useMemo(() => {
+    return cotizaciones.map((c: any) => ({ fechaSalida: c.fecha_salida })) as any[];
+  }, [cotizaciones]);
+
+  const monthsData = useMemo(() => {
+    return computeMonthsData(cotizacionesFechaRows);
+  }, [cotizacionesFechaRows]);
+
+  const daysData = useMemo(() => {
+    return computeDaysData(selectedMonth, cotizacionesFechaRows, monthsData);
+  }, [selectedMonth, cotizacionesFechaRows, monthsData]);
 
   const filteredCotizaciones = useMemo(() => {
     return cotizaciones.filter((c: any) => {
@@ -695,106 +710,77 @@ export default function CotizacionesPage() {
         </div>
       </header>
 
-      {(() => {
-        const items = kpisServicios.types;
-        const total = items.length;
-        if (total === 0) return null;
-
-        const renderCard = (type: any) => (
-          <div 
-            key={type.label} 
-            style={{ 
-              minWidth: "140px", 
-              background: "#fff", 
-              borderRadius: "0.75rem", 
-              padding: "1rem", 
-              border: "1px solid #e2e8f0", 
-              boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
-              position: "relative",
-              overflow: "hidden"
-            }}
-          >
-            <div style={{ position: "relative", zIndex: 2 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                <span style={{ fontSize: "0.62rem", fontWeight: 700, textTransform: "uppercase", color: "#64748b", letterSpacing: "0.05em" }}>{type.label}</span>
-              </div>
-              <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#1e293b", lineHeight: 1.1, marginBottom: "0.25rem" }}>
-                {type.count}
-              </div>
-              <div style={{ fontSize: "0.68rem", color: "#64748b" }}>
-                Neto: <span style={{ fontWeight: 600, color: "#475569" }}>{f(type.neto)} €</span>
-              </div>
-              <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: "2px" }}>
-                PVP: <span style={{ fontWeight: 600, color: "#1e293b" }}>{f(type.pvp)} €</span>
-              </div>
+      <div className={listStyles.topGrid} style={{ marginBottom: "1.25rem" }}>
+        <div className={listStyles.statsColumn}>
+          <div className={listStyles.card}>
+            <div className={listStyles.cardHeaderWithAction}>
+              <span className={listStyles.cardLabel}>
+                {selectedMonth ? `DETALLE DIARIO: ${selectedMonth.toUpperCase()}` : "COTIZACIONES POR FECHA DE SALIDA"}
+              </span>
+              {selectedMonth && (
+                <button className={listStyles.backButton} onClick={() => setSelectedMonth(null)} title="Volver a meses">
+                  <Icons.ChevronDown size={14} style={{ transform: "rotate(90deg)" }} />
+                </button>
+              )}
             </div>
-            <div 
-              style={{ 
-                position: "absolute", 
-                right: "-10px", 
-                bottom: "-10px", 
-                color: "var(--primary-color, #4f46e5)", 
-                opacity: 0.08, 
-                pointerEvents: "none"
-              }}
-            >
-              <TipoIcon iconName={type.icon} size={64} />
+            <div className={listStyles.barChart}>
+              {!selectedMonth ? (
+                monthsData.map((item: any) => (
+                  <div
+                    key={item.month}
+                    className={listStyles.barColumn}
+                    onClick={() => setSelectedMonth(item.month)}
+                    data-tooltip={`${item.month}: ${item.count} ${item.count === 1 ? "cotización" : "cotizaciones"}`}
+                  >
+                    <div className={listStyles.barWrapper}>
+                      <div className={`${listStyles.bar} ${listStyles.clickableBar}`} style={{ height: `${item.val}%` }} />
+                    </div>
+                    <span className={listStyles.monthInitial}>{item.month.charAt(0)}</span>
+                  </div>
+                ))
+              ) : (
+                <div className={listStyles.daysGrid}>
+                  {daysData.map((item: any) => (
+                    <div
+                      key={item.day}
+                      className={listStyles.dayColumn}
+                      data-tooltip={`Día ${item.day}: ${item.count} ${item.count === 1 ? "cotización" : "cotizaciones"}`}
+                    >
+                      <div className={listStyles.dayBarWrapper}>
+                        <div className={listStyles.bar} style={{ height: `${item.val}%` }} />
+                      </div>
+                      <span className={listStyles.dayNumber}>{item.day}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-        );
+          <div className={listStyles.card}>
+            <span className={listStyles.cardLabel}>SERVICIOS POR TIPO</span>
+            <div className={listStyles.barChart}>
+              {kpisServicios.types.map((type: any) => {
+                const maxCount = Math.max(...kpisServicios.types.map((t: any) => t.count), 1);
+                const val = Math.round((type.count / maxCount) * 100);
+                return (
+                  <div key={type.label} className={listStyles.barColumn} data-tooltip={`${type.label}: ${type.count}`}>
+                    <div className={listStyles.barWrapper}>
+                      <div className={listStyles.bar} style={{ height: `${val}%` }} />
+                    </div>
+                    <div style={{ marginTop: "2px", color: "#94a3b8", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <TipoIcon iconName={type.icon} size={13} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
 
-        if (total <= 6) {
-          return (
-            <div 
-              style={{ 
-                display: "grid", 
-                gridTemplateColumns: `repeat(${total}, 1fr)`,
-                gap: "1rem", 
-                marginBottom: "1.25rem",
-                width: "100%",
-                boxSizing: "border-box"
-              }}
-            >
-              {items.map(renderCard)}
-            </div>
-          );
-        } else {
-          const topCount = Math.ceil(total / 2);
-          const topRowItems = items.slice(0, topCount);
-          const bottomRowItems = items.slice(topCount);
-          return (
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.25rem", width: "100%" }}>
-              <div 
-                style={{ 
-                  display: "grid", 
-                  gridTemplateColumns: `repeat(${topCount}, 1fr)`,
-                  gap: "1rem",
-                  width: "100%",
-                  boxSizing: "border-box"
-                }}
-              >
-                {topRowItems.map(renderCard)}
-              </div>
-              <div 
-                style={{ 
-                  display: "grid", 
-                  gridTemplateColumns: `repeat(${topCount}, 1fr)`,
-                  gap: "1rem",
-                  width: "100%",
-                  boxSizing: "border-box"
-                }}
-              >
-                {bottomRowItems.map(renderCard)}
-                {bottomRowItems.length < topCount && (
-                  Array.from({ length: topCount - bottomRowItems.length }).map((_, i) => (
-                    <div key={`empty-${i}`} style={{ visibility: "hidden" }} />
-                  ))
-                )}
-              </div>
-            </div>
-          );
-        }
-      })()}
+        <div className={listStyles.mapCard}>
+          <MapComponent puntos={cotizacionesMapPoints} />
+        </div>
+      </div>
 
       <div style={{ background: "#ffffff", borderRadius: "0.75rem", border: "1px solid #f1f5f9", boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)", marginTop: "-1rem" }}>
         <div className={styles.listHeaderTop} style={{ marginBottom: "0" }}>
