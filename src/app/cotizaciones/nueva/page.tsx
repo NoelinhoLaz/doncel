@@ -851,9 +851,12 @@ function DestinoPopover({ destinos, position, isUpdating, onAdd, onRemove, onClo
     return () => { if (nominatimDebounceRef.current) clearTimeout(nominatimDebounceRef.current); };
   }, [query, showNominatim]);
 
+  const normalizarBusqueda = (s: string) =>
+    s.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
   const filteredMaestros = maestros.filter(d => {
-    const q = query.toLowerCase();
-    const nombre = (d.nombre_comercial || d.nombre || "").toLowerCase();
+    const q = normalizarBusqueda(query);
+    const nombre = normalizarBusqueda(d.nombre_comercial || d.nombre || "");
     return nombre.includes(q);
   });
 
