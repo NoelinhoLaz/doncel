@@ -5,8 +5,8 @@ import { Map as MapPinIcon, Route } from "lucide-react";
 import styles from "../../page.module.css";
 import type { Seccion } from "../../types";
 import TextoEstiloEditor from "./TextoEstiloEditor";
+import SeccionDisenioRow from "./SeccionDisenioRow";
 import FondoSeccionEditor from "./FondoSeccionEditor";
-import AltoSeccionEditor from "./AltoSeccionEditor";
 
 export default function DisenioPanel({
   seccion,
@@ -46,28 +46,7 @@ export default function DisenioPanel({
               </button>
             </div>
           </div>
-          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
-          <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Ancho de sección</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              {[
-                { id: "900px", label: "Pequeño" },
-                { id: "1200px", label: "Mediano" },
-                { id: "completo", label: "Ancho completo" },
-              ].map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  className={`${styles.previewBtn} ${(seccion.anchoMax ?? "completo") === opt.id ? styles.saveBtn : ""}`}
-                  style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.anchoMax ?? "completo") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.anchoMax ?? "completo") === opt.id ? "#ffffff" : "#475569" }}
-                  onClick={() => onUpdate(seccion.uid, { anchoMax: opt.id })}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
+          <SeccionDisenioRow seccion={seccion} onUpdate={onUpdate} anchoDefault="completo" />
           <TextoEstiloEditor
             label="Título"
             value={seccion.estiloTitulo}
@@ -161,28 +140,7 @@ export default function DisenioPanel({
               ))}
             </div>
           </div>
-          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
-          <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Ancho de sección</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              {[
-                { id: "900px", label: "Pequeño" },
-                { id: "1200px", label: "Mediano" },
-                { id: "completo", label: "Ancho completo" },
-              ].map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  className={`${styles.previewBtn} ${(seccion.anchoMax ?? "1200px") === opt.id ? styles.saveBtn : ""}`}
-                  style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.anchoMax ?? "1200px") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.anchoMax ?? "1200px") === opt.id ? "#ffffff" : "#475569" }}
-                  onClick={() => onUpdate(seccion.uid, { anchoMax: opt.id })}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
+          <SeccionDisenioRow seccion={seccion} onUpdate={onUpdate} anchoDefault="1200px" />
           <TextoEstiloEditor
             label="Título de la sección"
             value={seccion.estiloTitulo}
@@ -245,28 +203,7 @@ export default function DisenioPanel({
               </div>
             </div>
           )}
-          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
-          <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Ancho de sección</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              {[
-                { id: "900px", label: "Pequeño" },
-                { id: "1200px", label: "Mediano" },
-                { id: "completo", label: "Ancho completo" },
-              ].map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  className={`${styles.previewBtn} ${(seccion.anchoMax ?? "1200px") === opt.id ? styles.saveBtn : ""}`}
-                  style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.anchoMax ?? "1200px") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.anchoMax ?? "1200px") === opt.id ? "#ffffff" : "#475569" }}
-                  onClick={() => onUpdate(seccion.uid, { anchoMax: opt.id })}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
+          <SeccionDisenioRow seccion={seccion} onUpdate={onUpdate} anchoDefault="1200px" />
           <TextoEstiloEditor
             label="Título de la sección"
             value={seccion.estiloTitulo}
@@ -309,28 +246,7 @@ export default function DisenioPanel({
               ))}
             </div>
           </div>
-          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
-          <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Ancho de sección</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              {[
-                { id: "900px", label: "Pequeño" },
-                { id: "1200px", label: "Mediano" },
-                { id: "completo", label: "Ancho completo" },
-              ].map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  className={`${styles.previewBtn} ${(seccion.anchoMax ?? "1200px") === opt.id ? styles.saveBtn : ""}`}
-                  style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.anchoMax ?? "1200px") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.anchoMax ?? "1200px") === opt.id ? "#ffffff" : "#475569" }}
-                  onClick={() => onUpdate(seccion.uid, { anchoMax: opt.id })}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
+          <SeccionDisenioRow seccion={seccion} onUpdate={onUpdate} anchoDefault="1200px" />
           <TextoEstiloEditor
             label="Título de la sección"
             value={seccion.estiloTitulo}
@@ -373,30 +289,27 @@ export default function DisenioPanel({
                 </div>
                 <span className={styles.layoutLabel}>Acordeón</span>
               </button>
+              <button
+                className={`${styles.layoutOption} ${seccion.layout === "menu-dias" ? styles.layoutOptionActive : ""}`}
+                onClick={() => onUpdate(seccion.uid, { layout: "menu-dias" })}
+                title="Menú de días"
+              >
+                <div className={styles.layoutPreview} style={{ flexDirection: "column", gap: 3, padding: 4 }}>
+                  <div style={{ display: "flex", gap: 2, width: "100%", height: 4 }}>
+                    <div style={{ flex: 1, background: "#6366f1", borderRadius: 1 }} />
+                    <div style={{ flex: 1, background: "#cbd5e1", borderRadius: 1 }} />
+                    <div style={{ flex: 1, background: "#cbd5e1", borderRadius: 1 }} />
+                  </div>
+                  <div style={{ display: "flex", gap: 3, width: "100%", height: 10 }}>
+                    <div className={styles.lpImg} style={{ width: 12, height: "100%", background: "#cbd5e1" }} />
+                    <div className={styles.lpText} style={{ flex: 1 }}><div className={styles.lpLine} style={{ height: 3, background: "#cbd5e1" }} /></div>
+                  </div>
+                </div>
+                <span className={styles.layoutLabel}>Menú días</span>
+              </button>
             </div>
           </div>
-          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
-          <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Ancho de sección</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              {[
-                { id: "900px", label: "Pequeño" },
-                { id: "1200px", label: "Mediano" },
-                { id: "completo", label: "Ancho completo" },
-              ].map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  className={`${styles.previewBtn} ${(seccion.anchoMax ?? "completo") === opt.id ? styles.saveBtn : ""}`}
-                  style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.anchoMax ?? "completo") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.anchoMax ?? "completo") === opt.id ? "#ffffff" : "#475569" }}
-                  onClick={() => onUpdate(seccion.uid, { anchoMax: opt.id })}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
+          <SeccionDisenioRow seccion={seccion} onUpdate={onUpdate} anchoDefault="completo" />
           <TextoEstiloEditor
             label="Título del itinerario"
             value={seccion.estiloTitulo}
@@ -541,28 +454,7 @@ export default function DisenioPanel({
               </button>
             </div>
           </div>
-          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
-          <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Ancho de sección</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              {[
-                { id: "900px", label: "Pequeño" },
-                { id: "1200px", label: "Mediano" },
-                { id: "completo", label: "Ancho completo" },
-              ].map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  className={`${styles.previewBtn} ${(seccion.anchoMax ?? "completo") === opt.id ? styles.saveBtn : ""}`}
-                  style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.anchoMax ?? "completo") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.anchoMax ?? "completo") === opt.id ? "#ffffff" : "#475569" }}
-                  onClick={() => onUpdate(seccion.uid, { anchoMax: opt.id })}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
+          <SeccionDisenioRow seccion={seccion} onUpdate={onUpdate} anchoDefault="completo" />
         </>
       )}
       {seccion.tipo === "ruta" && (
@@ -597,28 +489,7 @@ export default function DisenioPanel({
               </button>
             </div>
           </div>
-          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
-          <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Ancho de sección</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              {[
-                { id: "900px", label: "Pequeño" },
-                { id: "1200px", label: "Mediano" },
-                { id: "completo", label: "Ancho completo" },
-              ].map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  className={`${styles.previewBtn} ${(seccion.anchoMax ?? "completo") === opt.id ? styles.saveBtn : ""}`}
-                  style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.anchoMax ?? "completo") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.anchoMax ?? "completo") === opt.id ? "#ffffff" : "#475569" }}
-                  onClick={() => onUpdate(seccion.uid, { anchoMax: opt.id })}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
+          <SeccionDisenioRow seccion={seccion} onUpdate={onUpdate} anchoDefault="completo" />
         </>
       )}
       {seccion.tipo === "menu" && (
@@ -774,28 +645,7 @@ export default function DisenioPanel({
               ))}
             </div>
           </div>
-          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
-          <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Ancho de sección</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              {[
-                { id: "900px", label: "Pequeño" },
-                { id: "1200px", label: "Mediano" },
-                { id: "completo", label: "Ancho completo" },
-              ].map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  className={`${styles.previewBtn} ${(seccion.anchoMax ?? "1200px") === opt.id ? styles.saveBtn : ""}`}
-                  style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.anchoMax ?? "1200px") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.anchoMax ?? "1200px") === opt.id ? "#ffffff" : "#475569" }}
-                  onClick={() => onUpdate(seccion.uid, { anchoMax: opt.id })}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
+          <SeccionDisenioRow seccion={seccion} onUpdate={onUpdate} anchoDefault="1200px" />
           <TextoEstiloEditor
             label="Estilo PVP"
             value={seccion.estiloPvp}
@@ -845,28 +695,7 @@ export default function DisenioPanel({
               </button>
             </div>
           </div>
-          <AltoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
-          <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Ancho de sección</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              {[
-                { id: "900px", label: "Pequeño" },
-                { id: "1200px", label: "Mediano" },
-                { id: "completo", label: "Ancho completo" },
-              ].map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  className={`${styles.previewBtn} ${(seccion.anchoMax ?? "1200px") === opt.id ? styles.saveBtn : ""}`}
-                  style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.anchoMax ?? "1200px") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.anchoMax ?? "1200px") === opt.id ? "#ffffff" : "#475569" }}
-                  onClick={() => onUpdate(seccion.uid, { anchoMax: opt.id })}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
+          <SeccionDisenioRow seccion={seccion} onUpdate={onUpdate} anchoDefault="1200px" />
         </>
       )}
       {(seccion.tipo === "nego-planet-programas" || seccion.tipo === "nego-planet-destinos") && (

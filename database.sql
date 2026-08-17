@@ -1974,6 +1974,12 @@ CREATE INDEX IF NOT EXISTS idx_propuestas_cotizacion_id ON public.operativa_prop
 ALTER TABLE public.operativa_propuestas ADD COLUMN IF NOT EXISTS contacto_id UUID REFERENCES public.contabilidad_entidades(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_propuestas_contacto_id ON public.operativa_propuestas(contacto_id);
 
+-- Creador directo de la propuesta (independiente de si tiene cotización vinculada).
+-- Sin FK: igual que operativa_cotizaciones.agente_id, guarda el auth_user_id de
+-- Supabase Auth, que vive en un proyecto/BD separado, no un id de tabla local.
+ALTER TABLE public.operativa_propuestas ADD COLUMN IF NOT EXISTS agente_id UUID;
+CREATE INDEX IF NOT EXISTS idx_propuestas_agente_id ON public.operativa_propuestas(agente_id);
+
 -- ─── Landings (1:N con propuestas) ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.landings (
     id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),

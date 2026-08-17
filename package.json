@@ -51,6 +51,7 @@
     "node-tnef": "^1.4.0",
     "nodemailer": "^8.0.10",
     "officecrypto-tool": "^0.0.19",
+    "pdfjs-dist": "^5.4.296",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-icons": "^5.7.0",

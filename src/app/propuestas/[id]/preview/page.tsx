@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { getPropuesta } from "@/actions/propuestas";
+import { getPropuestaPublica } from "@/actions/propuestas";
 import { renderSeccion } from "@/app/propuestas/PreviewComponents";
 import { getStyleVars } from "@/app/propuestas/nueva/utils/style-utils";
 
@@ -13,6 +13,7 @@ export default function PreviewIdPage() {
   const [agente, setAgente] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [notFoundError, setNotFoundError] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -47,9 +48,10 @@ export default function PreviewIdPage() {
         }
       }
 
-      // 2. Fetch from DB
+      // 2. Fetch from DB (public route, no session required)
       if (id) {
-        const propuesta = await getPropuesta(id);
+        const dominio = window.location.hostname;
+        const propuesta = await getPropuestaPublica(id, dominio);
         if (propuesta) {
           if ((propuesta as any).agente) {
             setAgente((propuesta as any).agente);
@@ -115,6 +117,8 @@ export default function PreviewIdPage() {
             });
             setSecciones(mapped);
           }
+        } else {
+          setNotFoundError(true);
         }
       }
       setLoading(false);
@@ -126,6 +130,15 @@ export default function PreviewIdPage() {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", fontFamily: "sans-serif" }}>
         {mounted ? "Cargando previsualización..." : null}
+      </div>
+    );
+  }
+
+  if (notFoundError && secciones.length === 0) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", fontFamily: "sans-serif", gap: "0.5rem", color: "#64748b" }}>
+        <p>No se ha podido cargar esta propuesta.</p>
+        <p style={{ fontSize: "0.85rem" }}>Es posible que el enlace ya no esté disponible.</p>
       </div>
     );
   }

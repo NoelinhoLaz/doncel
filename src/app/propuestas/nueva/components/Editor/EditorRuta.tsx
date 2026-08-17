@@ -101,15 +101,12 @@ export default function EditorRuta({
                             </button>
                             <button
                               type="button"
-                              onClick={async () => {
+                              onClick={() => {
                                 const newModo: "foot-walking" | "driving-car" = "driving-car";
                                 const segs = [...(rutaItem.segmentos ?? [])];
                                 segs[uIdx - 1] = { ...segs[uIdx - 1], uid: segs[uIdx - 1]?.uid ?? crypto.randomUUID(), modo: newModo, polyline: undefined };
                                 const updatedRutas = (seccion.rutas ?? []).map(r => r.uid === rutaItem.uid ? { ...r, segmentos: segs } : r);
                                 onUpdate(seccion.uid, { rutas: updatedRutas });
-                                const prev = (rutaItem.ubicaciones ?? [])[uIdx - 1];
-                                const curr = ub;
-                                await calcularSegmento(seccion.uid, rutaItem.uid, uIdx - 1, newModo, prev, curr, { ...seccion, rutas: updatedRutas }, onUpdate);
                               }}
                               style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: "0.4rem", border: `1px solid ${(!seg?.modo || seg?.modo === "driving-car") ? "#3b82f6" : "#e2e8f0"}`, background: (!seg?.modo || seg?.modo === "driving-car") ? "#eff6ff" : "#ffffff", cursor: "pointer", fontSize: "0.72rem", color: (!seg?.modo || seg?.modo === "driving-car") ? "#1d4ed8" : "#94a3b8" }}
                               title="En bus"
@@ -117,7 +114,7 @@ export default function EditorRuta({
                               <Bus size={12} />
                               <span>Bus</span>
                             </button>
-                            {!seg?.polyline && seg?.modo && (
+                            {!seg?.polyline && seg?.modo === "foot-walking" && (
                               <span style={{ fontSize: "0.65rem", color: "#94a3b8" }}>Calculando…</span>
                             )}
                           </div>

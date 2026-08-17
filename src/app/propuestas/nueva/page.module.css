@@ -13,6 +13,24 @@
   letter-spacing: -0.02em;
 }
 
+.backIconButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  padding: 0.25rem;
+  margin-left: -0.25rem;
+  border-radius: 0.4rem;
+  flex-shrink: 0;
+}
+
+.backIconButton:hover {
+  color: #475569;
+  background-color: #f1f5f9;
+}
+
 .columns {
   display: grid;
   grid-template-columns: 540px 1fr;
@@ -1715,6 +1733,102 @@
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Itinerario Menú de días ── */
+.phItinerarioMenu {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+.phMenuDiasTabs {
+  display: flex;
+  gap: 0.35rem;
+  width: 100%;
+  background: #f1f5f9;
+  border-radius: 0.85rem;
+  padding: 0.35rem;
+}
+.phMenuDiaTab {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 0.6rem 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.6rem;
+  cursor: pointer;
+  color: #64748b;
+  font-family: inherit;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+  white-space: nowrap;
+  min-width: 0;
+}
+.phMenuDiaTab:hover {
+  color: #1e293b;
+  background: rgba(255, 255, 255, 0.6);
+}
+.phMenuDiaTabActive {
+  color: #ffffff;
+  background: #1e293b;
+  box-shadow: 0 4px 12px rgba(30, 41, 59, 0.25);
+}
+.phMenuDiaTabActive:hover {
+  color: #ffffff;
+  background: #1e293b;
+}
+.phMenuDiaTabNum {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.phMenuDiaTabLabel {
+  font-size: 0.85rem;
+  font-weight: 700;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.phMenuDiaTabDate {
+  font-size: 0.66rem;
+  font-weight: 500;
+  opacity: 0.65;
+  letter-spacing: 0.02em;
+}
+.phMenuDiaTabActive .phMenuDiaTabDate {
+  opacity: 0.85;
+}
+.phMenuDiasContent {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  align-items: center;
+}
+.phMenuDiaImagen {
+  background: #f1f5f9;
+  border: 2px dashed #cbd5e1;
+  border-radius: 1rem;
+  aspect-ratio: 4/3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+.phMenuDiaTexto {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+@media (max-width: 768px) {
+  .phMenuDiasContent {
+    grid-template-columns: 1fr;
+  }
 }
 
 .phAcordeonScroll {

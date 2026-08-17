@@ -349,7 +349,12 @@ export function PropuestaEditor({
   return (
     <div className={styles.container}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem" }}>
-        <h1 className={styles.title} style={{ margin: 0 }}>{contactoNombre || "Creador de propuestas"}</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <a href="/propuestas" className={styles.backIconButton} title="Volver a propuestas">
+            <ChevronRight size={24} style={{ transform: "rotate(180deg)" }} />
+          </a>
+          <h1 className={styles.title} style={{ margin: 0 }}>{contactoNombre || "Creador de propuestas"}</h1>
+        </div>
         {propuestaId && <ExpedienteActionsToolbar propuestaId={propuestaId} />}
       </div>
 
@@ -377,44 +382,7 @@ export function PropuestaEditor({
 
               {/* Vista lista */}
               <div className={`${styles.panelView} ${editorSeccion ? styles.panelViewHidden : ""}`}>
-                <div style={{ display: "flex", borderBottom: "1px solid #e2e8f0", marginBottom: "1rem" }}>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("contenido")}
-                    style={{
-                      flex: 1,
-                      padding: "0.5rem",
-                      fontSize: "0.85rem",
-                      fontWeight: 600,
-                      border: "none",
-                      background: "none",
-                      borderBottom: activeTab === "contenido" ? "2px solid #1e293b" : "2px solid transparent",
-                      color: activeTab === "contenido" ? "#1e293b" : "#94a3b8",
-                      cursor: "pointer",
-                      textAlign: "center"
-                    }}
-                  >
-                    Contenido
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("diseño")}
-                    style={{
-                      flex: 1,
-                      padding: "0.5rem",
-                      fontSize: "0.85rem",
-                      fontWeight: 600,
-                      border: "none",
-                      background: "none",
-                      borderBottom: activeTab === "diseño" ? "2px solid #1e293b" : "2px solid transparent",
-                      color: activeTab === "diseño" ? "#1e293b" : "#94a3b8",
-                      cursor: "pointer",
-                      textAlign: "center"
-                    }}
-                  >
-                    Diseño
-                  </button>
-                </div>
+                <h2 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#1e293b", margin: "0 0 0.75rem 0" }}>Secciones</h2>
 
                 {activeTab === "contenido" ? (
                   <ul className={styles.seccionesList}>

@@ -41,7 +41,7 @@ export async function searchNominatim(query: string, opts?: { countrycodes?: str
       category: item.category || "",
       country: item.address?.country || null,
       state: item.address?.state || null,
-      city: item.address?.city || item.address?.town || item.address?.village || null,
+      city: item.name || item.address?.village || item.address?.suburb || item.address?.hamlet || item.address?.neighbourhood || item.address?.city || item.address?.town || null,
       postcode: item.address?.postcode || null,
       fullAddress: item.display_name,
       boundingbox: item.boundingbox?.length === 4 ? item.boundingbox : null,

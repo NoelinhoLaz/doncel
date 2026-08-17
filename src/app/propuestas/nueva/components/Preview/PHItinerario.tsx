@@ -123,6 +123,7 @@ function PHItinerarioMediaCarousel({ medias, showArrows, autoplay = true }: { me
 export default function PHItinerario({ mobile, layout, colorFondo, fechaDesde, fechaHasta, dias, titulo, estiloTitulo, estiloTituloDia, estiloDescDia, anchoMax }: { mobile?: boolean; layout?: string; colorFondo?: string; fechaDesde?: string; fechaHasta?: string; dias?: { dia: number; titulo?: string; desc?: string; media?: MediaItem; medias?: MediaItem[] }[]; titulo?: string; estiloTitulo?: TextoEstilo; estiloTituloDia?: TextoEstilo; estiloDescDia?: TextoEstilo; anchoMax?: string }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const esAcordeon = layout === "acordeon";
+  const esMenuDias = layout === "menu-dias";
 
   let daysCount = 5;
   if (fechaDesde && fechaHasta) {
@@ -148,6 +149,18 @@ export default function PHItinerario({ mobile, layout, colorFondo, fechaDesde, f
     if (diaData.medias && diaData.medias.length > 0) return diaData.medias;
     if (diaData.media) return [diaData.media];
     return [];
+  };
+
+  const getDayDateLabel = (dia: number) => {
+    if (!fechaDesde) return null;
+    const start = new Date(fechaDesde);
+    if (isNaN(start.getTime())) return null;
+    const d = new Date(start);
+    d.setDate(d.getDate() + (dia - 1));
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yy = String(d.getFullYear()).slice(-2);
+    return `${dd}/${mm}/${yy}`;
   };
 
   const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
@@ -239,6 +252,68 @@ export default function PHItinerario({ mobile, layout, colorFondo, fechaDesde, f
     );
   }
 
+  if (esMenuDias) {
+    const activeDay = days[Math.min(activeIdx, days.length - 1)] ?? days[0];
+    const diaData: { dia?: number; titulo?: string; desc?: string; media?: MediaItem; medias?: MediaItem[] } = (dias ?? []).find(x => x.dia === activeDay?.dia) ?? {};
+    const dayMedias = getDayMedias(diaData);
+    return (
+      <div style={{ background: colorFondo ?? "#ffffff" }}>
+        <Ph>
+          <div className={styles.phItinerarioMenu} style={{ maxWidth: customMaxWidth, margin: "0 auto" }}>
+            {titulo ? (
+              <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
+            ) : (
+              <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
+            )}
+            <div className={styles.phMenuDiasTabs}>
+              {days.map((d, i) => {
+                const active = activeIdx === i;
+                const dateLabel = getDayDateLabel(d.dia);
+                return (
+                  <button
+                    key={d.dia}
+                    type="button"
+                    className={`${styles.phMenuDiaTab} ${active ? styles.phMenuDiaTabActive : ""}`}
+                    onClick={() => setActiveIdx(i)}
+                  >
+                    <span className={styles.phMenuDiaTabNum}>Día {d.dia}</span>
+                    {dateLabel && <span className={styles.phMenuDiaTabDate}>{dateLabel}</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <div className={styles.phMenuDiasContent} style={mobile ? { gridTemplateColumns: "1fr" } : undefined}>
+              <div className={styles.phMenuDiaImagen} style={dayMedias.length > 0 ? { border: "none" } : undefined}>
+                {dayMedias.length > 0 ? (
+                  <PHItinerarioMediaCarousel medias={dayMedias} showArrows={true} />
+                ) : (
+                  <Image size={24} className={styles.phImagenIcon} />
+                )}
+              </div>
+              <div className={styles.phMenuDiaTexto}>
+                {diaData.titulo ? (
+                  <h4 style={{ fontSize: "1.15rem", fontWeight: 700, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{diaData.titulo}</h4>
+                ) : (
+                  <Title w="60%" />
+                )}
+                {diaData.desc ? (
+                  <p style={{ fontSize: "0.88rem", color: "#64748b", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{renderTextWithBold(diaData.desc, estiloDescDia)}</p>
+                ) : (
+                  <>
+                    <Bar w="95%" />
+                    <Bar w="90%" />
+                    <Bar w="80%" />
+                    <Bar w="55%" />
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </Ph>
+      </div>
+    );
+  }
+
   return (
     <div style={{ background: colorFondo ?? "#ffffff" }}>
       <Ph>
@@ -253,19 +328,28 @@ export default function PHItinerario({ mobile, layout, colorFondo, fechaDesde, f
               const par = i % 2 === 0;
               const diaData: { dia?: number; titulo?: string; desc?: string; media?: MediaItem; medias?: MediaItem[] } = (dias ?? []).find(x => x.dia === d.dia) ?? {};
               const dayMedias = getDayMedias(diaData);
+              const dateLabel = getDayDateLabel(d.dia);
+              const header = (
+                <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "1rem", width: "100%" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "0.4rem 0.85rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.72rem", fontWeight: 700, color: "#6366f1", letterSpacing: "0.04em", textTransform: "uppercase", flexShrink: 0, whiteSpace: "nowrap" }}>
+                    Día {d.dia}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1, minWidth: 0 }}>
+                    {diaData.titulo ? (
+                      <h4 style={{ fontSize: "1.3rem", fontWeight: 700, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{diaData.titulo}</h4>
+                    ) : (
+                      <Title w="35%" />
+                    )}
+                    {dateLabel ? (
+                      <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#94a3b8", letterSpacing: "0.02em" }}>{dateLabel}</span>
+                    ) : (
+                      <div style={{ width: "60px", height: "8px", borderRadius: "4px", background: "#e2e8f0" }} />
+                    )}
+                  </div>
+                </div>
+              );
               const texto = (
                 <div className={styles.phItinerarioTexto} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <div style={{ width: "18px", height: "18px", borderRadius: "4px", background: "#6366f1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.6rem", fontWeight: "bold", color: "#ffffff" }}>
-                      {d.dia}
-                    </div>
-                    <div style={{ width: "35px", height: "8px", borderRadius: "4px", background: "#e2e8f0" }} />
-                  </div>
-                  {diaData.titulo ? (
-                    <h4 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{diaData.titulo}</h4>
-                  ) : (
-                    <Title w="60%" />
-                  )}
                   {diaData.desc ? (
                     <p style={{ fontSize: "0.82rem", color: "#64748b", lineHeight: 1.5, margin: 0, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{renderTextWithBold(diaData.desc, estiloDescDia)}</p>
                   ) : (
@@ -278,7 +362,7 @@ export default function PHItinerario({ mobile, layout, colorFondo, fechaDesde, f
                 </div>
               );
               const img = (
-                <div className={styles.phImagen} style={{ aspectRatio: "16/9", position: "relative", overflow: "hidden", borderRadius: "0.5rem", border: dayMedias.length > 0 ? "none" : undefined }}>
+                <div className={styles.phImagen} style={{ aspectRatio: "4/3", position: "relative", overflow: "hidden", borderRadius: "0.5rem", border: dayMedias.length > 0 ? "none" : undefined }}>
                   {dayMedias.length > 0 ? (
                     <PHItinerarioMediaCarousel medias={dayMedias} showArrows={true} />
                   ) : (
@@ -287,8 +371,12 @@ export default function PHItinerario({ mobile, layout, colorFondo, fechaDesde, f
                 </div>
               );
               return (
-                <div key={d.dia} className={`${styles.phItinerarioRow} ${mobile ? styles.phCol1 : ""}`} style={{ gap: "1.5rem" }}>
-                  {mobile ? <>{img}{texto}</> : par ? <>{texto}{img}</> : <>{img}{texto}</>}
+                <div key={d.dia} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  {header}
+                  <div style={{ height: "1px", background: "#e2e8f0", width: "100%" }} />
+                  <div className={`${styles.phItinerarioRow} ${mobile ? styles.phCol1 : ""}`} style={{ gap: "1.5rem" }}>
+                    {mobile ? <>{img}{texto}</> : par ? <>{texto}{img}</> : <>{img}{texto}</>}
+                  </div>
                 </div>
               );
             })}

@@ -1,6 +1,7 @@
 "use server";
 
-import { getAgencyDbClient } from "@/lib/agencyDb";
+import { getAgencyDbClient, getAgencyDbClientByDomain } from "@/lib/agencyDb";
+import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { revalidatePath } from "next/cache";
 
 export async function getPropuestas() {
@@ -9,7 +10,7 @@ export async function getPropuestas() {
     const { data, error } = await agencyDb
       .from("operativa_propuestas")
       .select(`
-        id, title, destination, created_at, contacto_id,
+        id, title, destination, created_at, contacto_id, cotizacion_id, agente_id,
         contabilidad_entidades!contacto_id(id, nombre),
         landings(id, is_active, version_number, design_tokens, editor_content)
       `)
@@ -17,13 +18,51 @@ export async function getPropuestas() {
 
     if (error) throw error;
 
-    return (data ?? []).map((p: any) => ({
-      ...p,
-      landing: Array.isArray(p.landings)
-        ? (p.landings.find((l: any) => l.is_active) ?? p.landings[0] ?? null)
-        : null,
-      landings: undefined,
-    }));
+    const cotizacionIds = Array.from(new Set((data ?? []).filter((p: any) => !p.agente_id).map((p: any) => p.cotizacion_id).filter(Boolean)));
+    const agenteIdByCotizacion = new Map<string, string>();
+    if (cotizacionIds.length > 0) {
+      const { data: cots } = await agencyDb
+        .from("operativa_cotizaciones")
+        .select("id, agente_id")
+        .in("id", cotizacionIds);
+      (cots ?? []).forEach((c: any) => {
+        if (c.agente_id) agenteIdByCotizacion.set(c.id, c.agente_id);
+      });
+    }
+
+    let adminUsers: any[] = [];
+    try {
+      const adminServiceSupabase = createAdminServiceClient();
+      const { data: users } = await adminServiceSupabase
+        .from("usuarios")
+        .select("id, auth_user_id, nombre, apellidos, avatar_url");
+      adminUsers = users || [];
+    } catch (dbErr) {
+      console.warn("Could not load users for agent avatars:", dbErr);
+    }
+
+    return (data ?? []).map((p: any) => {
+      const agenteId = p.agente_id || agenteIdByCotizacion.get(p.cotizacion_id);
+      const user = adminUsers.find((u: any) => u.id === agenteId || u.auth_user_id === agenteId);
+      const agente = user
+        ? {
+            id: user.id,
+            auth_user_id: user.auth_user_id,
+            nombre: `${user.nombre ?? ""} ${user.apellidos ?? ""}`.trim(),
+            iniciales: ((user.nombre?.charAt(0) ?? "") + (user.apellidos?.charAt(0) ?? "")).toUpperCase() || "NC",
+            avatar_url: user.avatar_url ?? null,
+          }
+        : null;
+
+      return {
+        ...p,
+        landing: Array.isArray(p.landings)
+          ? (p.landings.find((l: any) => l.is_active) ?? p.landings[0] ?? null)
+          : null,
+        landings: undefined,
+        agente,
+      };
+    });
   } catch (e: any) {
     console.error("getPropuestas error:", e?.message, e?.stack?.split('\n')[1]);
     return { error: e?.message ?? "Error desconocido", data: [] };
@@ -33,9 +72,16 @@ export async function getPropuestas() {
 export async function duplicarPropuesta(id: string, vincularCotizacion: boolean = true) {
   try {
     const agencyDb = await getAgencyDbClient();
+    let user = null;
+    try {
+      const adminSupabase = await createAdminServerClient();
+      const { data: { user: u } } = await adminSupabase.auth.getUser();
+      user = u;
+    } catch {}
+
     const { data: prop, error: e1 } = await agencyDb
       .from("operativa_propuestas")
-      .select("title, cotizacion_id, contacto_id")
+      .select("title, cotizacion_id, contacto_id, agente_id")
       .eq("id", id)
       .single();
     if (e1 || !prop) throw e1;
@@ -57,12 +103,15 @@ export async function duplicarPropuesta(id: string, vincularCotizacion: boolean 
       }
     }
 
+    const agenteId = user?.id || prop.agente_id || null;
+
     const { data: newProp, error: e3 } = await agencyDb
       .from("operativa_propuestas")
       .insert({
         title: `${prop.title} (copia)`,
         cotizacion_id: vincularCotizacion ? (newCotizacionId ?? prop.cotizacion_id ?? null) : null,
         contacto_id: prop.contacto_id || null,
+        agente_id: agenteId,
         proposal_data: {},
       })
       .select("id")
@@ -116,7 +165,7 @@ export async function getPropuesta(id: string) {
     const agencyDb = await getAgencyDbClient();
     const { data, error } = await agencyDb
       .from("operativa_propuestas")
-      .select(`id, title, destination, created_at, contacto_id, cotizacion_id, contabilidad_entidades!contacto_id(id, nombre), landings(id, is_active, design_tokens, editor_content)`)
+      .select(`id, title, destination, created_at, contacto_id, cotizacion_id, agente_id, contabilidad_entidades!contacto_id(id, nombre), landings(id, is_active, design_tokens, editor_content)`)
       .eq("id", id)
       .single();
     if (error) throw error;
@@ -124,42 +173,25 @@ export async function getPropuesta(id: string) {
       ? (data.landings.find((l: any) => l.is_active) ?? data.landings[0] ?? null)
       : null;
 
-    let agente: any = null;
-    if (data.cotizacion_id) {
+    let agenteId: string | null = data.agente_id ?? null;
+    if (!agenteId && data.cotizacion_id) {
       const { data: cot } = await agencyDb
         .from("operativa_cotizaciones")
         .select("agente_id")
         .eq("id", data.cotizacion_id)
         .maybeSingle();
-      if (cot?.agente_id) {
-        const { data: usr } = await agencyDb
-          .from("usuarios")
-          .select("id, nombre, apellidos, email, telefono, avatar_url")
-          .or(`id.eq.${cot.agente_id},auth_user_id.eq.${cot.agente_id}`)
-          .maybeSingle();
-        if (usr) {
-          agente = usr;
-        }
-      }
+      agenteId = cot?.agente_id ?? null;
     }
 
-    if (!agente) {
-      try {
-        const { createAdminServerClient } = await import("@/lib/supabaseServer");
-        const adminSupabase = await createAdminServerClient();
-        const { data: { user } } = await adminSupabase.auth.getUser();
-        if (user) {
-          const { data: usr } = await agencyDb
-            .from("usuarios")
-            .select("id, nombre, apellidos, email, telefono, avatar_url")
-            .eq("auth_user_id", user.id)
-            .maybeSingle();
-          if (usr) {
-            agente = usr;
-          }
-        }
-      } catch (e) {
-        console.error("Error fetching current agent fallback in getPropuesta:", e);
+    let agente: any = null;
+    if (agenteId) {
+      const { data: usr } = await agencyDb
+        .from("usuarios")
+        .select("id, nombre, apellidos, email, telefono, avatar_url")
+        .or(`id.eq.${agenteId},auth_user_id.eq.${agenteId}`)
+        .maybeSingle();
+      if (usr) {
+        agente = usr;
       }
     }
 
@@ -167,6 +199,127 @@ export async function getPropuesta(id: string) {
   } catch (e: any) {
     console.error("getPropuesta:", e?.message);
     return null;
+  }
+}
+
+/**
+ * Variante pública (sin sesión de usuario) para servir una propuesta a visitantes anónimos
+ * a través del enlace compartible. Resuelve la agencia por dominio en vez de por usuario autenticado.
+ */
+export async function getPropuestaPublica(id: string, dominio: string) {
+  try {
+    const dominioEfectivo = process.env.NEXT_PUBLIC_AGENCY_DOMAIN_OVERRIDE || dominio;
+    const resolved = await getAgencyDbClientByDomain(dominioEfectivo);
+    if (!resolved) return null;
+    const { db: agencyDb } = resolved;
+
+    const { data, error } = await agencyDb
+      .from("operativa_propuestas")
+      .select(`id, title, destination, created_at, contacto_id, cotizacion_id, agente_id, contabilidad_entidades!contacto_id(id, nombre), landings(id, is_active, design_tokens, editor_content)`)
+      .eq("id", id)
+      .single();
+    if (error) throw error;
+    const landing = Array.isArray(data.landings)
+      ? (data.landings.find((l: any) => l.is_active) ?? data.landings[0] ?? null)
+      : null;
+
+    let agenteId: string | null = data.agente_id ?? null;
+    if (!agenteId && data.cotizacion_id) {
+      const { data: cot } = await agencyDb
+        .from("operativa_cotizaciones")
+        .select("agente_id")
+        .eq("id", data.cotizacion_id)
+        .maybeSingle();
+      agenteId = cot?.agente_id ?? null;
+    }
+
+    let agente: any = null;
+    if (agenteId) {
+      const { data: usr } = await agencyDb
+        .from("usuarios")
+        .select("id, nombre, apellidos, email, telefono, avatar_url")
+        .or(`id.eq.${agenteId},auth_user_id.eq.${agenteId}`)
+        .maybeSingle();
+      if (usr) {
+        agente = usr;
+      }
+    }
+
+    return { ...data, landing, landings: undefined, agente };
+  } catch (e: any) {
+    console.error("getPropuestaPublica:", e?.message);
+    return null;
+  }
+}
+
+/**
+ * Crea una propuesta nueva a partir de las secciones extraídas por IA de un PDF importado
+ * (ver src/lib/propuestas/importarPdf.ts). Aplica los mismos estilos por defecto que el
+ * botón "+ Añadir sección" del editor para que el resultado sea editable de inmediato.
+ */
+export async function crearPropuestaDesdeSeccionesImportadas(
+  seccionesImportadas: {
+    tipo: string;
+    titulo?: string;
+    subtitulo?: string;
+    fechaDesde?: string;
+    fechaHasta?: string;
+    dias?: { dia: number; titulo?: string; desc?: string; paginaPdf?: number; media?: { tipo: "upload"; url: string } }[];
+    cards?: { titulo: string }[];
+    pvp?: string;
+    condiciones?: string;
+    otrasConsideraciones?: string;
+    columnas?: { titulo?: string; texto?: string }[];
+  }[],
+  contactoId?: string | null
+) {
+  try {
+    let idx = 0;
+    const editorContent: any[] = [];
+    const designTokens: any[] = [{ uid: "global", estilosGlobales: {} }];
+
+    for (const s of seccionesImportadas) {
+      const uid = `${s.tipo}-${Date.now()}-${idx++}`;
+      const contenido: any = { uid, tipo: s.tipo, label: s.tipo, titulo: s.titulo };
+      const diseno: any = { uid };
+
+      if (s.tipo === "portada") {
+        contenido.subtitulo = s.subtitulo;
+        diseno.layout = "slide";
+        diseno.estiloTitulo = { fuente: "Raleway", grosor: "400", tamano: "40px", color: "#ffffff", grosorDestacado: "700" };
+        diseno.estiloSubtitulo = { fuente: "Montserrat", grosor: "300", color: "#ffffff", grosorDestacado: "700" };
+      } else if (s.tipo === "itinerario") {
+        contenido.fechaDesde = s.fechaDesde;
+        contenido.fechaHasta = s.fechaHasta;
+        contenido.dias = s.dias;
+        diseno.estiloTitulo = { fuente: "Raleway", grosor: "800", tamano: "22px", color: "#1e293b" };
+        diseno.estiloTituloDia = { fuente: "Raleway", grosor: "700", tamano: "18px", color: "#1e293b" };
+        diseno.estiloDescDia = { fuente: "Montserrat", grosor: "400", tamano: "13px", color: "#64748b" };
+      } else if (s.tipo === "cards") {
+        contenido.cards = (s.cards ?? []).map((c, i) => ({ uid: `card-${uid}-${i}`, titulo: c.titulo }));
+        diseno.anchoMax = "1200px";
+        diseno.estiloTitulo = { fuente: "Raleway", grosor: "800", tamano: "22px", color: "#1e293b" };
+      } else if (s.tipo === "precio") {
+        contenido.pvp = s.pvp;
+        contenido.condiciones = s.condiciones;
+        contenido.otrasConsideraciones = s.otrasConsideraciones;
+        diseno.layout = "destacado-grande";
+        diseno.estiloPvp = { fuente: "Raleway", grosor: "800", tamano: "48px", color: "#1e293b" };
+        diseno.estiloCondiciones = { fuente: "Montserrat", grosor: "400", tamano: "14px", color: "#475569" };
+      } else if (s.tipo === "texto-columnas") {
+        contenido.columnas = s.columnas;
+        diseno.layout = "3-cols";
+        diseno.anchoMax = "1200px";
+        diseno.estiloTitulo = { fuente: "Raleway", grosor: "800", tamano: "22px", color: "#1e293b" };
+      }
+
+      editorContent.push(contenido);
+      designTokens.push(diseno);
+    }
+
+    return await guardarPropuesta({ editorContent, designTokens, contactoId: contactoId ?? undefined });
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? "Error desconocido" };
   }
 }
 
@@ -185,6 +338,12 @@ export async function guardarPropuesta({
 }) {
   try {
     const agencyDb = await getAgencyDbClient();
+    let currentUserId: string | null = null;
+    try {
+      const adminSupabase = await createAdminServerClient();
+      const { data: { user } } = await adminSupabase.auth.getUser();
+      currentUserId = user?.id ?? null;
+    } catch {}
 
     if (propuestaId) {
       const { error } = await agencyDb
@@ -213,7 +372,7 @@ export async function guardarPropuesta({
     const portada = editorContent.find((s: any) => s.tipo === "portada");
     const title = portada?.titulo ?? "Nueva propuesta";
 
-    const propInsert: any = { title, proposal_data: {} };
+    const propInsert: any = { title, proposal_data: {}, agente_id: currentUserId };
     if (cotizacionId) propInsert.cotizacion_id = cotizacionId;
     if (contactoId) propInsert.contacto_id = contactoId;
 
