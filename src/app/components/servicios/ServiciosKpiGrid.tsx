@@ -16,6 +16,8 @@ interface Kpis {
   obligatorioParcialCount: number;
   opcionalPagadoCount: number;
   opcionalParcialCount: number;
+  abonadoTotal: number;
+  pendienteTotal: number;
 }
 
 interface Props {
@@ -33,14 +35,16 @@ export default function ServiciosKpiGrid({ kpis, serviciosCount, categoriesToRen
           <span className={styles.blankKpiTitle}>Coste Total Servicios</span>
           <span className={styles.blankKpiBadge}>{kpis.obligatorioPercent}% Obligatorio</span>
         </div>
-        <div>
-          <div className={styles.blankKpiNumber} style={{ fontSize: "1.3rem" }}>
+        <div style={{ textAlign: "right" }}>
+          <div className={styles.blankKpiNumber} style={{ fontSize: "1.9rem" }}>
             {kpis.totalCost.toLocaleString("es-ES", { minimumFractionDigits: 2 })} €
           </div>
           <div className={styles.blankKpiSubtext}>
-            <strong>{kpis.obligatorioCost.toLocaleString("es-ES", { minimumFractionDigits: 2 })} € obligatorios</strong>,{" "}
-            {kpis.opcionalCost.toLocaleString("es-ES", { minimumFractionDigits: 2 })} € opcionales.
             Total de {serviciosCount} servicios contratados.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem", marginTop: "0.25rem", fontSize: "0.68rem", color: "#64748b" }}>
+            <span><strong style={{ color: "#16a34a" }}>{kpis.abonadoTotal.toLocaleString("es-ES", { minimumFractionDigits: 2 })} €</strong> abonado</span>
+            <span><strong style={{ color: kpis.pendienteTotal > 0 ? "#d97706" : "#64748b" }}>{kpis.pendienteTotal.toLocaleString("es-ES", { minimumFractionDigits: 2 })} €</strong> pendiente</span>
           </div>
         </div>
       </div>
@@ -57,7 +61,8 @@ export default function ServiciosKpiGrid({ kpis, serviciosCount, categoriesToRen
             return (
               <div key={cat.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.2rem", flex: 1 }}
                 title={`${cat.label}: ${cat.cost.toLocaleString("es-ES", { minimumFractionDigits: 0 })} € (${cat.percent}%)`}>
-                <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "#64748b" }}>{cat.percent}%</span>
+                <span style={{ fontSize: "0.7rem", fontWeight: 700, color: "#1e293b" }}>{cat.cost.toLocaleString("es-ES", { minimumFractionDigits: 0 })} €</span>
+                <span style={{ fontSize: "0.6rem", fontWeight: 600, color: "#94a3b8" }}>{cat.percent}%</span>
                 <div style={{ height: "38px", display: "flex", alignItems: "end", width: "100%", justifyContent: "center" }}>
                   <div style={{ width: "80%", maxWidth: "64px", height: `${Math.max(cat.percent, 6)}%`, backgroundColor: `color-mix(in srgb, var(--primary-color, #475569), transparent ${tones[idx % tones.length]})`, borderRadius: "4px 4px 0 0", transition: "height 0.4s cubic-bezier(0.4, 0, 0.2, 1)" }} />
                 </div>

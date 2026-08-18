@@ -14,9 +14,8 @@ interface ImportarPropuestaPdfModalProps {
 const TIPO_LABEL: Record<string, string> = {
   portada: "Portada",
   itinerario: "Itinerario",
-  cards: "Servicios incluidos",
   precio: "Precio y condiciones",
-  "texto-columnas": "Texto adicional",
+  "texto-columnas": "Texto",
 };
 
 export default function ImportarPropuestaPdfModal({
@@ -24,6 +23,11 @@ export default function ImportarPropuestaPdfModal({
   onClose,
   onImportSuccess,
 }: ImportarPropuestaPdfModalProps) {
+  const esWord = (f: File) =>
+    f.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    f.name.toLowerCase().endsWith(".docx");
+  const esPdf = (f: File) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfDragOver, setPdfDragOver] = useState(false);
   const [pdfProcessing, setPdfProcessing] = useState(false);
@@ -89,7 +93,7 @@ export default function ImportarPropuestaPdfModal({
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#475569" }}>
             <FileText size={16} />
             <h2 style={{ fontSize: "1.05rem", fontWeight: 600, margin: 0 }}>
-              {pdfResult ? "Secciones detectadas" : "Importar propuesta desde PDF"}
+              {pdfResult ? "Secciones detectadas" : "Importar propuesta desde PDF o Word"}
             </h2>
           </div>
           <button
@@ -117,7 +121,7 @@ export default function ImportarPropuestaPdfModal({
           {pdfProcessing && (
             <div style={{ textAlign: "center", padding: "2rem 1rem" }}>
               <div style={{ width: 40, height: 40, border: "3px solid #e2e8f0", borderTopColor: "var(--primary-color, #475569)", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 1rem" }} />
-              <p style={{ fontSize: "0.9rem", fontWeight: 600, color: "#334155", margin: "0 0 0.25rem" }}>Analizando el PDF con IA...</p>
+              <p style={{ fontSize: "0.9rem", fontWeight: 600, color: "#334155", margin: "0 0 0.25rem" }}>Analizando el documento con IA...</p>
               <p style={{ fontSize: "0.78rem", color: "#94a3b8", margin: 0 }}>Esto puede tardar unos segundos</p>
             </div>
           )}
@@ -140,7 +144,7 @@ export default function ImportarPropuestaPdfModal({
                       {TIPO_LABEL[s.tipo] ?? s.tipo}
                     </p>
                     <p style={{ margin: 0, fontWeight: 600, color: "#1e293b" }}>
-                      {s.titulo || (s.tipo === "itinerario" ? `${s.dias?.length ?? 0} días` : s.tipo === "cards" ? `${s.cards?.length ?? 0} servicios` : s.tipo === "precio" ? s.pvp : "—")}
+                      {s.titulo || (s.tipo === "itinerario" ? `${s.dias?.length ?? 0} días` : s.tipo === "precio" ? s.pvp : "—")}
                     </p>
                   </div>
                 ))}
@@ -163,14 +167,14 @@ export default function ImportarPropuestaPdfModal({
                   e.preventDefault();
                   setPdfDragOver(false);
                   const f = e.dataTransfer.files?.[0];
-                  if (f && f.type === "application/pdf") { setPdfFile(f); setPdfError(null); }
-                  else { setPdfError("Solo se admiten archivos PDF."); }
+                  if (f && (esPdf(f) || esWord(f))) { setPdfFile(f); setPdfError(null); }
+                  else { setPdfError("Solo se admiten archivos PDF o Word (.docx)."); }
                 }}
                 onClick={() => document.getElementById("propuesta-pdf-file-input")?.click()}
               >
                 <FileText size={36} style={{ color: pdfFile ? "#22c55e" : "#94a3b8", marginBottom: "0.75rem" }} />
                 <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "#334155", margin: "0 0 0.25rem" }}>
-                  {pdfFile ? pdfFile.name : "Selecciona una propuesta en PDF"}
+                  {pdfFile ? pdfFile.name : "Selecciona una propuesta en PDF o Word"}
                 </p>
                 <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: 0 }}>
                   {pdfFile ? `${(pdfFile.size / 1024).toFixed(0)} KB · Haz clic para cambiar` : "Arrastra aquí o haz clic para buscar"}
@@ -179,7 +183,7 @@ export default function ImportarPropuestaPdfModal({
               <input
                 id="propuesta-pdf-file-input"
                 type="file"
-                accept=".pdf,application/pdf"
+                accept=".pdf,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 style={{ display: "none" }}
                 onChange={e => {
                   const f = e.target.files?.[0];
@@ -230,9 +234,11 @@ export default function ImportarPropuestaPdfModal({
                 setPdfProcessing(true);
                 setPdfError(null);
                 try {
+                  const esArchivoWord = esWord(pdfFile);
                   const formData = new FormData();
-                  formData.append("pdf", pdfFile);
-                  const res = await fetch("/api/propuestas/importar-pdf", { method: "POST", body: formData });
+                  formData.append(esArchivoWord ? "word" : "pdf", pdfFile);
+                  const endpoint = esArchivoWord ? "/api/propuestas/importar-word" : "/api/propuestas/importar-pdf";
+                  const res = await fetch(endpoint, { method: "POST", body: formData });
                   const json = await res.json();
                   if (!res.ok) {
                     setPdfError(json.mensaje ?? "Error al procesar el documento.");

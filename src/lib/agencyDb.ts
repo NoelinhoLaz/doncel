@@ -21,6 +21,44 @@ export async function getDominioActualPublico(): Promise<string | null> {
   return host.split(":")[0];
 }
 
+type CredencialesConexion = {
+  supabase_url: string;
+  supabase_service_role_key_enc: string;
+  iv: string;
+  auth_tag: string;
+};
+
+// Resuelve las credenciales de conexión reales de una agencia: si tiene
+// conexion_bd_id, las lee de conexiones_bd (posiblemente compartida con
+// otras agencias); si no, cae a las columnas legadas de `agencias` (agencias
+// aún no migradas al modelo de conexión separada). Ver ADR-0002.
+async function resolveConexion(
+  adminServiceSupabase: ReturnType<typeof createAdminServiceClient>,
+  agencia: { conexion_bd_id?: string | null } & Partial<CredencialesConexion>
+): Promise<CredencialesConexion | null> {
+  if (agencia.conexion_bd_id) {
+    const { data: conexion, error } = await adminServiceSupabase
+      .from("conexiones_bd")
+      .select("supabase_url, supabase_service_role_key_enc, iv, auth_tag")
+      .eq("id", agencia.conexion_bd_id)
+      .single();
+
+    if (error || !conexion) return null;
+    return conexion as CredencialesConexion;
+  }
+
+  if (
+    agencia.supabase_url &&
+    agencia.supabase_service_role_key_enc &&
+    agencia.iv &&
+    agencia.auth_tag
+  ) {
+    return agencia as CredencialesConexion;
+  }
+
+  return null;
+}
+
 // Resuelve las credenciales de agencia a partir de su dominio (para viajeros no autenticados)
 export async function getAgencyDbClientByDomain(dominio: string) {
   const adminServiceSupabase = createAdminServiceClient();
@@ -28,7 +66,7 @@ export async function getAgencyDbClientByDomain(dominio: string) {
   // 1. Try to search by dominio (exact match)
   let { data: agencia, error } = await adminServiceSupabase
     .from("agencias")
-    .select("id, supabase_url, supabase_service_role_key_enc, iv, auth_tag, subdomain, dominio")
+    .select("id, conexion_bd_id, supabase_url, supabase_service_role_key_enc, iv, auth_tag, subdomain, dominio, schema_name")
     .eq("dominio", dominio)
     .maybeSingle();
 
@@ -39,7 +77,7 @@ export async function getAgencyDbClientByDomain(dominio: string) {
       const potentialSubdomain = parts[0];
       const { data: subAgencia } = await adminServiceSupabase
         .from("agencias")
-        .select("id, supabase_url, supabase_service_role_key_enc, iv, auth_tag, subdomain, dominio")
+        .select("id, conexion_bd_id, supabase_url, supabase_service_role_key_enc, iv, auth_tag, subdomain, dominio, schema_name")
         .eq("subdomain", potentialSubdomain)
         .maybeSingle();
 
@@ -53,7 +91,7 @@ export async function getAgencyDbClientByDomain(dominio: string) {
   if (!agencia) {
     const { data: subAgencia } = await adminServiceSupabase
       .from("agencias")
-      .select("id, supabase_url, supabase_service_role_key_enc, iv, auth_tag, subdomain, dominio")
+      .select("id, conexion_bd_id, supabase_url, supabase_service_role_key_enc, iv, auth_tag, subdomain, dominio, schema_name")
       .eq("subdomain", dominio)
       .maybeSingle();
 
@@ -63,20 +101,23 @@ export async function getAgencyDbClientByDomain(dominio: string) {
   }
 
   if (!agencia) return null;
-  if (!agencia.supabase_service_role_key_enc || !agencia.iv || !agencia.auth_tag) return null;
+
+  const conexion = await resolveConexion(adminServiceSupabase, agencia);
+  if (!conexion) return null;
 
   const serviceRoleKey = decrypt(
-    agencia.supabase_service_role_key_enc,
-    agencia.iv,
-    agencia.auth_tag
+    conexion.supabase_service_role_key_enc,
+    conexion.iv,
+    conexion.auth_tag
   );
 
   if (!serviceRoleKey) return null;
 
   return {
     agenciaId: agencia.id as string,
-    db: createClient(agencia.supabase_url, serviceRoleKey, {
+    db: createClient(conexion.supabase_url, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+      db: { schema: (agencia.schema_name as string | null) || "public" },
     }),
   };
 }
@@ -89,7 +130,7 @@ export async function getAgencyDbClientById(agenciaId: string) {
 
   const { data: agencia, error } = await adminServiceSupabase
     .from("agencias")
-    .select("supabase_url, supabase_service_role_key_enc, iv, auth_tag")
+    .select("conexion_bd_id, supabase_url, supabase_service_role_key_enc, iv, auth_tag, schema_name")
     .eq("id", agenciaId)
     .single();
 
@@ -97,38 +138,39 @@ export async function getAgencyDbClientById(agenciaId: string) {
     throw new Error("No se encontraron los datos de la agencia.");
   }
 
-  if (!agencia.supabase_service_role_key_enc || !agencia.iv || !agencia.auth_tag) {
+  const conexion = await resolveConexion(adminServiceSupabase, agencia);
+  if (!conexion) {
     throw new Error("Las credenciales de la agencia están incompletas o no están configuradas.");
   }
 
   const serviceRoleKey = decrypt(
-    agencia.supabase_service_role_key_enc,
-    agencia.iv,
-    agencia.auth_tag
+    conexion.supabase_service_role_key_enc,
+    conexion.iv,
+    conexion.auth_tag
   );
 
   if (!serviceRoleKey) {
     throw new Error("Error al desencriptar las credenciales de la agencia.");
   }
 
-  return createClient(agencia.supabase_url, serviceRoleKey, {
+  return createClient(conexion.supabase_url, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    db: { schema: (agencia.schema_name as string | null) || "public" },
   });
 }
 
-export const getAgencyDbClient = cache(async () => {
+// Resuelve el agencia_id + schema_name de la agencia del usuario actual,
+// sin abrir conexión. Cacheado por request igual que getAgencyDbClient.
+export const getAgencyContext = cache(async () => {
   const adminSupabase = await createAdminServerClient();
 
-  // 1. Obtener el usuario actual de forma segura
   const { data: { user }, error: userError } = await adminSupabase.auth.getUser();
-  
   if (userError || !user) {
     throw new Error("No hay usuario autenticado.");
   }
 
   const adminServiceSupabase = createAdminServiceClient();
 
-  // 2. Obtener el agencia_id del usuario actual usando el Service Role client
   const { data: usuario, error: usuarioError } = await adminServiceSupabase
     .from("usuarios")
     .select("agencia_id, rol")
@@ -143,13 +185,11 @@ export const getAgencyDbClient = cache(async () => {
   if (!usuario.agencia_id) {
     throw new Error("El usuario no tiene una agencia asignada.");
   }
-  const agenciaId = usuario.agencia_id;
 
-  // 3. Obtener las credenciales de la agencia desde la tabla agencias usando el ID
   const { data: agencia, error: agenciaError } = await adminServiceSupabase
     .from("agencias")
-    .select("supabase_url, supabase_service_role_key_enc, iv, auth_tag")
-    .eq("id", agenciaId)
+    .select("conexion_bd_id, supabase_url, supabase_service_role_key_enc, iv, auth_tag, schema_name")
+    .eq("id", usuario.agencia_id)
     .single();
 
   if (agenciaError || !agencia) {
@@ -157,29 +197,58 @@ export const getAgencyDbClient = cache(async () => {
     throw new Error("No se encontraron los datos de la agencia.");
   }
 
-
-  if (!agencia.supabase_service_role_key_enc || !agencia.iv || !agencia.auth_tag) {
+  const conexion = await resolveConexion(adminServiceSupabase, agencia);
+  if (!conexion) {
     throw new Error("Las credenciales de la agencia están incompletas o no están configuradas.");
   }
 
-  // 4. Desencriptar la Service Role Key
+  return {
+    agenciaId: usuario.agencia_id as string,
+    schemaName: (agencia.schema_name as string | null) || "public",
+    conexion,
+  };
+});
+
+// Nombre de schema Postgres de la agencia del usuario actual ('public' para
+// agencias con BD dedicada). Usado para namespacing de Storage buckets.
+export async function getCurrentSchemaName(): Promise<string> {
+  const { schemaName } = await getAgencyContext();
+  return schemaName;
+}
+
+// Deriva el nombre de bucket de Storage a partir del nombre legado (el usado
+// hoy, fijo) y el schema de la agencia. Agencias con BD dedicada
+// (schema_name === 'public') conservan el nombre legado sin cambios, para no
+// requerir ninguna migración de storage existente. Ver docs/adr/ADR-0002.
+export function bucketNameForSchema(nombreLegado: string, schemaName: string): string {
+  return schemaName === "public" ? nombreLegado : `${nombreLegado}__${schemaName}`;
+}
+
+export const getAgencyDbClient = cache(async () => {
+  const { schemaName, conexion } = await getAgencyContext();
+
+  // Desencriptar la Service Role Key
   const serviceRoleKey = decrypt(
-    agencia.supabase_service_role_key_enc,
-    agencia.iv,
-    agencia.auth_tag
+    conexion.supabase_service_role_key_enc,
+    conexion.iv,
+    conexion.auth_tag
   );
 
   if (!serviceRoleKey) {
     throw new Error("Error al desencriptar las credenciales de la agencia.");
   }
 
-  // 5. Instanciar y devolver el cliente de Supabase
+  // Instanciar y devolver el cliente de Supabase, fijado al schema de la
+  // agencia (permite que varias agencias compartan proyecto Supabase).
   // Retornamos un cliente estándar de supabase-js con la service_role_key (bypasses RLS)
-  return createClient(agencia.supabase_url, serviceRoleKey, {
+  return createClient(conexion.supabase_url, serviceRoleKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
       detectSessionInUrl: false
-    }
+    },
+    db: {
+      schema: schemaName,
+    },
   });
 });

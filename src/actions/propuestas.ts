@@ -4,6 +4,36 @@ import { getAgencyDbClient, getAgencyDbClientByDomain } from "@/lib/agencyDb";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { revalidatePath } from "next/cache";
 
+const ROLES_ADMIN = ["Admin", "SuperAdmin", "Owner"];
+
+// Verifica que el usuario autenticado puede eliminar/editar la propuesta indicada:
+// es su agente_id, la propuesta no tiene agente_id (legado), o tiene rol admin.
+// Lanza si no autenticado o si otro agente intenta actuar sobre ella.
+async function assertPuedeEditarPropuesta(agencyDb: any, propuestaId: string) {
+  const adminSupabase = await createAdminServerClient();
+  const { data: { user }, error: userError } = await adminSupabase.auth.getUser();
+  if (userError || !user) throw new Error("No autenticado");
+
+  const { data: prop } = await agencyDb
+    .from("operativa_propuestas")
+    .select("agente_id")
+    .eq("id", propuestaId)
+    .single();
+
+  if (!prop?.agente_id || prop.agente_id === user.id) return;
+
+  const adminServiceSupabase = createAdminServiceClient();
+  const { data: usuario } = await adminServiceSupabase
+    .from("usuarios")
+    .select("rol")
+    .eq("auth_user_id", user.id)
+    .single();
+
+  if (usuario?.rol && ROLES_ADMIN.includes(usuario.rol)) return;
+
+  throw new Error("No tienes permiso para eliminar esta propuesta");
+}
+
 export async function getPropuestas() {
   try {
     const agencyDb = await getAgencyDbClient();
@@ -130,6 +160,392 @@ export async function duplicarPropuesta(id: string, vincularCotizacion: boolean 
   }
 }
 
+/**
+ * Crea una propuesta nueva pre-cargada con el contacto, fechas y destino de una
+ * cotización, y la vincula a ella. Uso: botón "Crear nueva propuesta" desde una
+ * cotización sin expediente (donde createNewPropuestaLinked no aplica).
+ */
+export async function linkCotizacionToPropuesta(cotizacionId: string, propuestaId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { error } = await agencyDb
+      .from("operativa_propuestas")
+      .update({ cotizacion_id: cotizacionId })
+      .eq("id", propuestaId);
+    revalidatePath("/propuestas");
+    return { success: !error, error: error?.message };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+function diffDias(desde: string, hasta: string): number {
+  const start = new Date(desde);
+  const end = new Date(hasta);
+  const diff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  return diff > 0 ? diff : 1;
+}
+
+function ajustarSeccionesItinerario(secciones: any[], fechaSalida: string, fechaRegreso: string): any[] {
+  const diasNuevos = diffDias(fechaSalida, fechaRegreso);
+  return secciones.map(s => {
+    if (s.tipo !== "itinerario" || !s.fechaDesde || !s.fechaHasta) return s;
+    const diasExistentes = (s.dias ?? []).filter((d: any) => d.dia <= diasNuevos);
+    const diasFaltantes = Array.from({ length: Math.max(0, diasNuevos - diasExistentes.length) }, (_, i) => ({
+      dia: diasExistentes.length + i + 1,
+    }));
+    return {
+      ...s,
+      fechaDesde: fechaSalida,
+      fechaHasta: fechaRegreso,
+      dias: [...diasExistentes, ...diasFaltantes],
+    };
+  });
+}
+
+/**
+ * Comprueba si vincular `propuestaId` a `cotizacionId` produciría un
+ * desajuste entre la duración del itinerario de la propuesta y las fechas
+ * (fecha_salida/fecha_regreso) de la cotización. No modifica nada.
+ */
+export async function checkAjusteFechasCotizacion(propuestaId: string, cotizacionId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+
+    const { data: cot, error: cotErr } = await agencyDb
+      .from("operativa_cotizaciones")
+      .select("fecha_salida, fecha_regreso")
+      .eq("id", cotizacionId)
+      .single();
+    if (cotErr) throw cotErr;
+    if (!cot?.fecha_salida || !cot?.fecha_regreso) {
+      return { requiereAjuste: false };
+    }
+
+    const { data: landing, error: landingErr } = await agencyDb
+      .from("landings")
+      .select("editor_content")
+      .eq("proposal_id", propuestaId)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (landingErr) throw landingErr;
+
+    const secciones: any[] = landing?.editor_content ?? [];
+    const itinerario = secciones.find(s => s.tipo === "itinerario" && s.fechaDesde && s.fechaHasta);
+    if (!itinerario) return { requiereAjuste: false };
+
+    const diasItinerario = diffDias(itinerario.fechaDesde, itinerario.fechaHasta);
+    const diasCotizacion = diffDias(cot.fecha_salida, cot.fecha_regreso);
+
+    if (diasItinerario === diasCotizacion) return { requiereAjuste: false };
+
+    return {
+      requiereAjuste: true,
+      diasItinerario,
+      diasCotizacion,
+      fechaSalidaCotizacion: cot.fecha_salida,
+      fechaRegresoCotizacion: cot.fecha_regreso,
+    };
+  } catch (err: any) {
+    console.error("checkAjusteFechasCotizacion error:", err.message);
+    return { requiereAjuste: false };
+  }
+}
+
+/**
+ * Comprueba si las propuestas vinculadas a `cotizacionId` tienen un
+ * itinerario cuya duración no coincide con fecha_salida/fecha_regreso de
+ * la cotización (uso: tras editar las fechas de una cotización). No
+ * modifica nada. Devuelve como máximo el mayor desajuste encontrado, más
+ * la lista de ids de propuesta afectadas.
+ */
+export async function checkAjusteFechasPropuestasVinculadas(cotizacionId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+
+    const { data: cot, error: cotErr } = await agencyDb
+      .from("operativa_cotizaciones")
+      .select("fecha_salida, fecha_regreso")
+      .eq("id", cotizacionId)
+      .single();
+    if (cotErr) throw cotErr;
+    if (!cot?.fecha_salida || !cot?.fecha_regreso) return { requiereAjuste: false };
+
+    const diasCotizacion = diffDias(cot.fecha_salida, cot.fecha_regreso);
+
+    const { data: propuestas, error: propErr } = await agencyDb
+      .from("operativa_propuestas")
+      .select("id")
+      .eq("cotizacion_id", cotizacionId);
+    if (propErr) throw propErr;
+    if (!propuestas || propuestas.length === 0) return { requiereAjuste: false };
+
+    const propuestaIds: string[] = [];
+    let diasItinerario = 0;
+
+    for (const prop of propuestas) {
+      const { data: landing } = await agencyDb
+        .from("landings")
+        .select("editor_content")
+        .eq("proposal_id", prop.id)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      const secciones: any[] = landing?.editor_content ?? [];
+      const itinerario = secciones.find(s => s.tipo === "itinerario" && s.fechaDesde && s.fechaHasta);
+      if (!itinerario) continue;
+
+      const dias = diffDias(itinerario.fechaDesde, itinerario.fechaHasta);
+      if (dias !== diasCotizacion) {
+        propuestaIds.push(prop.id);
+        diasItinerario = dias;
+      }
+    }
+
+    if (propuestaIds.length === 0) return { requiereAjuste: false };
+
+    return {
+      requiereAjuste: true,
+      propuestaIds,
+      diasItinerario,
+      diasCotizacion,
+    };
+  } catch (err: any) {
+    console.error("checkAjusteFechasPropuestasVinculadas error:", err.message);
+    return { requiereAjuste: false };
+  }
+}
+
+/**
+ * Ajusta el itinerario de cada propuesta indicada a las fechas actuales de
+ * `cotizacionId` (recorta días sobrantes o añade días vacíos según la
+ * nueva duración). Uso: tras confirmar el aviso de ajuste al editar fechas
+ * de una cotización con propuestas vinculadas.
+ */
+export async function ajustarItinerariosDeCotizacion(cotizacionId: string, propuestaIds: string[]) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+
+    const { data: cot, error: cotErr } = await agencyDb
+      .from("operativa_cotizaciones")
+      .select("fecha_salida, fecha_regreso")
+      .eq("id", cotizacionId)
+      .single();
+    if (cotErr) throw cotErr;
+    if (!cot?.fecha_salida || !cot?.fecha_regreso) return { success: false, error: "Cotización sin fechas" };
+
+    for (const propuestaId of propuestaIds) {
+      const { data: landing } = await agencyDb
+        .from("landings")
+        .select("id, editor_content")
+        .eq("proposal_id", propuestaId)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (!landing) continue;
+
+      const secciones: any[] = landing.editor_content ?? [];
+      const nuevasSecciones = ajustarSeccionesItinerario(secciones, cot.fecha_salida, cot.fecha_regreso);
+
+      await agencyDb
+        .from("landings")
+        .update({ editor_content: nuevasSecciones })
+        .eq("id", landing.id);
+    }
+
+    revalidatePath("/propuestas");
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Vincula una propuesta a una cotización. Si `ajustarItinerario` es true,
+ * recalcula fechaDesde/fechaHasta de la sección itinerario a las fechas de
+ * la cotización, recortando días sobrantes o añadiendo días vacíos según
+ * la nueva duración.
+ */
+export async function linkCotizacionToPropuestaConAjuste(
+  cotizacionId: string,
+  propuestaId: string,
+  ajustarItinerario: boolean
+) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+
+    if (ajustarItinerario) {
+      const { data: cot, error: cotErr } = await agencyDb
+        .from("operativa_cotizaciones")
+        .select("fecha_salida, fecha_regreso")
+        .eq("id", cotizacionId)
+        .single();
+      if (cotErr) throw cotErr;
+
+      if (cot?.fecha_salida && cot?.fecha_regreso) {
+        const { data: landing, error: landingErr } = await agencyDb
+          .from("landings")
+          .select("id, editor_content")
+          .eq("proposal_id", propuestaId)
+          .eq("is_active", true)
+          .maybeSingle();
+        if (landingErr) throw landingErr;
+
+        if (landing) {
+          const secciones: any[] = landing.editor_content ?? [];
+          const nuevasSecciones = ajustarSeccionesItinerario(secciones, cot.fecha_salida, cot.fecha_regreso);
+
+          await agencyDb
+            .from("landings")
+            .update({ editor_content: nuevasSecciones })
+            .eq("id", landing.id);
+        }
+      }
+    }
+
+    const { error } = await agencyDb
+      .from("operativa_propuestas")
+      .update({ cotizacion_id: cotizacionId })
+      .eq("id", propuestaId);
+
+    revalidatePath("/propuestas");
+    return { success: !error, error: error?.message };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Trae de la cotización vinculada a la propuesta:
+ * - las líneas marcadas como opcionales (para la sección "Extras": descripción + pvp)
+ * - el pvp por viajero de la cotización (para la sección "Precio")
+ * Usado por los botones "Vincular desde cotización" en el editor de propuestas.
+ */
+export async function getExtrasYPvpDesdeCotizacion(propuestaId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+
+    const { data: prop, error: propErr } = await agencyDb
+      .from("operativa_propuestas")
+      .select("cotizacion_id")
+      .eq("id", propuestaId)
+      .single();
+    if (propErr) throw propErr;
+    if (!prop?.cotizacion_id) return { ok: false, error: "Esta propuesta no tiene una cotización vinculada" };
+
+    const { data: cotizacion, error: cotError } = await agencyDb
+      .from("operativa_cotizaciones")
+      .select("pvp_viajero")
+      .eq("id", prop.cotizacion_id)
+      .single();
+    if (cotError) throw cotError;
+
+    const { data: lineas, error: lineasErr } = await agencyDb
+      .from("operativa_cotizacion_lineas")
+      .select("id, descripcion, pvp, opcional")
+      .eq("cotizacion_id", prop.cotizacion_id)
+      .order("created_at", { ascending: true });
+    if (lineasErr) throw lineasErr;
+
+    const extras = (lineas ?? [])
+      .filter((l: any) => l.opcional)
+      .map((l: any) => ({
+        origenLineaId: l.id as string,
+        texto: l.descripcion as string ?? "",
+        importe: Number(l.pvp || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 }) + " €",
+      }));
+
+    const pvpTotal = Number(cotizacion?.pvp_viajero || 0);
+
+    return {
+      ok: true,
+      extras,
+      pvp: pvpTotal.toLocaleString("es-ES", { minimumFractionDigits: 2 }) + " €",
+    };
+  } catch (err: any) {
+    return { ok: false, error: err.message };
+  }
+}
+
+export async function crearPropuestaDesdeCotizacion(cotizacionId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+
+    const { data: cot, error: cotError } = await agencyDb
+      .from("operativa_cotizaciones")
+      .select("titulo, contacto, fecha_salida, fecha_regreso, destinos, agente_id")
+      .eq("id", cotizacionId)
+      .single();
+    if (cotError || !cot) throw cotError ?? new Error("Cotización no encontrada");
+
+    const destinoPrincipal = Array.isArray(cot.destinos) && cot.destinos.length > 0
+      ? (cot.destinos[0]?.nombre ?? null)
+      : null;
+
+    let currentUserId: string | null = null;
+    try {
+      const adminSupabase = await createAdminServerClient();
+      const { data: { user } } = await adminSupabase.auth.getUser();
+      currentUserId = user?.id ?? null;
+    } catch {}
+
+    const { data: newProp, error: propError } = await agencyDb
+      .from("operativa_propuestas")
+      .insert({
+        title: cot.titulo || "Nueva propuesta",
+        destination: destinoPrincipal,
+        cotizacion_id: cotizacionId,
+        contacto_id: cot.contacto || null,
+        agente_id: currentUserId ?? cot.agente_id ?? null,
+        proposal_data: {},
+      })
+      .select("id, title")
+      .single();
+    if (propError || !newProp) throw propError;
+
+    const uidPortada = `portada-${Date.now()}`;
+    const editorContent: any[] = [
+      { uid: uidPortada, tipo: "portada", label: "portada", titulo: cot.titulo || "Nueva propuesta" },
+    ];
+    const designTokens: any[] = [
+      { uid: "global", estilosGlobales: {} },
+      {
+        uid: uidPortada,
+        layout: "slide",
+        estiloTitulo: { fuente: "Raleway", grosor: "400", tamano: "40px", color: "#ffffff", grosorDestacado: "700" },
+        estiloSubtitulo: { fuente: "Montserrat", grosor: "300", color: "#ffffff", grosorDestacado: "700" },
+      },
+    ];
+
+    if (cot.fecha_salida && cot.fecha_regreso) {
+      const uidItinerario = `itinerario-${Date.now()}`;
+      editorContent.push({
+        uid: uidItinerario, tipo: "itinerario", label: "itinerario", titulo: "Itinerario",
+        fechaDesde: cot.fecha_salida, fechaHasta: cot.fecha_regreso,
+      });
+      designTokens.push({
+        uid: uidItinerario,
+        estiloTitulo: { fuente: "Raleway", grosor: "800", tamano: "22px", color: "#1e293b" },
+        estiloTituloDia: { fuente: "Raleway", grosor: "700", tamano: "18px", color: "#1e293b" },
+        estiloDescDia: { fuente: "Montserrat", grosor: "400", tamano: "13px", color: "#64748b" },
+      });
+    }
+
+    const { error: landingError } = await agencyDb.from("landings").insert({
+      proposal_id: newProp.id,
+      is_active: true,
+      version_number: 1,
+      editor_content: editorContent,
+      design_tokens: designTokens,
+    });
+    if (landingError) throw landingError;
+
+    revalidatePath("/propuestas");
+    return { success: true, data: { id: newProp.id, title: newProp.title } };
+  } catch (e: any) {
+    return { success: false, error: e?.message ?? "Error desconocido" };
+  }
+}
+
 export async function tienePropuestaCotizacionVinculada(id: string) {
   try {
     const agencyDb = await getAgencyDbClient();
@@ -148,6 +564,7 @@ export async function tienePropuestaCotizacionVinculada(id: string) {
 export async function deletePropuesta(id: string) {
   try {
     const agencyDb = await getAgencyDbClient();
+    await assertPuedeEditarPropuesta(agencyDb, id);
     const { error } = await agencyDb
       .from("operativa_propuestas")
       .delete()
@@ -307,8 +724,8 @@ export async function crearPropuestaDesdeSeccionesImportadas(
         diseno.estiloPvp = { fuente: "Raleway", grosor: "800", tamano: "48px", color: "#1e293b" };
         diseno.estiloCondiciones = { fuente: "Montserrat", grosor: "400", tamano: "14px", color: "#475569" };
       } else if (s.tipo === "texto-columnas") {
-        contenido.columnas = s.columnas;
-        diseno.layout = "3-cols";
+        contenido.columnas = (s.columnas ?? []).map((c, i) => ({ uid: `col-${uid}-${i}`, titulo: c.titulo, texto: c.texto }));
+        diseno.layout = (s.columnas?.length ?? 0) <= 1 ? "2-cols" : "3-cols";
         diseno.anchoMax = "1200px";
         diseno.estiloTitulo = { fuente: "Raleway", grosor: "800", tamano: "22px", color: "#1e293b" };
       }

@@ -409,7 +409,7 @@ export function NuevoClientePanel({
                   <button
                     type="button"
                     onClick={() => setShowNuevoContacto(true)}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.72rem", fontWeight: 600, color: "var(--primary-color, #475569)", background: "none", border: "none", cursor: "pointer", padding: "0.1rem 0.3rem", borderRadius: 4 }}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.72rem", fontWeight: 600, color: "#ffffff", background: "var(--primary-color, #475569)", border: "none", cursor: "pointer", padding: "0.25rem 0.55rem", borderRadius: 6 }}
                   >
                     <Plus size={12} /> Añadir
                   </button>

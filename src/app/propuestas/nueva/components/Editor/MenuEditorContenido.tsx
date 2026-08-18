@@ -7,6 +7,7 @@ import type { Seccion, MenuBoton, MenuOverride } from "../../types";
 export default function MenuEditorContenido({ seccion, onUpdate, todasSecciones }: { seccion: Seccion; onUpdate: (uid: string, patch: Partial<Seccion>) => void; todasSecciones?: Seccion[] }) {
   const logoFileRef = useRef<HTMLInputElement>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoUrlInput, setLogoUrlInput] = useState("");
 
   const otrasSecciones = (todasSecciones ?? []).filter(s => s.tipo !== "menu");
 
@@ -42,10 +43,30 @@ export default function MenuEditorContenido({ seccion, onUpdate, todasSecciones 
             </button>
           </div>
         ) : (
-          <button type="button" onClick={() => logoFileRef.current?.click()} disabled={uploadingLogo}
-            style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.55rem 0.9rem", borderRadius: "0.5rem", border: "1.5px dashed #cbd5e1", background: "#f8fafc", color: "#64748b", fontSize: "0.78rem", cursor: "pointer", width: "100%", boxSizing: "border-box" }}>
-            <Image size={14} />{uploadingLogo ? "Subiendo…" : "Subir imagen de logo"}
-          </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button type="button" onClick={() => logoFileRef.current?.click()} disabled={uploadingLogo}
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.55rem 0.9rem", borderRadius: "0.5rem", border: "1.5px dashed #cbd5e1", background: "#f8fafc", color: "#64748b", fontSize: "0.78rem", cursor: "pointer", width: "100%", boxSizing: "border-box" }}>
+              <Image size={14} />{uploadingLogo ? "Subiendo…" : "Subir imagen de logo"}
+            </button>
+            <input
+              value={logoUrlInput}
+              onChange={e => setLogoUrlInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter" && logoUrlInput.trim()) {
+                  onUpdate(seccion.uid, { menuLogo: logoUrlInput.trim() });
+                  setLogoUrlInput("");
+                }
+              }}
+              onBlur={() => {
+                if (logoUrlInput.trim()) {
+                  onUpdate(seccion.uid, { menuLogo: logoUrlInput.trim() });
+                  setLogoUrlInput("");
+                }
+              }}
+              style={{ width: "100%", boxSizing: "border-box", padding: "0.45rem 0.65rem", border: "1.5px solid #e2e8f0", borderRadius: "0.5rem", fontSize: "0.78rem", color: "#1e293b", outline: "none" }}
+              placeholder="O pega una URL de imagen…"
+            />
+          </div>
         )}
         <input ref={logoFileRef} type="file" accept="image/*" style={{ display: "none" }}
           onChange={async e => {

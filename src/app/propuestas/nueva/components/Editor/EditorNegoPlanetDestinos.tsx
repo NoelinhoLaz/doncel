@@ -5,7 +5,7 @@ import { ChevronRight, Eye, EyeOff } from "lucide-react";
 import styles from "../../page.module.css";
 import type { Seccion, NegoPlanetOverride } from "../../types";
 import { obtenerArbolDestinosNegoPlanet } from "@/actions/negoplanet";
-import MediaSelector from "./MediaSelector";
+import MediaSelectorModal from "./MediaSelectorModal";
 
 interface NodoArbol {
   post_name: string;
@@ -235,7 +235,7 @@ function NodoEditor({
         <div
           style={{
             width: 32, height: 32, borderRadius: "0.35rem", flexShrink: 0, cursor: "pointer",
-            backgroundImage: imagen ? `url(${imagen})` : undefined,
+            backgroundImage: imagen ? `url('${imagen}')` : undefined,
             backgroundColor: imagen ? undefined : "#e2e8f0",
             backgroundSize: "cover", backgroundPosition: "center",
             border: "1px solid #cbd5e1",
@@ -267,12 +267,11 @@ function NodoEditor({
       </div>
 
       {mediaPickerAbierto && (
-        <div style={{ padding: "0 10px 10px 10px" }}>
-          <MediaSelector
-            value={imagen ? { tipo: "link", url: imagen } : undefined}
-            onChange={m => { onSetImagen(m?.url); setMediaAbierto(null); }}
-          />
-        </div>
+        <MediaSelectorModal
+          value={imagen ? { tipo: "link", url: imagen } : undefined}
+          onChange={m => { onSetImagen(m?.url); setMediaAbierto(null); }}
+          onClose={() => setMediaAbierto(null)}
+        />
       )}
 
       {children}

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAgencyDbClient } from "@/lib/agencyDb";
+import { getAgencyDbClient, getCurrentSchemaName, bucketNameForSchema } from "@/lib/agencyDb";
 
 export const dynamic = "force-dynamic";
 
-const BUCKET = "whatsapp-media";
+const BUCKET_LEGACY = "whatsapp-media";
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
     const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
     const agencyDb = await getAgencyDbClient();
+    const BUCKET = bucketNameForSchema(BUCKET_LEGACY, await getCurrentSchemaName());
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // Ensure bucket exists (idempotent)
@@ -68,6 +69,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "filename query param required" }, { status: 400 });
     }
     const agencyDb = await getAgencyDbClient();
+    const BUCKET = bucketNameForSchema(BUCKET_LEGACY, await getCurrentSchemaName());
     const { error } = await agencyDb.storage.from(BUCKET).remove([filename]);
     if (error) {
       console.error("Storage delete error:", error);

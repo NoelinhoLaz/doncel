@@ -291,6 +291,13 @@ input[type="checkbox"]:not([style*="opacity: 0"]):checked::after {
   padding: 0.1rem 0.3rem;
   font-size: 0.9em;
 }
+.momo-rich-inline a {
+  color: var(--momo-color-destacado, #6366f1);
+  text-decoration: underline;
+}
+.momo-rich-inline u {
+  text-decoration: underline var(--momo-estilo-subrayado, solid) var(--momo-color-subrayado, currentColor);
+}
 .momo-rich-inline .is-editor-empty:first-child::before,
 .momo-rich-inline p.is-empty::before {
   content: attr(data-placeholder);

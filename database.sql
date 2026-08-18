@@ -2653,13 +2653,16 @@ CREATE INDEX IF NOT EXISTS idx_metricas_localidad ON public.metricas_cotizacione
 -- Ejecutar en la BD de cada agencia
 -- ============================================================
 
+-- Favoritos a nivel de agencia: fav_id es único en toda la tabla (no por
+-- usuario), así cualquier agente puede ver/usar/borrar los favoritos de
+-- toda la agencia. usuario_id se conserva solo como registro de autoría.
 CREATE TABLE IF NOT EXISTS public.propuestas_secciones_favoritas (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     usuario_id   UUID NOT NULL,
     fav_id       TEXT NOT NULL,
     seccion_data JSONB NOT NULL,
     saved_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (usuario_id, fav_id)
+    UNIQUE (fav_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_propuestas_fav_usuario ON public.propuestas_secciones_favoritas(usuario_id);

@@ -220,6 +220,7 @@ export default function CampanaDetallePage() {
         estados={estados}
         monocromo={monocromo}
         isOwner={isOwner}
+        currentAgenteId={currentAgenteId}
         campanaId={campana.id}
         objetivoTotal={campana.crm_campanas_agentes?.reduce((s, a) => s + (a.objetivo_valor ?? 0), 0) ?? 0}
         agentes={campana.crm_campanas_agentes ?? []}

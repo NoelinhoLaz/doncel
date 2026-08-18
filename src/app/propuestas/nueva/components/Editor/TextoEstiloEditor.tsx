@@ -4,6 +4,7 @@ import { ALargeSmall, Bold, AlignLeft, AlignCenter, AlignRight, AlignJustify } f
 import styles from "../../page.module.css";
 import type { TextoEstilo } from "../../types";
 import { FUENTES, TAMANIOS, GROSORES, ALIGN_H_OPTS } from "../../constants";
+import TextoColorBoton from "./TextoColorBoton";
 
 function IconDropdown({ opts, value, onChange }: {
   opts: { val: string; Icon: React.ElementType }[];
@@ -50,6 +51,7 @@ export default function TextoEstiloEditor({ label, value, onChange }: {
 }) {
   const v = value ?? {};
   const set = (k: keyof TextoEstilo, val: string) => onChange({ ...v, [k]: val });
+  const [colorPickerAbierto, setColorPickerAbierto] = useState<string | null>(null);
 
   return (
     <div className={styles.textoEstiloEditor}>
@@ -81,12 +83,35 @@ export default function TextoEstiloEditor({ label, value, onChange }: {
           value={v.alineacionH ?? "left"}
           onChange={val => set("alineacionH", val)}
         />
-        <label className={styles.colorPickerBtn} title="Color texto" style={{ background: v.color ?? "#1e293b" }}>
-          <input type="color" value={v.color ?? "#1e293b"} onChange={e => set("color", e.target.value)} />
-        </label>
-        <label className={styles.colorPickerBtn} title="Color destacado" style={{ background: v.colorDestacado ?? "#6366f1", outline: "2px dashed #94a3b8", outlineOffset: 2 }}>
-          <input type="color" value={v.colorDestacado ?? "#6366f1"} onChange={e => set("colorDestacado", e.target.value)} />
-        </label>
+        <TextoColorBoton
+          tipo="texto"
+          label="Color texto"
+          color={v.color ?? "#1e293b"}
+          abierto={colorPickerAbierto === "texto"}
+          onAbrir={() => setColorPickerAbierto(colorPickerAbierto === "texto" ? null : "texto")}
+          onCerrar={() => setColorPickerAbierto(null)}
+          onChangeColor={val => set("color", val)}
+        />
+        <TextoColorBoton
+          tipo="negrita"
+          label="Color dest."
+          color={v.colorDestacado ?? "#6366f1"}
+          abierto={colorPickerAbierto === "destacado"}
+          onAbrir={() => setColorPickerAbierto(colorPickerAbierto === "destacado" ? null : "destacado")}
+          onCerrar={() => setColorPickerAbierto(null)}
+          onChangeColor={val => set("colorDestacado", val)}
+        />
+        <TextoColorBoton
+          tipo="subrayado"
+          label="Subrayado"
+          color={v.colorSubrayado ?? "#6366f1"}
+          abierto={colorPickerAbierto === "subrayado"}
+          onAbrir={() => setColorPickerAbierto(colorPickerAbierto === "subrayado" ? null : "subrayado")}
+          onCerrar={() => setColorPickerAbierto(null)}
+          onChangeColor={val => set("colorSubrayado", val)}
+          estiloSubrayado={v.estiloSubrayado ?? "solid"}
+          onChangeEstiloSubrayado={val => set("estiloSubrayado", val)}
+        />
       </div>
     </div>
   );

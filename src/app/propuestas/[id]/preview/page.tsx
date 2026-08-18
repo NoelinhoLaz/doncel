@@ -31,8 +31,11 @@ export default function PreviewIdPage() {
         }
       }
 
-      // 1. Try local storage first (for unsaved preview from editor)
-      const raw = localStorage.getItem("momo_preview_secciones");
+      // 1. Try local storage first (for unsaved preview from editor), but only if it
+      // was stored for this exact propuesta — otherwise a stale preview from editing
+      // a different propuesta would leak into this one.
+      const storedId = localStorage.getItem("momo_preview_propuesta_id");
+      const raw = storedId === id ? localStorage.getItem("momo_preview_secciones") : null;
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
@@ -76,6 +79,7 @@ export default function PreviewIdPage() {
                 oculta: s.oculta,
                 titulo: s.titulo,
                 subtitulo: s.subtitulo,
+                textoLibre: s.textoLibre,
                 medias: s.medias,
                 fechaDesde: s.fechaDesde,
                 fechaHasta: s.fechaHasta,
@@ -86,6 +90,7 @@ export default function PreviewIdPage() {
                 layout: d.layout,
                 estiloTitulo: d.estiloTitulo,
                 estiloSubtitulo: d.estiloSubtitulo,
+                estiloTextoLibre: d.estiloTextoLibre,
                 estiloTituloDia: d.estiloTituloDia,
                 estiloDescDia: d.estiloDescDia,
                 colorFondo: d.colorFondo,

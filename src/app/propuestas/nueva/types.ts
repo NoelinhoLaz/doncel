@@ -8,6 +8,8 @@ export interface TextoEstilo {
   color?: string;
   colorDestacado?: string;
   grosorDestacado?: string;
+  colorSubrayado?: string;
+  estiloSubrayado?: "solid" | "dotted" | "wavy";
 }
 
 export type MediaItem = { tipo: "unsplash" | "link" | "upload" | "video"; url: string };
@@ -117,10 +119,12 @@ export interface Seccion {
   layout?: string;
   titulo?: string;
   subtitulo?: string;
+  textoLibre?: string;
   media?: MediaItem;
   medias?: MediaItem[];
   estiloTitulo?: TextoEstilo;
   estiloSubtitulo?: TextoEstilo;
+  estiloTextoLibre?: TextoEstilo;
   estiloTituloDia?: TextoEstilo;
   estiloDescDia?: TextoEstilo;
   colorFondo?: string;
@@ -130,7 +134,7 @@ export interface Seccion {
   fechaHasta?: string;
   anchoMax?: string;
   altoSeccion?: "minimo" | "medio" | "completo";
-  columnas?: { titulo?: string; texto?: string }[];
+  columnas?: { uid: string; titulo?: string; texto?: string; medias?: MediaItem[] }[];
   mapas?: MapaItem[];
   rutas?: RutaItem[];
   dias?: {
@@ -149,7 +153,10 @@ export interface Seccion {
   menuColorTexto?: string;
   menuColorBoton?: string;
   menuFijo?: boolean;
+  menuHamburguesa?: boolean;
   pvp?: string;
+  /** Si está activo, el pvp se sincroniza desde la cotización vinculada y no es editable a mano. */
+  pvpVinculado?: boolean;
   condiciones?: string;
   otrasConsideraciones?: string;
   estiloPvp?: TextoEstilo;
@@ -169,6 +176,19 @@ export interface Seccion {
   negoPlanetAutoTipo?: NegoPlanetAutoTipo;
   negoPlanetAutoQuery?: string;
   negoPlanetOverrides?: Record<string, NegoPlanetOverride>;
+  extrasFilas?: ExtraFila[];
+  estiloExtraTexto?: TextoEstilo;
+  estiloExtraImporte?: TextoEstilo;
+}
+
+export interface ExtraFila {
+  uid: string;
+  texto?: string;
+  importe?: string;
+  /** Si viene de una línea de la cotización vinculada, no es editable desde la propuesta. */
+  origenLineaId?: string;
+  /** Si está oculta, no se muestra en la vista pública pero se conserva en el editor. */
+  oculta?: boolean;
 }
 
 export type SeccionFavorita = Seccion & { favId: string; savedAt: number };

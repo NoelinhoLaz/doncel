@@ -932,7 +932,7 @@ export async function getEntidadHistorial(entidadId: string) {
 
 export async function getEntidadResumen(entidadId: string) {
   const agencyDb = await getAgencyDbClient();
-  const [presupuestosRes, expedientesRes, cotizacionesDirectasRes, viajeroRows, tutorRows, pagadorRows] = await Promise.all([
+  const [presupuestosRes, expedientesRes, cotizacionesDirectasRes, propuestasRes, viajeroRows, tutorRows, pagadorRows] = await Promise.all([
     agencyDb
       .from("operativa_presupuestos")
       .select("id, titulo_viaje, estado, tipo_presupuesto, pvp_estimado, fecha_salida_estimada, created_at")
@@ -947,6 +947,11 @@ export async function getEntidadResumen(entidadId: string) {
       .from("operativa_cotizaciones")
       .select("id, titulo, estado, pvp_viajero, plazas, total_ingresos, fecha_salida, created_at")
       .eq("contacto", entidadId)
+      .order("created_at", { ascending: false }),
+    agencyDb
+      .from("operativa_propuestas")
+      .select("id, title, destination, created_at")
+      .eq("contacto_id", entidadId)
       .order("created_at", { ascending: false }),
     agencyDb.from("operativa_viajeros_expedientes").select("expediente_id").eq("entidad_id", entidadId),
     agencyDb.from("operativa_viajeros_expedientes").select("expediente_id").eq("tutor_id", entidadId),
@@ -995,5 +1000,6 @@ export async function getEntidadResumen(entidadId: string) {
     presupuestos: presupuestosRes.data ?? [],
     cotizaciones,
     expedientes,
+    propuestas: propuestasRes.data ?? [],
   };
 }

@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { X } from "lucide-react";
 import styles from "../../page.module.css";
 import type { Seccion, UbicacionMapa } from "../../types";
-import MediaSelector from "./MediaSelector";
+import MediaSelectorModal from "./MediaSelectorModal";
 import { PlacesSearchField, PlacesSearchFieldRuta } from "./PlacesSearch";
 
 export function UbicacionEditor({ ub, mapaUid, seccion, onUpdate }: {
@@ -45,7 +45,7 @@ export function UbicacionEditor({ ub, mapaUid, seccion, onUpdate }: {
       {(ub.medias ?? []).length > 0 && (
         <div className={styles.placesPhotoGrid}>
           {(ub.medias ?? []).map((media, pIdx) => (
-            <div key={pIdx} className={styles.placesPhotoThumb} style={{ backgroundImage: `url(${media.url})` }}>
+            <div key={pIdx} className={styles.placesPhotoThumb} style={{ backgroundImage: `url('${media.url}')` }}>
               <button
                 className={styles.placesPhotoRemove}
                 type="button"
@@ -55,23 +55,23 @@ export function UbicacionEditor({ ub, mapaUid, seccion, onUpdate }: {
           ))}
         </div>
       )}
-      {showMediaSelector ? (
-        <MediaSelector
+      <button
+        type="button"
+        onClick={() => setShowMediaSelector(true)}
+        style={{ alignSelf: "flex-start", background: "none", border: "1px dashed #cbd5e1", borderRadius: "0.4rem", padding: "3px 10px", fontSize: "0.72rem", color: "#94a3b8", cursor: "pointer" }}
+      >
+        + Añadir imagen
+      </button>
+      {showMediaSelector && (
+        <MediaSelectorModal
           value={undefined}
           onChange={m => {
             if (!m) return;
             patchUb({ medias: [...(ub.medias ?? []), m] });
             setShowMediaSelector(false);
           }}
+          onClose={() => setShowMediaSelector(false)}
         />
-      ) : (
-        <button
-          type="button"
-          onClick={() => setShowMediaSelector(true)}
-          style={{ alignSelf: "flex-start", background: "none", border: "1px dashed #cbd5e1", borderRadius: "0.4rem", padding: "3px 10px", fontSize: "0.72rem", color: "#94a3b8", cursor: "pointer" }}
-        >
-          + Añadir imagen
-        </button>
       )}
     </div>
   );
@@ -116,7 +116,7 @@ export function UbicacionEditorRuta({ ub, rutaUid, seccion, onUpdate }: {
       {(ub.medias ?? []).length > 0 && (
         <div className={styles.placesPhotoGrid}>
           {(ub.medias ?? []).map((media, pIdx) => (
-            <div key={pIdx} className={styles.placesPhotoThumb} style={{ backgroundImage: `url(${media.url})` }}>
+            <div key={pIdx} className={styles.placesPhotoThumb} style={{ backgroundImage: `url('${media.url}')` }}>
               <button
                 className={styles.placesPhotoRemove}
                 type="button"
@@ -126,23 +126,23 @@ export function UbicacionEditorRuta({ ub, rutaUid, seccion, onUpdate }: {
           ))}
         </div>
       )}
-      {showMediaSelector ? (
-        <MediaSelector
+      <button
+        type="button"
+        onClick={() => setShowMediaSelector(true)}
+        style={{ alignSelf: "flex-start", background: "none", border: "1px dashed #cbd5e1", borderRadius: "0.4rem", padding: "3px 10px", fontSize: "0.72rem", color: "#94a3b8", cursor: "pointer" }}
+      >
+        + Añadir imagen
+      </button>
+      {showMediaSelector && (
+        <MediaSelectorModal
           value={undefined}
           onChange={m => {
             if (!m) return;
             patchUb({ medias: [...(ub.medias ?? []), m] });
             setShowMediaSelector(false);
           }}
+          onClose={() => setShowMediaSelector(false)}
         />
-      ) : (
-        <button
-          type="button"
-          onClick={() => setShowMediaSelector(true)}
-          style={{ alignSelf: "flex-start", background: "none", border: "1px dashed #cbd5e1", borderRadius: "0.4rem", padding: "3px 10px", fontSize: "0.72rem", color: "#94a3b8", cursor: "pointer" }}
-        >
-          + Añadir imagen
-        </button>
       )}
     </div>
   );

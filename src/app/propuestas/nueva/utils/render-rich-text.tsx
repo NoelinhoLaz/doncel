@@ -2,7 +2,7 @@ import React from "react";
 import type { TextoEstilo } from "../types";
 import { sustituirVariables } from "./style-utils";
 
-const ALLOWED_TAGS = new Set(["p", "strong", "em", "s", "code", "ul", "ol", "li", "br", "a"]);
+const ALLOWED_TAGS = new Set(["p", "strong", "em", "s", "u", "code", "ul", "ol", "li", "br", "a"]);
 const ALLOWED_ATTR = new Set(["href", "target", "rel"]);
 
 /**
@@ -26,7 +26,7 @@ function sanitizarHTML(html: string): string {
 function esHTML(texto: string): boolean {
   // Tolera espacios en blanco "invisibles" (zero-width, etc.) que \s no cubre, y
   // basta con que aparezca una tag de apertura cerca del inicio, no exactamente en la posición 0.
-  return /<(p|strong|em|s|code|ul|ol|li|br|a)(\s[^>]*)?>/i.test(texto.slice(0, 20));
+  return /<(p|strong|em|s|u|code|ul|ol|li|br|a)(\s[^>]*)?>/i.test(texto.slice(0, 20));
 }
 
 /** Renderiza texto legacy (marcado ** / .- / \n) — se mantiene para datos guardados antes de migrar a HTML. */
@@ -86,6 +86,8 @@ export function renderRichText(texto: string | undefined, opts: RenderRichTextOp
   const tipo = opts.defaultTipo ?? "parrafo";
   const colorDestacado = opts.colorDestacado ?? opts.estilo?.colorDestacado;
   const grosorDestacado = opts.grosorDestacado ?? opts.estilo?.grosorDestacado;
+  const colorSubrayado = opts.estilo?.colorSubrayado;
+  const estiloSubrayado = opts.estilo?.estiloSubrayado;
 
   if (!esHTML(texto)) {
     return renderLegacy(texto, colorDestacado, grosorDestacado, tipo, opts.estilo);
@@ -95,6 +97,8 @@ export function renderRichText(texto: string | undefined, opts: RenderRichTextOp
     ? colorDestacado
     : `var(--momo-color-destacado-${tipo})`;
   const grosor = grosorDestacado || "bold";
+  const colorU = colorSubrayado ?? "currentColor";
+  const estiloU = estiloSubrayado ?? "solid";
 
   const conVariables = sustituirVariables(texto);
   const sanitizado = sanitizarHTML(conVariables);
@@ -105,6 +109,8 @@ export function renderRichText(texto: string | undefined, opts: RenderRichTextOp
       style={{
         ["--momo-color-destacado" as any]: color,
         ["--momo-grosor-destacado" as any]: grosor,
+        ["--momo-color-subrayado" as any]: colorU,
+        ["--momo-estilo-subrayado" as any]: estiloU,
       }}
       dangerouslySetInnerHTML={{ __html: sanitizado }}
     />

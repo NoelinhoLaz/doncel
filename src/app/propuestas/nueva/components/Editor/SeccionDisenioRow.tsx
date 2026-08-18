@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import type { Seccion } from "../../types";
 import styles from "../../page.module.css";
 import { Image as ImageIcon } from "lucide-react";
-import MediaSelector from "./MediaSelector";
+import MediaSelectorModal from "./MediaSelectorModal";
 
 const ALTO_OPCIONES: { id: "minimo" | "medio" | "completo"; label: string }[] = [
   { id: "minimo", label: "S" },
@@ -92,7 +92,7 @@ export default function SeccionDisenioRow({
                 width: 28, height: 28, borderRadius: "0.4rem", padding: 0, cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 border: tieneImagenFondo ? "2px solid #1e293b" : "1.5px solid #e2e8f0",
-                background: tieneImagenFondo ? `url(${seccion.imagenFondo!.url})` : "#ffffff",
+                background: tieneImagenFondo ? `url('${seccion.imagenFondo!.url}')` : "#ffffff",
                 backgroundSize: "cover", backgroundPosition: "center",
                 color: tieneImagenFondo ? "#ffffff" : "#94a3b8",
               }}
@@ -128,12 +128,11 @@ export default function SeccionDisenioRow({
       )}
 
       {mediaAbierto && (
-        <div style={{ marginTop: 8 }}>
-          <MediaSelector
-            value={seccion.imagenFondo}
-            onChange={m => { if (!m) return; onUpdate(seccion.uid, { imagenFondo: m }); setMediaAbierto(false); }}
-          />
-        </div>
+        <MediaSelectorModal
+          value={seccion.imagenFondo}
+          onChange={m => { if (!m) return; onUpdate(seccion.uid, { imagenFondo: m }); setMediaAbierto(false); }}
+          onClose={() => setMediaAbierto(false)}
+        />
       )}
     </div>
   );

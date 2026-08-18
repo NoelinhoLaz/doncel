@@ -17,6 +17,12 @@ import {
   createNewPropuestaLinked,
   createNewExpedienteLinked
 } from "@/actions/expedientes";
+import {
+  crearPropuestaDesdeCotizacion,
+  linkCotizacionToPropuesta,
+  checkAjusteFechasCotizacion,
+  linkCotizacionToPropuestaConAjuste,
+} from "@/actions/propuestas";
 
 interface ExpedienteActionsToolbarProps {
   expedienteId?: string;
@@ -47,6 +53,14 @@ export default function ExpedienteActionsToolbar({
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   const [linking, setLinking] = useState(false);
+
+  // Aviso de ajuste de fechas al vincular una propuesta con itinerario a una cotización
+  const [ajusteFechas, setAjusteFechas] = useState<{
+    cotizacionId: string;
+    propuestaId: string;
+    diasItinerario: number;
+    diasCotizacion: number;
+  } | null>(null);
 
   const loadLinks = async () => {
     setLoading(true);
@@ -107,10 +121,39 @@ export default function ExpedienteActionsToolbar({
           await linkCotizacionToExpediente(targetId, expId);
         } else if (initialPresupuestoId) {
           await linkCotizacionToPresupuesto(targetId, initialPresupuestoId);
+        } else if (initialPropuestaId) {
+          const check = await checkAjusteFechasCotizacion(initialPropuestaId, targetId);
+          if (check.requiereAjuste) {
+            setAjusteFechas({
+              cotizacionId: targetId,
+              propuestaId: initialPropuestaId,
+              diasItinerario: check.diasItinerario!,
+              diasCotizacion: check.diasCotizacion!,
+            });
+            setLinking(false);
+            return;
+          }
+          await linkCotizacionToPropuestaConAjuste(targetId, initialPropuestaId, false);
         }
       } else if (showLinkModal === "propuesta") {
-        if (!expId) return;
-        await linkPropuestaToExpediente(targetId, expId);
+        if (expId) {
+          await linkPropuestaToExpediente(targetId, expId);
+        } else if (initialCotizacionId) {
+          const check = await checkAjusteFechasCotizacion(targetId, initialCotizacionId);
+          if (check.requiereAjuste) {
+            setAjusteFechas({
+              cotizacionId: initialCotizacionId,
+              propuestaId: targetId,
+              diasItinerario: check.diasItinerario!,
+              diasCotizacion: check.diasCotizacion!,
+            });
+            setLinking(false);
+            return;
+          }
+          await linkCotizacionToPropuestaConAjuste(initialCotizacionId, targetId, false);
+        } else {
+          return;
+        }
       } else if (showLinkModal === "expediente") {
         if (initialCotizacionId) {
           await linkCotizacionToExpediente(initialCotizacionId, targetId);
@@ -124,6 +167,24 @@ export default function ExpedienteActionsToolbar({
       }
       
       await loadLinks();
+      setShowLinkModal(null);
+      setSearchQuery("");
+      setSearchResults([]);
+    } catch (err) {
+      console.error("Linking error:", err);
+      alert("Error al vincular el elemento.");
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  const confirmarAjusteFechas = async (ajustar: boolean) => {
+    if (!ajusteFechas) return;
+    setLinking(true);
+    try {
+      await linkCotizacionToPropuestaConAjuste(ajusteFechas.cotizacionId, ajusteFechas.propuestaId, ajustar);
+      await loadLinks();
+      setAjusteFechas(null);
       setShowLinkModal(null);
       setSearchQuery("");
       setSearchResults([]);
@@ -153,12 +214,26 @@ export default function ExpedienteActionsToolbar({
           throw new Error(res.error);
         }
       } else if (showLinkModal === "propuesta") {
-        if (!expId) return;
-        const res = await createNewPropuestaLinked(expId);
-        if (res.success && res.data) {
-          alert(`Se ha creado la propuesta "${res.data.nombre}" y se ha vinculado.`);
+        if (expId) {
+          const res = await createNewPropuestaLinked(expId);
+          if (res.success && res.data) {
+            setShowLinkModal(null);
+            router.push(`/propuestas/${res.data.id}`);
+            return;
+          } else {
+            throw new Error(res.error);
+          }
+        } else if (initialCotizacionId) {
+          const res = await crearPropuestaDesdeCotizacion(initialCotizacionId);
+          if (res.success && res.data) {
+            setShowLinkModal(null);
+            router.push(`/propuestas/${res.data.id}`);
+            return;
+          } else {
+            throw new Error(res.error);
+          }
         } else {
-          throw new Error(res.error);
+          throw new Error("Sin expediente ni cotización vinculada");
         }
       } else if (showLinkModal === "expediente") {
         const type = initialCotizacionId ? "cotizacion" : "propuesta";
@@ -503,6 +578,37 @@ export default function ExpedienteActionsToolbar({
           </div>
         );
       })()}
+
+      {/* Aviso de ajuste de fechas del itinerario al vincular */}
+      {ajusteFechas && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10001, backgroundColor: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ backgroundColor: "#ffffff", width: "400px", borderRadius: "16px", padding: "1.5rem", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)", display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+            <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>Las fechas no coinciden</h3>
+            <p style={{ fontSize: "0.82rem", color: "#475569", margin: 0, lineHeight: 1.5 }}>
+              El itinerario de la propuesta tiene <strong>{ajusteFechas.diasItinerario} días</strong>, pero la cotización dura <strong>{ajusteFechas.diasCotizacion} días</strong>.
+              {ajusteFechas.diasCotizacion < ajusteFechas.diasItinerario
+                ? ` Si ajustas, se recortarán los últimos ${ajusteFechas.diasItinerario - ajusteFechas.diasCotizacion} día(s) del itinerario.`
+                : ` Si ajustas, se añadirán ${ajusteFechas.diasCotizacion - ajusteFechas.diasItinerario} día(s) vacío(s) al final del itinerario.`}
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", borderTop: "1px solid #f1f5f9", paddingTop: "0.9rem" }}>
+              <button
+                disabled={linking}
+                onClick={() => confirmarAjusteFechas(false)}
+                style={{ padding: "8px 14px", fontSize: "0.78rem", fontWeight: 600, borderRadius: "8px", border: "1px solid #cbd5e1", background: "#ffffff", color: "#475569", cursor: linking ? "not-allowed" : "pointer" }}
+              >
+                Vincular sin ajustar
+              </button>
+              <button
+                disabled={linking}
+                onClick={() => confirmarAjusteFechas(true)}
+                style={{ padding: "8px 14px", fontSize: "0.78rem", fontWeight: 600, borderRadius: "8px", border: "none", backgroundColor: "var(--primary-color, #4a88b5)", color: "#ffffff", cursor: linking ? "not-allowed" : "pointer", opacity: linking ? 0.7 : 1 }}
+              >
+                Ajustar y vincular
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

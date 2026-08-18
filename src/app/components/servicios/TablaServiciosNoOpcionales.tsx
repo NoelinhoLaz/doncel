@@ -594,26 +594,46 @@ export default function TablaServiciosNoOpcionales({
               <col style={{ width: 92 }} />
               <col style={{ width: 56 }} />
             </colgroup>
-            <thead>
-              <tr>
-                <th style={{ whiteSpace: "nowrap" }}>TIPO</th>
-                <th>Descripción</th>
-                <th>Proveedor</th>
-                <th>Destino</th>
-                <th style={{ textAlign: "right" }} title="Plazas"><Users size={13} style={{ display: "inline-block", verticalAlign: "middle" }} /></th>
-                <th style={{ textAlign: "right" }} title="Noches"><Moon size={13} style={{ display: "inline-block", verticalAlign: "middle" }} /></th>
-                <th style={{ textAlign: "right" }}>Neto</th>
-                <th style={{ textAlign: "right" }}>PVP</th>
-                <th style={{ textAlign: "right", whiteSpace: "nowrap" }}>Tot. Neto</th>
-                <th style={{ textAlign: "right", whiteSpace: "nowrap" }}>Tot. PVP</th>
-                <th style={{ textAlign: "center", whiteSpace: "nowrap" }}>Estado</th>
-                <th />
-              </tr>
-            </thead>
+            {!grupos && (
+              <thead>
+                <tr>
+                  <th style={{ whiteSpace: "nowrap" }}>TIPO</th>
+                  <th>Descripción</th>
+                  <th>Proveedor</th>
+                  <th>Destino</th>
+                  <th style={{ textAlign: "right" }} title="Plazas"><Users size={13} style={{ display: "inline-block", verticalAlign: "middle" }} /></th>
+                  <th style={{ textAlign: "right" }} title="Noches"><Moon size={13} style={{ display: "inline-block", verticalAlign: "middle" }} /></th>
+                  <th style={{ textAlign: "right" }}>Neto</th>
+                  <th style={{ textAlign: "right" }}>PVP</th>
+                  <th style={{ textAlign: "right", whiteSpace: "nowrap" }}>Tot. Neto</th>
+                  <th style={{ textAlign: "right", whiteSpace: "nowrap" }}>Tot. PVP</th>
+                  <th style={{ textAlign: "center", whiteSpace: "nowrap" }}>Estado</th>
+                  <th />
+                </tr>
+              </thead>
+            )}
+            {grupos && grupos.length > 0 && (
+              <thead>
+                <tr>
+                  <th colSpan={12} style={{ padding: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", padding: "0.4rem 1rem", fontSize: "0.68rem", fontWeight: 600, color: "#94a3b8", textTransform: "uppercase" }}>
+                      <span style={{ width: 15 }} />
+                      <span style={{ flex: 1, textAlign: "left" }}>Proveedor</span>
+                      <span style={{ width: 100, textAlign: "right" }}>Servicios</span>
+                      <span style={{ width: 160, textAlign: "right" }}>Total Servicios</span>
+                      <span style={{ width: 160, textAlign: "right" }}>Imp. Abonado</span>
+                      <span style={{ width: 160, textAlign: "right" }}>Imp. Pendiente</span>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+            )}
             <tbody>
               {grupos && grupos.map((grupo) => {
                 const isCollapsed = collapsedGroups.has(grupo.key);
-                const totalGrupo = grupo.items.reduce((sum, it) => sum + (parseFloat(it.pvp) || 0) * ((it.plazas || 0) || 1) * (Number(it.noches || 0) || 1), 0);
+                const totalGrupo = grupo.items.reduce((sum, it) => sum + (parseFloat(it.neto) || 0) * ((it.plazas || 0) || 1) * (Number(it.noches || 0) || 1), 0);
+                const abonadoGrupo = grupo.items.reduce((sum, it) => sum + (Number(it.abonado) || 0), 0);
+                const pendienteGrupo = Math.max(totalGrupo - abonadoGrupo, 0);
                 return (
                   <Fragment key={grupo.key}>
                     <tr onClick={() => toggleGroup(grupo.key)} style={{ cursor: "pointer" }}>
@@ -621,14 +641,30 @@ export default function TablaServiciosNoOpcionales({
                         <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", padding: "0.6rem 1rem", backgroundColor: "#fff" }}>
                           {isCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
                           <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.02em" }}>{grupo.label}</span>
-                          <span style={{ fontSize: "0.72rem", color: "#64748b", backgroundColor: "#fff", border: "1px solid #cbd5e1", borderRadius: "999px", padding: "0.05rem 0.5rem" }}>{grupo.items.length}</span>
                           <div style={{ flex: 1 }} />
-                          <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#0f172a" }}>
-                            {totalGrupo.toLocaleString("es-ES", { minimumFractionDigits: 2 })} €
-                          </span>
+                          <span style={{ width: 100, textAlign: "right", fontSize: "0.82rem", fontWeight: 700, color: "#0f172a" }}>{grupo.items.length}</span>
+                          <span style={{ width: 160, textAlign: "right", fontSize: "0.82rem", fontWeight: 700, color: "#0f172a" }}>{totalGrupo.toLocaleString("es-ES", { minimumFractionDigits: 2 })} €</span>
+                          <span style={{ width: 160, textAlign: "right", fontSize: "0.82rem", fontWeight: 700, color: "#16a34a" }}>{abonadoGrupo.toLocaleString("es-ES", { minimumFractionDigits: 2 })} €</span>
+                          <span style={{ width: 160, textAlign: "right", fontSize: "0.82rem", fontWeight: 700, color: pendienteGrupo > 0 ? "#d97706" : "#64748b" }}>{pendienteGrupo.toLocaleString("es-ES", { minimumFractionDigits: 2 })} €</span>
                         </div>
                       </td>
                     </tr>
+                    {!isCollapsed && (
+                      <tr>
+                        <th style={{ whiteSpace: "nowrap" }}>TIPO</th>
+                        <th>Descripción</th>
+                        <th>Proveedor</th>
+                        <th>Destino</th>
+                        <th style={{ textAlign: "right" }} title="Plazas"><Users size={13} style={{ display: "inline-block", verticalAlign: "middle" }} /></th>
+                        <th style={{ textAlign: "right" }} title="Noches"><Moon size={13} style={{ display: "inline-block", verticalAlign: "middle" }} /></th>
+                        <th style={{ textAlign: "right" }}>Neto</th>
+                        <th style={{ textAlign: "right" }}>PVP</th>
+                        <th style={{ textAlign: "right", whiteSpace: "nowrap" }}>Tot. Neto</th>
+                        <th style={{ textAlign: "right", whiteSpace: "nowrap" }}>Tot. PVP</th>
+                        <th style={{ textAlign: "center", whiteSpace: "nowrap" }}>Estado</th>
+                        <th />
+                      </tr>
+                    )}
                     {!isCollapsed && grupo.items.map((item) => renderRow(item, -1))}
                   </Fragment>
                 );

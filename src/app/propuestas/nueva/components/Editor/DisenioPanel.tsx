@@ -53,89 +53,37 @@ export default function DisenioPanel({
             onChange={v => onUpdate(seccion.uid, { estiloTitulo: v })}
           />
           <TextoEstiloEditor
-            label="Texto Libre"
+            label="Subtítulo"
             value={seccion.estiloSubtitulo}
             onChange={v => onUpdate(seccion.uid, { estiloSubtitulo: v })}
+          />
+          <TextoEstiloEditor
+            label="Texto Libre"
+            value={seccion.estiloTextoLibre}
+            onChange={v => onUpdate(seccion.uid, { estiloTextoLibre: v })}
           />
         </>
       )}
       {seccion.tipo === "texto-columnas" && (
         <>
           <div className={styles.editorSection}>
-            <label className={styles.editorFieldLabel}>Layout</label>
-            <div className={styles.layoutPicker}>
+            <label className={styles.editorFieldLabel}>Columnas por fila</label>
+            <div style={{ display: "flex", gap: 6 }}>
               {[
-                {
-                  id: "2-cols",
-                  label: "2 Columnas",
-                  preview: (
-                    <div className={styles.layoutPreview} style={{ gap: 4, padding: "6px" }}>
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
-                        <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
-                        <div style={{ width: "80%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
-                        <div style={{ width: "60%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
-                      </div>
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
-                        <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
-                        <div style={{ width: "80%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
-                        <div style={{ width: "60%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
-                      </div>
-                    </div>
-                  )
-                },
-                {
-                  id: "3-cols",
-                  label: "3 Columnas",
-                  preview: (
-                    <div className={styles.layoutPreview} style={{ gap: 3, padding: "6px" }}>
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
-                        <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
-                        <div style={{ width: "70%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
-                      </div>
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
-                        <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
-                        <div style={{ width: "70%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
-                      </div>
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
-                        <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
-                        <div style={{ width: "70%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
-                      </div>
-                    </div>
-                  )
-                },
-                {
-                  id: "4-cols",
-                  label: "4 Columnas",
-                  preview: (
-                    <div className={styles.layoutPreview} style={{ gap: 2, padding: "6px" }}>
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
-                        <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
-                        <div style={{ width: "60%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
-                      </div>
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
-                        <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
-                        <div style={{ width: "60%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
-                      </div>
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
-                        <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
-                        <div style={{ width: "60%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
-                      </div>
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
-                        <div style={{ width: "100%", height: 4, background: "#cbd5e1", borderRadius: 2 }} />
-                        <div style={{ width: "60%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
-                      </div>
-                    </div>
-                  )
-                },
+                { id: "2-cols", label: "2" },
+                { id: "3-cols", label: "3" },
+                { id: "4-cols", label: "4" },
+                { id: "5-cols", label: "5" },
+                { id: "6-cols", label: "6" },
               ].map(opt => (
                 <button
                   key={opt.id}
                   type="button"
-                  className={`${styles.layoutOption} ${(seccion.layout ?? "3-cols") === opt.id ? styles.layoutOptionActive : ""}`}
+                  className={`${styles.previewBtn} ${(seccion.layout ?? "3-cols") === opt.id ? styles.saveBtn : ""}`}
+                  style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.layout ?? "3-cols") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.layout ?? "3-cols") === opt.id ? "#ffffff" : "#475569" }}
                   onClick={() => onUpdate(seccion.uid, { layout: opt.id })}
                 >
-                  {opt.preview}
-                  <span className={styles.layoutLabel}>{opt.label}</span>
+                  {opt.label}
                 </button>
               ))}
             </div>
@@ -507,6 +455,18 @@ export default function DisenioPanel({
             <p style={{ fontSize: "0.7rem", color: "#94a3b8", margin: "0.25rem 0 0 23px" }}>El menú permanece visible al hacer scroll</p>
           </div>
           <div className={styles.editorSection}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}>
+              <input
+                type="checkbox"
+                checked={seccion.menuHamburguesa ?? false}
+                onChange={e => onUpdate(seccion.uid, { menuHamburguesa: e.target.checked })}
+                style={{ width: 15, height: 15, accentColor: "var(--primary-color,#475569)", cursor: "pointer" }}
+              />
+              <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#1e293b" }}>Tipo hamburguesa</span>
+            </label>
+            <p style={{ fontSize: "0.7rem", color: "#94a3b8", margin: "0.25rem 0 0 23px" }}>Los enlaces se agrupan en un icono de menú a la derecha del botón</p>
+          </div>
+          <div className={styles.editorSection}>
             <label className={styles.editorFieldLabel}>Color de fondo del menú</label>
             {(() => {
               // Parsear el color actual para separar hex y alpha
@@ -647,6 +607,11 @@ export default function DisenioPanel({
           </div>
           <SeccionDisenioRow seccion={seccion} onUpdate={onUpdate} anchoDefault="1200px" />
           <TextoEstiloEditor
+            label="Estilo Título"
+            value={seccion.estiloTitulo}
+            onChange={v => onUpdate(seccion.uid, { estiloTitulo: v })}
+          />
+          <TextoEstiloEditor
             label="Estilo PVP"
             value={seccion.estiloPvp}
             onChange={v => onUpdate(seccion.uid, { estiloPvp: v })}
@@ -655,6 +620,71 @@ export default function DisenioPanel({
             label="Estilo Condiciones"
             value={seccion.estiloCondiciones}
             onChange={v => onUpdate(seccion.uid, { estiloCondiciones: v })}
+          />
+        </>
+      )}
+      {seccion.tipo === "extras" && (
+        <>
+          <div className={styles.editorSection}>
+            <label className={styles.editorFieldLabel}>Layout</label>
+            <div className={styles.layoutPicker}>
+              {[
+                {
+                  id: "lista-simple",
+                  label: "Lista Simple",
+                  preview: (
+                    <div className={styles.layoutPreview} style={{ flexDirection: "column", gap: 4, padding: 6 }}>
+                      {[0, 1, 2].map(i => (
+                        <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                          <div style={{ width: "55%", height: 4, background: "#cbd5e1", borderRadius: 1 }} />
+                          <div style={{ width: "20%", height: 4, background: "#6366f1", borderRadius: 1 }} />
+                        </div>
+                      ))}
+                    </div>
+                  )
+                },
+                {
+                  id: "tarjetas",
+                  label: "Tarjetas",
+                  preview: (
+                    <div className={styles.layoutPreview} style={{ gap: 4, padding: 6 }}>
+                      {[0, 1].map(i => (
+                        <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3, background: "#f1f5f9", borderRadius: 3, padding: 3 }}>
+                          <div style={{ width: "80%", height: 3, background: "#cbd5e1", borderRadius: 1 }} />
+                          <div style={{ width: "40%", height: 5, background: "#6366f1", borderRadius: 1 }} />
+                        </div>
+                      ))}
+                    </div>
+                  )
+                },
+              ].map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className={`${styles.layoutOption} ${(seccion.layout ?? "lista-simple") === opt.id ? styles.layoutOptionActive : ""}`}
+                  onClick={() => onUpdate(seccion.uid, { layout: opt.id })}
+                >
+                  {opt.preview}
+                  <span className={styles.layoutLabel}>{opt.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <SeccionDisenioRow seccion={seccion} onUpdate={onUpdate} anchoDefault="1200px" />
+          <TextoEstiloEditor
+            label="Estilo Título"
+            value={seccion.estiloTitulo}
+            onChange={v => onUpdate(seccion.uid, { estiloTitulo: v })}
+          />
+          <TextoEstiloEditor
+            label="Estilo Texto Extra"
+            value={seccion.estiloExtraTexto}
+            onChange={v => onUpdate(seccion.uid, { estiloExtraTexto: v })}
+          />
+          <TextoEstiloEditor
+            label="Estilo Importe"
+            value={seccion.estiloExtraImporte}
+            onChange={v => onUpdate(seccion.uid, { estiloExtraImporte: v })}
           />
         </>
       )}
@@ -701,7 +731,7 @@ export default function DisenioPanel({
       {(seccion.tipo === "nego-planet-programas" || seccion.tipo === "nego-planet-destinos") && (
         <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
       )}
-      {seccion.tipo !== "texto-imagenes" && seccion.tipo !== "portada" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "itinerario" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && seccion.tipo !== "precio" && seccion.tipo !== "formulario" && seccion.tipo !== "ofertas" && seccion.tipo !== "cards" && seccion.tipo !== "galeria" && seccion.tipo !== "nego-planet-programas" && seccion.tipo !== "nego-planet-destinos" && (
+      {seccion.tipo !== "texto-imagenes" && seccion.tipo !== "portada" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "itinerario" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && seccion.tipo !== "precio" && seccion.tipo !== "extras" && seccion.tipo !== "formulario" && seccion.tipo !== "ofertas" && seccion.tipo !== "cards" && seccion.tipo !== "galeria" && seccion.tipo !== "nego-planet-programas" && seccion.tipo !== "nego-planet-destinos" && (
         <p className={styles.editorEmpty}>Opciones de diseño próximamente.</p>
       )}
     </>

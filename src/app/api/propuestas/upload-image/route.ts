@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAgencyDbClient } from "@/lib/agencyDb";
+import { getAgencyDbClient, getCurrentSchemaName, bucketNameForSchema } from "@/lib/agencyDb";
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,12 +8,13 @@ export async function POST(req: NextRequest) {
     if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
 
     const agencyDb = await getAgencyDbClient();
+    const bucket = bucketNameForSchema("propuestas-media", await getCurrentSchemaName());
 
     const ext = file.name.split(".").pop() ?? "jpg";
     const path = `propuestas/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
     // Asegura que el bucket existe (lo crea si no)
-    const { error: bucketErr } = await agencyDb.storage.createBucket("propuestas-media", {
+    const { error: bucketErr } = await agencyDb.storage.createBucket(bucket, {
       public: true,
       allowedMimeTypes: ["image/*"],
       fileSizeLimit: 10 * 1024 * 1024,
@@ -25,13 +26,13 @@ export async function POST(req: NextRequest) {
 
     const arrayBuffer = await file.arrayBuffer();
     const { error } = await agencyDb.storage
-      .from("propuestas-media")
+      .from(bucket)
       .upload(path, arrayBuffer, { contentType: file.type, upsert: false });
 
     if (error) throw error;
 
     const { data: urlData } = agencyDb.storage
-      .from("propuestas-media")
+      .from(bucket)
       .getPublicUrl(path);
 
     return NextResponse.json({ url: urlData.publicUrl });

@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import type { Seccion } from "../../types";
 import styles from "../../page.module.css";
-import MediaSelector from "./MediaSelector";
+import MediaSelectorModal from "./MediaSelectorModal";
 
 export default function FondoSeccionEditor({
   seccion,
@@ -64,7 +64,7 @@ export default function FondoSeccionEditor({
             <div
               style={{
                 width: 56, height: 40, borderRadius: "0.5rem",
-                backgroundImage: `url(${seccion.imagenFondo!.url})`,
+                backgroundImage: `url('${seccion.imagenFondo!.url}')`,
                 backgroundSize: "cover", backgroundPosition: "center",
                 border: "1px solid #cbd5e1", cursor: "pointer", flexShrink: 0,
               }}
@@ -95,12 +95,11 @@ export default function FondoSeccionEditor({
       )}
 
       {mediaAbierto && (
-        <div style={{ marginTop: 8 }}>
-          <MediaSelector
-            value={seccion.imagenFondo}
-            onChange={m => { if (!m) return; onUpdate(seccion.uid, { imagenFondo: m }); setMediaAbierto(false); }}
-          />
-        </div>
+        <MediaSelectorModal
+          value={seccion.imagenFondo}
+          onChange={m => { if (!m) return; onUpdate(seccion.uid, { imagenFondo: m }); setMediaAbierto(false); }}
+          onClose={() => setMediaAbierto(false)}
+        />
       )}
     </div>
   );

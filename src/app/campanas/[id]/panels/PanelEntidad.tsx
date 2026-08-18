@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { X, Pencil, Plus, Phone, Mail, Info, Building2, Rocket, IdCard, Trash2, User, Users, Target, FileText, Calculator, FolderOpen, Tag, ChevronDown, ChevronRight } from "lucide-react";
+import { X, Pencil, Plus, Phone, Mail, Info, Building2, Rocket, IdCard, Trash2, User, Users, Target, FileText, Calculator, FolderOpen, Tag, ChevronDown, ChevronRight, Presentation } from "lucide-react";
 import { EntidadDetalle, CampanaHistorialRow } from "../types";
 import { EMPTY_CONTACTO_FORM, lbl, inp, th, td } from "../constants";
 import { getEntidadHistorial, getEntidadResumen } from "@/actions/crm";
@@ -51,6 +51,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
   const [loading, setLoading] = useState(true);
   const [presupuestos, setPresupuestos] = useState<any[]>([]);
   const [cotizaciones, setCotizaciones] = useState<any[]>([]);
+  const [propuestas, setPropuestas] = useState<any[]>([]);
   const [expedientes, setExpedientes] = useState<any[]>([]);
   const [contactos, setContactos] = useState(data.entidad?.crm_contactos ?? []);
   const [showNuevoContacto, setShowNuevoContacto] = useState(false);
@@ -367,6 +368,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
       setPresupuestos(resumen.presupuestos);
       setCotizaciones(resumen.cotizaciones);
       setExpedientes(resumen.expedientes);
+      setPropuestas(resumen.propuestas ?? []);
     }).catch(() => {}).finally(() => setLoading(false));
   }, [entidad?.id]);
 
@@ -940,9 +942,9 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                 <button
                   type="button"
                   onClick={() => setShowNuevoContacto(true)}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.72rem", fontWeight: 600, color: "var(--primary-color, #475569)", background: "none", border: "none", cursor: "pointer", padding: "0.1rem 0.3rem", borderRadius: 4 }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.72rem", fontWeight: 600, color: "#ffffff", background: "var(--primary-color, #475569)", border: "none", cursor: "pointer", padding: "0.25rem 0.55rem", borderRadius: 6 }}
                 >
-                  <Plus size={12} /> Añadir
+                  <Plus size={12} /> Añadir responsable
                 </button>
               )}
             </div>
@@ -1320,6 +1322,46 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                       <td style={{ ...td, textAlign: "right", color: "#64748b" }}>{c.plazas ?? "—"}</td>
                       <td style={{ ...td, textAlign: "right" }}>{c.pvp_viajero ? `${Number(c.pvp_viajero).toLocaleString("es-ES")} €` : "—"}</td>
                       <td style={{ ...td, textAlign: "right", color: "#64748b", fontSize: "0.72rem" }}>{c.fecha_salida ? new Date(c.fecha_salida).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </SeccionColapsable>
+
+          {/* Propuestas */}
+          <SeccionColapsable
+            icon={<Presentation size={14} />}
+            titulo="Propuestas"
+            count={!loading ? propuestas.length : undefined}
+            isOpen={!!openSections.propuestas}
+            onToggle={() => toggleSection("propuestas")}
+          >
+            {loading ? (
+              <div style={{ color: "#94a3b8", fontSize: "0.78rem" }}>Cargando...</div>
+            ) : propuestas.length === 0 ? (
+              <div style={{ color: "#94a3b8", fontSize: "0.78rem", fontStyle: "italic" }}>Sin propuestas</div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                    <th style={th}>Título</th>
+                    <th style={{ ...th, textAlign: "left" }}>Destino</th>
+                    <th style={{ ...th, textAlign: "right" }}>Fecha</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {propuestas.map((p: any, i: number) => (
+                    <tr
+                      key={p.id}
+                      onClick={() => router.push(`/propuestas/${p.id}`)}
+                      style={{ borderBottom: i < propuestas.length - 1 ? "1px solid #f1f5f9" : undefined, cursor: "pointer" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "")}
+                    >
+                      <td style={{ ...td, color: "var(--primary-color, #475569)", fontWeight: 600 }} title={p.title}>{p.title ?? "—"}</td>
+                      <td style={{ ...td, color: "#64748b" }}>{p.destination ?? "—"}</td>
+                      <td style={{ ...td, textAlign: "right", color: "#64748b", fontSize: "0.72rem" }}>{p.created_at ? new Date(p.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—"}</td>
                     </tr>
                   ))}
                 </tbody>

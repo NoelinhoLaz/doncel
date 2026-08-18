@@ -24,6 +24,8 @@ export interface TextoEstilo {
   color?: string;
   colorDestacado?: string;
   grosorDestacado?: string;
+  colorSubrayado?: string;
+  estiloSubrayado?: "solid" | "dotted" | "wavy";
 }
 
 export interface Seccion {
@@ -34,10 +36,12 @@ export interface Seccion {
   layout?: string;
   titulo?: string;
   subtitulo?: string;
+  textoLibre?: string;
   media?: MediaItem;
   medias?: MediaItem[];
   estiloTitulo?: TextoEstilo;
   estiloSubtitulo?: TextoEstilo;
+  estiloTextoLibre?: TextoEstilo;
   estiloTituloDia?: TextoEstilo;
   estiloDescDia?: TextoEstilo;
   colorFondo?: string;
@@ -47,7 +51,7 @@ export interface Seccion {
   fechaHasta?: string;
   anchoMax?: string;
   altoSeccion?: "minimo" | "medio" | "completo";
-  columnas?: { titulo?: string; texto?: string }[];
+  columnas?: { uid: string; titulo?: string; texto?: string; medias?: MediaItem[] }[];
   mapas?: { uid: string; titulo?: string; ubicaciones?: { uid: string; placeId?: string; nombre?: string; direccion?: string; descripcion?: string; lat?: number; lng?: number; medias?: MediaItem[] }[] }[];
   rutas?: { uid: string; titulo?: string; ubicaciones?: { uid: string; placeId?: string; nombre?: string; direccion?: string; descripcion?: string; lat?: number; lng?: number; medias?: MediaItem[] }[]; segmentos?: { uid: string; modo: "foot-walking" | "driving-car"; polyline?: [number, number][] }[] }[];
   dias?: {
@@ -65,6 +69,7 @@ export interface Seccion {
   menuColorTexto?: string;
   menuColorBoton?: string;
   menuFijo?: boolean;
+  menuHamburguesa?: boolean;
   pvp?: string;
   condiciones?: string;
   otrasConsideraciones?: string;
@@ -85,6 +90,9 @@ export interface Seccion {
   negoPlanetAutoTipo?: "destinos" | "programas-destacados" | "programas-mas-vendidos" | "programas-pais";
   negoPlanetAutoQuery?: string;
   negoPlanetOverrides?: Record<string, NegoPlanetOverride>;
+  extrasFilas?: { uid: string; texto?: string; importe?: string; oculta?: boolean }[];
+  estiloExtraTexto?: TextoEstilo;
+  estiloExtraImporte?: TextoEstilo;
 }
 
 export interface NegoPlanetItem {
@@ -380,8 +388,12 @@ export function sustituirVariables(texto: string): string {
   );
 }
 
-export function renderConDestacado(texto: string, colorDestacado?: string, grosorDestacado?: string, defaultTipo?: "titulo" | "subtitulo" | "parrafo" | "negrita"): React.ReactNode {
-  return renderRichText(texto, { colorDestacado, grosorDestacado, defaultTipo });
+function stripHtmlPlano(texto?: string): string {
+  return (texto ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+export function renderConDestacado(texto: string, colorDestacado?: string, grosorDestacado?: string, defaultTipo?: "titulo" | "subtitulo" | "parrafo" | "negrita", estilo?: TextoEstilo): React.ReactNode {
+  return renderRichText(texto, { colorDestacado, grosorDestacado, defaultTipo, estilo });
 }
 
 export function Ph({ children }: { children: React.ReactNode }) {
@@ -413,7 +425,7 @@ export function FondoWrapper({ colorFondo, imagenFondo, imagenFondoOverlay, alto
   if (imagenFondo?.url) {
     return (
       <div style={{ position: "relative", ...alturaStyle }}>
-        <div style={{ position: "absolute", inset: 0, backgroundImage: `url(${imagenFondo.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+        <div style={{ position: "absolute", inset: 0, backgroundImage: `url('${imagenFondo.url}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
         <div style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${imagenFondoOverlay ?? 0.4})` }} />
         <div style={{ position: "relative", width: "100%" }}>{children}</div>
       </div>
@@ -440,12 +452,12 @@ export function PortadaTexto({ titulo, subtitulo, estiloTitulo, estiloSubtitulo,
     <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", ...wrapStyle }}>
       {titulo
         ? <div className={styles.phPortadaTitulo} style={{ whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloTitulo, "titulo") }}>
-            {renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo")}
+            {renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}
           </div>
         : <Title w="55%" />}
       {subtitulo
         ? <div className={styles.phPortadaSubtitulo} style={{ whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloSubtitulo, "subtitulo") }}>
-            {renderConDestacado(subtitulo, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado, "subtitulo")}
+            {renderConDestacado(subtitulo, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado, "subtitulo", estiloSubtitulo)}
           </div>
         : <><Bar w="40%" /><Bar w="30%" /></>}
     </div>
@@ -508,7 +520,7 @@ export function PillsPortada({ height, titulo, subtitulo, estiloTitulo, estiloSu
             return (
               <div key={i} className={styles.phPill}
                 style={{
-                  ...(m?.url && m.tipo !== "video" ? { backgroundImage: `url(${m.url})`, backgroundSize: "cover", backgroundPosition: "center" } : {}),
+                  ...(m?.url && m.tipo !== "video" ? { backgroundImage: `url('${m.url}')`, backgroundSize: "cover", backgroundPosition: "center" } : {}),
                   overflow: "hidden",
                   position: "relative",
                   marginTop: i % 2 === 0 ? "-240px" : "-48px",
@@ -569,7 +581,7 @@ export function PolaroidPortada({ height, colorFondo, cards, titulo, subtitulo, 
             >
               {c.url && c.tipo === "video"
                 ? <div className={styles.phPolaroidImg} style={{ overflow: "hidden", position: "relative" }}><VideoBg url={c.url} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} /></div>
-                : <div className={styles.phPolaroidImg} style={c.url ? { backgroundImage: `url(${c.url})`, backgroundSize: "cover", backgroundPosition: "center" } : {}} />
+                : <div className={styles.phPolaroidImg} style={c.url ? { backgroundImage: `url('${c.url}')`, backgroundSize: "cover", backgroundPosition: "center" } : {}} />
               }
               <div className={styles.phPolaroidCaption} />
             </div>
@@ -644,7 +656,7 @@ export function PHPortada({ height, layout, titulo, subtitulo, medias, estiloTit
                     />
                   </div>
                 : <div key={m.url} className={`${styles.phWaveImgFill} ${styles.phSlideFade}`}
-                    style={{ backgroundImage: `url(${m.url})`, opacity: i === idx ? 1 : 0 }} />
+                    style={{ backgroundImage: `url('${m.url}')`, opacity: i === idx ? 1 : 0 }} />
             ))}
             {allImgs.length === 0 && <div className={styles.phWaveImgFill} />}
           </div>
@@ -727,7 +739,7 @@ export function PHPortada({ height, layout, titulo, subtitulo, medias, estiloTit
               <div
                 key={i === idx ? `${m.url}-active` : m.url}
                 className={`${styles.phKenBurnsLayer} ${styles["phKenBurns" + (i % 3)]} ${i === idx ? styles.phKenBurnsActive : ""}`}
-                style={{ backgroundImage: `url(${m.url})` }}
+                style={{ backgroundImage: `url('${m.url}')` }}
               />
             </div>
       ))}
@@ -751,7 +763,9 @@ export function PHMenu({ mobile, seccion, secciones, landingHref }: { mobile?: b
   const colorTexto = seccion?.menuColorTexto ?? "#1e293b";
   const colorBoton = seccion?.menuColorBoton ?? "var(--primary-color, #475569)";
   const fijo = seccion?.menuFijo ?? false;
+  const hamburguesa = seccion?.menuHamburguesa ?? false;
   const logo = seccion?.menuLogo;
+  const [menuAbierto, setMenuAbierto] = useState(false);
 
   const items = resolverItemsMenu(seccion, secciones);
 
@@ -760,6 +774,7 @@ export function PHMenu({ mobile, seccion, secciones, landingHref }: { mobile?: b
   const menuRef = useRef<HTMLDivElement>(null);
 
   const irASeccion = (uid: string) => {
+    setMenuAbierto(false);
     if (typeof document === "undefined") return;
     const el = document.getElementById(uid);
     if (el) {
@@ -785,13 +800,13 @@ export function PHMenu({ mobile, seccion, secciones, landingHref }: { mobile?: b
   };
 
   return (
-    <div ref={menuRef} className={styles.phMenu} style={{ background: bg, ...(fijo ? { position: "sticky", top: 0, zIndex: 100 } : {}) }}>
+    <div ref={menuRef} className={styles.phMenu} style={{ background: bg, position: fijo ? "sticky" : "relative", top: fijo ? 0 : undefined, zIndex: fijo ? 100 : undefined }}>
       <div className={styles.phMenuRow}>
         {logo
           ? <img src={logo} alt="Logo" onClick={irALanding} style={{ height: 32, maxWidth: 120, objectFit: "contain", cursor: landingHref ? "pointer" : undefined }} />
           : <div className={styles.phLogo} onClick={irALanding} style={{ cursor: landingHref ? "pointer" : undefined }} />
         }
-        {!mobile && (
+        {!mobile && !hamburguesa && (
           <div className={styles.phNavLinks}>
             {items.length > 0
               ? items.map(item => (
@@ -807,13 +822,40 @@ export function PHMenu({ mobile, seccion, secciones, landingHref }: { mobile?: b
             }
           </div>
         )}
-        {boton?.etiqueta
-          ? <div onClick={onClickBoton} style={{ padding: "0.3rem 0.85rem", borderRadius: "0.4rem", background: colorBoton, color: "#fff", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>
-              {boton.etiqueta}
-            </div>
-          : <div className={styles.phNavBtn} style={{ background: colorBoton }} />
-        }
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {boton?.etiqueta
+            ? <div onClick={onClickBoton} style={{ padding: "0.3rem 0.85rem", borderRadius: "0.4rem", background: colorBoton, color: "#fff", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>
+                {boton.etiqueta}
+              </div>
+            : <div className={styles.phNavBtn} style={{ background: colorBoton }} />
+          }
+          {hamburguesa && (
+            <button
+              type="button"
+              onClick={() => setMenuAbierto(v => !v)}
+              style={{ width: 32, height: 32, borderRadius: "0.4rem", background: "transparent", border: "1px solid rgba(0,0,0,0.1)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+            >
+              {menuAbierto ? <X size={16} color={colorTexto} /> : <Menu size={16} color={colorTexto} />}
+            </button>
+          )}
+        </div>
       </div>
+      {hamburguesa && menuAbierto && (
+        <div style={{ display: "flex", flexDirection: "column", background: bg, borderTop: "1px solid rgba(0,0,0,0.08)", padding: "0.5rem 0" }}>
+          {items.length > 0
+            ? items.map(item => (
+                <span
+                  key={item.uid}
+                  onClick={() => irASeccion(item.uid)}
+                  style={{ fontSize: "0.82rem", fontWeight: 600, color: colorTexto, padding: "0.6rem 1rem", cursor: "pointer" }}
+                >
+                  {item.etiqueta}
+                </span>
+              ))
+            : <span style={{ fontSize: "0.78rem", color: colorTexto, padding: "0.6rem 1rem", opacity: 0.6 }}>Sin secciones</span>
+          }
+        </div>
+      )}
     </div>
   );
 }
@@ -823,6 +865,7 @@ export function PHTextoImagenes({
   layout,
   titulo,
   subtitulo,
+  textoLibre,
   medias,
   colorFondo,
   imagenFondo,
@@ -831,12 +874,14 @@ export function PHTextoImagenes({
   canvasHeight,
   estiloTitulo,
   estiloSubtitulo,
+  estiloTextoLibre,
   anchoMax
 }: {
   mobile?: boolean;
   layout?: string;
   titulo?: string;
   subtitulo?: string;
+  textoLibre?: string;
   medias?: MediaItem[];
   colorFondo?: string;
   imagenFondo?: MediaItem;
@@ -845,8 +890,14 @@ export function PHTextoImagenes({
   canvasHeight?: string;
   estiloTitulo?: TextoEstilo;
   estiloSubtitulo?: TextoEstilo;
+  estiloTextoLibre?: TextoEstilo;
   anchoMax?: string;
 }) {
+  // Compatibilidad: propuestas guardadas antes de separar "Subtítulo" y "Texto Libre"
+  // guardaban el cuerpo de texto en "subtitulo" — si no hay textoLibre pero sí subtitulo
+  // con contenido, se usa como texto libre y el subtítulo corto queda vacío.
+  const cuerpoTexto = textoLibre || subtitulo;
+  const subtituloCorto = textoLibre ? subtitulo : undefined;
   const imgIzq = layout === "img-texto";
   const [idx, setIdx] = useState(0);
 
@@ -862,16 +913,14 @@ export function PHTextoImagenes({
 
   const texto = (
     <div className={styles.phTexto} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-      {titulo ? (
-        <div className={styles.phPortadaTitulo} style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloTitulo, "titulo") }}>
-          {renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo")}
+      {subtituloCorto && (
+        <div style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloSubtitulo, "subtitulo") }}>
+          {renderConDestacado(subtituloCorto, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado, "subtitulo", estiloSubtitulo)}
         </div>
-      ) : (
-        <Title w="65%" />
       )}
-      {subtitulo ? (
-        <div className={styles.phPortadaSubtitulo} style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloSubtitulo, "parrafo") }}>
-          {renderConDestacado(subtitulo, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado, "parrafo")}
+      {cuerpoTexto ? (
+        <div className={styles.phPortadaSubtitulo} style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloTextoLibre, "parrafo") }}>
+          {renderConDestacado(cuerpoTexto, estiloTextoLibre?.colorDestacado, estiloTextoLibre?.grosorDestacado, "parrafo", estiloTextoLibre)}
         </div>
       ) : (
         <><Bar w="100%" /><Bar w="92%" /><Bar w="88%" /><Bar w="95%" /><Bar w="78%" /><Bar w="83%" /><Bar w="60%" /></>
@@ -898,7 +947,7 @@ export function PHTextoImagenes({
             {isVideo ? (
               <VideoBg url={m.url} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
             ) : (
-              <div style={{ backgroundImage: `url(${m.url})`, backgroundSize: "cover", backgroundPosition: "center", position: "absolute", inset: 0 }} />
+              <div style={{ backgroundImage: `url('${m.url}')`, backgroundSize: "cover", backgroundPosition: "center", position: "absolute", inset: 0 }} />
             )}
           </div>
         );
@@ -913,8 +962,17 @@ export function PHTextoImagenes({
   return (
     <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
-        <div className={`${styles.phTextoImagenes} ${mobile ? styles.phCol1 : ""}`} style={{ maxWidth: customMaxWidth }}>
-          {imgIzq ? <>{img}{texto}</> : <>{texto}{img}</>}
+        <div style={{ maxWidth: customMaxWidth, margin: "0 auto", width: "100%" }}>
+          {titulo ? (
+            <div className={styles.phPortadaTitulo} style={{ margin: "0 0 1rem 0", whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloTitulo, "titulo") }}>
+              {renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}
+            </div>
+          ) : (
+            <Title w="65%" />
+          )}
+          <div className={`${styles.phTextoImagenes} ${mobile ? styles.phCol1 : ""}`}>
+            {imgIzq ? <>{img}{texto}</> : <>{texto}{img}</>}
+          </div>
         </div>
       </Ph>
     </FondoWrapper>
@@ -923,14 +981,18 @@ export function PHTextoImagenes({
 
 export function PHItinerarioMediaCarousel({ medias, showArrows, autoplay = true }: { medias: MediaItem[]; showArrows?: boolean; autoplay?: boolean }) {
   const [idx, setIdx] = useState(0);
+  const advanceRef = useRef<() => void>(() => {});
+  advanceRef.current = () => setIdx(prev => (prev + 1) % medias.length);
 
+  const currentTipo = medias?.[idx]?.tipo;
   useEffect(() => {
     if (!medias || medias.length < 2 || !autoplay) return;
-    const t = setInterval(() => {
-      setIdx(prev => (prev + 1) % medias.length);
-    }, 5000);
-    return () => clearInterval(t);
-  }, [medias, autoplay]);
+    // Si el slide actual es video, no usamos temporizador — el avance llega al terminar el vídeo (onEnded).
+    if (currentTipo === "video") return;
+    const t = setTimeout(() => advanceRef.current(), 5000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx, medias?.length, autoplay, currentTipo]);
 
   useEffect(() => {
     setIdx(0);
@@ -951,16 +1013,24 @@ export function PHItinerarioMediaCarousel({ medias, showArrows, autoplay = true 
 
   return (
     <div style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
-      <div
-        style={{
-          backgroundImage: `url(${currentMedia.url})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          position: "absolute",
-          inset: 0,
-          transition: "background-image 0.4s ease"
-        }}
-      />
+      {currentMedia.tipo === "video" ? (
+        <VideoBg
+          url={currentMedia.url}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+          onEnded={autoplay && medias.length > 1 ? () => advanceRef.current() : undefined}
+        />
+      ) : (
+        <div
+          style={{
+            backgroundImage: `url('${currentMedia.url}')`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            position: "absolute",
+            inset: 0,
+            transition: "background-image 0.4s ease"
+          }}
+        />
+      )}
       {medias.length > 1 && showArrows && (
         <div
           style={{
@@ -1122,7 +1192,7 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
         <Ph>
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%", maxWidth: customMaxWidth, margin: "0 auto" }}>
             {titulo ? (
-              <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0" }}>{titulo}</h3>
+              <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
             ) : (
               <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
             )}
@@ -1153,28 +1223,36 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
                           {d.dia}
                         </div>
                         {diaData.titulo ? (
-                          <span className={styles.phAcordeonTitleV} style={{ fontSize: "1.1rem", color: "#ffffff", whiteSpace: "nowrap", marginTop: "auto", ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{diaData.titulo}</span>
+                          <div style={{ display: "flex", flexDirection: "row", alignItems: "flex-end", gap: "6px", marginTop: "auto" }}>
+                            <span className={styles.phAcordeonTitleV} style={{ fontSize: "1.1rem", color: "#ffffff", whiteSpace: "nowrap", ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{stripHtmlPlano(diaData.titulo)}</span>
+                            {getDayDateLabel(d.dia) && (
+                              <span className={styles.phAcordeonTitleV} style={{ fontSize: "0.68rem", fontWeight: 600, color: "rgba(255,255,255,0.75)", whiteSpace: "nowrap" }}>{getDayDateLabel(d.dia)}</span>
+                            )}
+                          </div>
                         ) : (
                           <div style={{ width: "6px", height: "100px", borderRadius: "3px", background: "rgba(255, 255, 255, 0.2)", marginTop: "auto" }} />
                         )}
                       </div>
                     ) : (
                       <div className={styles.phAcordeonExpandido} style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: "1.5rem 1.25rem", gap: "8px", zIndex: 2 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", flexShrink: 0 }}>
+                        <div style={{ display: "flex", flexDirection: "column", width: "100%", flexShrink: 0 }}>
                           <span style={{ fontSize: "0.72rem", fontWeight: 800, color: "#ffffff", textTransform: "uppercase", letterSpacing: "0.07em", textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>
                             Día {d.dia}
                           </span>
+                          {getDayDateLabel(d.dia) && (
+                            <span style={{ fontSize: "0.68rem", fontWeight: 600, color: "rgba(255,255,255,0.8)", textShadow: "0 1px 2px rgba(0,0,0,0.4)" }}>{getDayDateLabel(d.dia)}</span>
+                          )}
                         </div>
 
                         <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
                           {diaData.titulo ? (
-                            <h4 style={{ fontSize: "1.15rem", fontWeight: 800, color: "#ffffff", margin: 0, textShadow: "0 2px 4px rgba(0,0,0,0.4)", ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{diaData.titulo}</h4>
+                            <h4 style={{ fontSize: "1.15rem", fontWeight: 800, color: "#ffffff", margin: 0, textShadow: "0 2px 4px rgba(0,0,0,0.4)", ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{renderConDestacado(diaData.titulo, estiloTituloDia?.colorDestacado, estiloTituloDia?.grosorDestacado, "subtitulo", estiloTituloDia)}</h4>
                           ) : (
                             <div style={{ width: "50%", height: "14px", borderRadius: "7px", background: "#ffffff", marginTop: "4px" }} />
                           )}
                           <div className={styles.phAcordeonScroll} style={{ overflowY: "auto", maxHeight: "300px", paddingRight: "4px" }}>
                             {diaData.desc ? (
-                              <p style={{ fontSize: "0.82rem", color: "rgba(255, 255, 255, 0.95)", margin: 0, textShadow: "0 1px 2px rgba(0,0,0,0.4)", lineHeight: 1.4, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{renderTextWithBold(diaData.desc, estiloDescDia)}</p>
+                              <p style={{ fontSize: "0.82rem", color: "rgba(255, 255, 255, 0.95)", margin: 0, textShadow: "0 1px 2px rgba(0,0,0,0.4)", lineHeight: 1.4, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{renderConDestacado(diaData.desc, estiloDescDia?.colorDestacado, estiloDescDia?.grosorDestacado, "parrafo", estiloDescDia)}</p>
                             ) : (
                               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                                 <div style={{ width: "85%", height: "8px", borderRadius: "4px", background: "rgba(255, 255, 255, 0.7)" }} />
@@ -1205,7 +1283,7 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
         <Ph>
           <div className={styles.phItinerarioMenu} style={{ maxWidth: customMaxWidth, margin: "0 auto" }}>
             {titulo ? (
-              <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
+              <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
             ) : (
               <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
             )}
@@ -1236,12 +1314,12 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
               </div>
               <div className={styles.phMenuDiaTexto}>
                 {diaData.titulo ? (
-                  <h4 style={{ fontSize: "1.15rem", fontWeight: 700, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{diaData.titulo}</h4>
+                  <h4 style={{ fontSize: "1.15rem", fontWeight: 700, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{renderConDestacado(diaData.titulo, estiloTituloDia?.colorDestacado, estiloTituloDia?.grosorDestacado, "subtitulo", estiloTituloDia)}</h4>
                 ) : (
                   <Title w="60%" />
                 )}
                 {diaData.desc ? (
-                  <p style={{ fontSize: "0.88rem", color: "#64748b", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{renderTextWithBold(diaData.desc, estiloDescDia)}</p>
+                  <p style={{ fontSize: "0.88rem", color: "#64748b", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{renderConDestacado(diaData.desc, estiloDescDia?.colorDestacado, estiloDescDia?.grosorDestacado, "parrafo", estiloDescDia)}</p>
                 ) : (
                   <>
                     <Bar w="95%" />
@@ -1263,7 +1341,7 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
       <Ph>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", maxWidth: customMaxWidth, margin: "0 auto" }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
@@ -1280,7 +1358,7 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1, minWidth: 0 }}>
                     {diaData.titulo ? (
-                      <h4 style={{ fontSize: "1.3rem", fontWeight: 700, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{diaData.titulo}</h4>
+                      <h4 style={{ fontSize: "1.3rem", fontWeight: 700, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{renderConDestacado(diaData.titulo, estiloTituloDia?.colorDestacado, estiloTituloDia?.grosorDestacado, "subtitulo", estiloTituloDia)}</h4>
                     ) : (
                       <Title w="35%" />
                     )}
@@ -1295,7 +1373,7 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
               const texto = (
                 <div className={styles.phItinerarioTexto} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   {diaData.desc ? (
-                    <p style={{ fontSize: "0.82rem", color: "#64748b", lineHeight: 1.5, margin: 0, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{renderTextWithBold(diaData.desc, estiloDescDia)}</p>
+                    <p style={{ fontSize: "0.82rem", color: "#64748b", lineHeight: 1.5, margin: 0, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{renderConDestacado(diaData.desc, estiloDescDia?.colorDestacado, estiloDescDia?.grosorDestacado, "parrafo", estiloDescDia)}</p>
                   ) : (
                     <>
                       <Bar w="95%" />
@@ -1416,7 +1494,7 @@ export function PHMapa({ titulo, mapas, layout, anchoMax, colorFondo, imagenFond
                       <div
                         key={mi}
                         onClick={() => setModalImg(m.url)}
-                        style={{ width: 52, height: 40, borderRadius: "0.3rem", backgroundImage: `url(${m.url})`, backgroundSize: "cover", backgroundPosition: "center", cursor: "pointer", border: "1px solid #e2e8f0" }}
+                        style={{ width: 52, height: 40, borderRadius: "0.3rem", backgroundImage: `url('${m.url}')`, backgroundSize: "cover", backgroundPosition: "center", cursor: "pointer", border: "1px solid #e2e8f0" }}
                       />
                     ))}
                   </div>
@@ -1434,7 +1512,7 @@ export function PHMapa({ titulo, mapas, layout, anchoMax, colorFondo, imagenFond
       <Ph>
         <div style={{ maxWidth: customMaxWidth, margin: "0 auto", padding: "1.5rem" }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 12px 0" }}>{titulo}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 12px 0" }}>{renderConDestacado(titulo, undefined, undefined, "titulo")}</h3>
           ) : null}
           {layout === "mapa-listado" ? (
             <div className={styles.phMapaListado}>
@@ -1544,7 +1622,7 @@ export function PHRuta({ titulo, rutas, layout, anchoMax, colorFondo, imagenFond
                 {hasThumbs && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
                     {(u.medias ?? []).map((m, mi) => (
-                      <div key={mi} onClick={() => setModalImg(m.url)} style={{ width: 52, height: 40, borderRadius: "0.3rem", backgroundImage: `url(${m.url})`, backgroundSize: "cover", backgroundPosition: "center", cursor: "pointer", border: "1px solid #e2e8f0" }} />
+                      <div key={mi} onClick={() => setModalImg(m.url)} style={{ width: 52, height: 40, borderRadius: "0.3rem", backgroundImage: `url('${m.url}')`, backgroundSize: "cover", backgroundPosition: "center", cursor: "pointer", border: "1px solid #e2e8f0" }} />
                     ))}
                   </div>
                 )}
@@ -1561,7 +1639,7 @@ export function PHRuta({ titulo, rutas, layout, anchoMax, colorFondo, imagenFond
       <Ph>
         <div style={{ maxWidth: customMaxWidth, margin: "0 auto", padding: "1.5rem" }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 12px 0" }}>{titulo}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 12px 0" }}>{renderConDestacado(titulo, undefined, undefined, "titulo")}</h3>
           ) : null}
           {layout === "mapa-listado" ? (
             <div className={styles.phMapaListado}>
@@ -1625,14 +1703,21 @@ export function PHPrecio({
     width: "100%",
   };
 
-  const formattedPvp = renderConDestacado(pvp, seccion.estiloPvp?.colorDestacado, seccion.estiloPvp?.grosorDestacado, "titulo");
-  const formattedCondiciones = renderConDestacado(condiciones, seccion.estiloCondiciones?.colorDestacado, seccion.estiloCondiciones?.grosorDestacado, "parrafo");
+  const formattedPvp = renderConDestacado(pvp, seccion.estiloPvp?.colorDestacado, seccion.estiloPvp?.grosorDestacado, "titulo", seccion.estiloPvp);
+  const formattedCondiciones = renderConDestacado(condiciones, seccion.estiloCondiciones?.colorDestacado, seccion.estiloCondiciones?.grosorDestacado, "parrafo", seccion.estiloCondiciones);
+
+  const tituloSeccion = seccion.titulo ? (
+    <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 1.5rem 0", textAlign: mobile ? "left" : "center", ...estiloTextoCSS(seccion.estiloTitulo, "titulo") }}>
+      {renderConDestacado(seccion.titulo, seccion.estiloTitulo?.colorDestacado, seccion.estiloTitulo?.grosorDestacado, "titulo", seccion.estiloTitulo)}
+    </h3>
+  ) : null;
 
   if (layout === "card-premium") {
     return (
       <FondoWrapper colorFondo={seccion.colorFondo} imagenFondo={seccion.imagenFondo} imagenFondoOverlay={seccion.imagenFondoOverlay} altoSeccion={seccion.altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
         <div style={containerStyle}>
+          {tituloSeccion}
           <div style={{
             display: "grid",
             gridTemplateColumns: mobile ? "1fr" : "1fr 1.5fr",
@@ -1681,6 +1766,7 @@ export function PHPrecio({
       <FondoWrapper colorFondo={seccion.colorFondo} imagenFondo={seccion.imagenFondo} imagenFondoOverlay={seccion.imagenFondoOverlay} altoSeccion={seccion.altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
         <div style={containerStyle}>
+          {tituloSeccion}
           <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
             <div style={{
               display: "flex",
@@ -1727,6 +1813,7 @@ export function PHPrecio({
     <FondoWrapper colorFondo={seccion.colorFondo} imagenFondo={seccion.imagenFondo} imagenFondoOverlay={seccion.imagenFondoOverlay} altoSeccion={seccion.altoSeccion} canvasHeight={canvasHeight}>
     <Ph>
       <div style={containerStyle}>
+        {tituloSeccion}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: "2.5rem" }}>
           <div style={{
             display: "flex",
@@ -1751,6 +1838,87 @@ export function PHPrecio({
         </div>
       </div>
     </Ph>
+    </FondoWrapper>
+  );
+}
+
+export function PHExtras({
+  mobile,
+  seccion,
+  canvasHeight,
+}: {
+  mobile?: boolean;
+  seccion?: Seccion;
+  canvasHeight?: string;
+}) {
+  if (!seccion) return null;
+
+  const layout = seccion.layout ?? "lista-simple";
+  const filas = (seccion.extrasFilas ?? []).filter(f => !f.oculta);
+  const styleExtraTexto = estiloTextoCSS(seccion.estiloExtraTexto, "parrafo");
+  const styleExtraImporte = estiloTextoCSS(seccion.estiloExtraImporte, "parrafo");
+
+  const maxWidth = seccion.anchoMax === "900px" ? "min(900px, 46.875cqw)" : seccion.anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const containerStyle: React.CSSProperties = {
+    maxWidth,
+    margin: "0 auto",
+    padding: "3rem 1.5rem",
+    width: "100%",
+  };
+
+  return (
+    <FondoWrapper colorFondo={seccion.colorFondo} imagenFondo={seccion.imagenFondo} imagenFondoOverlay={seccion.imagenFondoOverlay} altoSeccion={seccion.altoSeccion} canvasHeight={canvasHeight}>
+      <Ph>
+        <div style={containerStyle}>
+          {seccion.titulo ? (
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 1.5rem 0", ...estiloTextoCSS(seccion.estiloTitulo, "titulo") }}>
+              {renderConDestacado(seccion.titulo, seccion.estiloTitulo?.colorDestacado, seccion.estiloTitulo?.grosorDestacado, "titulo", seccion.estiloTitulo)}
+            </h3>
+          ) : (
+            <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 1.5rem 0" }} />
+          )}
+
+          {filas.length === 0 ? (
+            <div style={{ padding: "1.5rem", textAlign: "center", fontSize: "0.8rem", color: "#94a3b8" }}>Añade filas de extras desde el panel de edición.</div>
+          ) : layout === "tarjetas" ? (
+            <div style={{ display: "flex", flexDirection: mobile ? "column" : "row", flexWrap: "wrap", gap: "1rem" }}>
+              {filas.map(f => (
+                <div key={f.uid} style={{ flex: mobile ? undefined : "1 1 200px", minWidth: mobile ? undefined : "200px", background: "#ffffff", border: "1px solid #f1f5f9", borderRadius: "0.75rem", padding: "1.25rem", boxShadow: "0 4px 12px rgba(0,0,0,0.03)", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  <div style={{ fontSize: "0.95rem", ...styleExtraTexto }}>
+                    {renderConDestacado(f.texto ?? "", seccion.estiloExtraTexto?.colorDestacado, seccion.estiloExtraTexto?.grosorDestacado, "parrafo", seccion.estiloExtraTexto)}
+                  </div>
+                  <div style={{ fontSize: "1.15rem", fontWeight: 700, color: "#6366f1", ...styleExtraImporte }}>
+                    {renderConDestacado(f.importe ?? "", seccion.estiloExtraImporte?.colorDestacado, seccion.estiloExtraImporte?.grosorDestacado, "parrafo", seccion.estiloExtraImporte)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", background: "#ffffff", border: "1px solid #f1f5f9", borderRadius: "0.75rem", overflow: "hidden" }}>
+              {filas.map((f, i) => (
+                <div
+                  key={f.uid}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "1rem",
+                    padding: "0.9rem 1.25rem",
+                    borderTop: i === 0 ? "none" : "1px solid #f1f5f9",
+                  }}
+                >
+                  <div style={{ fontSize: "0.95rem", ...styleExtraTexto }}>
+                    {renderConDestacado(f.texto ?? "", seccion.estiloExtraTexto?.colorDestacado, seccion.estiloExtraTexto?.grosorDestacado, "parrafo", seccion.estiloExtraTexto)}
+                  </div>
+                  <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#6366f1", whiteSpace: "nowrap", ...styleExtraImporte }}>
+                    {renderConDestacado(f.importe ?? "", seccion.estiloExtraImporte?.colorDestacado, seccion.estiloExtraImporte?.grosorDestacado, "parrafo", seccion.estiloExtraImporte)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Ph>
     </FondoWrapper>
   );
 }
@@ -2039,50 +2207,55 @@ export function PHTextoColumnas({
   estiloTitulo?: TextoEstilo;
   estiloTituloDia?: TextoEstilo;
   estiloDescDia?: TextoEstilo;
-  columnas?: { titulo?: string; texto?: string }[];
+  columnas?: { uid: string; titulo?: string; texto?: string; medias?: MediaItem[] }[];
   anchoMax?: string;
 }) {
-  const colCount = layout === "2-cols" ? 2 : layout === "4-cols" ? 4 : 3;
-  const gridClass = mobile
-    ? styles.phCol1
-    : layout === "2-cols"
-    ? styles.phCol2
-    : layout === "4-cols"
-    ? styles.phCol4
-    : styles.phCol3;
-
-  const defaultCols = [
-    { titulo: "Columna 1", texto: ".- Elemento de ejemplo." },
-    { titulo: "Columna 2", texto: ".- Elemento de ejemplo." },
-    { titulo: "Columna 3", texto: ".- Elemento de ejemplo." },
-    { titulo: "Columna 4", texto: ".- Elemento de ejemplo." }
+  const displayCols = (columnas ?? []).length > 0 ? columnas! : [
+    { uid: "placeholder-1", titulo: "Columna 1", texto: ".- Elemento de ejemplo." },
+    { uid: "placeholder-2", titulo: "Columna 2", texto: ".- Elemento de ejemplo." },
+    { uid: "placeholder-3", titulo: "Columna 3", texto: ".- Elemento de ejemplo." },
   ];
 
-  const displayCols = Array.from({ length: colCount }).map((_, idx) => {
-    return (columnas ?? [])[idx] || defaultCols[idx % defaultCols.length];
-  });
-
   const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const colsPorFila = layout === "2-cols" ? 2 : layout === "4-cols" ? 4 : layout === "5-cols" ? 5 : layout === "6-cols" ? 6 : 3;
 
   return (
     <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
         <div className={styles.phTextoColumnas} style={{ maxWidth: customMaxWidth }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
-          <div className={`${styles.phColumnasGrid} ${gridClass}`}>
+          <div
+            className={styles.phColumnasGrid}
+            style={{
+              display: "grid",
+              gridTemplateColumns: mobile ? "1fr" : `repeat(${colsPorFila}, 1fr)`,
+              gap: "1.5rem",
+            }}
+          >
             {displayCols.map((c, i) => (
-              <div key={i} className={styles.phColumnaCard}>
+              <div key={c.uid ?? i} className={styles.phColumnaCard} style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                {(c.medias ?? []).length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {(c.medias ?? []).map((m, mi) => (
+                      m.tipo === "video" ? (
+                        <VideoBg key={mi} url={m.url} style={{ width: "100%", aspectRatio: "16/9", borderRadius: "0.5rem", overflow: "hidden" }} />
+                      ) : (
+                        <div key={mi} style={{ width: "100%", aspectRatio: "16/9", borderRadius: "0.5rem", backgroundImage: `url('${m.url}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                      )
+                    ))}
+                  </div>
+                )}
                 {c.titulo ? (
-                  <h4 className={styles.phColumnaTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{c.titulo}</h4>
+                  <h4 className={styles.phColumnaTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{renderConDestacado(c.titulo, estiloTituloDia?.colorDestacado, estiloTituloDia?.grosorDestacado, "subtitulo", estiloTituloDia)}</h4>
                 ) : (
                   <div style={{ width: "60%", height: "12px", borderRadius: "6px", background: "#cbd5e1" }} />
                 )}
                 {c.texto ? (
-                  <p className={styles.phColumnaTexto} style={estiloTextoCSS(estiloDescDia, "parrafo")}>{renderTextWithBold(c.texto, estiloDescDia)}</p>
+                  <p className={styles.phColumnaTexto} style={estiloTextoCSS(estiloDescDia, "parrafo")}>{renderConDestacado(c.texto, estiloDescDia?.colorDestacado, estiloDescDia?.grosorDestacado, "parrafo", estiloDescDia)}</p>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     <div style={{ width: "90%", height: "8px", borderRadius: "4px", background: "#e2e8f0" }} />
@@ -2137,7 +2310,7 @@ export function PHCards({
       <Ph>
         <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
@@ -2159,7 +2332,7 @@ export function PHCards({
                     className={styles.phOfertaCard}
                     style={{ position: "relative", flex: "1 1 0%", minWidth: mobile ? "160px" : "0", ...(cardHeight ? { height: cardHeight } : { aspectRatio: "4 / 3" }), cursor: href ? "pointer" : "default", textDecoration: "none", color: "inherit", overflow: "hidden", border: "1px solid #ffffff" }}
                   >
-                    <div className={styles.phOfertaCardImg} style={{ position: "absolute", inset: 0, backgroundImage: card.media?.url ? `url(${card.media.url})` : undefined, backgroundColor: card.media?.url ? undefined : "#e2e8f0", backgroundSize: "cover", backgroundPosition: "center" }} />
+                    <div className={styles.phOfertaCardImg} style={{ position: "absolute", inset: 0, backgroundImage: card.media?.url ? `url('${card.media.url}')` : undefined, backgroundColor: card.media?.url ? undefined : "#e2e8f0", backgroundSize: "cover", backgroundPosition: "center" }} />
                     {(card.titulo || card.subtitulo) && (
                       <>
                         <div className={styles.phOfertaCardOverlay} style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(15,23,42,0) 40%, rgba(15,23,42,0.75) 100%)" }} />
@@ -2219,7 +2392,7 @@ export function PHGaleria({
       <Ph>
         <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
@@ -2309,7 +2482,7 @@ export function PHListado({
       <Ph>
         <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
@@ -2339,7 +2512,7 @@ export function PHListado({
                   {esArticulo ? (
                     <div className={styles.phArticuloCard}>
                       <div className={styles.phArticuloThumbWrap}>
-                        <div className={styles.phArticuloThumb} style={item.media?.url ? { backgroundImage: `url(${item.media.url})` } : undefined} />
+                        <div className={styles.phArticuloThumb} style={item.media?.url ? { backgroundImage: `url('${item.media.url}')` } : undefined} />
                       </div>
                       <div className={styles.phArticuloOverlay} />
                       <div className={styles.phArticuloBody}>
@@ -2355,7 +2528,7 @@ export function PHListado({
                     </div>
                   ) : (
                     <div className={styles.phOfertaCard}>
-                      <div className={styles.phOfertaThumb} style={item.media?.url ? { backgroundImage: `url(${item.media.url})` } : undefined} />
+                      <div className={styles.phOfertaThumb} style={item.media?.url ? { backgroundImage: `url('${item.media.url}')` } : undefined} />
                       <div className={styles.phOfertaBody}>
                         <h4 className={styles.phOfertaTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{item.titulo}</h4>
                         {item.createdAt && (
@@ -2412,7 +2585,7 @@ export function PHNegoPlanet({
       <Ph>
         <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
@@ -2428,7 +2601,7 @@ export function PHNegoPlanet({
                   style={{ textDecoration: "none", color: "inherit", cursor: item.slug ? "pointer" : "default", flex: "1 1 0%", minWidth: mobile ? "160px" : "0" }}
                   onClick={e => { if (!item.slug) e.preventDefault(); }}
                 >
-                  <div className={styles.phOfertaThumb} style={item.imagen ? { backgroundImage: `url(${item.imagen})` } : undefined} />
+                  <div className={styles.phOfertaThumb} style={item.imagen ? { backgroundImage: `url('${item.imagen}')` } : undefined} />
                   <div className={styles.phOfertaBody}>
                     <h4 className={styles.phOfertaTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{item.titulo}</h4>
                     {item.descripcion && <p style={{ fontSize: "0.78rem", color: "#64748b", margin: "4px 0 0 0" }}>{item.descripcion}</p>}
@@ -2513,7 +2686,7 @@ export function PHNegoPlanetDestinos({
       <Ph>
         <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{titulo}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
@@ -2549,7 +2722,7 @@ export function PHNegoPlanetDestinos({
                         cursor: "pointer",
                         padding: 0,
                         display: "block",
-                        backgroundImage: fondo ? `url(${fondo})` : undefined,
+                        backgroundImage: fondo ? `url('${fondo}')` : undefined,
                         backgroundColor: fondo ? undefined : "#e2e8f0",
                         backgroundSize: "cover",
                         backgroundPosition: "center",
@@ -2638,7 +2811,7 @@ export function PHNegoPlanetDestinos({
 
                                 const contenido = (
                                   <>
-                                    {nodo.imagen && <div style={{ width: 22, height: 22, borderRadius: "0.3rem", backgroundImage: `url(${nodo.imagen})`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />}
+                                    {nodo.imagen && <div style={{ width: 22, height: 22, borderRadius: "0.3rem", backgroundImage: `url('${nodo.imagen}')`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />}
                                     <span style={{ flex: 1, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nodo.post_title}</span>
                                     {esSubcategoriaNodo && (
                                       <span style={{ fontSize: "0.62rem", color: "rgba(255,255,255,0.7)", flexShrink: 0 }}>{(nodo.destinos ?? []).length}</span>
@@ -2684,7 +2857,7 @@ export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dis
   switch (s.tipo) {
     case "menu":           return <PHMenu key={s.uid} mobile={mobile} seccion={s} secciones={allSecciones} landingHref={landingHref} />;
     case "portada":        return <PHPortada key={s.uid} height={canvasHeight} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} medias={s.medias} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} colorFondo={s.colorFondo} />;
-    case "texto-imagenes": return <PHTextoImagenes key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} medias={s.medias} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} anchoMax={s.anchoMax} />;
+    case "texto-imagenes": return <PHTextoImagenes key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} textoLibre={s.textoLibre} medias={s.medias} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} estiloTextoLibre={s.estiloTextoLibre} anchoMax={s.anchoMax} />;
     case "texto-columnas": return <PHTextoColumnas key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} columnas={s.columnas} anchoMax={s.anchoMax} />;
     case "itinerario":     return <PHItinerario key={s.uid} mobile={mobile} layout={s.layout} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} fechaDesde={s.fechaDesde} fechaHasta={s.fechaHasta} dias={s.dias} titulo={s.titulo} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} anchoMax={s.anchoMax} />;
     case "mapa":           return <PHMapa key={s.uid} titulo={s.titulo} mapas={s.mapas} layout={s.layout} anchoMax={s.anchoMax} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} />;
@@ -2695,6 +2868,7 @@ export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dis
     case "nego-planet-programas": return <PHNegoPlanet key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} anchoMax={s.anchoMax} items={s.negoPlanetModo === "auto" ? (listadoItemsPorSeccion?.[s.uid] as any as NegoPlanetItem[] | undefined) : s.negoPlanetItems} />;
     case "nego-planet-destinos":  return <PHNegoPlanetDestinos key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} anchoMax={s.anchoMax} arbol={listadoItemsPorSeccion?.[s.uid] as any} />;
     case "precio":         return <PHPrecio key={s.uid} mobile={mobile} tablet={tablet} seccion={s} canvasHeight={canvasHeight} />;
+    case "extras":         return <PHExtras key={s.uid} mobile={mobile} seccion={s} canvasHeight={canvasHeight} />;
     case "formulario":     return <PHFormulario key={s.uid} mobile={mobile} seccion={s} agente={agente} canvasHeight={canvasHeight} />;
     case "footer":         return <PHFooter key={s.uid} mobile={mobile} />;
     default: return <Ph key={s.uid}><span className={styles.phLabel}>{s.label}</span></Ph>;

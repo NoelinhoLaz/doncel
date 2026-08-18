@@ -40,6 +40,8 @@ export default function CotizacionesPage() {
   const [agenteFilter, setAgenteFilter] = useState<string[]>([]);
   const [agenteFilterInicializado, setAgenteFilterInicializado] = useState(false);
   const [nombreAgenteActual, setNombreAgenteActual] = useState<string | null>(null);
+  const [currentAuthUserId, setCurrentAuthUserId] = useState<string | null>(null);
+  const [currentRol, setCurrentRol] = useState<string | null>(null);
   const [destinoFilter, setDestinoFilter] = useState<string[]>([]);
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
@@ -126,6 +128,12 @@ export default function CotizacionesPage() {
         if (u) setNombreAgenteActual(`${u.nombre ?? ''} ${u.apellidos ?? ''}`.trim());
       })
       .catch(() => {});
+    fetch("/api/auth/me").then(r => r.json()).then(d => {
+      if (d?.success) {
+        setCurrentAuthUserId(d.data.authUserId);
+        setCurrentRol(d.data.rol);
+      }
+    }).catch(() => {});
   }, []);
 
   const allLines = useMemo(() => {
@@ -157,12 +165,16 @@ export default function CotizacionesPage() {
 
   useEffect(() => {
     if (agenteFilterInicializado) return;
-    if (!nombreAgenteActual || agenteOptions.length === 0) return;
-    if (agenteOptions.includes(nombreAgenteActual)) {
+    if (!currentAuthUserId || cotizaciones.length === 0) return;
+    const propias = cotizaciones.find((c: any) => c.agente_id === currentAuthUserId);
+    if (propias?.agente?.nombre) {
+      setAgenteFilter([propias.agente.nombre]);
+    } else if (nombreAgenteActual && agenteOptions.includes(nombreAgenteActual)) {
+      // Fallback por nombre para cotizaciones antiguas sin agente_id coincidente
       setAgenteFilter([nombreAgenteActual]);
     }
     setAgenteFilterInicializado(true);
-  }, [nombreAgenteActual, agenteOptions, agenteFilterInicializado]);
+  }, [currentAuthUserId, cotizaciones, nombreAgenteActual, agenteOptions, agenteFilterInicializado]);
 
   // Normaliza para agrupar variantes de un mismo destino (MADRID / Madrid / Paris / París...)
   const normalizeDestino = (s: string) =>
@@ -329,6 +341,23 @@ export default function CotizacionesPage() {
       return true;
     });
   }, [cotizaciones, search, agenteFilter, destinoFilter, fechaDesde, fechaHasta, destinoVariantesPorClave, estadoCotizacionFilter]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (agenteFilter.length > 0) count++;
+    if (destinoFilter.length > 0) count++;
+    if (fechaDesde) count++;
+    if (fechaHasta) count++;
+    if (estadoCotizacionFilter.length > 0) count++;
+    return count;
+  }, [agenteFilter, destinoFilter, fechaDesde, fechaHasta, estadoCotizacionFilter]);
+
+  const isAdminRol = currentRol ? ["Admin", "SuperAdmin", "Owner"].includes(currentRol) : false;
+  const puedeEliminar = (c: any) => {
+    if (isAdminRol) return true;
+    if (!c.agente_id) return true;
+    return c.agente_id === currentAuthUserId;
+  };
 
   const filteredLines = useMemo(() => {
     return allLines.filter((l: any) => {
@@ -819,10 +848,33 @@ export default function CotizacionesPage() {
                 display: "flex", alignItems: "center", justifyContent: "center",
                 width: 32, height: 32, borderRadius: "0.5rem", border: "1px solid #cbd5e1",
                 background: showFilters ? "#cbd5e1" : "#fff", color: "#475569", cursor: "pointer", transition: "all 0.15s",
-                padding: 0
+                padding: 0, position: "relative"
               }}
             >
               <SlidersHorizontal size={15} />
+              {activeFilterCount > 0 && (
+                <span
+                  key={activeFilterCount}
+                  style={{
+                    position: "absolute",
+                    top: -6,
+                    right: -6,
+                    minWidth: "16px",
+                    height: "16px",
+                    padding: "0 4px",
+                    borderRadius: "999px",
+                    background: "var(--primary-color, #6366f1)",
+                    color: "#fff",
+                    fontSize: "0.62rem",
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {activeFilterCount}
+                </span>
+              )}
             </button>
             <button
               type="button"
@@ -1298,10 +1350,10 @@ export default function CotizacionesPage() {
                                 <Copy size={13} />
                               </button>
                               <button
-                                title="Eliminar cotización"
-                                disabled={deleting === c.id}
-                                onClick={(e) => handleDelete(e, c.id, c.titulo)}
-                                style={{ border: "1px solid #fecaca", background: "#fff", borderRadius: 6, padding: "0.2rem 0.35rem", cursor: "pointer", color: "#dc2626", display: "inline-flex", alignItems: "center", opacity: deleting === c.id ? 0.5 : 1 }}
+                                title={puedeEliminar(c) ? "Eliminar cotización" : "Solo el creador o un administrador puede eliminar"}
+                                disabled={deleting === c.id || !puedeEliminar(c)}
+                                onClick={(e) => puedeEliminar(c) && handleDelete(e, c.id, c.titulo)}
+                                style={{ border: "1px solid #fecaca", background: "#fff", borderRadius: 6, padding: "0.2rem 0.35rem", cursor: puedeEliminar(c) ? "pointer" : "not-allowed", color: puedeEliminar(c) ? "#dc2626" : "#cbd5e1", display: "inline-flex", alignItems: "center", opacity: deleting === c.id ? 0.5 : 1, borderColor: puedeEliminar(c) ? "#fecaca" : "#e2e8f0" }}
                               >
                                 <Trash2 size={13} />
                               </button>

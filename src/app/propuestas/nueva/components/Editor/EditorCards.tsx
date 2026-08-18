@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { ChevronRight, GripVertical, X } from "lucide-react";
 import styles from "../../page.module.css";
 import type { Seccion, CardItem } from "../../types";
-import MediaSelector from "./MediaSelector";
+import MediaSelectorModal from "./MediaSelectorModal";
 import { getPaginasWeb } from "@/actions/paginaWeb";
 
 export default function EditorCards({
@@ -117,7 +117,7 @@ export default function EditorCards({
                           width: "88px",
                           height: "64px",
                           borderRadius: "0.5rem",
-                          backgroundImage: c.media?.url ? `url(${c.media.url})` : undefined,
+                          backgroundImage: c.media?.url ? `url('${c.media.url}')` : undefined,
                           backgroundColor: "#e2e8f0",
                           backgroundSize: "cover",
                           backgroundPosition: "center",
@@ -139,12 +139,11 @@ export default function EditorCards({
                     </div>
 
                     {mediaAbierto === `card-${c.uid}-new` && (
-                      <div style={{ marginTop: "8px" }}>
-                        <MediaSelector
-                          value={c.media}
-                          onChange={m => { if (!m) return; updateCard(c.uid, { media: m }); setMediaAbierto(false); }}
-                        />
-                      </div>
+                      <MediaSelectorModal
+                        value={c.media}
+                        onChange={m => { if (!m) return; updateCard(c.uid, { media: m }); setMediaAbierto(false); }}
+                        onClose={() => setMediaAbierto(false)}
+                      />
                     )}
                   </div>
 

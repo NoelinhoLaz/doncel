@@ -9,6 +9,7 @@ import type { Seccion, SeccionFavorita, Dispositivo } from "./types";
 import { DISPOSITIVOS, OPCIONES_SECCION, FUENTES, TAMANIOS, GROSORES } from "./constants";
 import { useFavoritos } from "./hooks/useFavoritos";
 import { EditorPanel } from "./components/Editor/EditorPanel";
+import TextoColorBoton from "./components/Editor/TextoColorBoton";
 import { renderSeccion } from "./utils/section-render";
 import { getStyleVars } from "./utils/style-utils";
 import { guardarPropuesta, getDatosRealesPropuesta } from "@/actions/propuestas";
@@ -76,7 +77,9 @@ export function PropuestaEditor({
     parrafo: { fuente: "Montserrat", grosor: "400", tamano: "14px", color: "#334155", colorDestacado: "#6366f1" },
   });
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { favs, toggleFav, isFav } = useFavoritos();
+  const { favs, toggleFav, isFav, deleteFav } = useFavoritos();
+  const [colorPickerAbierto, setColorPickerAbierto] = useState<string | null>(null);
+  const esAdmin = ["Admin", "SuperAdmin", "Owner"].includes(agente?.rol ?? "");
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -145,7 +148,7 @@ export function PropuestaEditor({
 
     const editorContent = secciones.map(s => ({
       uid: s.uid, tipo: s.tipo, label: s.label, oculta: s.oculta,
-      titulo: s.titulo, subtitulo: s.subtitulo, medias: s.medias,
+      titulo: s.titulo, subtitulo: s.subtitulo, textoLibre: s.textoLibre, medias: s.medias,
       fechaDesde: s.fechaDesde,
       fechaHasta: s.fechaHasta,
       dias: s.dias,
@@ -159,7 +162,10 @@ export function PropuestaEditor({
       menuBoton: s.menuBoton,
       // Precio fields
       pvp: s.pvp,
+      pvpVinculado: s.pvpVinculado,
       condiciones: s.condiciones,
+      // Extras fields
+      extrasFilas: s.extrasFilas,
       // Formulario fields
       formularioCampos: s.formularioCampos,
       formularioTitulo: s.formularioTitulo,
@@ -175,7 +181,7 @@ export function PropuestaEditor({
       { uid: "global", estilosGlobales },
       ...secciones.map(s => ({
         uid: s.uid, layout: s.layout,
-        estiloTitulo: s.estiloTitulo, estiloSubtitulo: s.estiloSubtitulo,
+        estiloTitulo: s.estiloTitulo, estiloSubtitulo: s.estiloSubtitulo, estiloTextoLibre: s.estiloTextoLibre,
         estiloTituloDia: s.estiloTituloDia, estiloDescDia: s.estiloDescDia,
         colorFondo: s.colorFondo,
         imagenFondo: s.imagenFondo,
@@ -190,6 +196,9 @@ export function PropuestaEditor({
         // Precio styling
         estiloPvp: s.estiloPvp,
         estiloCondiciones: s.estiloCondiciones,
+        // Extras styling
+        estiloExtraTexto: s.estiloExtraTexto,
+        estiloExtraImporte: s.estiloExtraImporte,
         // Listado styling
         listadoEstiloTarjeta: s.listadoEstiloTarjeta,
       }))
@@ -262,10 +271,9 @@ export function PropuestaEditor({
       base.anchoMax = "1200px";
       base.titulo = "Nuestros Servicios / Destacados";
       base.columnas = [
-        { titulo: "Aventura", texto: ".- Actividades al aire libre.\n.- Senderismo por rutas únicas.\n.- Guías profesionales." },
-        { titulo: "Gastronomía", texto: ".- Platos tradicionales locales.\n.- Catas de vinos exclusivas.\n.- Cenas bajo las estrellas." },
-        { titulo: "Cultura", texto: ".- Visitas guiadas a monumentos.\n.- Talleres de artesanía local.\n.- Festivales tradicionales." },
-        { titulo: "Relax", texto: ".- Alojamientos con encanto.\n.- Zonas de spa y bienestar.\n.- Tiempo libre para desconectar." }
+        { uid: `col-${Date.now()}-1`, titulo: "Aventura", texto: ".- Actividades al aire libre.\n.- Senderismo por rutas únicas.\n.- Guías profesionales." },
+        { uid: `col-${Date.now()}-2`, titulo: "Gastronomía", texto: ".- Platos tradicionales locales.\n.- Catas de vinos exclusivas.\n.- Cenas bajo las estrellas." },
+        { uid: `col-${Date.now()}-3`, titulo: "Cultura", texto: ".- Visitas guiadas a monumentos.\n.- Talleres de artesanía local.\n.- Festivales tradicionales." },
       ];
       base.estiloTitulo = { fuente: "Raleway", grosor: "800", tamano: "22px", color: "#1e293b" };
     }
@@ -275,6 +283,18 @@ export function PropuestaEditor({
       base.condiciones = "- Pago del 30% al confirmar la reserva.\n- Pago del 70% restante 30 días antes de la salida.";
       base.estiloPvp = { fuente: "Raleway", grosor: "800", tamano: "48px", color: "#1e293b" };
       base.estiloCondiciones = { fuente: "Montserrat", grosor: "400", tamano: "14px", color: "#475569" };
+    }
+    if (tipo === "extras") {
+      base.layout = "lista-simple";
+      base.anchoMax = "1200px";
+      base.titulo = "Extras opcionales";
+      base.extrasFilas = [
+        { uid: `extra-${Date.now()}-1`, texto: "Seguro de viaje premium", importe: "35 €" },
+        { uid: `extra-${Date.now()}-2`, texto: "Traslado privado aeropuerto", importe: "60 €" },
+      ];
+      base.estiloTitulo = { fuente: "Raleway", grosor: "800", tamano: "22px", color: "#1e293b" };
+      base.estiloExtraTexto = { fuente: "Montserrat", grosor: "500", tamano: "15px", color: "#1e293b" };
+      base.estiloExtraImporte = { fuente: "Raleway", grosor: "700", tamano: "15px", color: "#6366f1" };
     }
     if (tipo === "formulario") {
       base.layout = "solo-form";
@@ -445,10 +465,22 @@ export function PropuestaEditor({
                                   Favoritas
                                 </p>
                                 {favs.map(fav => (
-                                  <button key={fav.favId} className={styles.menuItem} onClick={() => añadirDesdeFav(fav)}>
-                                    <Heart size={13} fill="#f472b6" color="#f472b6" className={styles.menuItemIcon} />
-                                    {fav.label}
-                                  </button>
+                                  <div key={fav.favId} style={{ display: "flex", alignItems: "center" }}>
+                                    <button className={styles.menuItem} style={{ flex: 1 }} onClick={() => añadirDesdeFav(fav)}>
+                                      <Heart size={13} fill="#f472b6" color="#f472b6" className={styles.menuItemIcon} />
+                                      {fav.label}
+                                    </button>
+                                    {esAdmin && (
+                                      <button
+                                        type="button"
+                                        title="Eliminar favorito"
+                                        onClick={e => { e.stopPropagation(); deleteFav(fav.favId); }}
+                                        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 8px", color: "#94a3b8", display: "flex", alignItems: "center" }}
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    )}
+                                  </div>
                                 ))}
                               </>
                             )}
@@ -517,26 +549,26 @@ export function PropuestaEditor({
                             </div>
                           </div>
 
-                          {/* Colores (Texto y Destacado) */}
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem", marginTop: "4px" }}>
-                            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                              <label style={{ fontSize: "0.68rem", fontWeight: 500, color: "#64748b" }}>Color texto</label>
-                              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                                <label className={styles.colorPickerBtn} style={{ background: item.color ?? "#1e293b", width: 22, height: 22, borderRadius: "0.375rem" }}>
-                                  <input type="color" value={item.color ?? "#1e293b"} onChange={e => updateField("color", e.target.value)} />
-                                </label>
-                                <span style={{ fontSize: "0.65rem", color: "#94a3b8", fontFamily: "monospace" }}>{item.color ?? "#1e293b"}</span>
-                              </div>
-                            </div>
-                            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                              <label style={{ fontSize: "0.68rem", fontWeight: 500, color: "#64748b" }}>Color dest.</label>
-                              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                                <label className={styles.colorPickerBtn} style={{ background: item.colorDestacado ?? "#6366f1", width: 22, height: 22, borderRadius: "0.375rem" }}>
-                                  <input type="color" value={item.colorDestacado ?? "#6366f1"} onChange={e => updateField("colorDestacado", e.target.value)} />
-                                </label>
-                                <span style={{ fontSize: "0.65rem", color: "#94a3b8", fontFamily: "monospace" }}>{item.colorDestacado ?? "#6366f1"}</span>
-                              </div>
-                            </div>
+                          {/* Colores (Texto y Destacado). El subrayado se configura por sección, no aquí. */}
+                          <div style={{ display: "flex", gap: "0.6rem", marginTop: "4px" }}>
+                            <TextoColorBoton
+                              tipo="texto"
+                              label="Color texto"
+                              color={item.color ?? "#1e293b"}
+                              abierto={colorPickerAbierto === `${key}-texto`}
+                              onAbrir={() => setColorPickerAbierto(colorPickerAbierto === `${key}-texto` ? null : `${key}-texto`)}
+                              onCerrar={() => setColorPickerAbierto(null)}
+                              onChangeColor={v => updateField("color", v)}
+                            />
+                            <TextoColorBoton
+                              tipo="negrita"
+                              label="Color dest."
+                              color={item.colorDestacado ?? "#6366f1"}
+                              abierto={colorPickerAbierto === `${key}-destacado`}
+                              onAbrir={() => setColorPickerAbierto(colorPickerAbierto === `${key}-destacado` ? null : `${key}-destacado`)}
+                              onCerrar={() => setColorPickerAbierto(null)}
+                              onChangeColor={v => updateField("colorDestacado", v)}
+                            />
                           </div>
                         </div>
                       );
@@ -612,6 +644,7 @@ export function PropuestaEditor({
               onClick={() => {
                 localStorage.setItem("momo_preview_secciones", JSON.stringify(secciones));
                 localStorage.setItem("momo_preview_estilos_globales", JSON.stringify(estilosGlobales));
+                localStorage.setItem("momo_preview_propuesta_id", propuestaId || "nueva");
                 window.open(`/propuestas/${propuestaId || "nueva"}/preview`, "_blank");
               }}
             >
@@ -620,6 +653,7 @@ export function PropuestaEditor({
             </button>
             <div className={styles.deviceBarSep} />
             <button
+              type="button"
               className={`${styles.saveBtn} ${guardadoOk ? styles.saveBtnOk : ""}`}
               onClick={guardar}
               disabled={guardando || secciones.length === 0}

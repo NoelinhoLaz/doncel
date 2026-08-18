@@ -21,11 +21,12 @@ const MapaOportunidadesDynamic = dynamic(
   { ssr: false }
 );
 
-export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner, campanaId, objetivoTotal, agentes, onNuevaOportunidad, onNuevaOportunidadPlaces, onEstadoChange, onPresupuestoClick, onCierreClick, onAgenteChange, onEliminarOportunidad, onEntidadClick, onOportunidadUpdate }: {
+export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner, currentAgenteId, campanaId, objetivoTotal, agentes, onNuevaOportunidad, onNuevaOportunidadPlaces, onEstadoChange, onPresupuestoClick, onCierreClick, onAgenteChange, onEliminarOportunidad, onEntidadClick, onOportunidadUpdate }: {
   oportunidades: Oportunidad[];
   estados: Estado[];
   monocromo: boolean;
   isOwner: boolean;
+  currentAgenteId?: string | null;
   campanaId: string;
   objetivoTotal: number;
   agentes: AgenteObjetivo[];
@@ -160,6 +161,16 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
     if (!agenteId) return agenteFilter.includes(SIN_ASIGNAR);
     return agenteFilter.includes(agenteId);
   }
+
+  const agenteFilterInicializado = useRef(false);
+  useEffect(() => {
+    if (agenteFilterInicializado.current) return;
+    if (!isOwner || !currentAgenteId || agentesUnicos.length === 0) return;
+    if (agentesUnicos.some(a => a.id === currentAgenteId)) {
+      setAgenteFilter([currentAgenteId]);
+    }
+    agenteFilterInicializado.current = true;
+  }, [isOwner, currentAgenteId, agentesUnicos]);
 
   function normalizarCiudad(c: string): string {
     return c.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();

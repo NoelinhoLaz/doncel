@@ -184,7 +184,7 @@ function EditorModoFijo({
                 onClick={() => añadirItem(r)}
                 style={{ display: "flex", alignItems: "center", gap: "8px", padding: "0.4rem 0.5rem", border: "none", background: "#f8fafc", borderRadius: "0.375rem", cursor: "pointer", textAlign: "left" }}
               >
-                {r.imagen && <div style={{ width: 32, height: 32, borderRadius: "0.25rem", backgroundImage: `url(${r.imagen})`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />}
+                {r.imagen && <div style={{ width: 32, height: 32, borderRadius: "0.25rem", backgroundImage: `url('${r.imagen}')`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />}
                 <span style={{ fontSize: "0.8rem", color: "#1e293b" }}>{r.post_title}</span>
               </button>
             ))}
@@ -200,7 +200,7 @@ function EditorModoFijo({
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             {items.map(item => (
               <div key={item.uid} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "0.4rem 0.5rem", background: "#f8fafc", borderRadius: "0.375rem" }}>
-                {item.imagen && <div style={{ width: 28, height: 28, borderRadius: "0.25rem", backgroundImage: `url(${item.imagen})`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />}
+                {item.imagen && <div style={{ width: 28, height: 28, borderRadius: "0.25rem", backgroundImage: `url('${item.imagen}')`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />}
                 <span style={{ fontSize: "0.78rem", color: "#1e293b", flex: 1 }}>{item.titulo}</span>
                 <button
                   type="button"
@@ -284,7 +284,7 @@ function EditorModoAuto({
             <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: 0, padding: "0.4rem" }}>Sin resultados para este criterio.</p>
           ) : preview.map(item => (
             <div key={item.uid} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "0.4rem 0.5rem" }}>
-              {item.imagen && <div style={{ width: 28, height: 28, borderRadius: "0.25rem", backgroundImage: `url(${item.imagen})`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />}
+              {item.imagen && <div style={{ width: 28, height: 28, borderRadius: "0.25rem", backgroundImage: `url('${item.imagen}')`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />}
               <span style={{ fontSize: "0.78rem", color: "#1e293b" }}>{item.titulo}</span>
             </div>
           ))}

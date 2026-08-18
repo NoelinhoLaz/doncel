@@ -4,7 +4,7 @@ import React from "react";
 import { Video, X, Sparkles } from "lucide-react";
 import styles from "../../page.module.css";
 import type { Seccion } from "../../types";
-import MediaSelector from "./MediaSelector";
+import MediaSelectorModal from "./MediaSelectorModal";
 import InlineRichInput from "./InlineRichInput";
 import { youtubeId } from "../../utils/video-utils";
 
@@ -32,7 +32,7 @@ export default function EditorTextoImagenes({
             const ytId = m.tipo === "video" ? youtubeId(m.url) : null;
             const thumbBg = m.tipo === "video"
               ? (ytId ? `url(https://img.youtube.com/vi/${ytId}/mqdefault.jpg)` : undefined)
-              : `url(${m.url})`;
+              : `url('${m.url}')`;
             return (
               <button
                 key={i}
@@ -85,15 +85,17 @@ export default function EditorTextoImagenes({
           )}
         </div>
         {mediaAbierto === "new" && (
-          <MediaSelector
+          <MediaSelectorModal
             value={undefined}
             onChange={m => { if (m) { onUpdate(seccion.uid, { medias: [...(seccion.medias ?? []), m] }); } setMediaAbierto(false); }}
+            onClose={() => setMediaAbierto(false)}
           />
         )}
         {typeof mediaAbierto === "number" && (
-          <MediaSelector
+          <MediaSelectorModal
             value={seccion.medias?.[mediaAbierto]}
             onChange={m => { if (m) { const arr = [...(seccion.medias ?? [])]; arr[mediaAbierto as number] = m; onUpdate(seccion.uid, { medias: arr }); } setMediaAbierto(false); }}
+            onClose={() => setMediaAbierto(false)}
           />
         )}
       </div>
@@ -118,13 +120,21 @@ export default function EditorTextoImagenes({
         />
       </div>
       <div className={styles.editorSection}>
+        <label className={styles.editorFieldLabel}>Subtítulo</label>
+        <InlineRichInput
+          value={seccion.subtitulo ?? ""}
+          onChange={html => onUpdate(seccion.uid, { subtitulo: html })}
+          placeholder="Subtítulo de la sección…"
+        />
+      </div>
+      <div className={styles.editorSection}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0px" }}>
           <label className={styles.editorFieldLabel} style={{ margin: 0 }}>Texto Libre</label>
           <button
             type="button"
             className={`${styles.aiAssistBtn} ${optimizandoIA === "subtitulo" ? styles.aiAssistBtnLoading : ""}`}
             onClick={() => mejorarConIA("subtitulo")}
-            disabled={optimizandoIA !== null || !(seccion.subtitulo?.trim())}
+            disabled={optimizandoIA !== null || !(seccion.textoLibre?.trim())}
             title="Optimizar con IA"
           >
             <Sparkles size={10} className={optimizandoIA === "subtitulo" ? styles.aiSparkleSpin : ""} />
@@ -132,8 +142,8 @@ export default function EditorTextoImagenes({
           </button>
         </div>
         <InlineRichInput
-          value={seccion.subtitulo ?? ""}
-          onChange={html => onUpdate(seccion.uid, { subtitulo: html })}
+          value={seccion.textoLibre ?? ""}
+          onChange={html => onUpdate(seccion.uid, { textoLibre: html })}
           placeholder="Contenido de la sección…"
         />
       </div>

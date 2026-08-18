@@ -8,8 +8,8 @@ import { VideoBg } from "../../utils/video-utils";
 import { Ph, Bar, Title } from "./PHPlaceholders";
 import { parseFormattedText } from "../../utils/text-formatting";
 
-const renderConDestacado = (texto: string, colorDestacado?: string, grosorDestacado?: string, defaultTipo?: "titulo" | "subtitulo" | "parrafo" | "negrita") =>
-  parseFormattedText(texto, colorDestacado, grosorDestacado, undefined, defaultTipo);
+const renderConDestacado = (texto: string, estilo?: TextoEstilo, defaultTipo?: "titulo" | "subtitulo" | "parrafo" | "negrita") =>
+  parseFormattedText(texto, estilo?.colorDestacado, estilo?.grosorDestacado, estilo, defaultTipo);
 
 export default function PHTextoImagenes({
   mobile,
@@ -49,14 +49,14 @@ export default function PHTextoImagenes({
     <div className={styles.phTexto} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       {titulo ? (
         <h3 className={styles.phPortadaTitulo} style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloTitulo, "titulo") }}>
-          {renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo")}
+          {renderConDestacado(titulo, estiloTitulo, "titulo")}
         </h3>
       ) : (
         <Title w="65%" />
       )}
       {subtitulo ? (
         <p className={styles.phPortadaSubtitulo} style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloSubtitulo, "parrafo") }}>
-          {renderConDestacado(subtitulo, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado, "parrafo")}
+          {renderConDestacado(subtitulo, estiloSubtitulo, "parrafo")}
         </p>
       ) : (
         <><Bar w="100%" /><Bar w="92%" /><Bar w="88%" /><Bar w="95%" /><Bar w="78%" /><Bar w="83%" /><Bar w="60%" /></>

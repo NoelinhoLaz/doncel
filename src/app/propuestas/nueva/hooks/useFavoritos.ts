@@ -1,7 +1,7 @@
 "use client";
 import { useState, useCallback, useEffect, useTransition } from "react";
 import type { SeccionFavorita, Seccion } from "../types";
-import { getFavoritos, toggleFavoritoAction } from "@/actions/propuestas_favoritos";
+import { getFavoritos, toggleFavoritoAction, deleteFavoritoAction } from "@/actions/propuestas_favoritos";
 
 function useFavoritos() {
   const [favs, setFavs] = useState<SeccionFavorita[]>([]);
@@ -28,7 +28,21 @@ function useFavoritos() {
 
   const isFav = useCallback((uid: string) => favs.some(f => f.favId === uid), [favs]);
 
-  return { favs, toggleFav, isFav };
+  const deleteFav = useCallback((favId: string) => {
+    const prevFavs = favs;
+    setFavs(prev => prev.filter(f => f.favId !== favId));
+
+    startTransition(async () => {
+      try {
+        const { favs: updated } = await deleteFavoritoAction(favId);
+        setFavs(updated);
+      } catch {
+        setFavs(prevFavs);
+      }
+    });
+  }, [favs]);
+
+  return { favs, toggleFav, isFav, deleteFav };
 }
 
 export { useFavoritos };

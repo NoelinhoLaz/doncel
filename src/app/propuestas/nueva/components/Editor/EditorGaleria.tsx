@@ -4,7 +4,7 @@ import React from "react";
 import { GripVertical, X } from "lucide-react";
 import styles from "../../page.module.css";
 import type { Seccion } from "../../types";
-import MediaSelector from "./MediaSelector";
+import MediaSelectorModal from "./MediaSelectorModal";
 
 export default function EditorGaleria({
   seccion,
@@ -70,7 +70,7 @@ export default function EditorGaleria({
                 width: "100%",
                 aspectRatio: "1",
                 borderRadius: "0.5rem",
-                backgroundImage: g.media?.url ? `url(${g.media.url})` : undefined,
+                backgroundImage: g.media?.url ? `url('${g.media.url}')` : undefined,
                 backgroundColor: "#e2e8f0",
                 backgroundSize: "cover",
                 backgroundPosition: "center",
@@ -91,17 +91,16 @@ export default function EditorGaleria({
             </button>
 
             {mediaAbierto === `foto-${g.uid}-new` && (
-              <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 10, width: "260px" }}>
-                <MediaSelector
-                  value={g.media}
-                  onChange={m => {
-                    if (!m) return;
-                    const next = galeria.map(item => item.uid === g.uid ? { ...item, media: m } : item);
-                    onUpdate(seccion.uid, { galeria: next });
-                    setMediaAbierto(false);
-                  }}
-                />
-              </div>
+              <MediaSelectorModal
+                value={g.media}
+                onChange={m => {
+                  if (!m) return;
+                  const next = galeria.map(item => item.uid === g.uid ? { ...item, media: m } : item);
+                  onUpdate(seccion.uid, { galeria: next });
+                  setMediaAbierto(false);
+                }}
+                onClose={() => setMediaAbierto(false)}
+              />
             )}
           </div>
         ))}

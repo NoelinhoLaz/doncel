@@ -27,6 +27,11 @@ export function useCotizacion(
   const [saveStatus, setSaveStatus] = useState<Record<string, 'saving' | 'saved' | 'error'>>({});
   const [tiposMap, setTiposMap] = useState<Record<string, any>>({});
   const [search, setSearchRaw] = useState("");
+  const [proveedorFilter, setProveedorFilter] = useState<string[]>([]);
+  const [tipoFilterCotizacion, setTipoFilterCotizacion] = useState<string[]>([]);
+  const [destinoFilterCotizacion, setDestinoFilterCotizacion] = useState<string[]>([]);
+  const [estadoFilterCotizacion, setEstadoFilterCotizacion] = useState<string[]>([]);
+  const [ordenarPorCotizacion, setOrdenarPorCotizacion] = useState<"" | "tipo" | "proveedor" | "destino">("");
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPageRaw] = useState(100);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -200,24 +205,66 @@ export function useCotizacion(
     [items, opcionalFilter]
   );
 
+  const proveedorOptions = useMemo(() => {
+    const names = displayItems
+      .map(i => i.contabilidad_proveedores?.nombre || i.contabilidad_proveedores?.razon_social)
+      .filter((n): n is string => !!n);
+    return Array.from(new Set(names)).sort();
+  }, [displayItems]);
+
+  const tipoOptionsCotizacion = useMemo(() => {
+    const labels = displayItems
+      .map(i => i.config_tipos_servicios?.etiqueta || tiposMap[i.tipo]?.etiqueta)
+      .filter((l): l is string => !!l);
+    return Array.from(new Set(labels)).sort();
+  }, [displayItems, tiposMap]);
+
+  const destinoOptionsCotizacion = useMemo(() => {
+    const names = displayItems
+      .map(i => i.maestro_destinos?.nombre_comercial || i.maestro_destinos?.nombre)
+      .filter((n): n is string => !!n);
+    return Array.from(new Set(names)).sort();
+  }, [displayItems]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    if (!q) return displayItems;
     return displayItems.filter(i => {
       const descripcion = i.descripcion || "";
       const proveedor = i.contabilidad_proveedores?.nombre || i.contabilidad_proveedores?.razon_social || "";
       const destino = i.maestro_destinos?.nombre_comercial || i.maestro_destinos?.nombre || "";
-      return (
-        descripcion.toLowerCase().includes(q) ||
-        proveedor.toLowerCase().includes(q) ||
-        destino.toLowerCase().includes(q)
-      );
+      const tipo = i.config_tipos_servicios?.etiqueta || tiposMap[i.tipo]?.etiqueta || "";
+
+      if (q) {
+        const matchesSearch =
+          descripcion.toLowerCase().includes(q) ||
+          proveedor.toLowerCase().includes(q) ||
+          destino.toLowerCase().includes(q);
+        if (!matchesSearch) return false;
+      }
+      if (proveedorFilter.length > 0 && !proveedorFilter.includes(proveedor)) return false;
+      if (tipoFilterCotizacion.length > 0 && !tipoFilterCotizacion.includes(tipo)) return false;
+      if (destinoFilterCotizacion.length > 0 && !destinoFilterCotizacion.includes(destino)) return false;
+      if (estadoFilterCotizacion.length > 0) {
+        const estado = i.confirmado ? "Confirmado" : "Pendiente";
+        if (!estadoFilterCotizacion.includes(estado)) return false;
+      }
+      return true;
     });
-  }, [displayItems, search]);
+  }, [displayItems, search, proveedorFilter, tipoFilterCotizacion, destinoFilterCotizacion, estadoFilterCotizacion, tiposMap]);
+
+  const sorted = useMemo(() => {
+    if (!ordenarPorCotizacion) return filtered;
+    const getKey = (i: any) => {
+      if (ordenarPorCotizacion === "tipo") return i.config_tipos_servicios?.etiqueta || tiposMap[i.tipo]?.etiqueta || "";
+      if (ordenarPorCotizacion === "proveedor") return i.contabilidad_proveedores?.nombre || i.contabilidad_proveedores?.razon_social || "";
+      return i.maestro_destinos?.nombre_comercial || i.maestro_destinos?.nombre || "";
+    };
+    return [...filtered].sort((a, b) => getKey(a).localeCompare(getKey(b), "es"));
+  }, [filtered, ordenarPorCotizacion, tiposMap]);
 
   const paginated = useMemo(
-    () => filtered.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage),
-    [filtered, currentPage, rowsPerPage]
+    () => sorted.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage),
+    [sorted, currentPage, rowsPerPage]
   );
 
   const totalCost = useMemo(
@@ -482,6 +529,11 @@ export function useCotizacion(
     nonOpcionalCost, nonOpcionalRevenue,
     checkedIds, saveStatus,
     search, setSearch: (v: string) => { setSearchRaw(v); setCurrentPage(1); },
+    proveedorFilter, setProveedorFilter: (v: string[]) => { setProveedorFilter(v); setCurrentPage(1); }, proveedorOptions,
+    tipoFilterCotizacion, setTipoFilterCotizacion: (v: string[]) => { setTipoFilterCotizacion(v); setCurrentPage(1); }, tipoOptionsCotizacion,
+    destinoFilterCotizacion, setDestinoFilterCotizacion: (v: string[]) => { setDestinoFilterCotizacion(v); setCurrentPage(1); }, destinoOptionsCotizacion,
+    estadoFilterCotizacion, setEstadoFilterCotizacion: (v: string[]) => { setEstadoFilterCotizacion(v); setCurrentPage(1); },
+    ordenarPorCotizacion, setOrdenarPorCotizacion,
     currentPage, setCurrentPage,
     rowsPerPage, setRowsPerPage: (r: number) => { setRowsPerPageRaw(r); setCurrentPage(1); },
     openMenuId, setOpenMenuId,

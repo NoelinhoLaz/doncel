@@ -1,4 +1,4 @@
-import { getAgencyDbClient } from '@/lib/agencyDb'
+import { getAgencyDbClient, getCurrentSchemaName, bucketNameForSchema } from '@/lib/agencyDb'
 
 /**
  * Sube un PDF al bucket 'documentos-proveedor' y devuelve
@@ -11,13 +11,14 @@ export async function subirPDF(
   nombreOriginal: string
 ): Promise<{ archivo_url: string; archivo_path: string }> {
   const agencyDb = await getAgencyDbClient()
+  const bucket = bucketNameForSchema('documentos-proveedor', await getCurrentSchemaName())
   const ahora = new Date()
   const año   = ahora.getFullYear()
   const mes   = String(ahora.getMonth() + 1).padStart(2, '0')
   const path  = `${año}/${mes}/${uuid}.pdf`
 
   const { error } = await agencyDb.storage
-    .from('documentos-proveedor')
+    .from(bucket)
     .upload(path, buffer, {
       contentType: 'application/pdf',
       upsert:      false
@@ -26,7 +27,7 @@ export async function subirPDF(
   if (error) throw new Error(`STORAGE_ERROR: ${error.message}`)
 
   const { data: signedData } = await agencyDb.storage
-    .from('documentos-proveedor')
+    .from(bucket)
     .createSignedUrl(path, 60 * 60 * 24 * 365) // 1 año
 
   return {
@@ -46,6 +47,7 @@ export async function subirExtraccion(
   version: number
 ): Promise<string> {
   const agencyDb = await getAgencyDbClient()
+  const bucket = bucketNameForSchema('extracciones-ia', await getCurrentSchemaName())
   const ahora  = new Date()
   const año    = ahora.getFullYear()
   const mes    = String(ahora.getMonth() + 1).padStart(2, '0')
@@ -53,7 +55,7 @@ export async function subirExtraccion(
   const buffer = Buffer.from(JSON.stringify(json, null, 2))
 
   const { error } = await agencyDb.storage
-    .from('extracciones-ia')
+    .from(bucket)
     .upload(path, buffer, {
       contentType: 'application/json',
       upsert:      true
@@ -62,7 +64,7 @@ export async function subirExtraccion(
   if (error) throw new Error(`STORAGE_ERROR: ${error.message}`)
 
   const { data } = await agencyDb.storage
-    .from('extracciones-ia')
+    .from(bucket)
     .createSignedUrl(path, 60 * 60 * 24 * 365)
 
   return data?.signedUrl ?? ''

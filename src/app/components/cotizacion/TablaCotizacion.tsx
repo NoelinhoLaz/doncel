@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, Fragment } from "react";
-import { Info, Layers, Unlink, Copy, Trash2, Mail, Users, Moon, ChevronDown, ChevronRight, MapPin } from "lucide-react";
+import { Info, Layers, Unlink, Copy, Trash2, Mail, Users, Moon, ChevronDown, ChevronRight, MapPin, SlidersHorizontal } from "lucide-react";
+import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
+import SingleSelectDropdown from "@/app/components/SingleSelectDropdown";
 import { LiaGoogleDrive } from "react-icons/lia";
 import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
@@ -80,6 +82,7 @@ export default function TablaCotizacion({ c, hideHeader, compactHeader, title, s
   const [openTipoRowId, setOpenTipoRowId] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [showMap, setShowMap] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [nuevoItemOpcional, setNuevoItemOpcional] = useState(false);
 
   useEffect(() => {
@@ -402,6 +405,25 @@ export default function TablaCotizacion({ c, hideHeader, compactHeader, title, s
               />
             </div>
             <button
+              className={`${styles.actionIconButton} ${showFilters ? listStyles.activeAction : ""}`}
+              title="Filtrar"
+              onClick={() => setShowFilters((v) => !v)}
+              style={{ position: 'relative' }}
+            >
+              <SlidersHorizontal size={16} />
+              {(c.proveedorFilter.length + c.tipoFilterCotizacion.length + c.destinoFilterCotizacion.length + c.estadoFilterCotizacion.length) > 0 && (
+                <span
+                  style={{
+                    position: 'absolute', top: -6, right: -6, minWidth: 16, height: 16, padding: '0 4px',
+                    borderRadius: '999px', background: 'var(--primary-color, #6366f1)', color: '#fff',
+                    fontSize: '0.62rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  {c.proveedorFilter.length + c.tipoFilterCotizacion.length + c.destinoFilterCotizacion.length + c.estadoFilterCotizacion.length}
+                </span>
+              )}
+            </button>
+            <button
               className={`${styles.actionIconButton} ${showMap ? listStyles.activeAction : ""}`}
               title={showMap ? "Mostrar en listado" : "Mostrar en mapa"}
               onClick={() => setShowMap((v) => !v)}
@@ -473,6 +495,74 @@ export default function TablaCotizacion({ c, hideHeader, compactHeader, title, s
               )}
             </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {!hideHeader && showFilters && (
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', padding: '1rem', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+          <div style={{ width: 180 }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem' }}>Ordenar</label>
+            <SingleSelectDropdown
+              options={[
+                { value: "", label: "Sin ordenar" },
+                { value: "tipo", label: "Tipo" },
+                { value: "proveedor", label: "Proveedor" },
+                { value: "destino", label: "Destino" },
+              ]}
+              value={c.ordenarPorCotizacion}
+              onChange={(v) => c.setOrdenarPorCotizacion(v as "" | "tipo" | "proveedor" | "destino")}
+              style={{ padding: '0.3rem 0.5rem' }}
+            />
+          </div>
+          <div style={{ width: 200 }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem' }}>Proveedor</label>
+            <MultiSelectDropdown
+              options={c.proveedorOptions}
+              selected={c.proveedorFilter}
+              onChange={c.setProveedorFilter}
+              placeholder="Proveedores"
+              style={{ padding: '0.3rem 0.5rem' }}
+            />
+          </div>
+          <div style={{ width: 200 }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem' }}>Tipo</label>
+            <MultiSelectDropdown
+              options={c.tipoOptionsCotizacion}
+              selected={c.tipoFilterCotizacion}
+              onChange={c.setTipoFilterCotizacion}
+              placeholder="Tipos de servicio"
+              style={{ padding: '0.3rem 0.5rem' }}
+            />
+          </div>
+          <div style={{ width: 240 }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem' }}>Destino</label>
+            <MultiSelectDropdown
+              options={c.destinoOptionsCotizacion}
+              selected={c.destinoFilterCotizacion}
+              onChange={c.setDestinoFilterCotizacion}
+              placeholder="Destinos"
+              style={{ padding: '0.3rem 0.5rem' }}
+            />
+          </div>
+          <div style={{ width: 200 }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem' }}>Estado</label>
+            <MultiSelectDropdown
+              options={["Confirmado", "Pendiente"]}
+              selected={c.estadoFilterCotizacion}
+              onChange={c.setEstadoFilterCotizacion}
+              placeholder="Estados"
+              style={{ padding: '0.3rem 0.5rem' }}
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={() => { c.setProveedorFilter([]); c.setTipoFilterCotizacion([]); c.setDestinoFilterCotizacion([]); c.setEstadoFilterCotizacion([]); c.setOrdenarPorCotizacion(""); }}
+              style={{ padding: '0.35rem 0.75rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', background: '#fff', color: '#475569', cursor: 'pointer', fontWeight: 500 }}
+            >
+              Limpiar
+            </button>
           </div>
         </div>
       )}
@@ -702,23 +792,25 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                 <col style={{ width: 92 }} />
                 <col style={{ width: 56 }} />
               </colgroup>
-              <thead>
-                <tr>
-                  <th />
-                  <th style={{ whiteSpace: 'nowrap' }}>TIPO</th>
-                  <th>Descripción</th>
-                  <th>Proveedor</th>
-                  <th>Destino</th>
-                  <th style={{ textAlign: 'right' }} title="Plazas"><Users size={13} style={{ display: 'inline-block', verticalAlign: 'middle' }} /></th>
-                  <th style={{ textAlign: 'right' }} title="Noches"><Moon size={13} style={{ display: 'inline-block', verticalAlign: 'middle' }} /></th>
-                  <th style={{ textAlign: 'right' }}>Neto</th>
-                  <th style={{ textAlign: 'right' }}>PVP</th>
-                  <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Tot. Neto</th>
-                  <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Tot. PVP</th>
-                  <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Estado</th>
-                  <th />
-                </tr>
-              </thead>
+              {c.paginated.length === 0 && (
+                <thead>
+                  <tr>
+                    <th />
+                    <th style={{ whiteSpace: 'nowrap' }}>TIPO</th>
+                    <th>Descripción</th>
+                    <th>Proveedor</th>
+                    <th>Destino</th>
+                    <th style={{ textAlign: 'right' }} title="Plazas"><Users size={13} style={{ display: 'inline-block', verticalAlign: 'middle' }} /></th>
+                    <th style={{ textAlign: 'right' }} title="Noches"><Moon size={13} style={{ display: 'inline-block', verticalAlign: 'middle' }} /></th>
+                    <th style={{ textAlign: 'right' }}>Neto</th>
+                    <th style={{ textAlign: 'right' }}>PVP</th>
+                    <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Tot. Neto</th>
+                    <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Tot. PVP</th>
+                    <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Estado</th>
+                    <th />
+                  </tr>
+                </thead>
+              )}
               <tbody>
                 {c.paginated.length === 0 ? (
                   <tr>
@@ -729,7 +821,7 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                 ) : (
                   grupos.map((grupo) => {
                     const isCollapsed = collapsedGroups.has(grupo.key);
-                    const totalGrupo = grupo.items.reduce((sum, it: any) => sum + (it.total_pvp ?? (Number(it.pvp || 0) * Number(it.plazas || 0) * Number(it.noches || 0))), 0);
+                    const totalGrupo = grupo.items.reduce((sum, it: any) => sum + (it.total_neto ?? (Number(it.neto || 0) * Number(it.plazas || 0) * Number(it.noches || 0))), 0);
                     return (
                       <Fragment key={grupo.key}>
                         <tr onClick={() => toggleGroup(grupo.key)} style={{ cursor: 'pointer' }}>
@@ -745,6 +837,23 @@ HOTEL MILAN&#9;80&#9;45&#9;2&#9;7200
                             </div>
                           </td>
                         </tr>
+                        {!isCollapsed && (
+                          <tr>
+                            <th />
+                            <th style={{ whiteSpace: 'nowrap' }}>TIPO</th>
+                            <th>Descripción</th>
+                            <th>Proveedor</th>
+                            <th>Destino</th>
+                            <th style={{ textAlign: 'right' }} title="Plazas"><Users size={13} style={{ display: 'inline-block', verticalAlign: 'middle' }} /></th>
+                            <th style={{ textAlign: 'right' }} title="Noches"><Moon size={13} style={{ display: 'inline-block', verticalAlign: 'middle' }} /></th>
+                            <th style={{ textAlign: 'right' }}>Neto</th>
+                            <th style={{ textAlign: 'right' }}>PVP</th>
+                            <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Tot. Neto</th>
+                            <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Tot. PVP</th>
+                            <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Estado</th>
+                            <th />
+                          </tr>
+                        )}
                         {!isCollapsed && grupo.items.map((it: any) => renderItemRow(it))}
                       </Fragment>
                     );

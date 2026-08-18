@@ -27,6 +27,8 @@ export interface Kpis {
   obligatorioParcialCount: number;
   opcionalPagadoCount: number;
   opcionalParcialCount: number;
+  abonadoTotal: number;
+  pendienteTotal: number;
 }
 
 function countPagoEstados(servicios: any[]): { pagado: number; parcial: number } {
@@ -35,19 +37,26 @@ function countPagoEstados(servicios: any[]): { pagado: number; parcial: number }
   for (const s of servicios) {
     const abonado = Number(s.abonado ?? 0);
     const noches = Number(s.noches || 0) || 1;
-    const totalPvp = Number(s.pvp || 0) * Number(s.plazas || 1) * noches;
-    if (totalPvp > 0 && abonado >= totalPvp) pagado++;
+    const totalNeto = Number(s.neto || 0) * Number(s.plazas || 1) * noches;
+    if (totalNeto > 0 && abonado >= totalNeto) pagado++;
     else if (abonado > 0) parcial++;
   }
   return { pagado, parcial };
 }
 
+function getServiceNetoTotal(service: any): number {
+  const netoValue = Number(service.neto || 0);
+  const plazasValue = Number(service.plazas || 1);
+  const nochesValue = Number(service.noches || 0) || 1;
+  return netoValue * (plazasValue > 0 ? plazasValue : 1) * nochesValue;
+}
+
 export function calculateKpis(servicios: any[]): Kpis {
-  const totalCost = servicios.reduce((sum, s) => sum + getServiceTotal(s), 0);
+  const totalCost = servicios.reduce((sum, s) => sum + getServiceNetoTotal(s), 0);
   const obligatorios = servicios.filter(s => !s.opcional);
   const opcionales = servicios.filter(s => s.opcional);
-  const obligatorioCost = obligatorios.reduce((sum, s) => sum + getServiceTotal(s), 0);
-  const opcionalCost = opcionales.reduce((sum, s) => sum + getServiceTotal(s), 0);
+  const obligatorioCost = obligatorios.reduce((sum, s) => sum + getServiceNetoTotal(s), 0);
+  const opcionalCost = opcionales.reduce((sum, s) => sum + getServiceNetoTotal(s), 0);
 
   const obligatorioCount = obligatorios.length;
   const opcionalCount = opcionales.length;
@@ -58,6 +67,9 @@ export function calculateKpis(servicios: any[]): Kpis {
 
   const obligatorioEstados = countPagoEstados(obligatorios);
   const opcionalEstados = countPagoEstados(opcionales);
+
+  const abonadoTotal = servicios.reduce((sum, s) => sum + Number(s.abonado || 0), 0);
+  const pendienteTotal = Math.max(totalCost - abonadoTotal, 0);
 
   return {
     totalCost,
@@ -71,6 +83,8 @@ export function calculateKpis(servicios: any[]): Kpis {
     obligatorioParcialCount: obligatorioEstados.parcial,
     opcionalPagadoCount: opcionalEstados.pagado,
     opcionalParcialCount: opcionalEstados.parcial,
+    abonadoTotal,
+    pendienteTotal,
   };
 }
 
@@ -80,16 +94,16 @@ export function calculateCategoryCosts(
   getTypeInfo: (typeId: string) => any
 ): any[] {
   const visibleServicios = servicios.filter((ser) => !ser.opcional);
-  
+
   const dynamicCosts = visibleServicios.reduce((acc, s) => {
     const lineas = (s.lineas || []) as any[];
-    const serviceTotal = getServiceTotal(s);
-    
+    const serviceTotal = getServiceNetoTotal(s);
+
     if (lineas.length > 0) {
-      const totalPvpLineas = lineas.reduce((sum: number, l: any) => sum + Number(l.pvp || 0), 0);
-      const ratio = totalPvpLineas > 0 ? serviceTotal / totalPvpLineas : 1;
+      const totalNetoLineas = lineas.reduce((sum: number, l: any) => sum + Number(l.neto || 0), 0);
+      const ratio = totalNetoLineas > 0 ? serviceTotal / totalNetoLineas : 1;
       for (const l of lineas) {
-        const amount = Number(l.pvp || 0) * ratio;
+        const amount = Number(l.neto || 0) * ratio;
         const matchedType = serviceTypes.find(t => t.id === l.tipo || t.label.toLowerCase() === l.tipo?.toLowerCase());
         const typeKey = matchedType ? matchedType.id : 'otros';
         acc[typeKey] = (acc[typeKey] || 0) + amount;
@@ -100,7 +114,7 @@ export function calculateCategoryCosts(
       const typeKey = matchedType ? matchedType.id : 'otros';
       acc[typeKey] = (acc[typeKey] || 0) + amount;
     }
-    
+
     acc.totalVisible += serviceTotal;
     return acc;
   }, { totalVisible: 0 } as Record<string, number>);

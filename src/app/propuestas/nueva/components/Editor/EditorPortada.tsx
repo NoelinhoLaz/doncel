@@ -4,7 +4,7 @@ import React from "react";
 import { Video, X, Sparkles } from "lucide-react";
 import styles from "../../page.module.css";
 import type { Seccion } from "../../types";
-import MediaSelector from "./MediaSelector";
+import MediaSelectorModal from "./MediaSelectorModal";
 import InlineRichInput from "./InlineRichInput";
 import { youtubeId } from "../../utils/video-utils";
 
@@ -32,7 +32,7 @@ export default function EditorPortada({
             const ytId = m.tipo === "video" ? youtubeId(m.url) : null;
             const thumbBg = m.tipo === "video"
               ? (ytId ? `url(https://img.youtube.com/vi/${ytId}/mqdefault.jpg)` : undefined)
-              : `url(${m.url})`;
+              : `url('${m.url}')`;
             return (
               <button
                 key={i}
@@ -85,15 +85,17 @@ export default function EditorPortada({
           )}
         </div>
         {mediaAbierto === "new" && (
-          <MediaSelector
+          <MediaSelectorModal
             value={undefined}
             onChange={m => { if (m) { onUpdate(seccion.uid, { medias: [...(seccion.medias ?? []), m] }); } setMediaAbierto(false); }}
+            onClose={() => setMediaAbierto(false)}
           />
         )}
         {typeof mediaAbierto === "number" && (
-          <MediaSelector
+          <MediaSelectorModal
             value={seccion.medias?.[mediaAbierto]}
             onChange={m => { if (m) { const arr = [...(seccion.medias ?? [])]; arr[mediaAbierto as number] = m; onUpdate(seccion.uid, { medias: arr }); } setMediaAbierto(false); }}
+            onClose={() => setMediaAbierto(false)}
           />
         )}
       </div>

@@ -655,6 +655,7 @@ export async function removeDestinoCotizacion(cotizacionId: string, destinoId: s
 export async function deleteCotizacion(cotizacionId: string) {
   try {
     const agencyDb = await getAgencyDbClient();
+    await assertPuedeEditarCotizacion(agencyDb, cotizacionId);
     // Lines deleted by cascade if FK is set; delete explicitly to be safe
     await agencyDb.from("operativa_cotizacion_lineas").delete().eq("cotizacion_id", cotizacionId);
     const { error } = await agencyDb.from("operativa_cotizaciones").delete().eq("id", cotizacionId);

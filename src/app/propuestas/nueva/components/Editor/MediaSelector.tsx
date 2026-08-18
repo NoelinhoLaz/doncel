@@ -4,8 +4,9 @@ import { X, Video, Image } from "lucide-react";
 import styles from "../../page.module.css";
 import type { Seccion, MediaItem } from "../../types";
 
-type MediaTab = "unsplash" | "link" | "upload" | "video";
+type MediaTab = "unsplash" | "link" | "upload" | "video" | "misimagenes";
 interface UnsplashPhoto { id: string; thumb: string; full: string; alt: string; author: string; authorUrl: string; }
+interface MiImagen { url: string; name: string; createdAt: string | null; }
 
 function youtubeId(url: string): string | null {
   const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
@@ -23,6 +24,9 @@ export default function MediaSelector({ value, onChange }: { value?: Seccion["me
   const [loadingMore, setLoadingMore] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [misImagenes, setMisImagenes] = useState<MiImagen[]>([]);
+  const [loadingMisImagenes, setLoadingMisImagenes] = useState(false);
+  const [misImagenesCargadas, setMisImagenesCargadas] = useState(false);
 
   const buscar = async (q: string) => {
     if (!q.trim()) return;
@@ -53,18 +57,40 @@ export default function MediaSelector({ value, onChange }: { value?: Seccion["me
   };
 
   const apply = (tipo: MediaTab, url: string) => {
-    if (url) onChange({ tipo, url });
+    if (url) onChange({ tipo: tipo === "misimagenes" ? "upload" : tipo, url });
+  };
+
+  const cargarMisImagenes = async () => {
+    setLoadingMisImagenes(true);
+    try {
+      const res = await fetch("/api/propuestas/list-images");
+      const data = await res.json();
+      setMisImagenes(data.images ?? []);
+      setMisImagenesCargadas(true);
+    } catch (err) {
+      console.error("list-images failed:", err);
+    } finally {
+      setLoadingMisImagenes(false);
+    }
   };
 
   return (
     <div className={styles.mediaSelector}>
       <div className={styles.mediaTabs}>
-        {(["unsplash","link","upload","video"] as MediaTab[]).map(t => (
-          <button key={t} className={`${styles.mediaTab} ${mediaTab === t ? styles.mediaTabActive : ""}`} onClick={() => setMediaTab(t)}>
-            {t === "unsplash" && "Unsplash"}
-            {t === "link"     && "URL"}
-            {t === "upload"   && "Subir"}
-            {t === "video"    && "Video"}
+        {(["unsplash","link","upload","video","misimagenes"] as MediaTab[]).map(t => (
+          <button
+            key={t}
+            className={`${styles.mediaTab} ${mediaTab === t ? styles.mediaTabActive : ""}`}
+            onClick={() => {
+              setMediaTab(t);
+              if (t === "misimagenes" && !misImagenesCargadas) cargarMisImagenes();
+            }}
+          >
+            {t === "unsplash"     && "Unsplash"}
+            {t === "link"         && "URL"}
+            {t === "upload"       && "Subir"}
+            {t === "video"        && "Video"}
+            {t === "misimagenes"  && "Mis imágenes"}
           </button>
         ))}
       </div>
@@ -172,9 +198,32 @@ export default function MediaSelector({ value, onChange }: { value?: Seccion["me
         </div>
       )}
 
+      {mediaTab === "misimagenes" && (
+        <div className={styles.mediaUnsplash}>
+          {loadingMisImagenes && <p className={styles.mediaHint}>Cargando…</p>}
+          {!loadingMisImagenes && misImagenes.length === 0 && (
+            <p className={styles.mediaHint}>Todavía no has subido ninguna imagen.</p>
+          )}
+          {!loadingMisImagenes && misImagenes.length > 0 && (
+            <div className={styles.unsplashGrid}>
+              {misImagenes.map(img => (
+                <button
+                  key={img.url}
+                  className={`${styles.unsplashThumb} ${value?.url === img.url ? styles.unsplashThumbActive : ""}`}
+                  onClick={() => apply("misimagenes", img.url)}
+                  title={img.name}
+                >
+                  <img src={img.url} alt={img.name} loading="lazy" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {value?.url && (
         <div className={styles.mediaPreviewRow}>
-          <div className={styles.mediaPreviewThumb} style={{ backgroundImage: `url(${value.url})` }} />
+          <div className={styles.mediaPreviewThumb} style={{ backgroundImage: `url('${value.url}')` }} />
           <button className={styles.mediaRemove} onClick={() => onChange(undefined as any)}>Quitar</button>
         </div>
       )}

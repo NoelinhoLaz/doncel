@@ -5,7 +5,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Bold, Italic, Strikethrough, Code, List, ListOrdered } from "lucide-react";
+import { Bold, Italic, Underline as UnderlineIcon, Link as LinkIcon, List, ListOrdered } from "lucide-react";
 
 export default function InlineRichInput({
   value,
@@ -25,6 +25,7 @@ export default function InlineRichInput({
         horizontalRule: false,
         // Enter inserta un salto de línea simple en vez de un párrafo nuevo.
         paragraph: { HTMLAttributes: {} },
+        link: { openOnClick: false, autolink: false },
       }).extend({
         addKeyboardShortcuts() {
           return {
@@ -54,6 +55,17 @@ export default function InlineRichInput({
 
   if (!editor) return null;
 
+  const toggleLink = () => {
+    const urlActual = editor.getAttributes("link").href as string | undefined;
+    const url = window.prompt("URL del enlace", urlActual ?? "https://");
+    if (url === null) return;
+    if (url.trim() === "") {
+      editor.chain().focus().extendMarkRange("link").unsetLink().run();
+      return;
+    }
+    editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run();
+  };
+
   return (
     <div
       style={{
@@ -68,6 +80,7 @@ export default function InlineRichInput({
       <BubbleMenu
         editor={editor}
         options={{ placement: "top" }}
+        shouldShow={({ editor: ed, state }) => ed.isFocused && !state.selection.empty}
         style={{ display: "flex", alignItems: "center", gap: "2px", background: "#1e293b", borderRadius: "0.4rem", padding: "3px", boxShadow: "0 8px 16px -4px rgba(15,23,42,0.35)" }}
       >
         <button type="button" title="Negrita" style={bubbleBtn(editor.isActive("bold"))} onClick={() => editor.chain().focus().toggleBold().run()}>
@@ -76,11 +89,11 @@ export default function InlineRichInput({
         <button type="button" title="Cursiva" style={bubbleBtn(editor.isActive("italic"))} onClick={() => editor.chain().focus().toggleItalic().run()}>
           <Italic size={13} />
         </button>
-        <button type="button" title="Tachado" style={bubbleBtn(editor.isActive("strike"))} onClick={() => editor.chain().focus().toggleStrike().run()}>
-          <Strikethrough size={13} />
+        <button type="button" title="Subrayado" style={bubbleBtn(editor.isActive("underline"))} onClick={() => editor.chain().focus().toggleUnderline().run()}>
+          <UnderlineIcon size={13} />
         </button>
-        <button type="button" title="Código" style={bubbleBtn(editor.isActive("code"))} onClick={() => editor.chain().focus().toggleCode().run()}>
-          <Code size={13} />
+        <button type="button" title="Enlace" style={bubbleBtn(editor.isActive("link"))} onClick={toggleLink}>
+          <LinkIcon size={13} />
         </button>
         <div style={{ width: "1px", height: "16px", background: "rgba(255,255,255,0.2)", margin: "0 2px" }} />
         <button type="button" title="Lista numerada" style={bubbleBtn(editor.isActive("orderedList"))} onClick={() => editor.chain().focus().toggleOrderedList().run()}>

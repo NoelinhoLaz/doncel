@@ -4,7 +4,8 @@ import React from "react";
 import { ChevronRight, GripVertical, X } from "lucide-react";
 import styles from "../../page.module.css";
 import type { Seccion } from "../../types";
-import MediaSelector from "./MediaSelector";
+import MediaSelectorModal from "./MediaSelectorModal";
+import InlineRichInput from "./InlineRichInput";
 
 export default function EditorItinerario({
   seccion,
@@ -21,6 +22,20 @@ export default function EditorItinerario({
   expandedDayIdx: number | null;
   setExpandedDayIdx: (v: number | null) => void;
 }) {
+  const stripHtml = (s?: string) => (s ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+
+  const youtubeId = (url: string): string | null => {
+    const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
+    return m ? m[1] : null;
+  };
+  const mediaThumbUrl = (m: { tipo: string; url: string }) => {
+    if (m.tipo === "video") {
+      const yid = youtubeId(m.url);
+      return yid ? `https://img.youtube.com/vi/${yid}/mqdefault.jpg` : null;
+    }
+    return m.url;
+  };
+
   const updateDia = (dayNum: number, patch: Partial<any>) => {
     const currentDias = [...(seccion.dias ?? [])];
     const index = currentDias.findIndex(d => d.dia === dayNum);
@@ -47,13 +62,10 @@ export default function EditorItinerario({
     <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
       <div className={styles.editorSection}>
         <label className={styles.editorFieldLabel}>Título del itinerario</label>
-        <input
-          type="text"
+        <InlineRichInput
           placeholder="Ej. Plan de ruta y actividades..."
           value={seccion.titulo ?? ""}
-          onChange={e => onUpdate(seccion.uid, { titulo: e.target.value })}
-          className={styles.editorInput}
-          style={{ width: "100%", background: "#ffffff" }}
+          onChange={html => onUpdate(seccion.uid, { titulo: html })}
         />
       </div>
       <div style={{ display: "flex", gap: "12px", width: "100%" }}>
@@ -126,7 +138,7 @@ export default function EditorItinerario({
                         style={{ flex: 1, padding: "10px 12px 10px 8px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
                       >
                         <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#1e293b" }}>
-                          Día {dayNum}: <span style={{ fontWeight: 400, color: "#64748b", marginLeft: "4px" }}>{diaData.titulo || "Sin título"}</span>
+                          Día {dayNum}: <span style={{ fontWeight: 400, color: "#64748b", marginLeft: "4px" }}>{stripHtml(diaData.titulo) || "Sin título"}</span>
                         </span>
                         <ChevronRight size={14} style={{ transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "#94a3b8" }} />
                       </button>
@@ -138,7 +150,7 @@ export default function EditorItinerario({
                           <label className={styles.editorFieldLabel}>Imágenes del día</label>
                           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "4px", marginBottom: "8px" }}>
                             {(diaData.medias ?? []).map((m, imgIdx) => {
-                              const thumbBg = `url(${m.url})`;
+                              const thumbUrl = mediaThumbUrl(m);
                               const isSelecting = mediaAbierto === `day-${dayNum}-${imgIdx}`;
                               return (
                                 <div
@@ -148,7 +160,8 @@ export default function EditorItinerario({
                                     width: "50px",
                                     height: "50px",
                                     borderRadius: "4px",
-                                    backgroundImage: thumbBg,
+                                    backgroundImage: thumbUrl ? `url('${thumbUrl}')` : undefined,
+                                    backgroundColor: thumbUrl ? undefined : "#e2e8f0",
                                     backgroundSize: "cover",
                                     backgroundPosition: "center",
                                     border: "1px solid #cbd5e1",
@@ -156,6 +169,13 @@ export default function EditorItinerario({
                                   }}
                                   onClick={() => setMediaAbierto(isSelecting ? false : `day-${dayNum}-${imgIdx}`)}
                                 >
+                                  {m.tipo === "video" && (
+                                    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+                                      <div style={{ width: "18px", height: "18px", borderRadius: "50%", background: "rgba(15, 23, 42, 0.65)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                        <div style={{ width: 0, height: 0, borderTop: "4px solid transparent", borderBottom: "4px solid transparent", borderLeft: "6px solid #ffffff", marginLeft: "2px" }} />
+                                      </div>
+                                    </div>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={e => {
@@ -200,17 +220,16 @@ export default function EditorItinerario({
                           </div>
 
                           {mediaAbierto === `day-${dayNum}-new` && (
-                            <div style={{ marginTop: "8px" }}>
-                              <MediaSelector
-                                value={undefined}
-                                onChange={m => {
-                                  if (!m) return;
-                                  const arr = [...(diaData.medias ?? []), m];
-                                  updateDia(dayNum, { medias: arr });
-                                  setMediaAbierto(false);
-                                }}
-                              />
-                            </div>
+                            <MediaSelectorModal
+                              value={undefined}
+                              onChange={m => {
+                                if (!m) return;
+                                const arr = [...(diaData.medias ?? []), m];
+                                updateDia(dayNum, { medias: arr });
+                                setMediaAbierto(false);
+                              }}
+                              onClose={() => setMediaAbierto(false)}
+                            />
                           )}
 
                           {typeof mediaAbierto === "string" && mediaAbierto.startsWith(`day-${dayNum}-`) && !mediaAbierto.endsWith("-new") && (() => {
@@ -218,43 +237,36 @@ export default function EditorItinerario({
                             const imgIdx = parseInt(parts[parts.length - 1] ?? "", 10);
                             if (isNaN(imgIdx)) return null;
                             return (
-                              <div style={{ marginTop: "8px" }}>
-                                <MediaSelector
-                                  value={diaData.medias?.[imgIdx]}
-                                  onChange={m => {
-                                    if (!m) return;
-                                    const arr = [...(diaData.medias ?? [])];
-                                    arr[imgIdx] = m;
-                                    updateDia(dayNum, { medias: arr });
-                                    setMediaAbierto(false);
-                                  }}
-                                />
-                              </div>
+                              <MediaSelectorModal
+                                value={diaData.medias?.[imgIdx]}
+                                onChange={m => {
+                                  if (!m) return;
+                                  const arr = [...(diaData.medias ?? [])];
+                                  arr[imgIdx] = m;
+                                  updateDia(dayNum, { medias: arr });
+                                  setMediaAbierto(false);
+                                }}
+                                onClose={() => setMediaAbierto(false)}
+                              />
                             );
                           })()}
                         </div>
 
                         <div>
                           <label className={styles.editorFieldLabel}>Título</label>
-                          <input
-                            type="text"
+                          <InlineRichInput
                             placeholder="Título del día..."
                             value={diaData.titulo ?? ""}
-                            onChange={e => updateDia(dayNum, { titulo: e.target.value })}
-                            className={styles.editorInput}
-                            style={{ width: "100%", background: "#ffffff" }}
+                            onChange={html => updateDia(dayNum, { titulo: html })}
                           />
                         </div>
 
                         <div>
                           <label className={styles.editorFieldLabel}>Descripción</label>
-                          <textarea
+                          <InlineRichInput
                             placeholder="Descripción del día..."
                             value={diaData.desc ?? ""}
-                            onChange={e => updateDia(dayNum, { desc: e.target.value })}
-                            className={styles.editorInput}
-                            rows={3}
-                            style={{ width: "100%", background: "#ffffff", resize: "vertical" }}
+                            onChange={html => updateDia(dayNum, { desc: html })}
                           />
                         </div>
                       </div>

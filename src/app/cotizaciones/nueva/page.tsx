@@ -10,6 +10,7 @@ import styles from "../../expedientes/[id]/page.module.css";
 import CotizacionesTab from "../../expedientes/[id]/components/CotizacionesTab";
 import { useSearchParams, useRouter } from "next/navigation";
 import { addDestinoCotizacion, removeDestinoCotizacion, updateCotizacionMeta } from "@/actions/cotizaciones";
+import { checkAjusteFechasPropuestasVinculadas, ajustarItinerariosDeCotizacion } from "@/actions/propuestas";
 import { getEntidades } from "@/actions/entidades";
 import ExpedienteActionsToolbar from "@/app/components/ExpedienteActionsToolbar";
 import { PanelEntidad } from "@/app/campanas/[id]/panels/PanelEntidad";
@@ -26,6 +27,11 @@ export default function NuevaCotizacionPage() {
   const [fechaSalida, setFechaSalida] = useState<string>("");
   const [fechaRegreso, setFechaRegreso] = useState<string>("");
   const [selectedPresupuestoId, setSelectedPresupuestoId] = useState<string | null>(null);
+  const [ajusteFechas, setAjusteFechas] = useState<{
+    propuestaIds: string[];
+    diasItinerario: number;
+    diasCotizacion: number;
+  } | null>(null);
 
   // Summary Panel States
   const [summaryPlazas, setSummaryPlazas] = useState<number>(30);
@@ -254,7 +260,11 @@ export default function NuevaCotizacionPage() {
                 value={fechaSalida}
                 onChange={(v) => {
                   setFechaSalida(v);
-                  if (cotId) updateCotizacionMeta(cotId, { fecha_salida: v || null }).catch(console.error);
+                  if (!cotId) return;
+                  updateCotizacionMeta(cotId, { fecha_salida: v || null })
+                    .then(() => checkAjusteFechasPropuestasVinculadas(cotId))
+                    .then(check => { if (check.requiereAjuste) setAjusteFechas({ propuestaIds: check.propuestaIds!, diasItinerario: check.diasItinerario!, diasCotizacion: check.diasCotizacion! }); })
+                    .catch(console.error);
                 }}
               />
               <DateChip
@@ -262,7 +272,11 @@ export default function NuevaCotizacionPage() {
                 value={fechaRegreso}
                 onChange={(v) => {
                   setFechaRegreso(v);
-                  if (cotId) updateCotizacionMeta(cotId, { fecha_regreso: v || null }).catch(console.error);
+                  if (!cotId) return;
+                  updateCotizacionMeta(cotId, { fecha_regreso: v || null })
+                    .then(() => checkAjusteFechasPropuestasVinculadas(cotId))
+                    .then(check => { if (check.requiereAjuste) setAjusteFechas({ propuestaIds: check.propuestaIds!, diasItinerario: check.diasItinerario!, diasCotizacion: check.diasCotizacion! }); })
+                    .catch(console.error);
                 }}
               />
             </fieldset>
@@ -463,6 +477,38 @@ export default function NuevaCotizacionPage() {
         onClose={() => setSelectedPresupuestoId(null)}
         presupuestoId={selectedPresupuestoId || ""}
       />
+
+      {ajusteFechas && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10001, backgroundColor: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ backgroundColor: "#ffffff", width: "400px", borderRadius: "16px", padding: "1.5rem", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)", display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+            <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>Las fechas ya no coinciden</h3>
+            <p style={{ fontSize: "0.82rem", color: "#475569", margin: 0, lineHeight: 1.5 }}>
+              {ajusteFechas.propuestaIds.length === 1 ? "La propuesta vinculada tiene" : `${ajusteFechas.propuestaIds.length} propuestas vinculadas tienen`} un itinerario de <strong>{ajusteFechas.diasItinerario} días</strong>, pero la cotización ahora dura <strong>{ajusteFechas.diasCotizacion} días</strong>.
+              {ajusteFechas.diasCotizacion < ajusteFechas.diasItinerario
+                ? ` Si ajustas, se recortarán los últimos ${ajusteFechas.diasItinerario - ajusteFechas.diasCotizacion} día(s) del itinerario.`
+                : ` Si ajustas, se añadirán ${ajusteFechas.diasCotizacion - ajusteFechas.diasItinerario} día(s) vacío(s) al final del itinerario.`}
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", borderTop: "1px solid #f1f5f9", paddingTop: "0.9rem" }}>
+              <button
+                onClick={() => setAjusteFechas(null)}
+                style={{ padding: "8px 14px", fontSize: "0.78rem", fontWeight: 600, borderRadius: "8px", border: "1px solid #cbd5e1", background: "#ffffff", color: "#475569", cursor: "pointer" }}
+              >
+                Dejar como está
+              </button>
+              <button
+                onClick={() => {
+                  if (!cotId) return;
+                  ajustarItinerariosDeCotizacion(cotId, ajusteFechas.propuestaIds).catch(console.error);
+                  setAjusteFechas(null);
+                }}
+                style={{ padding: "8px 14px", fontSize: "0.78rem", fontWeight: 600, borderRadius: "8px", border: "none", backgroundColor: "var(--primary-color, #4a88b5)", color: "#ffffff", cursor: "pointer" }}
+              >
+                Ajustar itinerario
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

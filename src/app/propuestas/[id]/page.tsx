@@ -27,6 +27,7 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
       oculta: s.oculta,
       titulo: s.titulo,
       subtitulo: s.subtitulo,
+      textoLibre: s.textoLibre,
       medias: s.medias,
       fechaDesde: s.fechaDesde,
       fechaHasta: s.fechaHasta,
@@ -37,6 +38,7 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
       layout: d.layout,
       estiloTitulo: d.estiloTitulo,
       estiloSubtitulo: d.estiloSubtitulo,
+      estiloTextoLibre: d.estiloTextoLibre,
       estiloTituloDia: d.estiloTituloDia,
       estiloDescDia: d.estiloDescDia,
       colorFondo: d.colorFondo,
@@ -55,9 +57,14 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
       menuFijo: d.menuFijo,
       // Precio fields
       pvp: s.pvp,
+      pvpVinculado: s.pvpVinculado,
       condiciones: s.condiciones,
       estiloPvp: d.estiloPvp,
       estiloCondiciones: d.estiloCondiciones,
+      // Extras fields
+      extrasFilas: s.extrasFilas,
+      estiloExtraTexto: d.estiloExtraTexto,
+      estiloExtraImporte: d.estiloExtraImporte,
       // Formulario fields
       formularioCampos: s.formularioCampos,
       formularioTitulo: s.formularioTitulo,
@@ -75,6 +82,7 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
     <PropuestaEditor
       initialPropuestaId={id}
       initialSecciones={initialSecciones}
+      initialCotizacionId={(propuesta as any).cotizacion_id ?? null}
       initialContactoId={propuesta.contacto_id}
       initialContactoNombre={(propuesta as any).contabilidad_entidades?.nombre || null}
       initialEstilosGlobales={initialEstilosGlobales}

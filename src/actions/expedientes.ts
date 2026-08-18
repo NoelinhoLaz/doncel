@@ -575,6 +575,7 @@ export async function getEntityLinks(params: {
         .eq("id", propuestaId)
         .maybeSingle();
       if (data?.cotizacion_id) {
+        if (!cotizacionId) cotizacionId = data.cotizacion_id;
         const { data: cot } = await agencyDb
           .from("operativa_cotizaciones")
           .select("expediente_id")
