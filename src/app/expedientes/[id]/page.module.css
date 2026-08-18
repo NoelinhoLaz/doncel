@@ -519,6 +519,16 @@
   justify-content: space-between;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
   transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpiIconBg {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  opacity: 0.12;
+  pointer-events: none;
 }
 
 .kpiCard:hover {
@@ -530,6 +540,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  width: 100%;
 }
 
 .kpiLabel {
@@ -538,12 +549,15 @@
   color: #94a3b8;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  text-align: left;
 }
 
 .kpiValue {
   font-size: 1.5rem;
   font-weight: 700;
   color: #1e293b;
+  text-align: right;
+  text-align: right;
 }
 
 .kpiIconWrapper {

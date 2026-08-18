@@ -361,6 +361,172 @@ export async function getExpedientes() {
   }
 }
 
+// KPIs de resumen del lado de gastos/proveedores del expediente: nº de
+// servicios, pagos realizados a proveedores, saldo pendiente de pago y
+// facturas soportadas (recibidas de proveedores). "Pagos"/"Pendiente"
+// siguen la misma lógica que calculateKpis() en lib/utils/servicios.ts
+// (neto de cada servicio vs. su importe abonado, vía v_abonados_servicios).
+export async function getResumenPagosExpediente(expedienteId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+
+    const { data: servicios, error } = await agencyDb
+      .from("operativa_expedientes_servicios")
+      .select("id, descripcion, neto, plazas, noches, documento_id, opcional")
+      .eq("expediente_id", expedienteId);
+    if (error) throw error;
+
+    const lista = servicios ?? [];
+    const servicioIds = lista.map((s: any) => s.id).filter(Boolean);
+    const documentoIds = [...new Set(lista.map((s: any) => s.documento_id).filter(Boolean))];
+
+    const [abonosRes, documentosRes] = await Promise.all([
+      servicioIds.length > 0
+        ? agencyDb.from("v_abonados_servicios").select("servicio_id, total_abonado").in("servicio_id", servicioIds)
+        : Promise.resolve({ data: [] as any[] }),
+      documentoIds.length > 0
+        ? agencyDb.from("operativa_documentos_proveedor").select("total_documento").in("id", documentoIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+
+    const abonoMap = new Map<string, number>();
+    for (const a of (abonosRes.data ?? [])) abonoMap.set(a.servicio_id, Number(a.total_abonado || 0));
+
+    const netoServicio = (s: any) => {
+      const neto = Number(s.neto || 0);
+      const plazas = Number(s.plazas || 1) || 1;
+      const noches = Number(s.noches || 0) || 1;
+      return neto * plazas * noches;
+    };
+
+    const totalNeto = lista.reduce((sum: number, s: any) => sum + netoServicio(s), 0);
+    const pagosRealizados = lista.reduce((sum: number, s: any) => sum + (abonoMap.get(s.id) || 0), 0);
+
+    // Desglose por extra: neto (coste) al proveedor de cada servicio (base y
+    // opcionales), no lo ya abonado. Agrupado por descripción (puede haber
+    // varias filas de servicio con el mismo nombre) para que la suma del
+    // desglose cuadre exactamente con totalNeto. Ordenado alfabéticamente
+    // (criterio fijo, igual en Cobros y Pagos) para que ambas columnas
+    // muestren siempre las filas en el mismo orden.
+    const base = lista.filter((s: any) => !s.opcional);
+    const extras = lista.filter((s: any) => s.opcional);
+    const netoBase = base.reduce((sum: number, s: any) => sum + netoServicio(s), 0);
+
+    const netoExtrasPorDescripcion = new Map<string, number>();
+    for (const s of extras) {
+      const key = s.descripcion || "Extra";
+      netoExtrasPorDescripcion.set(key, (netoExtrasPorDescripcion.get(key) || 0) + netoServicio(s));
+    }
+
+    const extrasOrdenados = [...netoExtrasPorDescripcion.entries()].sort(
+      ([a], [b]) => a.localeCompare(b, "es")
+    );
+
+    const desglose = [
+      { label: "Neto Base", importe: netoBase },
+      ...extrasOrdenados.map(([label, importe]) => ({ label, importe })),
+    ];
+
+    return {
+      serviciosCount: lista.length,
+      pagosRealizados,
+      pendientePago: Math.max(totalNeto - pagosRealizados, 0),
+      facturasSoportadas: (documentosRes.data ?? []).reduce((sum: number, d: any) => sum + Number(d.total_documento || 0), 0),
+      totalPagosEstimados: totalNeto,
+      desglosePagosEstimados: desglose,
+    };
+  } catch (error: any) {
+    console.error("Failed to get resumen pagos expediente:", error.message);
+    return { serviciosCount: 0, pagosRealizados: 0, pendientePago: 0, facturasSoportadas: 0, totalPagosEstimados: 0, desglosePagosEstimados: [] };
+  }
+}
+
+// KPIs de resumen del expediente: viajeros totales, cobros recibidos,
+// facturación emitida y saldo pendiente. "Cobros"/"Saldo" siguen la misma
+// lógica que CobrosKpiGrid (importe_total/importe_abonado de pagadores).
+export async function getResumenKpisExpediente(expedienteId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+
+    const [viajerosRes, pagadoresRes, facturasRes, serviciosRes] = await Promise.all([
+      agencyDb
+        .from("operativa_viajeros_expedientes")
+        .select("id, extras")
+        .eq("expediente_id", expedienteId)
+        .order("id", { ascending: true }),
+      agencyDb
+        .from("operativa_pagadores_expedientes")
+        .select("importe_total, importe_abonado")
+        .eq("expediente_id", expedienteId),
+      agencyDb
+        .from("facturas_emitidas")
+        .select("importe_total")
+        .eq("expediente_id", expedienteId),
+      agencyDb
+        .from("operativa_expedientes_servicios")
+        .select("id, descripcion")
+        .eq("expediente_id", expedienteId),
+    ]);
+
+    const pagadores = pagadoresRes.data ?? [];
+    const totalFacturable = pagadores.reduce((s, p: any) => s + Number(p.importe_total || 0), 0);
+    const cobrosRecibidos = pagadores.reduce((s, p: any) => s + Number(p.importe_abonado || 0), 0);
+
+    // Desglose de totalFacturable (real, de pagadores): cada extra = suma de
+    // precio×cantidad del snapshot embebido en
+    // operativa_viajeros_expedientes.extras[], agrupado por id de servicio
+    // y mostrado con el nombre ACTUAL de operativa_expedientes_servicios
+    // (no el snapshot histórico e.descripcion, que puede quedar
+    // desactualizado si el servicio se renombró después de la selección) —
+    // así el nombre coincide siempre con el que usa el desglose de Pagos.
+    // "PVP Base" es el resto tras restar esos extras, para que la suma de
+    // filas cuadre con el total real mostrado arriba.
+    const nombreServicioPorId = new Map<string, string>();
+    for (const s of (serviciosRes.data ?? [])) nombreServicioPorId.set(s.id, s.descripcion || "Extra");
+
+    const viajerosData = viajerosRes.data ?? [];
+    const extrasPorId = new Map<string, number>();
+    for (const v of viajerosData) {
+      let extrasList: any[] = [];
+      if (Array.isArray(v.extras)) extrasList = v.extras;
+      else if (typeof v.extras === "string") {
+        try { extrasList = JSON.parse(v.extras); } catch { extrasList = []; }
+      }
+      for (const e of (extrasList || [])) {
+        const key = e?.id || e?.descripcion || "Extra";
+        const importe = Number(e?.precio || 0) * Number(e?.cantidad || 1);
+        extrasPorId.set(key, (extrasPorId.get(key) || 0) + importe);
+      }
+    }
+
+    const viajerosCount = viajerosData.length;
+    // El total del KPI es el real (facturación a pagadores). El desglose
+    // debe sumar exactamente ese total: "PVP Base" es el resto tras restar
+    // los extras conocidos, en vez de recalcularse desde pvp_viajero.
+    const totalExtrasEstimado = [...extrasPorId.values()].reduce((s, v) => s + v, 0);
+    const pvpBaseAjustado = totalFacturable - totalExtrasEstimado;
+    const extrasCobrosOrdenados = [...extrasPorId.entries()]
+      .map(([id, importe]) => ({ label: nombreServicioPorId.get(id) || "Extra", importe }))
+      .sort((a, b) => a.label.localeCompare(b.label, "es"));
+    const desglose = [
+      { label: "PVP Base", importe: pvpBaseAjustado },
+      ...extrasCobrosOrdenados,
+    ];
+
+    return {
+      viajerosCount,
+      cobrosRecibidos,
+      facturacionEmitida: (facturasRes.data ?? []).reduce((s, f: any) => s + Number(f.importe_total || 0), 0),
+      saldoPendiente: totalFacturable - cobrosRecibidos,
+      totalCobrosEstimados: totalFacturable,
+      desgloseCobrosEstimados: desglose,
+    };
+  } catch (error: any) {
+    console.error("Failed to get resumen KPIs expediente:", error.message);
+    return { viajerosCount: 0, cobrosRecibidos: 0, facturacionEmitida: 0, saldoPendiente: 0, totalCobrosEstimados: 0, desgloseCobrosEstimados: [] };
+  }
+}
+
 export async function getExpedienteById(id: string) {
   try {
     const agencyDb = await getAgencyDbClient();

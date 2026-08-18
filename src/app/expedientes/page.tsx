@@ -40,6 +40,10 @@ export default function ExpedientesPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [agentFilter, setAgentFilter] = useState<string[]>([]);
+  const [agentFilterInicializado, setAgentFilterInicializado] = useState(false);
+  const [nombreAgenteActual, setNombreAgenteActual] = useState<string | null>(null);
+  const [currentAuthUserId, setCurrentAuthUserId] = useState<string | null>(null);
+  const [currentUsuarioId, setCurrentUsuarioId] = useState<string | null>(null);
   const [sucursalFilter, setSucursalFilter] = useState<string[]>([]);
   const [destinoFilter, setDestinoFilter] = useState<string[]>([]);
 
@@ -60,17 +64,44 @@ export default function ExpedientesPage() {
   const [contactExpediente, setContactExpediente] = useState<ExpedienteRow | null>(null);
 
   // ── Data loading ─────────────────────────────────────────────────────────
+  const [agentFilterCargaCompleta, setAgentFilterCargaCompleta] = useState(false);
   const loadDbExpedientes = useCallback(async () => {
     try {
       const data = await getExpedientes();
       setDbExpedientes(data || []);
     } catch (err) {
       console.error("Error loading expedientes:", err);
+    } finally {
+      setAgentFilterCargaCompleta(true);
     }
   }, []);
 
   useEffect(() => {
     loadDbExpedientes();
+
+    const cargarIdentidad = (intentosRestantes: number) => {
+      fetch("/api/auth/me", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d?.success) {
+            setCurrentAuthUserId(d.data.authUserId ?? null);
+            setCurrentUsuarioId(d.data.usuarioId ?? null);
+            setNombreAgenteActual(
+              `${d.data.nombre ?? ""} ${d.data.apellidos ?? ""}`.trim() || null
+            );
+          } else if (intentosRestantes > 0) {
+            // En un refresh duro la sesión puede tardar en estar disponible
+            // para la primera petición; reintenta antes de rendirse.
+            setTimeout(() => cargarIdentidad(intentosRestantes - 1), 400);
+          }
+        })
+        .catch(() => {
+          if (intentosRestantes > 0) {
+            setTimeout(() => cargarIdentidad(intentosRestantes - 1), 400);
+          }
+        });
+    };
+    cargarIdentidad(3);
   }, [loadDbExpedientes]);
 
   const openEditExpediente = useCallback(
@@ -94,6 +125,26 @@ export default function ExpedientesPage() {
     () => Array.from(new Set(mappedExpedientes.map((e) => e.agente))).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" })),
     [mappedExpedientes]
   );
+
+  useEffect(() => {
+    if (agentFilterInicializado) return;
+    // Espera a tener al menos un identificador de usuario Y los expedientes ya cargados
+    // (aunque estén vacíos: dbExpedientes.length === 0 es un estado válido, no "aún cargando").
+    if (!currentAuthUserId && !currentUsuarioId) return;
+    if (!agentFilterCargaCompleta) return;
+    const propio = dbExpedientes.find(
+      (e: any) => e.agente_id === currentAuthUserId || e.agente_id === currentUsuarioId
+    );
+    if (propio?.agente?.nombre) {
+      setAgentFilter([propio.agente.nombre]);
+      setShowFilters(true);
+    } else if (nombreAgenteActual && agenteOptions.includes(nombreAgenteActual)) {
+      // Fallback por nombre para expedientes antiguos sin agente_id coincidente
+      setAgentFilter([nombreAgenteActual]);
+      setShowFilters(true);
+    }
+    setAgentFilterInicializado(true);
+  }, [currentAuthUserId, currentUsuarioId, dbExpedientes, nombreAgenteActual, agenteOptions, agentFilterInicializado, agentFilterCargaCompleta]);
 
   const sucursalOptions = useMemo(
     () => Array.from(new Set(mappedExpedientes.map((e) => e.sucursal))).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" })),

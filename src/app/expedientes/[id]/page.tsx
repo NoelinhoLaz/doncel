@@ -6,7 +6,7 @@ import { CheckCircle2, AlertCircle, Receipt, Globe, Mail, Paperclip, FolderOpen 
 import Link from "next/link";
 import { useState, use, useEffect } from "react";
 import ExpedienteActionsToolbar from "@/app/components/ExpedienteActionsToolbar";
-import { getExpedienteById, getExpedienteLinksStatus } from "@/actions/expedientes";
+import { getExpedienteById, getExpedienteLinksStatus, getResumenKpisExpediente, getResumenPagosExpediente } from "@/actions/expedientes";
 import { getCobrosByExpediente } from "@/actions/cobros";
 import { getMatchesPendientesPorExpediente, conciliarDesdeMovimientoBanco, conciliarIngresoTutor } from "@/actions/banco";
 
@@ -31,6 +31,8 @@ export default function ExpedienteDetailPage({ params }: { params: Promise<{ id:
   const [loading, setLoading] = useState(true);
   const [linksStatus, setLinksStatus] = useState({ hasCotizacion: false, hasPropuesta: false });
   const [cobrosData, setCobrosData] = useState<{ pagadores: any[]; movimientos?: any[]; movimientosBanco: any[] }>({ pagadores: [], movimientos: [], movimientosBanco: [] });
+  const [resumenKpis, setResumenKpis] = useState<{ viajerosCount: number; cobrosRecibidos: number; facturacionEmitida: number; saldoPendiente: number; totalCobrosEstimados: number; desgloseCobrosEstimados: { label: string; importe: number }[] } | null>(null);
+  const [resumenPagos, setResumenPagos] = useState<{ serviciosCount: number; pagosRealizados: number; pendientePago: number; facturasSoportadas: number; totalPagosEstimados: number; desglosePagosEstimados: { label: string; importe: number }[] } | null>(null);
 
   // States for bank match detection modal
   const [pendingMatches, setPendingMatches] = useState<any[]>([]);
@@ -131,6 +133,11 @@ export default function ExpedienteDetailPage({ params }: { params: Promise<{ id:
     getCobrosByExpediente(resolvedParams.id).then(setCobrosData);
   }, [resolvedParams.id]);
 
+  useEffect(() => {
+    getResumenKpisExpediente(resolvedParams.id).then(setResumenKpis);
+    getResumenPagosExpediente(resolvedParams.id).then(setResumenPagos);
+  }, [resolvedParams.id]);
+
   const tabs = [
     { id: "resumen", label: "Resumen", icon: <Icons.Resumen size={16} /> },
     { id: "ajustes", label: "Ajustes", icon: <Icons.Settings size={16} /> },
@@ -147,7 +154,7 @@ export default function ExpedienteDetailPage({ params }: { params: Promise<{ id:
   const renderTabContent = () => {
     switch (activeTab) {
       case "resumen":
-        return <ResumenTab expediente={expediente} />;
+        return <ResumenTab expediente={expediente} resumenKpis={resumenKpis} resumenPagos={resumenPagos} />;
       case "ajustes":
         return <AjustesTab key={expediente?.id || "loading"} expedienteId={resolvedParams.id} expediente={expediente} />;
       case "viajeros":
