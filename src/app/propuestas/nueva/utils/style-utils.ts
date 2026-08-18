@@ -2,13 +2,17 @@ import React from "react";
 import type { TextoEstilo } from "../types";
 import { FUENTE_FAMILY } from "../constants";
 
+// Usa el estilo propio de la sección (fuente/tamaño/grosor/color) si el
+// usuario lo configuró desde el picker de esa sección; si no, cae a las
+// variables globales del panel Diseño (--momo-*-titulo/subtitulo/parrafo),
+// que es el comportamiento por defecto de toda propuesta existente.
 export function estiloTextoCSS(e?: TextoEstilo, defaultTipo?: "titulo" | "subtitulo" | "parrafo" | "negrita"): React.CSSProperties {
   if (!defaultTipo) return {};
 
-  const fuente = `var(--momo-font-${defaultTipo})`;
-  const tamano = `var(--momo-size-${defaultTipo})`;
-  const grosor = `var(--momo-weight-${defaultTipo})`;
-  const color = `var(--momo-color-${defaultTipo})`;
+  const fuente = e?.fuente ? (FUENTE_FAMILY[e.fuente] ?? e.fuente) : `var(--momo-font-${defaultTipo})`;
+  const tamano = e?.tamano ? getResponsiveSize(e.tamano) : `var(--momo-size-${defaultTipo})`;
+  const grosor = e?.grosor ?? `var(--momo-weight-${defaultTipo})`;
+  const color = e?.color ?? `var(--momo-color-${defaultTipo})`;
   const alineacionH = e?.alineacionH;
 
   return {

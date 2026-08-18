@@ -148,7 +148,7 @@ export function PropuestaEditor({
 
     const editorContent = secciones.map(s => ({
       uid: s.uid, tipo: s.tipo, label: s.label, oculta: s.oculta,
-      titulo: s.titulo, subtitulo: s.subtitulo, textoLibre: s.textoLibre, medias: s.medias,
+      titulo: s.titulo, subtitulo: s.subtitulo, textoLibre: s.textoLibre, media: s.media, medias: s.medias,
       fechaDesde: s.fechaDesde,
       fechaHasta: s.fechaHasta,
       dias: s.dias,
@@ -160,10 +160,12 @@ export function PropuestaEditor({
       menuItems: s.menuItems,
       menuOverrides: s.menuOverrides,
       menuBoton: s.menuBoton,
+      menuHamburguesa: s.menuHamburguesa,
       // Precio fields
       pvp: s.pvp,
       pvpVinculado: s.pvpVinculado,
       condiciones: s.condiciones,
+      otrasConsideraciones: s.otrasConsideraciones,
       // Extras fields
       extrasFilas: s.extrasFilas,
       // Formulario fields
@@ -176,6 +178,12 @@ export function PropuestaEditor({
       cards: s.cards,
       galeria: s.galeria,
       listadoFormatoId: s.listadoFormatoId,
+      // NegoPlanet fields
+      negoPlanetItems: s.negoPlanetItems,
+      negoPlanetModo: s.negoPlanetModo,
+      negoPlanetAutoTipo: s.negoPlanetAutoTipo,
+      negoPlanetAutoQuery: s.negoPlanetAutoQuery,
+      negoPlanetOverrides: s.negoPlanetOverrides,
     }));
     const designTokens = [
       { uid: "global", estilosGlobales },
@@ -196,9 +204,13 @@ export function PropuestaEditor({
         // Precio styling
         estiloPvp: s.estiloPvp,
         estiloCondiciones: s.estiloCondiciones,
+        estiloOtrasConsideraciones: s.estiloOtrasConsideraciones,
         // Extras styling
         estiloExtraTexto: s.estiloExtraTexto,
         estiloExtraImporte: s.estiloExtraImporte,
+        // Formulario styling
+        estiloFormularioTitulo: s.estiloFormularioTitulo,
+        estiloFormularioSubtitulo: s.estiloFormularioSubtitulo,
         // Listado styling
         listadoEstiloTarjeta: s.listadoEstiloTarjeta,
       }))

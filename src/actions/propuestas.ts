@@ -602,7 +602,8 @@ export async function getPropuesta(id: string) {
 
     let agente: any = null;
     if (agenteId) {
-      const { data: usr } = await agencyDb
+      const adminServiceSupabase = createAdminServiceClient();
+      const { data: usr } = await adminServiceSupabase
         .from("usuarios")
         .select("id, nombre, apellidos, email, telefono, avatar_url")
         .or(`id.eq.${agenteId},auth_user_id.eq.${agenteId}`)
@@ -652,7 +653,8 @@ export async function getPropuestaPublica(id: string, dominio: string) {
 
     let agente: any = null;
     if (agenteId) {
-      const { data: usr } = await agencyDb
+      const adminServiceSupabase = createAdminServiceClient();
+      const { data: usr } = await adminServiceSupabase
         .from("usuarios")
         .select("id, nombre, apellidos, email, telefono, avatar_url")
         .or(`id.eq.${agenteId},auth_user_id.eq.${agenteId}`)
