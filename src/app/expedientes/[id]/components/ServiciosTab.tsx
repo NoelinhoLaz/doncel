@@ -66,7 +66,7 @@ export default function ServiciosTab({ expedienteId, onOpenMatchModal }: Servici
         onOpenConciliar={s.openConciliarPago}
       />
 
-      <PagosRealizadosList serviciosList={s.servicios} onConciliar={s.openConciliarPago} documentosPorMovimiento={s.documentosPorMovimiento} />
+      <PagosRealizadosList serviciosList={s.servicios} onConciliar={s.openConciliarPago} documentosPorMovimiento={s.documentosPorMovimiento} onRegistrarPago={s.openRegistrarPago} />
 
       <ImportarServiciosCotizacionModal
         isOpen={isImportarCotizacionOpen}

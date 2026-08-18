@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { Landmark, CreditCard, Banknote, Receipt, ChevronDown, ChevronRight, FileText } from "lucide-react";
+import { Landmark, CreditCard, Banknote, Receipt, ChevronDown, ChevronRight, FileText, Plus } from "lucide-react";
 import styles from "@/app/expedientes/shared.module.css";
 import listStyles from "@/app/expedientes/page.module.css";
 
@@ -9,6 +9,7 @@ interface Props {
   serviciosList: any[];
   onConciliar?: (movimientoId: string) => void;
   documentosPorMovimiento?: Record<string, any[]>;
+  onRegistrarPago?: () => void;
 }
 
 const MEDIO_ICON: Record<string, any> = {
@@ -23,7 +24,7 @@ const MEDIO_LABEL: Record<string, string> = {
   efectivo: "Efectivo",
 };
 
-export default function PagosRealizadosList({ serviciosList, onConciliar, documentosPorMovimiento = {} }: Props) {
+export default function PagosRealizadosList({ serviciosList, onConciliar, documentosPorMovimiento = {}, onRegistrarPago }: Props) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [docsTooltipId, setDocsTooltipId] = useState<string | null>(null);
 
@@ -75,8 +76,15 @@ export default function PagosRealizadosList({ serviciosList, onConciliar, docume
           <Receipt size={18} className={styles.titleIcon} />
           <h2 className={styles.listTitle}>Pagos realizados ({pagos.length})</h2>
         </div>
-        <div style={{ color: "#fff", fontSize: "0.85rem", fontWeight: 600 }}>
-          Total: {totalPagado.toLocaleString("es-ES", { minimumFractionDigits: 2 })} €
+        <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+          <div style={{ color: "#fff", fontSize: "0.85rem", fontWeight: 600 }}>
+            Total: {totalPagado.toLocaleString("es-ES", { minimumFractionDigits: 2 })} €
+          </div>
+          {onRegistrarPago && (
+            <button className={styles.addActionButton} title="Registrar Pago" onClick={onRegistrarPago}>
+              <Plus size={18} />
+            </button>
+          )}
         </div>
       </div>
 

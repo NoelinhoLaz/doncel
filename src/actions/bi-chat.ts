@@ -66,7 +66,26 @@ TABLAS PRINCIPALES:
   -- oportunidad_id → crm_oportunidades.id (puente entre operativa y CRM)
   -- pvp_total = importe total del viaje facturado/presupuestado
   -- Para filtrar por año escolar: fecha_inicio BETWEEN 'YYYY-09-01' AND 'YYYY+1-07-31'
-- operativa_cotizaciones(id, expediente_id, titulo, estado[borrador|presentada|aceptada|rechazada], plazas, pvp_viajero, fecha_salida DATE, fecha_regreso DATE)
+- operativa_cotizaciones(id, expediente_id, agente_id, titulo, estado[borrador|presentada|aceptada|rechazada], plazas, pvp_viajero, total_coste, total_ingresos, total_beneficio, margen_beneficio, fecha_salida DATE, fecha_regreso DATE)
+  -- IMPORTANTE: total_coste/total_ingresos/total_beneficio/margen_beneficio están SIEMPRE a 0 en la tabla — NO se persisten, se calculan al vuelo en el frontend. NUNCA los uses directamente, hay que recalcularlos.
+  -- operativa_cotizaciones.agente_id es TEXT y DEBERÍA contener el auth_uid del agente, pero hay filas legadas/inconsistentes donde contiene crm_agentes.id en su lugar.
+  -- Para JOIN usar SIEMPRE ambos campos con OR, nunca solo uno: JOIN crm_agentes ca ON ca.auth_uid = oc.agente_id::uuid OR ca.id = oc.agente_id::uuid
+  -- Fórmula EXACTA para "beneficio/ingresos/coste de una o varias cotizaciones" (replica la lógica del frontend en src/actions/cotizaciones.ts):
+  --   total_ingresos = oc.pvp_viajero * oc.plazas   (de la cabecera de la cotización, NO de las líneas)
+  --   total_coste     = SUM de las líneas de esa cotización con checked IS DISTINCT FROM false, usando COALESCE(ocl.total_neto, ocl.neto * NULLIF(ocl.plazas,0) * NULLIF(ocl.noches,0))
+  --   total_beneficio = total_ingresos - total_coste
+  --   margen_beneficio = total_beneficio / total_ingresos * 100 (si total_ingresos > 0, si no 0)
+  -- Ejemplo completo (beneficio total de cotizaciones aceptadas de un agente):
+  --   WITH costes AS (
+  --     SELECT ocl.cotizacion_id, SUM(COALESCE(ocl.total_neto, ocl.neto * NULLIF(ocl.plazas,0) * NULLIF(ocl.noches,0))) AS total_coste
+  --     FROM operativa_cotizacion_lineas ocl WHERE ocl.checked IS DISTINCT FROM false GROUP BY ocl.cotizacion_id
+  --   )
+  --   SELECT SUM((oc.pvp_viajero * oc.plazas) - COALESCE(c.total_coste,0)) AS beneficio_total
+  --   FROM operativa_cotizaciones oc
+  --   LEFT JOIN costes c ON c.cotizacion_id = oc.id
+  --   JOIN crm_agentes ca ON ca.auth_uid = oc.agente_id::uuid OR ca.id = oc.agente_id::uuid
+  --   WHERE oc.estado = 'aceptada' AND (ca.nombre ILIKE '%texto%' OR ca.apellidos ILIKE '%texto%')
+  -- NUNCA pasar por operativa_expedientes ni crm_oportunidades para vincular cotización↔agente — el vínculo es SIEMPRE directo vía operativa_cotizaciones.agente_id
 - operativa_cotizacion_lineas(id, cotizacion_id, descripcion, proveedor[FK→contabilidad_proveedores.id], destino[FK→maestro_destinos.id], neto, pvp, plazas, noches, total_neto, total_pvp, opcional BOOL, checked BOOL)
   -- SEMÁNTICA DE PRECIOS (crítico para no dividir mal):
   --   neto       = precio neto UNITARIO por plaza (coste por persona) — es el precio por entrada/noche/servicio
@@ -116,6 +135,8 @@ CAMPOS CLAVE (no inventar columnas que no existen):
 - buscar agentes SIEMPRE con ILIKE: (ca.nombre ILIKE '%texto%' OR ca.apellidos ILIKE '%texto%')
 - buscar centros/entidades por nombre: SIEMPRE ce.nombre ILIKE '%texto%' — si el nombre tiene puntos (ej: "J.A.B.Y") buscar tal cual: ce.nombre ILIKE '%J.A.B.Y%'
 - crm_oportunidades.agente_id es tipo TEXT — para JOIN con crm_agentes.id (UUID) usar siempre: JOIN crm_agentes ca ON ca.id = co.agente_id::uuid
+- operativa_expedientes.agente_id es tipo TEXT y, al igual que operativa_cotizaciones.agente_id, puede contener auth_uid o crm_agentes.id según la fila (datos legados inconsistentes) — para JOIN usar siempre ambos con OR: JOIN crm_agentes ca ON ca.auth_uid = oe.agente_id::uuid OR ca.id = oe.agente_id::uuid
+- para "beneficio/cotizaciones de un AGENTE": usar SIEMPRE operativa_cotizaciones.agente_id directo (ver reglas de esa tabla arriba), NUNCA pasar por operativa_expedientes, crm_oportunidades.agente_id ni por oe.oportunidad_id — expediente_id y oportunidad_id pueden estar NULL en muchas cotizaciones y ese JOIN intermedio pierde filas y da 0 resultados por error
 - con SELECT DISTINCT, ORDER BY solo puede usar alias del SELECT (nunca columnas crudas de tablas). Usa alias: ORDER BY agente, centro — no ORDER BY ca.nombre, ce.nombre
 - los alias de columna con espacios o caracteres especiales SIEMPRE con comillas dobles: AS "Importe 2024/25" — NUNCA comillas simples para alias
 - "estados intermedios" = JOIN crm_campanas_estados WHERE es_ganado=false AND es_final=false
@@ -739,13 +760,19 @@ Para filtrar por agente usa su id directamente (más fiable que buscar por nombr
           : new Intl.NumberFormat("es-ES").format(val)
         : String(rawVal ?? "0");
       // Always replace any currency/number pattern Claude put in the summary with the real value
+      const beforeReplace = metricSummary;
       metricSummary = metricSummary
         .replace(/\bN\b/g, formatted)
         .replace(/-?\d[\d.,]*\s*€/g, formatted)
+        .replace(/€\s*-?\d[\d.,]*/g, formatted)
         .replace(/0[.,]00\s*€/g, formatted)
         .replace(/\b\d+\b(?=\s*(movimientos|registros|resultados|operaciones|facturas|expedientes|cotizaciones))/i, formatted);
-      // If Claude hallucinated "no hay" but we have a real non-null value, override entirely
-      if (/no\s+(se\s+)?(encontraron|hay|existen|tienen)/i.test(metricSummary) && val !== null && val !== 0) {
+      // If Claude hallucinated "no hay"/"0", or the summary is a loading placeholder ("Calculando...",
+      // "Consultando...") with no number/€ that got substituted above, or is otherwise stale/empty —
+      // rebuild the summary entirely from the real query result instead of trusting Claude's text.
+      const looksLikePlaceholder = metricSummary === beforeReplace && !/\d/.test(metricSummary);
+      const hallucinatedZero = /no\s+(se\s+)?(encontraron|hay|existen|tienen)|margen\s+neto\s+de\s+0/i.test(metricSummary) && val !== null && val !== 0;
+      if (hallucinatedZero || looksLikePlaceholder || !metricSummary.trim()) {
         const label = keys[0].replace(/_/g, " ");
         metricSummary = `${label.charAt(0).toUpperCase() + label.slice(1)}: **${formatted}**`;
       }

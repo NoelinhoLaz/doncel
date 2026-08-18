@@ -196,35 +196,24 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
     setSaving(true);
     setError(null);
     try {
-      // El importe real del movimiento bancario puede ser menor que la suma seleccionada
-      // (pago parcial de una factura conjunta): se aplica el mismo % de avance al PENDIENTE de
-      // cada servicio (lo que de verdad falta por cobrar, no su total bruto), para que ningún
-      // servicio quede "sobrepagado" solo por tener un pendiente pequeño — todos avanzan
-      // proporcionalmente al mismo ritmo. Si el banco cubre de sobra (ratio >= 1), cada servicio
-      // se paga exactamente su pendiente completo y el resto se guarda como sobrante del pago,
-      // disponible para aplicarlo al siguiente pago de este mismo proveedor.
+      // Se respeta siempre el importe que el agente asignó manualmente a cada línea en el
+      // paso de selección — no se reparte ni recalcula proporcionalmente contra el importe
+      // real del movimiento bancario. Si la suma seleccionada no coincide exactamente con el
+      // importe del banco, la diferencia se guarda como sobrante (a favor o en contra) del
+      // proveedor, disponible para el siguiente pago.
       const seleccionados = serviciosSeleccionados();
       const importeBanco = Math.abs(importeMovimiento);
-      const totalPendienteConjunto = seleccionados.reduce((sum, s) => {
-        const ser = servicios.find((x) => x.id === s.id);
-        return sum + (ser ? pendiente(ser) : 0);
-      }, 0);
+      const totalSeleccionadoPago = seleccionados.reduce((sum, s) => sum + s.importe, 0);
 
       const sobranteDisponible = aplicarSobrante ? sobranteActivo : null;
       const importeDisponible = importeBanco + (sobranteDisponible?.total || 0);
 
-      const ratio = totalPendienteConjunto > 0 ? Math.min(1, importeDisponible / totalPendienteConjunto) : 0;
-      const serviciosAjustados = seleccionados.map((s) => {
-        const ser = servicios.find((x) => x.id === s.id);
-        const pend = ser ? pendiente(ser) : 0;
-        return { ...s, importe: Math.round(pend * ratio * 100) / 100 };
-      });
-      const sobrante = Math.max(0, Math.round((importeDisponible - totalPendienteConjunto) * 100) / 100);
+      const sobrante = Math.max(0, Math.round((importeDisponible - totalSeleccionadoPago) * 100) / 100);
 
       const res = await vincularServiciosAMovimientoBanco({
         expediente_id: servicios[0]?.expediente_id,
         movimiento_banco_id: movimientoBancoId,
-        servicios: serviciosAjustados,
+        servicios: seleccionados,
         sobrante,
       });
       if (!res.success) throw new Error(res.error);

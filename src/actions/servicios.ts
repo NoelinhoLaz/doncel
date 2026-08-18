@@ -649,14 +649,15 @@ export async function updateExpedienteServicio(id: string, payload: {
  *  the lookup used by conciliarPagoProveedor for bank-reconciled payments. */
 /** Mantiene sincronizado el estado "confirmado" de la línea de cotización vinculada con el
  *  estado real de pago del servicio (mismo criterio que EstadoPagoBadge: Pagado = abonado
- *  cubre pvp*plazas*noches). Se llama tanto al registrar un pago como al editar importes,
- *  plazas o noches, para que una línea deje de estar "confirmado" si el cambio hace que el
- *  pago ya no cubra el total (vuelve a pendiente hasta que se complete el pago de nuevo). */
+ *  al proveedor cubre neto*plazas*noches, no el pvp que se cobra al cliente). Se llama tanto
+ *  al registrar un pago como al editar importes, plazas o noches, para que una línea deje de
+ *  estar "confirmado" si el cambio hace que el pago ya no cubra el total (vuelve a pendiente
+ *  hasta que se complete el pago de nuevo). */
 async function sincronizarConfirmadoSegunPago(agencyDb: any, servicioId: string) {
   try {
     const { data: servicio } = await agencyDb
       .from("operativa_expedientes_servicios")
-      .select("pvp, plazas, noches")
+      .select("neto, plazas, noches")
       .eq("id", servicioId)
       .single();
     if (!servicio) return;
@@ -667,9 +668,9 @@ async function sincronizarConfirmadoSegunPago(agencyDb: any, servicioId: string)
       .eq("servicio_id", servicioId)
       .maybeSingle();
 
-    const totalPvp = Number(servicio.pvp || 0) * Number(servicio.plazas || 1) * (Number(servicio.noches || 0) || 1);
+    const totalNeto = Number(servicio.neto || 0) * Number(servicio.plazas || 1) * (Number(servicio.noches || 0) || 1);
     const abonado = Number(abono?.total_abonado || 0);
-    const estaPagadoCompleto = totalPvp > 0 && abonado >= totalPvp;
+    const estaPagadoCompleto = totalNeto > 0 && abonado >= totalNeto;
 
     const { data: linkRow } = await agencyDb
       .from("operativa_expediente_servicio_lineas")

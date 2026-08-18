@@ -81,7 +81,7 @@ export default function ServiciosKpiGrid({ kpis, serviciosCount, categoriesToRen
         <span className={styles.kpiCardTitle}>Estructura del Viaje</span>
         <div className={styles.progressItemsList}>
           {[
-            { label: "Servicios Obligatorios", count: kpis.obligatorioCount, pct: kpis.obligatorioPercent, bg: "linear-gradient(90deg, #10b981 0%, #34d399 100%)", pagado: kpis.obligatorioPagadoCount, parcial: kpis.obligatorioParcialCount },
+            { label: "Servicios Incluidos", count: kpis.obligatorioCount, pct: kpis.obligatorioPercent, bg: "linear-gradient(90deg, #10b981 0%, #34d399 100%)", pagado: kpis.obligatorioPagadoCount, parcial: kpis.obligatorioParcialCount },
             { label: "Servicios Opcionales", count: kpis.opcionalCount, pct: kpis.opcionalPercent, bg: "linear-gradient(90deg, #ec4899 0%, #f472b6 100%)", pagado: kpis.opcionalPagadoCount, parcial: kpis.opcionalParcialCount },
           ].map(({ label, count, pct, bg, pagado, parcial }) => (
             <div key={label} className={styles.progressItemRow} style={{ marginBottom: "0.5rem" }}>

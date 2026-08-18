@@ -128,8 +128,8 @@ function TipoSelectorServicio({
   );
 }
 
-function EstadoPagoBadge({ abonado, pvp, pendienteConciliar, movimientoId, onOpenConciliar }: { abonado: number; pvp: number; pendienteConciliar?: boolean; movimientoId?: string; onOpenConciliar?: (movimientoId: string) => void }) {
-  const { label, color, bg } = pvp > 0 && abonado >= pvp
+function EstadoPagoBadge({ abonado, totalNeto, pendienteConciliar, movimientoId, onOpenConciliar }: { abonado: number; totalNeto: number; pendienteConciliar?: boolean; movimientoId?: string; onOpenConciliar?: (movimientoId: string) => void }) {
+  const { label, color, bg } = totalNeto > 0 && abonado >= totalNeto
     ? { label: "Pagado", color: "#16a34a", bg: "#f0fdf4" }
     : abonado > 0
       ? { label: "Parcial", color: "#d97706", bg: "#fffbeb" }
@@ -253,10 +253,14 @@ export default function TablaServiciosNoOpcionales({
 
   useEffect(() => {
     if (agruparPor && grupos) {
-      setCollapsedGroups(new Set(grupos.map((g) => g.key)));
+      setCollapsedGroups((prev) => {
+        const next = new Set(prev);
+        for (const g of grupos) next.add(g.key);
+        return next;
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agruparPor]);
+  }, [agruparPor, grupos]);
 
   const toggleGroup = (key: string) => setCollapsedGroups((prev) => {
     const next = new Set(prev);
@@ -384,7 +388,7 @@ export default function TablaServiciosNoOpcionales({
           <td style={{ textAlign: "center", verticalAlign: "middle" }}>
             <EstadoPagoBadge
               abonado={Number(item.abonado ?? 0)}
-              pvp={pvp * plazas * noches}
+              totalNeto={neto * plazas * noches}
               pendienteConciliar={item.pendiente_conciliar}
               movimientoId={(item.pagos || []).find((p: any) => p.pendiente_conciliar)?.movimiento_id}
               onOpenConciliar={onOpenConciliar}
@@ -444,12 +448,6 @@ export default function TablaServiciosNoOpcionales({
               </span>
             )}
           </button>
-          <button className={styles.actionIconButton} title="Exportar servicios"><Icons.Export size={18} /></button>
-          {onEnviarValoracion && serviciosList.length > 0 && (
-            <button className={styles.actionIconButton} title="Enviar encuesta de satisfacción" onClick={onEnviarValoracion}>
-              <Users size={18} />
-            </button>
-          )}
           {pendingMatchCount > 0 && (
             <button className={styles.actionIconButton} title={`${pendingMatchCount} pago${pendingMatchCount > 1 ? "s" : ""} bancario${pendingMatchCount > 1 ? "s" : ""} pendiente${pendingMatchCount > 1 ? "s" : ""} de conciliar`} style={{ position: "relative" }} onClick={onOpenMatchModal}>
               <Landmark size={18} />
@@ -468,6 +466,9 @@ export default function TablaServiciosNoOpcionales({
                   <button onClick={() => { setShowDropdown(false); onRegistrarPago(); }} style={{ background: "none", border: "none", width: "100%", padding: "0.6rem 1rem", textAlign: "left", fontSize: "0.8rem", fontWeight: 500, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
                     <Landmark size={14} /> Registrar Pago
                   </button>
+                )}
+                {onRegistrarPago && onRegistrarDocumento && (
+                  <div style={{ height: "1px", backgroundColor: "#e2e8f0", margin: "0.35rem 0" }} />
                 )}
                 {onRegistrarDocumento && (
                   <button onClick={() => { setShowDropdown(false); onRegistrarDocumento(); }} style={{ background: "none", border: "none", width: "100%", padding: "0.6rem 1rem", textAlign: "left", fontSize: "0.8rem", fontWeight: 500, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
