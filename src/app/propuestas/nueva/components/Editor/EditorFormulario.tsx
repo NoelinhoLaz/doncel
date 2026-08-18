@@ -3,6 +3,7 @@
 import React from "react";
 import styles from "../../page.module.css";
 import type { Seccion } from "../../types";
+import InlineRichInput from "./InlineRichInput";
 
 export default function EditorFormulario({
   seccion,
@@ -26,24 +27,18 @@ export default function EditorFormulario({
     <>
       <div className={styles.editorSection}>
         <label className={styles.editorFieldLabel}>Título</label>
-        <input
-          type="text"
-          className={styles.editorInput}
-          style={{ width: "100%", padding: "0.5rem", borderRadius: "0.375rem", border: "1px solid #e2e8f0" }}
+        <InlineRichInput
           value={seccion.formularioTitulo ?? ""}
-          onChange={e => onUpdate(seccion.uid, { formularioTitulo: e.target.value })}
+          onChange={html => onUpdate(seccion.uid, { formularioTitulo: html })}
           placeholder="¿Tienes alguna duda o quieres confirmar?"
         />
       </div>
 
       <div className={styles.editorSection}>
         <label className={styles.editorFieldLabel}>Subtítulo</label>
-        <input
-          type="text"
-          className={styles.editorInput}
-          style={{ width: "100%", padding: "0.5rem", borderRadius: "0.375rem", border: "1px solid #e2e8f0" }}
+        <InlineRichInput
           value={seccion.formularioSubtitulo ?? ""}
-          onChange={e => onUpdate(seccion.uid, { formularioSubtitulo: e.target.value })}
+          onChange={html => onUpdate(seccion.uid, { formularioSubtitulo: html })}
           placeholder="Rellena el formulario y te responderemos de inmediato."
         />
       </div>

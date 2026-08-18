@@ -167,6 +167,8 @@ export interface Seccion {
   formularioSubtitulo?: string;
   formularioEmail?: string;
   formularioBoton?: string;
+  estiloFormularioTitulo?: TextoEstilo;
+  estiloFormularioSubtitulo?: TextoEstilo;
   cards?: CardItem[];
   galeria?: GaleriaItem[];
   listadoFormatoId?: string | null;

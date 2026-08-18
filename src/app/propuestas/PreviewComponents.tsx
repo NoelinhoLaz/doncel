@@ -81,6 +81,8 @@ export interface Seccion {
   formularioSubtitulo?: string;
   formularioEmail?: string;
   formularioBoton?: string;
+  estiloFormularioTitulo?: TextoEstilo;
+  estiloFormularioSubtitulo?: TextoEstilo;
   cards?: { uid: string; titulo?: string; subtitulo?: string; media?: MediaItem; enlaceTipo?: "externo" | "pagina"; enlaceHref?: string; enlacePaginaSlug?: string }[];
   galeria?: { uid: string; media?: MediaItem }[];
   listadoFormatoId?: string | null;
@@ -2071,11 +2073,6 @@ export function PHFormulario({
       flexDirection: "column",
       gap: "1.5rem"
     }}>
-      <div>
-        <h3 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800, color: "#1e293b" }}>{seccion.formularioTitulo || "¿Tienes alguna duda o quieres confirmar?"}</h3>
-        <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.88rem", color: "#64748b" }}>{seccion.formularioSubtitulo || "Rellena el formulario y te responderemos de inmediato."}</p>
-      </div>
-
       <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
         {activeFields.map((campo: any) => (
           <div key={campo.uid} style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
@@ -2149,6 +2146,14 @@ export function PHFormulario({
     <FondoWrapper colorFondo={seccion.colorFondo} imagenFondo={seccion.imagenFondo} imagenFondoOverlay={seccion.imagenFondoOverlay} altoSeccion={seccion.altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
         <div style={containerStyle}>
+          <div style={{ marginBottom: "1.5rem" }}>
+            <h3 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800, color: "#1e293b", ...estiloTextoCSS(seccion.estiloFormularioTitulo, "titulo") }}>
+              {renderConDestacado(seccion.formularioTitulo || "¿Tienes alguna duda o quieres confirmar?", seccion.estiloFormularioTitulo?.colorDestacado, seccion.estiloFormularioTitulo?.grosorDestacado, "titulo", seccion.estiloFormularioTitulo)}
+            </h3>
+            <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.88rem", color: "#64748b", ...estiloTextoCSS(seccion.estiloFormularioSubtitulo, "parrafo") }}>
+              {renderConDestacado(seccion.formularioSubtitulo || "Rellena el formulario y te responderemos de inmediato.", seccion.estiloFormularioSubtitulo?.colorDestacado, seccion.estiloFormularioSubtitulo?.grosorDestacado, "parrafo", seccion.estiloFormularioSubtitulo)}
+            </p>
+          </div>
           {layout === "form-contacto" ? (
             <div style={{
               display: "grid",

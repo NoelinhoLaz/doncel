@@ -726,6 +726,16 @@ export default function DisenioPanel({
             </div>
           </div>
           <SeccionDisenioRow seccion={seccion} onUpdate={onUpdate} anchoDefault="1200px" />
+          <TextoEstiloEditor
+            label="Título"
+            value={seccion.estiloFormularioTitulo}
+            onChange={v => onUpdate(seccion.uid, { estiloFormularioTitulo: v })}
+          />
+          <TextoEstiloEditor
+            label="Subtítulo"
+            value={seccion.estiloFormularioSubtitulo}
+            onChange={v => onUpdate(seccion.uid, { estiloFormularioSubtitulo: v })}
+          />
         </>
       )}
       {(seccion.tipo === "nego-planet-programas" || seccion.tipo === "nego-planet-destinos") && (
