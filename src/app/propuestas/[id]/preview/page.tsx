@@ -70,55 +70,14 @@ export default function PreviewIdPage() {
             }
             const designMap = new Map(designTokens.map((d: any) => [d.uid, d]));
 
+            // `s` (editor_content) trae el contenido de cada sección y `d` (design_tokens)
+            // trae su diseño; no comparten nombres de campo, así que combinarlos con
+            // spread evita tener que mantener a mano una whitelist que se desincroniza
+            // cada vez que se añade un campo nuevo al tipo Seccion (bug real: extrasFilas
+            // llevaba tiempo sin propagarse aquí porque no estaba en esta lista).
             const mapped = editorContent.map((s: any) => {
               const d: any = designMap.get(s.uid) ?? {};
-              return {
-                uid: s.uid,
-                tipo: s.tipo,
-                label: s.label,
-                oculta: s.oculta,
-                titulo: s.titulo,
-                subtitulo: s.subtitulo,
-                textoLibre: s.textoLibre,
-                medias: s.medias,
-                fechaDesde: s.fechaDesde,
-                fechaHasta: s.fechaHasta,
-                dias: s.dias,
-                columnas: s.columnas,
-                mapas: s.mapas,
-                rutas: s.rutas,
-                layout: d.layout,
-                estiloTitulo: d.estiloTitulo,
-                estiloSubtitulo: d.estiloSubtitulo,
-                estiloTextoLibre: d.estiloTextoLibre,
-                estiloTituloDia: d.estiloTituloDia,
-                estiloDescDia: d.estiloDescDia,
-                colorFondo: d.colorFondo,
-                imagenFondo: d.imagenFondo,
-                imagenFondoOverlay: d.imagenFondoOverlay,
-                altoSeccion: d.altoSeccion,
-                anchoMax: d.anchoMax,
-                menuLogo: s.menuLogo,
-                menuItems: s.menuItems,
-                menuOverrides: s.menuOverrides,
-                menuBoton: s.menuBoton,
-                menuColorFondo: d.menuColorFondo,
-                menuColorTexto: d.menuColorTexto,
-                menuColorBoton: d.menuColorBoton,
-                menuFijo: d.menuFijo,
-                // Precio fields
-                pvp: s.pvp,
-                condiciones: s.condiciones,
-                estiloPvp: d.estiloPvp,
-                estiloCondiciones: d.estiloCondiciones,
-                // Formulario fields
-                formularioCampos: s.formularioCampos,
-                formularioTitulo: s.formularioTitulo,
-                formularioSubtitulo: s.formularioSubtitulo,
-                formularioEmail: s.formularioEmail,
-                cards: s.cards,
-                galeria: s.galeria,
-              };
+              return { ...s, ...d, uid: s.uid, tipo: s.tipo };
             });
             setSecciones(mapped);
           }
