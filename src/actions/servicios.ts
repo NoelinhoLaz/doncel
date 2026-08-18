@@ -227,15 +227,10 @@ export async function createExpedienteServicio(payload: {
 }) {
   try {
     const agencyDb = await getAgencyDbClient();
-    let proveedor = payload.proveedor;
-    if (proveedor && UUID_REGEX.test(proveedor)) {
-      const { data: prov } = await agencyDb
-        .from("contabilidad_proveedores")
-        .select("nombre, razon_social")
-        .eq("id", proveedor)
-        .maybeSingle();
-      if (prov) proveedor = prov.nombre || prov.razon_social || proveedor;
-    }
+    // Keep proveedor as raw id (not resolved to a display name) so the service
+    // stays properly linked to contabilidad_proveedores, same as
+    // createGroupedExpedienteServicio.
+    const proveedor = payload.proveedor || null;
 
     const { data, error } = await agencyDb
       .from("operativa_expedientes_servicios")

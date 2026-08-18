@@ -1061,6 +1061,22 @@ export default function CotizacionesPage() {
                 style={{ padding: "0.3rem 0.5rem" }}
               />
             </div>
+            {viewMode === "cotizaciones" && (
+              <div className={styles.filterGroup} style={{ width: "200px" }}>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "0.25rem" }}>Estado</label>
+                <MultiSelectDropdown
+                  options={ESTADOS_COTIZACION.map((e) => e.label)}
+                  selected={estadoCotizacionFilter.map((v) => ESTADOS_COTIZACION.find((e) => e.value === v)?.label || v)}
+                  onChange={(selectedLabels) => {
+                    const values = selectedLabels.map((label) => ESTADOS_COTIZACION.find((e) => e.label === label)?.value || label);
+                    setEstadoCotizacionFilter(values);
+                    setCurrentPage(1);
+                  }}
+                  placeholder="Estados"
+                  style={{ padding: "0.3rem 0.5rem" }}
+                />
+              </div>
+            )}
             {(agruparPor === "tipo" || agruparPor === "proveedor" || agruparPor === "desagrupar") && (
               <div className={styles.filterGroup} style={{ width: "200px" }}>
                 <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "0.25rem" }}>Tipo</label>
@@ -1112,6 +1128,7 @@ export default function CotizacionesPage() {
                   setAgenteFilter([]);
                   setDestinoFilter([]);
                   setTipoFilter([]);
+                  setEstadoCotizacionFilter([]);
                   setFechaDesde("");
                   setFechaHasta("");
                   setCurrentPage(1);

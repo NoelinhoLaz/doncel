@@ -16,6 +16,10 @@ interface ConciliarPagoModalProps {
 
 export default function ConciliarPagoModal({ isOpen, onClose, expedienteId, movimientoId, onSuccess }: ConciliarPagoModalProps) {
   const [search, setSearch] = useState("");
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
+  const [importeMin, setImporteMin] = useState("");
+  const [importeMax, setImporteMax] = useState("");
   const [movimientos, setMovimientos] = useState<any[]>([]);
   const [loadingMovs, setLoadingMovs] = useState(false);
   const [movimientoElegido, setMovimientoElegido] = useState<any | null>(null);
@@ -25,6 +29,10 @@ export default function ConciliarPagoModal({ isOpen, onClose, expedienteId, movi
   useEffect(() => {
     if (!isOpen) {
       setSearch("");
+      setFechaDesde("");
+      setFechaHasta("");
+      setImporteMin("");
+      setImporteMax("");
       setMovimientos([]);
       setMovimientoElegido(null);
       setError(null);
@@ -37,14 +45,26 @@ export default function ConciliarPagoModal({ isOpen, onClose, expedienteId, movi
     setLoadingMovs(true);
     const t = setTimeout(async () => {
       try {
-        const res = await getMovimientosBanco({ search, tipoMovimiento: "debe", estados: ["pendiente", "propuesto"], limit: 20 });
+        const res = await getMovimientosBanco({
+          search,
+          tipoMovimiento: "debe",
+          estados: ["pendiente", "propuesto"],
+          fechaDesde: fechaDesde || undefined,
+          fechaHasta: fechaHasta || undefined,
+          // Los movimientos de tipo "debe" tienen importe negativo; el rango
+          // que introduce el usuario es en positivo, así que se invierte y
+          // se intercambian los extremos al pasarlo al filtro real.
+          importeMin: importeMax !== "" ? -Number(importeMax) : undefined,
+          importeMax: importeMin !== "" ? -Number(importeMin) : undefined,
+          limit: 20,
+        });
         if (active) setMovimientos(res.data || []);
       } finally {
         if (active) setLoadingMovs(false);
       }
     }, 300);
     return () => { active = false; clearTimeout(t); };
-  }, [isOpen, search]);
+  }, [isOpen, search, fechaDesde, fechaHasta, importeMin, importeMax]);
 
   if (!isOpen) return null;
 
@@ -66,11 +86,9 @@ export default function ConciliarPagoModal({ isOpen, onClose, expedienteId, movi
 
   return (
     <div
-      onClick={onClose}
       style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(12px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}
     >
       <div
-        onClick={(e) => e.stopPropagation()}
         style={{ position: "relative", width: "480px", maxHeight: "80vh", overflowY: "auto", backgroundColor: "rgba(255, 255, 255, 0.98)", borderRadius: "1.5rem", padding: "1.5rem", boxShadow: "0 25px 50px -12px rgba(15, 23, 42, 0.25)", border: "1px solid rgba(255, 255, 255, 0.8)" }}
       >
         <button
@@ -98,6 +116,49 @@ export default function ConciliarPagoModal({ isOpen, onClose, expedienteId, movi
                 onChange={(e) => setSearch(e.target.value)}
                 style={{ width: "100%", padding: "0.5rem 0.75rem 0.5rem 2rem", border: "1px solid #cbd5e1", borderRadius: "0.375rem", fontSize: "0.82rem", boxSizing: "border-box" }}
               />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.75rem" }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.7rem", color: "#64748b" }}>
+                Fecha desde
+                <input
+                  type="date"
+                  value={fechaDesde}
+                  onChange={(e) => setFechaDesde(e.target.value)}
+                  style={{ padding: "0.4rem 0.5rem", border: "1px solid #cbd5e1", borderRadius: "0.375rem", fontSize: "0.78rem", boxSizing: "border-box" }}
+                />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.7rem", color: "#64748b" }}>
+                Fecha hasta
+                <input
+                  type="date"
+                  value={fechaHasta}
+                  onChange={(e) => setFechaHasta(e.target.value)}
+                  style={{ padding: "0.4rem 0.5rem", border: "1px solid #cbd5e1", borderRadius: "0.375rem", fontSize: "0.78rem", boxSizing: "border-box" }}
+                />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.7rem", color: "#64748b" }}>
+                Importe desde
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0,00"
+                  value={importeMin}
+                  onChange={(e) => setImporteMin(e.target.value)}
+                  style={{ padding: "0.4rem 0.5rem", border: "1px solid #cbd5e1", borderRadius: "0.375rem", fontSize: "0.78rem", boxSizing: "border-box" }}
+                />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.7rem", color: "#64748b" }}>
+                Importe hasta
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0,00"
+                  value={importeMax}
+                  onChange={(e) => setImporteMax(e.target.value)}
+                  style={{ padding: "0.4rem 0.5rem", border: "1px solid #cbd5e1", borderRadius: "0.375rem", fontSize: "0.78rem", boxSizing: "border-box" }}
+                />
+              </label>
             </div>
 
             {loadingMovs ? (
