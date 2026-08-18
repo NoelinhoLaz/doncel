@@ -100,7 +100,7 @@ export default function ResumenTab({ expediente, resumenKpis, resumenPagos }: { 
 
   const kpiDataCobros = [
     {
-      label: "Total Cobros Estimados",
+      label: "Total Cobros",
       value: resumenKpis ? formatEuroKpi(resumenKpis.totalCobrosEstimados) : null,
       icon: <Icons.Cobros size={20} style={{ color: "#7c3aed" }} />,
       bg: "#ede9fe",
@@ -134,7 +134,7 @@ export default function ResumenTab({ expediente, resumenKpis, resumenPagos }: { 
 
   const kpiDataPagos = [
     {
-      label: "Total Pagos Estimados",
+      label: "Total Pagos",
       value: resumenPagos ? formatEuroKpi(resumenPagos.totalPagosEstimados) : null,
       icon: <Icons.Cobros size={20} style={{ color: "#7c3aed" }} />,
       bg: "#ede9fe",
@@ -278,7 +278,7 @@ export default function ResumenTab({ expediente, resumenKpis, resumenPagos }: { 
             <div className={styles.kpiCard} style={{ flexDirection: "column", alignItems: "stretch", gap: "0.5rem" }}>
               <Icons.Cobros size={72} className={styles.kpiIconBg} style={{ color: beneficioTotal >= 0 ? "#16a34a" : "#dc2626" }} />
               <div className={styles.kpiContent}>
-                <span className={styles.kpiLabel}>Total Beneficios Estimados</span>
+                <span className={styles.kpiLabel}>Total Beneficios</span>
                 <span className={styles.kpiValue} style={{ color: beneficioTotal >= 0 ? "#16a34a" : "#dc2626" }}>
                   {formatEuroKpi(beneficioTotal)} ({beneficioTotal >= 0 ? "+" : "-"}{Math.abs(beneficioPct)}%)
                 </span>
