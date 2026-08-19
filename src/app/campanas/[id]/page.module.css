@@ -402,7 +402,9 @@
   inset: 0;
   background: rgba(15, 23, 42, 0.4);
   backdrop-filter: blur(2px);
-  z-index: 500;
+  /* Por encima del panel de detalle de cliente (PanelEntidad, zIndex 1001) — este modal
+     puede abrirse desde dentro de ese panel (Añadir a campaña) y debe quedar por delante. */
+  z-index: 5000;
   display: flex;
   align-items: center;
   justify-content: center;

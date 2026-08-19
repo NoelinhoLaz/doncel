@@ -5,15 +5,18 @@ import { X } from "lucide-react";
 import { apiFetch } from "../utils";
 import styles from "../page.module.css";
 import type { Campana } from "../types";
+import { getCurrentAgentePublic, getAgentes } from "@/actions/crm";
+
+type AgenteOption = { agente_id: string; crm_agentes: { id: string; nombre: string; apellidos: string } | null };
 
 export function ConfirmarCampanaModal({
   clienteNombre,
   entidadId,
   defaultCampanaId,
   esClienteNuevo = false,
-  isOwner = false,
-  currentAgenteId = null,
-  agentes = [],
+  isOwner: isOwnerProp,
+  currentAgenteId: currentAgenteIdProp,
+  agentes: agentesProp,
   onClose,
   onCreated,
 }: {
@@ -23,7 +26,7 @@ export function ConfirmarCampanaModal({
   esClienteNuevo?: boolean;
   isOwner?: boolean;
   currentAgenteId?: string | null;
-  agentes?: { agente_id: string; crm_agentes: { id: string; nombre: string; apellidos: string } | null }[];
+  agentes?: AgenteOption[];
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -36,9 +39,32 @@ export function ConfirmarCampanaModal({
   const [estadoId, setEstadoId] = useState("");
   const [prioridad, setPrioridad] = useState("");
   const [valorEstimado, setValorEstimado] = useState("");
-  const [agenteId, setAgenteId] = useState(currentAgenteId ?? "");
+  const [agenteId, setAgenteId] = useState(currentAgenteIdProp ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Si el padre no pasa isOwner/agentes (p.ej. desde PanelEntidad, fuera del contexto de
+  // una campaña concreta), se resuelven aquí mismo: rol del usuario actual + listado de
+  // agentes de la agencia, para poder mostrar el selector si es Admin/Owner.
+  const [isOwnerAuto, setIsOwnerAuto] = useState(false);
+  const [agentesAuto, setAgentesAuto] = useState<AgenteOption[]>([]);
+  const isOwner = isOwnerProp ?? isOwnerAuto;
+  const agentes = agentesProp ?? agentesAuto;
+
+  useEffect(() => {
+    if (isOwnerProp !== undefined) return;
+    getCurrentAgentePublic().then(({ usuarioId, rol }) => {
+      setIsOwnerAuto(["Admin", "SuperAdmin", "Owner"].includes(rol));
+      if (currentAgenteIdProp === undefined) setAgenteId(usuarioId);
+    }).catch(() => {});
+  }, [isOwnerProp, currentAgenteIdProp]);
+
+  useEffect(() => {
+    if (agentesProp !== undefined || !isOwner) return;
+    getAgentes().then((data: any[]) => {
+      setAgentesAuto(data.map(a => ({ agente_id: a.id, crm_agentes: { id: a.id, nombre: a.nombre, apellidos: a.apellidos } })));
+    }).catch(() => {});
+  }, [agentesProp, isOwner]);
 
   useEffect(() => {
     if (step !== "form") return;
