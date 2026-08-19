@@ -1165,7 +1165,7 @@
   border-radius: 0.65rem;
   box-shadow: 0 8px 24px rgba(15,23,42,0.1);
   padding: 0.4rem 0;
-  z-index: 1000;
+  z-index: 3000;
   min-width: 180px;
 }
 

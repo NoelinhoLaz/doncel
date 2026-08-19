@@ -510,6 +510,14 @@ export default function OportunidadesPage() {
               </button>
               {openDropdown === "localidad" && (
                 <div className={styles.filterDropdownMenu}>
+                  <button
+                    className={styles.filterClear}
+                    onClick={() => { setLocalidadFilter([]); setCurrentPage(1); }}
+                    disabled={localidadFilter.length === 0}
+                    style={{ width: "100%", textAlign: "left", marginBottom: "0.25rem", opacity: localidadFilter.length === 0 ? 0.4 : 1, cursor: localidadFilter.length === 0 ? "default" : "pointer" }}
+                  >
+                    Limpiar selección
+                  </button>
                   {LOCALIDADES.map(loc => {
                     const active = localidadFilter.includes(loc);
                     return (

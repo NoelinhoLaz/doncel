@@ -10,6 +10,7 @@ import { searchNominatim, type NominatimResult } from "@/actions/nominatim";
 import { apiFetch, initials } from "../utils";
 import styles from "../page.module.css";
 import { EtiquetasSelector } from "@/components/EtiquetasSelector";
+import { ConfirmarCampanaModal } from "../modals/ConfirmarCampanaModal";
 
 const EntidadMapaDynamic = dynamic(
   () => import("../EntidadMapa").then(m => m.EntidadMapa),
@@ -55,6 +56,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
   const [propuestas, setPropuestas] = useState<any[]>([]);
   const [expedientes, setExpedientes] = useState<any[]>([]);
   const [contactos, setContactos] = useState(data.entidad?.crm_contactos ?? []);
+  const [showAnadirCampana, setShowAnadirCampana] = useState(false);
   const [showNuevoContacto, setShowNuevoContacto] = useState(false);
   const [editingContactoId, setEditingContactoId] = useState<string | null>(null);
   const [hoveredContactoId, setHoveredContactoId] = useState<string | null>(null);
@@ -414,6 +416,11 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
       setEditingEntidad(false);
     } catch { } finally { setSavingEntidad(false); }
   }
+
+  const recargarHistorial = () => {
+    if (!entidad?.id) return;
+    getEntidadHistorial(entidad.id).then(rows => setHistorial(rows as unknown as CampanaHistorialRow[])).catch(() => {});
+  };
 
   useEffect(() => {
     if (!entidad?.id) { setLoading(false); return; }
@@ -1280,6 +1287,15 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
             isOpen={!!openSections.campanas}
             onToggle={() => toggleSection("campanas")}
           >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: "0.5rem" }}>
+              <button
+                type="button"
+                onClick={() => setShowAnadirCampana(true)}
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.72rem", fontWeight: 600, color: "#ffffff", background: "var(--primary-color, #475569)", border: "none", cursor: "pointer", padding: "0.25rem 0.55rem", borderRadius: 6 }}
+              >
+                <Plus size={12} /> Añadir a campaña
+              </button>
+            </div>
             {loading ? (
               <div style={{ color: "#94a3b8", fontSize: "0.78rem" }}>Cargando...</div>
             ) : historial.length === 0 ? (
@@ -1684,6 +1700,15 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
             )}
           </div>
         </div>
+      )}
+
+      {showAnadirCampana && (
+        <ConfirmarCampanaModal
+          clienteNombre={entidadLocal.nombre}
+          entidadId={entidadLocal.id}
+          onClose={() => setShowAnadirCampana(false)}
+          onCreated={() => { setShowAnadirCampana(false); recargarHistorial(); }}
+        />
       )}
     </>
   );

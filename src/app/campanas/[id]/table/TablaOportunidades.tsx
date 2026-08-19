@@ -61,9 +61,22 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [showFilters, setShowFilters] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  // Posición calculada al abrir un dropdown de filtro, para renderizarlo vía portal (position:
+  // fixed) fuera de tableWrapper (overflow:hidden) y que no quede recortado por la tabla.
+  const [filterDropdownPos, setFilterDropdownPos] = useState<{ top: number; left: number } | null>(null);
+  const [ciudadSearch, setCiudadSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
   const filterRowRef = useRef<HTMLDivElement>(null);
+  const filterDropdownMenuRef = useRef<HTMLDivElement>(null);
+
+  const toggleFilterDropdown = (key: string) => (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (openDropdown === key) { setOpenDropdown(null); setFilterDropdownPos(null); return; }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setFilterDropdownPos({ top: rect.bottom + 6, left: rect.left });
+    setOpenDropdown(key);
+    if (key === "ciudad") setCiudadSearch("");
+  };
 
   const [estrategiaModal, setEstrategiaModal] = useState<{ op: Oportunidad } | null>(null);
   const [draggedOpId, setDraggedOpId] = useState<string | null>(null);
@@ -134,7 +147,10 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
   useEffect(() => {
     if (!openDropdown) return;
     function handleClick(e: MouseEvent) {
-      if (filterRowRef.current && !filterRowRef.current.contains(e.target as Node)) setOpenDropdown(null);
+      const target = e.target as Node;
+      const dentroDeTrigger = filterRowRef.current && filterRowRef.current.contains(target);
+      const dentroDeMenu = filterDropdownMenuRef.current && filterDropdownMenuRef.current.contains(target);
+      if (!dentroDeTrigger && !dentroDeMenu) { setOpenDropdown(null); setFilterDropdownPos(null); }
     }
     document.addEventListener("mousedown", handleClick, true);
     return () => document.removeEventListener("mousedown", handleClick, true);
@@ -434,24 +450,11 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
           <div className={styles.filterDropdownGroup}>
             <button
               className={`${styles.filterDropdownTrigger}${estadoFilter.length > 0 ? " " + styles.filterDropdownTriggerActive : ""}`}
-              onClick={() => setOpenDropdown(v => v === "estado" ? null : "estado")}
+              onClick={toggleFilterDropdown("estado")}
             >
               Estado {estadoFilter.length > 0 && <span className={styles.filterDropdownBadge}>{estadoFilter.length}</span>}
               <span className={styles.filterDropdownChevron} style={{ transform: openDropdown === "estado" ? "rotate(180deg)" : undefined }}>▾</span>
             </button>
-            {openDropdown === "estado" && (
-              <div className={styles.filterDropdownMenu}>
-                {estados.map(e => (
-                  <label key={e.id} className={styles.filterDropdownItem}>
-                    <input type="checkbox" checked={estadoFilter.includes(e.id)} onChange={() => {
-                      setEstadoFilter(prev => prev.includes(e.id) ? prev.filter(x => x !== e.id) : [...prev, e.id]);
-                    }} style={{ accentColor: e.color }} />
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: e.color, flexShrink: 0, display: "inline-block" }} />
-                    <span>{e.nombre}</span>
-                  </label>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Filtro por agente (solo owners) */}
@@ -459,23 +462,11 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
             <div className={styles.filterDropdownGroup}>
               <button
                 className={`${styles.filterDropdownTrigger}${agenteFilter.length > 0 ? " " + styles.filterDropdownTriggerActive : ""}`}
-                onClick={() => setOpenDropdown(v => v === "agente" ? null : "agente")}
+                onClick={toggleFilterDropdown("agente")}
               >
                 Agente {agenteFilter.length > 0 && <span className={styles.filterDropdownBadge}>{agenteFilter.length}</span>}
                 <span className={styles.filterDropdownChevron} style={{ transform: openDropdown === "agente" ? "rotate(180deg)" : undefined }}>▾</span>
               </button>
-              {openDropdown === "agente" && (
-                <div className={styles.filterDropdownMenu}>
-                  {agentesUnicos.map(a => (
-                    <label key={a.id} className={styles.filterDropdownItem}>
-                      <input type="checkbox" checked={agenteFilter.includes(a.id)} onChange={() => {
-                        setAgenteFilter(prev => prev.includes(a.id) ? prev.filter(x => x !== a.id) : [...prev, a.id]);
-                      }} />
-                      <span>{a.nombre}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
             </div>
           )}
 
@@ -484,23 +475,11 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
             <div className={styles.filterDropdownGroup}>
               <button
                 className={`${styles.filterDropdownTrigger}${ciudadFilter.length > 0 ? " " + styles.filterDropdownTriggerActive : ""}`}
-                onClick={() => setOpenDropdown(v => v === "ciudad" ? null : "ciudad")}
+                onClick={toggleFilterDropdown("ciudad")}
               >
                 Ciudad {ciudadFilter.length > 0 && <span className={styles.filterDropdownBadge}>{ciudadFilter.length}</span>}
                 <span className={styles.filterDropdownChevron} style={{ transform: openDropdown === "ciudad" ? "rotate(180deg)" : undefined }}>▾</span>
               </button>
-              {openDropdown === "ciudad" && (
-                <div className={styles.filterDropdownMenu} style={{ maxHeight: 240, overflowY: "auto" }}>
-                  {ciudadesUnicas.map(({ norm, display }) => (
-                    <label key={norm} className={styles.filterDropdownItem}>
-                      <input type="checkbox" checked={ciudadFilter.includes(norm)} onChange={() => {
-                        setCiudadFilter(prev => prev.includes(norm) ? prev.filter(x => x !== norm) : [...prev, norm]);
-                      }} />
-                      <span>{display}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
             </div>
           )}
 
@@ -509,23 +488,11 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
             <div className={styles.filterDropdownGroup}>
               <button
                 className={`${styles.filterDropdownTrigger}${prioridadFilter.length > 0 ? " " + styles.filterDropdownTriggerActive : ""}`}
-                onClick={() => setOpenDropdown(v => v === "prioridad" ? null : "prioridad")}
+                onClick={toggleFilterDropdown("prioridad")}
               >
                 Prioridad {prioridadFilter.length > 0 && <span className={styles.filterDropdownBadge}>{prioridadFilter.length}</span>}
                 <span className={styles.filterDropdownChevron} style={{ transform: openDropdown === "prioridad" ? "rotate(180deg)" : undefined }}>▾</span>
               </button>
-              {openDropdown === "prioridad" && (
-                <div className={styles.filterDropdownMenu} style={{ maxHeight: 200, overflowY: "auto" }}>
-                  {prioridadesUnicas.map(p => (
-                    <label key={p} className={styles.filterDropdownItem}>
-                      <input type="checkbox" checked={prioridadFilter.includes(p)} onChange={() => {
-                        setPrioridadFilter(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]);
-                      }} />
-                      <span>{p}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
             </div>
           )}
 
@@ -897,6 +864,79 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
             >Eliminar</button>
           </div>
         </div>
+      </div>
+    )}
+
+    {/* Menú de filtros (Estado/Agente/Ciudad/Prioridad) — fuera del tableWrapper para
+        evitar que overflow:hidden lo recorte, igual que el agente picker de abajo. */}
+    {openDropdown && filterDropdownPos && (
+      <div
+        ref={filterDropdownMenuRef}
+        style={{
+          position: "fixed", top: filterDropdownPos.top, left: filterDropdownPos.left,
+          zIndex: 99999, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10,
+          boxShadow: "0 8px 24px rgba(15,23,42,0.1)", padding: "0.4rem 0", minWidth: 180,
+          maxHeight: openDropdown === "ciudad" ? 240 : openDropdown === "prioridad" ? 200 : undefined,
+          overflowY: (openDropdown === "ciudad" || openDropdown === "prioridad") ? "auto" : undefined,
+        }}
+      >
+        {openDropdown === "estado" && estados.map(e => (
+          <label key={e.id} className={styles.filterDropdownItem}>
+            <input type="checkbox" checked={estadoFilter.includes(e.id)} onChange={() => {
+              setEstadoFilter(prev => prev.includes(e.id) ? prev.filter(x => x !== e.id) : [...prev, e.id]);
+            }} style={{ accentColor: e.color }} />
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: e.color, flexShrink: 0, display: "inline-block" }} />
+            <span>{e.nombre}</span>
+          </label>
+        ))}
+        {openDropdown === "agente" && agentesUnicos.map(a => (
+          <label key={a.id} className={styles.filterDropdownItem}>
+            <input type="checkbox" checked={agenteFilter.includes(a.id)} onChange={() => {
+              setAgenteFilter(prev => prev.includes(a.id) ? prev.filter(x => x !== a.id) : [...prev, a.id]);
+            }} />
+            <span>{a.nombre}</span>
+          </label>
+        ))}
+        {openDropdown === "ciudad" && (
+          <>
+            <div style={{ padding: "0.15rem 0.7rem 0.4rem" }}>
+              <input
+                type="text"
+                autoFocus
+                placeholder="Buscar ciudad..."
+                value={ciudadSearch}
+                onChange={(e) => setCiudadSearch(e.target.value)}
+                style={{ width: "100%", boxSizing: "border-box", padding: "0.35rem 0.55rem", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.78rem", outline: "none" }}
+              />
+            </div>
+            <button
+              className={styles.filterClear}
+              onClick={() => setCiudadFilter([])}
+              disabled={ciudadFilter.length === 0}
+              style={{ width: "100%", textAlign: "left", padding: "0.3rem 0.7rem", opacity: ciudadFilter.length === 0 ? 0.4 : 1, cursor: ciudadFilter.length === 0 ? "default" : "pointer" }}
+            >
+              Limpiar selección
+            </button>
+            {ciudadesUnicas
+              .filter(({ display }) => display.toLowerCase().includes(ciudadSearch.trim().toLowerCase()))
+              .map(({ norm, display }) => (
+                <label key={norm} className={styles.filterDropdownItem}>
+                  <input type="checkbox" checked={ciudadFilter.includes(norm)} onChange={() => {
+                    setCiudadFilter(prev => prev.includes(norm) ? prev.filter(x => x !== norm) : [...prev, norm]);
+                  }} />
+                  <span>{display}</span>
+                </label>
+              ))}
+          </>
+        )}
+        {openDropdown === "prioridad" && prioridadesUnicas.map(p => (
+          <label key={p} className={styles.filterDropdownItem}>
+            <input type="checkbox" checked={prioridadFilter.includes(p)} onChange={() => {
+              setPrioridadFilter(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]);
+            }} />
+            <span>{p}</span>
+          </label>
+        ))}
       </div>
     )}
 
