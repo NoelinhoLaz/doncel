@@ -24,7 +24,7 @@ export default function CampanaDetallePage() {
   const [loading, setLoading] = useState(true);
   const [showAnadirOportunidad, setShowAnadirOportunidad] = useState(false);
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
-  const [confirmarCampanaCliente, setConfirmarCampanaCliente] = useState<(NuevoClienteResult | EntidadEncontrada & { esClienteNuevo?: boolean }) | null>(null);
+  const [confirmarCampanaCliente, setConfirmarCampanaCliente] = useState<((NuevoClienteResult | EntidadEncontrada) & { esClienteNuevo?: boolean }) | null>(null);
   const [showBuscarNegocio, setShowBuscarNegocio] = useState(false);
   const [creandoDesdeLugar, setCreandoDesdeLugar] = useState(false);
   const [monocromo, setMonocromo] = useState(false);
