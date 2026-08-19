@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Calendar } from "lucide-react";
 import styles from "./page.module.css";
@@ -45,8 +45,12 @@ export default function CampanaDetallePage() {
     presupuesto: any | null;
   } | null>(null);
 
+  // isInitialLoad evita mostrar la pantalla de carga completa (que desmonta
+  // TablaOportunidades y le hace perder sus filtros) en recargas posteriores a la
+  // primera, como las que se disparan tras cambiar el estado de una oportunidad.
+  const isInitialLoad = useRef(true);
   const loadData = useCallback(async () => {
-    setLoading(true);
+    if (isInitialLoad.current) setLoading(true);
     try {
       const [campRes, { data: ops }] = await Promise.all([
         apiFetch(`/api/crm/campanas/${id}`),
@@ -62,6 +66,7 @@ export default function CampanaDetallePage() {
       console.error(e);
     } finally {
       setLoading(false);
+      isInitialLoad.current = false;
     }
   }, [id]);
 
