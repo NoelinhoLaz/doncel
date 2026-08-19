@@ -10,21 +10,33 @@ export function ConfirmarCampanaModal({
   clienteNombre,
   entidadId,
   defaultCampanaId,
+  esClienteNuevo = false,
+  isOwner = false,
+  currentAgenteId = null,
+  agentes = [],
   onClose,
   onCreated,
 }: {
   clienteNombre: string;
   entidadId: string;
   defaultCampanaId?: string;
+  esClienteNuevo?: boolean;
+  isOwner?: boolean;
+  currentAgenteId?: string | null;
+  agentes?: { agente_id: string; crm_agentes: { id: string; nombre: string; apellidos: string } | null }[];
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [step, setStep] = useState<"preguntar" | "form">("preguntar");
+  // El paso "preguntar" solo aplica cuando se acaba de crear un cliente nuevo
+  // (confirma si además de crearlo se quiere añadir a una campaña ahora mismo).
+  // Si el cliente ya existía, se va directo al formulario.
+  const [step, setStep] = useState<"preguntar" | "form">(esClienteNuevo ? "preguntar" : "form");
   const [campanas, setCampanas] = useState<Campana[]>([]);
   const [campanaId, setCampanaId] = useState(defaultCampanaId ?? "");
   const [estadoId, setEstadoId] = useState("");
   const [prioridad, setPrioridad] = useState("");
   const [valorEstimado, setValorEstimado] = useState("");
+  const [agenteId, setAgenteId] = useState(currentAgenteId ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,6 +76,9 @@ export function ConfirmarCampanaModal({
           entidad_id: entidadId,
           prioridad: prioridad ? Number(prioridad) : null,
           valor_estimado: parseFloat(valorEstimado) || 0,
+          // Solo un admin puede elegir agente manualmente; para un agente normal el
+          // backend (createOportunidad) ignora este campo y asigna siempre al usuario actual.
+          agente_id: isOwner ? (agenteId || null) : undefined,
         }),
       });
       onCreated();
@@ -121,6 +136,18 @@ export function ConfirmarCampanaModal({
               ))}
             </select>
           </div>
+
+          {isOwner && (
+            <div className={styles.field}>
+              <label className={styles.label}>Agente asignado</label>
+              <select className={styles.input} value={agenteId} onChange={e => setAgenteId(e.target.value)}>
+                <option value="">A mí mismo</option>
+                {agentes.map(a => a.crm_agentes && (
+                  <option key={a.agente_id} value={a.agente_id}>{a.crm_agentes.nombre} {a.crm_agentes.apellidos}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className={styles.fieldRow}>
             <div className={styles.field}>

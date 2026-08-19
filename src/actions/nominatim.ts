@@ -12,8 +12,15 @@ export interface NominatimResult {
   state: string | null;
   city: string | null;
   postcode: string | null;
+  // Calle ya estructurada (road + house_number) desde item.address — usar esto en vez de
+  // parsear displayName trocéandolo por comas: cuando el resultado es un POI con nombre
+  // (colegio, instituto...), el primer trozo de displayName es el NOMBRE, no la calle.
+  street: string | null;
   fullAddress: string;
   boundingbox: [string, string, string, string] | null;
+  // Nombre del propio lugar/POI (ej: "Instituto de Educación Secundaria Senda Galiana"),
+  // NO la localidad — solo para mostrar como título del resultado en el buscador.
+  placeName: string | null;
 }
 
 export async function searchNominatim(query: string, opts?: { countrycodes?: string }): Promise<NominatimResult[]> {
@@ -41,10 +48,13 @@ export async function searchNominatim(query: string, opts?: { countrycodes?: str
       category: item.category || "",
       country: item.address?.country || null,
       state: item.address?.state || null,
-      city: item.name || item.address?.village || item.address?.suburb || item.address?.hamlet || item.address?.neighbourhood || item.address?.city || item.address?.town || null,
+      // Localidad real (nunca el nombre del POI) — city/town/village/etc. de item.address.
+      city: item.address?.city || item.address?.town || item.address?.village || item.address?.suburb || item.address?.hamlet || item.address?.neighbourhood || null,
       postcode: item.address?.postcode || null,
+      street: [item.address?.road, item.address?.house_number].filter(Boolean).join(" ") || null,
       fullAddress: item.display_name,
       boundingbox: item.boundingbox?.length === 4 ? item.boundingbox : null,
+      placeName: item.name || null,
     }));
   } catch {
     return [];

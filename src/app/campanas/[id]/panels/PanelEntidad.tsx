@@ -2,10 +2,11 @@
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { X, Pencil, Plus, Phone, Mail, Info, Building2, Rocket, IdCard, Trash2, User, Users, Target, FileText, Calculator, FolderOpen, Tag, ChevronDown, ChevronRight, Presentation } from "lucide-react";
+import { X, Pencil, Plus, Phone, Mail, Info, Building2, Rocket, IdCard, Trash2, User, Users, Target, FileText, Calculator, FolderOpen, Tag, ChevronDown, ChevronRight, Presentation, Search, Loader2, MapPin } from "lucide-react";
 import { EntidadDetalle, CampanaHistorialRow } from "../types";
 import { EMPTY_CONTACTO_FORM, lbl, inp, th, td } from "../constants";
 import { getEntidadHistorial, getEntidadResumen } from "@/actions/crm";
+import { searchNominatim, type NominatimResult } from "@/actions/nominatim";
 import { apiFetch, initials } from "../utils";
 import styles from "../page.module.css";
 import { EtiquetasSelector } from "@/components/EtiquetasSelector";
@@ -202,6 +203,68 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
   });
   const setEF = (k: keyof typeof entidadForm) => (e: React.ChangeEvent<HTMLInputElement>) => setEntidadForm(p => ({ ...p, [k]: e.target.value }));
 
+  // Buscador de dirección validada (Nominatim / OpenStreetMap) para el modo edición —
+  // mismo comportamiento que el alta de cliente en NuevoClientePanel.tsx: no se permite
+  // texto libre, la dirección solo se fija seleccionando un resultado de la lista.
+  const direccionInicialValidada = [entidadForm.direccion, entidadForm.ciudad, entidadForm.provincia].filter(Boolean).join(", ");
+  const [direccionValidada, setDireccionValidada] = useState(!!entidadForm.direccion || !!entidadForm.ciudad);
+  const [direccionQuery, setDireccionQuery] = useState(direccionInicialValidada);
+  const [direccionResultados, setDireccionResultados] = useState<NominatimResult[]>([]);
+  const [direccionLoading, setDireccionLoading] = useState(false);
+  const [showDireccionDropdown, setShowDireccionDropdown] = useState(false);
+
+  useEffect(() => {
+    if (direccionValidada || direccionQuery.trim().length < 3) { setDireccionResultados([]); return; }
+    setDireccionLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const data = await searchNominatim(direccionQuery);
+        setDireccionResultados(data);
+        setShowDireccionDropdown(true);
+      } catch {
+        setDireccionResultados([]);
+      } finally {
+        setDireccionLoading(false);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [direccionQuery, direccionValidada]);
+
+  // Muestra en el dropdown la dirección legible (para resultados sin street estructurado
+  // como POIs con nombre, sigue siendo útil como preview aunque no se use para guardar).
+  function normalizarDireccionEntidad(displayName: string) {
+    const partes = displayName.split(",").map(s => s.trim());
+    const numero = /^\d+[a-zA-Z]?$/.test(partes[0]) ? partes[0] : "";
+    const calle = numero ? partes[1] : partes[0];
+    const calleConNumero = numero ? `${calle} ${numero}` : calle;
+    const resto = partes.slice(numero ? 2 : 1);
+    return { calleConNumero, display: [calleConNumero, ...resto].filter(Boolean).join(", ") };
+  }
+
+  function seleccionarDireccionEntidad(item: NominatimResult) {
+    // item.street viene ya estructurado (road + house_number) desde item.address de
+    // Nominatim — evita el bug de tomar el nombre del POI como si fuera la calle cuando
+    // el resultado es un centro/edificio con nombre (ej: un instituto).
+    const { display } = normalizarDireccionEntidad(item.displayName);
+    setEntidadForm(p => ({
+      ...p,
+      direccion: item.street || "",
+      ciudad: item.city || "",
+      provincia: item.state || "",
+      cp: item.postcode || p.cp,
+    }));
+    setDireccionQuery(display);
+    setDireccionValidada(true);
+    setShowDireccionDropdown(false);
+  }
+
+  function limpiarDireccionEntidad() {
+    setEntidadForm(p => ({ ...p, direccion: "", ciudad: "", provincia: "" }));
+    setDireccionValidada(false);
+    setDireccionQuery("");
+    setDireccionResultados([]);
+  }
+
   // Edición inline del nombre en el header
   const [editingNombre, setEditingNombre] = useState(false);
   const [nombreDraft, setNombreDraft] = useState(entidad?.nombre ?? "");
@@ -292,21 +355,15 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
   async function seleccionarLugar(lugar: any) {
     setSavingCoords(true);
     try {
-      // Places devuelve "Calle X, 14700 Ciudad, Provincia" — parseamos
-      const partes = (lugar.direccion ?? "").split(",").map((s: string) => s.trim());
-      const calle = partes[0] ?? "";
-      // buscar el trozo que tiene el CP (5 dígitos)
-      const cpIdx = partes.findIndex((p: string) => /\d{5}/.test(p));
-      const cpMatch = cpIdx >= 0 ? partes[cpIdx].match(/(\d{5})\s*(.*)/) : null;
-      const cp = cpMatch?.[1] ?? "";
-      const ciudad = cpMatch?.[2]?.trim() ?? (cpIdx >= 0 ? "" : partes[1] ?? "");
-      const provincia = cpIdx >= 0 && cpIdx + 1 < partes.length ? partes[cpIdx + 1] : "";
-
+      // Usar los campos ya estructurados por /api/places/search (addressComponents de
+      // Google), no parsear lugar.direccion (formattedAddress) trocéandolo por comas: para
+      // sitios sin calle/CP indexados (colegios, institutos...) ese string es solo
+      // "{nombre del lugar}, {provincia}", y parsearlo guardaba el nombre como si fuera calle.
       const nuevaDireccion = {
-        direccion: calle,
-        cp: cp || undefined,
-        ciudad: ciudad || entidadLocal.direccion?.ciudad || undefined,
-        provincia: provincia || entidadLocal.direccion?.provincia || undefined,
+        direccion: lugar.calle || undefined,
+        cp: lugar.cp || undefined,
+        ciudad: lugar.ciudad || entidadLocal.direccion?.ciudad || undefined,
+        provincia: lugar.provincia || entidadLocal.direccion?.provincia || undefined,
       };
 
       const res = await fetch(`/api/crm/entidades/${entidadLocal.id}`, {
@@ -836,25 +893,60 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                     </button>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: "0.6rem" }}>
-                  <div style={{ flex: 2 }}>
-                    <label style={lbl}>Dirección</label>
-                    <input value={entidadForm.direccion} onChange={setEF("direccion")} style={inp} placeholder="Calle y número" />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={lbl}>CP</label>
-                    <input value={entidadForm.cp} onChange={setEF("cp")} style={inp} placeholder="14700" />
-                  </div>
+                <div>
+                  <label style={lbl}>Dirección</label>
+                  {direccionValidada ? (
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "0.5rem 0.65rem", border: "1.5px solid #e2e8f0", borderRadius: 6, background: "#f8fafc" }}>
+                      <MapPin size={14} style={{ color: "var(--primary-color, #475569)", flexShrink: 0, marginTop: 2 }} />
+                      <span style={{ fontSize: "0.8rem", color: "#1e293b", flex: 1 }}>{direccionQuery}</span>
+                      <button type="button" onClick={limpiarDireccionEntidad} style={{ display: "flex", border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", flexShrink: 0 }}>
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ position: "relative" }}>
+                      <div style={{ position: "relative" }}>
+                        <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                        <input
+                          style={{ ...inp, width: "100%", boxSizing: "border-box", paddingLeft: "1.9rem", paddingRight: direccionLoading ? "2rem" : undefined }}
+                          placeholder="Busca la dirección real (calle, ciudad...)"
+                          value={direccionQuery}
+                          onChange={e => setDireccionQuery(e.target.value)}
+                          onFocus={() => { if (direccionResultados.length > 0) setShowDireccionDropdown(true); }}
+                        />
+                        {direccionLoading && (
+                          <Loader2 size={13} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", animation: "spin 0.8s linear infinite" }} />
+                        )}
+                      </div>
+                      {showDireccionDropdown && direccionResultados.length > 0 && (
+                        <div className={styles.dropdown}>
+                          {direccionResultados.map(item => {
+                            const { display } = normalizarDireccionEntidad(item.displayName);
+                            return (
+                              <button
+                                key={`${item.osmType}-${item.osmId}`}
+                                type="button"
+                                className={styles.dropdownItem}
+                                onClick={() => seleccionarDireccionEntidad(item)}
+                                style={{ flexDirection: "column", alignItems: "flex-start", gap: 1 }}
+                              >
+                                <span style={{ fontWeight: 600 }}>{item.placeName || item.city || item.state || display.split(",")[0].trim()}</span>
+                                <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>{display}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {!direccionLoading && direccionQuery.trim().length >= 3 && direccionResultados.length === 0 && (
+                        <p style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: 4 }}>Sin resultados. Prueba con otro término.</p>
+                      )}
+                      <p style={{ fontSize: "0.68rem", color: "#94a3b8", marginTop: 4 }}>Selecciona una dirección de la lista para validarla.</p>
+                    </div>
+                  )}
                 </div>
-                <div style={{ display: "flex", gap: "0.6rem" }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={lbl}>Ciudad</label>
-                    <input value={entidadForm.ciudad} onChange={setEF("ciudad")} style={inp} placeholder="Ej: Córdoba" />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={lbl}>Provincia</label>
-                    <input value={entidadForm.provincia} onChange={setEF("provincia")} style={inp} placeholder="Ej: Córdoba" />
-                  </div>
+                <div style={{ maxWidth: "120px" }}>
+                  <label style={lbl}>CP</label>
+                  <input value={entidadForm.cp} onChange={setEF("cp")} style={inp} placeholder="14700" />
                 </div>
                 <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
                   <button type="button" onClick={() => setEditingEntidad(false)} style={{ padding: "0.35rem 0.9rem", fontSize: "0.78rem", border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#64748b" }}>Cancelar</button>

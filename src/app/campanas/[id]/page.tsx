@@ -14,6 +14,7 @@ import { PanelEntidad } from "./panels/PanelEntidad";
 import { TablaOportunidades } from "./table/TablaOportunidades";
 import { NuevoClientePanel, NuevoClienteResult } from "@/components/modals/NuevoClientePanel";
 import { BuscarNegocioModal, LugarPlaces } from "@/components/modals/BuscarNegocioModal";
+import { AnadirOportunidadModal, EntidadEncontrada } from "./modals/AnadirOportunidadModal";
 
 export default function CampanaDetallePage() {
   const { id } = useParams<{ id: string }>();
@@ -21,8 +22,9 @@ export default function CampanaDetallePage() {
   const [campana, setCampana] = useState<Campana | null>(null);
   const [oportunidades, setOportunidades] = useState<Oportunidad[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAnadirOportunidad, setShowAnadirOportunidad] = useState(false);
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
-  const [confirmarCampanaCliente, setConfirmarCampanaCliente] = useState<NuevoClienteResult | null>(null);
+  const [confirmarCampanaCliente, setConfirmarCampanaCliente] = useState<(NuevoClienteResult | EntidadEncontrada & { esClienteNuevo?: boolean }) | null>(null);
   const [showBuscarNegocio, setShowBuscarNegocio] = useState(false);
   const [creandoDesdeLugar, setCreandoDesdeLugar] = useState(false);
   const [monocromo, setMonocromo] = useState(false);
@@ -224,7 +226,7 @@ export default function CampanaDetallePage() {
         campanaId={campana.id}
         objetivoTotal={campana.crm_campanas_agentes?.reduce((s, a) => s + (a.objetivo_valor ?? 0), 0) ?? 0}
         agentes={campana.crm_campanas_agentes ?? []}
-        onNuevaOportunidad={() => setShowNuevoCliente(true)}
+        onNuevaOportunidad={() => setShowAnadirOportunidad(true)}
         onNuevaOportunidadPlaces={() => setShowBuscarNegocio(true)}
         onEstadoChange={handleEstadoChange}
         onPresupuestoClick={abrirPresupuestoParaOportunidad}
@@ -235,12 +237,26 @@ export default function CampanaDetallePage() {
         onOportunidadUpdate={(id, patch) => setOportunidades(prev => prev.map(o => o.id === id ? { ...o, ...patch } : o))}
       />
 
+      {showAnadirOportunidad && (
+        <AnadirOportunidadModal
+          onClose={() => setShowAnadirOportunidad(false)}
+          onClienteExistente={(entidad) => {
+            setShowAnadirOportunidad(false);
+            setConfirmarCampanaCliente({ ...entidad, esClienteNuevo: false });
+          }}
+          onClienteNuevo={() => {
+            setShowAnadirOportunidad(false);
+            setShowNuevoCliente(true);
+          }}
+        />
+      )}
+
       {showNuevoCliente && (
         <NuevoClientePanel
           onClose={() => setShowNuevoCliente(false)}
           onCreated={(cliente) => {
             setShowNuevoCliente(false);
-            setConfirmarCampanaCliente(cliente);
+            setConfirmarCampanaCliente({ ...cliente, esClienteNuevo: true });
           }}
         />
       )}
@@ -250,6 +266,10 @@ export default function CampanaDetallePage() {
           clienteNombre={confirmarCampanaCliente.nombre}
           entidadId={confirmarCampanaCliente.id}
           defaultCampanaId={campana?.id}
+          esClienteNuevo={!!confirmarCampanaCliente.esClienteNuevo}
+          isOwner={isOwner}
+          currentAgenteId={currentAgenteId}
+          agentes={campana?.crm_campanas_agentes ?? []}
           onClose={() => setConfirmarCampanaCliente(null)}
           onCreated={() => { setConfirmarCampanaCliente(null); loadData(); }}
         />

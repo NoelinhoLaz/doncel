@@ -125,7 +125,8 @@ export function NuevoClientePanel({
     return () => clearTimeout(t);
   }, [direccionQuery]);
 
-  // Nominatim devuelve "número, calle, ..." — lo invertimos a "calle número, ..."
+  // Muestra en el dropdown la dirección legible (preview). Para guardar se usa
+  // item.street (ya estructurado por Nominatim), no este parseo de displayName.
   function normalizarDireccion(displayName: string) {
     const partes = displayName.split(",").map(s => s.trim());
     const numero = /^\d+[a-zA-Z]?$/.test(partes[0]) ? partes[0] : "";
@@ -136,10 +137,13 @@ export function NuevoClientePanel({
   }
 
   function seleccionarDireccion(item: NominatimResult) {
-    const { calleConNumero, display } = normalizarDireccion(item.displayName);
+    // item.street viene ya estructurado (road + house_number) desde item.address de
+    // Nominatim — evita tomar el nombre del POI como si fuera la calle cuando el
+    // resultado es un centro/edificio con nombre (ej: un instituto).
+    const { display } = normalizarDireccion(item.displayName);
     setDireccion({
-      direccion: calleConNumero || undefined,
-      cp: undefined,
+      direccion: item.street || undefined,
+      cp: item.postcode || undefined,
       ciudad: item.city || undefined,
       provincia: item.state || undefined,
     });
@@ -371,7 +375,7 @@ export function NuevoClientePanel({
                           onClick={() => seleccionarDireccion(item)}
                           style={{ flexDirection: "column", alignItems: "flex-start", gap: 1 }}
                         >
-                          <span style={{ fontWeight: 600 }}>{item.city || item.state || display.split(",")[0].trim()}</span>
+                          <span style={{ fontWeight: 600 }}>{item.placeName || item.city || item.state || display.split(",")[0].trim()}</span>
                           <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>{display}</span>
                         </button>
                       );
