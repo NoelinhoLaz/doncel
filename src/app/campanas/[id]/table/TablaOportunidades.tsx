@@ -748,7 +748,7 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
                         draggedOpId === o.id ? styles.draggedSource : ""
                       }`}
                     >
-                      <StatePill color={e.color} mono={monocromo} fecha={o.fecha_cierre_est} notas={o.ultima_nota_log ?? o.mig_notas?.observaciones ?? null} />
+                      <StatePill color={e.color} mono={monocromo} fecha={o.fecha_ultimo_cambio_estado ?? o.fecha_cierre_est} notas={o.ultima_nota_log ?? o.mig_notas?.observaciones ?? null} />
                     </div>
                   ) : (
                     <span style={{ display: "block", height: 18 }} />
