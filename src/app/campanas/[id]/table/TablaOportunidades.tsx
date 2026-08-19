@@ -68,7 +68,7 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
   const [estrategiaModal, setEstrategiaModal] = useState<{ op: Oportunidad } | null>(null);
   const [draggedOpId, setDraggedOpId] = useState<string | null>(null);
   const [agentePickerOpId, setAgentePickerOpId] = useState<string | null>(null);
-  const [agentePickerPos, setAgentePickerPos] = useState<{ top: number; left: number } | null>(null);
+  const [agentePickerPos, setAgentePickerPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
   const agentePickerRef = useRef<HTMLDivElement | null>(null);
   const [agentesAgencia, setAgentesAgencia] = useState<{ id: string; nombre: string; apellidos: string; avatar_url?: string | null }[]>([]);
 
@@ -592,7 +592,18 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
                       e.stopPropagation();
                       if (agentePickerOpId === o.id) { setAgentePickerOpId(null); setAgentePickerPos(null); return; }
                       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      setAgentePickerPos({ top: rect.bottom + 6, left: rect.left + rect.width / 2 });
+                      // Estimación de la altura del menú (una fila por agente + "Quitar agente" si aplica)
+                      // para decidir si abrirlo hacia abajo o hacia arriba según el espacio disponible.
+                      const filaAltura = 34;
+                      const quitarAgenteAltura = o.agente_id ? 30 : 0;
+                      const menuAltura = agentesAgencia.length * filaAltura + quitarAgenteAltura + 12;
+                      const espacioAbajo = window.innerHeight - rect.bottom;
+                      const abrirHaciaArriba = espacioAbajo < menuAltura && rect.top > menuAltura;
+                      setAgentePickerPos(
+                        abrirHaciaArriba
+                          ? { bottom: window.innerHeight - rect.top + 6, left: rect.left + rect.width / 2 }
+                          : { top: rect.bottom + 6, left: rect.left + rect.width / 2 }
+                      );
                       setAgentePickerOpId(o.id);
                     }}
                   >
@@ -897,7 +908,9 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
         <div
           ref={agentePickerRef}
           style={{
-            position: "fixed", top: agentePickerPos.top, left: agentePickerPos.left,
+            position: "fixed",
+            ...(agentePickerPos.bottom !== undefined ? { bottom: agentePickerPos.bottom } : { top: agentePickerPos.top }),
+            left: agentePickerPos.left,
             transform: "translateX(-50%)",
             background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10,
             boxShadow: "0 8px 32px rgba(15,23,42,0.14)", zIndex: 99999,
