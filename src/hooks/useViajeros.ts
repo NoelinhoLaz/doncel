@@ -34,9 +34,12 @@ function mapRawViajero(v: any, pvpViajero: number, fechaSalida?: string): any {
         ? "N"
         : fallback ? "S" : "N";
 
+  const datosViaje = v.datos_viaje || {};
+
   return {
     id: v.id,
     estado: v.estado,
+    tipo: datosViaje.tipo || "pasajero",
     entidad_id: v.entidad_id,
     pagador_id: v.pagador_id,
     name: entidad.nombre || "Sin nombre",

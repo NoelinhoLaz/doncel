@@ -69,6 +69,9 @@ interface DesgloseItem {
 
 interface ResumenKpis {
   viajerosCount: number;
+  pasajerosCount: number;
+  acompanantesCount: number;
+  choferesCount: number;
   cobrosRecibidos: number;
   facturacionEmitida: number;
   saldoPendiente: number;
@@ -111,8 +114,10 @@ export default function ResumenTab({ expediente, resumenKpis, resumenPagos, onNa
         : undefined,
     },
     {
-      label: "Viajeros Totales",
-      value: resumenKpis ? resumenKpis.viajerosCount : null,
+      label: "Pasajeros Totales",
+      value: resumenKpis
+        ? `${resumenKpis.viajerosCount} (${resumenKpis.pasajerosCount}/${resumenKpis.acompanantesCount}/${resumenKpis.choferesCount})`
+        : null,
       icon: <Icons.Viajeros size={20} style={{ color: "var(--primary-color, #475569)" }} />,
       bg: "color-mix(in srgb, var(--primary-color, #475569), transparent 90%)",
     },

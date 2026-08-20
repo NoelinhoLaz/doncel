@@ -31,7 +31,7 @@ export default function ExpedienteDetailPage({ params }: { params: Promise<{ id:
   const [loading, setLoading] = useState(true);
   const [linksStatus, setLinksStatus] = useState({ hasCotizacion: false, hasPropuesta: false });
   const [cobrosData, setCobrosData] = useState<{ pagadores: any[]; movimientos?: any[]; movimientosBanco: any[] }>({ pagadores: [], movimientos: [], movimientosBanco: [] });
-  const [resumenKpis, setResumenKpis] = useState<{ viajerosCount: number; cobrosRecibidos: number; facturacionEmitida: number; saldoPendiente: number; totalCobrosEstimados: number; desgloseCobrosEstimados: { label: string; importe: number }[]; totalReembolsos: number } | null>(null);
+  const [resumenKpis, setResumenKpis] = useState<{ viajerosCount: number; pasajerosCount: number; acompanantesCount: number; choferesCount: number; cobrosRecibidos: number; facturacionEmitida: number; saldoPendiente: number; totalCobrosEstimados: number; desgloseCobrosEstimados: { label: string; importe: number }[]; totalReembolsos: number } | null>(null);
   const [resumenPagos, setResumenPagos] = useState<{ serviciosCount: number; pagosRealizados: number; pendientePago: number; facturasSoportadas: number; totalPagosEstimados: number; desglosePagosEstimados: { label: string; importe: number }[]; totalReembolsos: number } | null>(null);
 
   // States for bank match detection modal
@@ -141,7 +141,7 @@ export default function ExpedienteDetailPage({ params }: { params: Promise<{ id:
   const tabs = [
     { id: "resumen", label: "Resumen", icon: <Icons.Resumen size={16} /> },
     { id: "ajustes", label: "Ajustes", icon: <Icons.Settings size={16} /> },
-    { id: "viajeros", label: "Viajeros", icon: <Icons.Viajeros size={16} /> },
+    { id: "viajeros", label: "Pasajeros", icon: <Icons.Viajeros size={16} /> },
     { id: "cobros", label: "Cobros", icon: <Icons.Cobros size={16} /> },
     { id: "servicios", label: "Servicios", icon: <Icons.Servicios size={16} /> },
     { id: "rembolsos", label: "Rembolsos", icon: <Icons.Rembolsos size={16} /> },

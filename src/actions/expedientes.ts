@@ -462,7 +462,7 @@ export async function getResumenKpisExpediente(expedienteId: string) {
     const [viajerosRes, pagadoresRes, facturasRes, serviciosRes, reembolsosRes] = await Promise.all([
       agencyDb
         .from("operativa_viajeros_expedientes")
-        .select("id, extras, estado")
+        .select("id, extras, estado, datos_viaje")
         .eq("expediente_id", expedienteId)
         .order("id", { ascending: true }),
       agencyDb
@@ -520,7 +520,11 @@ export async function getResumenKpisExpediente(expedienteId: string) {
       }
     }
 
-    const viajerosCount = viajerosData.filter((v: any) => v.estado !== "anulado").length;
+    const viajerosActivos = viajerosData.filter((v: any) => v.estado !== "anulado");
+    const viajerosCount = viajerosActivos.length;
+    const pasajerosCount = viajerosActivos.filter((v: any) => (v.datos_viaje?.tipo || "pasajero") === "pasajero").length;
+    const acompanantesCount = viajerosActivos.filter((v: any) => v.datos_viaje?.tipo === "acompanante").length;
+    const choferesCount = viajerosActivos.filter((v: any) => v.datos_viaje?.tipo === "chofer").length;
     // El total del KPI es el real (facturación a pagadores). El desglose
     // debe sumar exactamente ese total: "PVP Base" es el resto tras restar
     // los extras conocidos, en vez de recalcularse desde pvp_viajero.
@@ -536,6 +540,9 @@ export async function getResumenKpisExpediente(expedienteId: string) {
 
     return {
       viajerosCount,
+      pasajerosCount,
+      acompanantesCount,
+      choferesCount,
       cobrosRecibidos,
       facturacionEmitida: (facturasRes.data ?? []).reduce((s, f: any) => s + Number(f.importe_total || 0), 0),
       saldoPendiente: totalFacturable - cobrosRecibidos,
@@ -545,7 +552,7 @@ export async function getResumenKpisExpediente(expedienteId: string) {
     };
   } catch (error: any) {
     console.error("Failed to get resumen KPIs expediente:", error.message);
-    return { viajerosCount: 0, cobrosRecibidos: 0, facturacionEmitida: 0, saldoPendiente: 0, totalCobrosEstimados: 0, desgloseCobrosEstimados: [], totalReembolsos: 0 };
+    return { viajerosCount: 0, pasajerosCount: 0, acompanantesCount: 0, choferesCount: 0, cobrosRecibidos: 0, facturacionEmitida: 0, saldoPendiente: 0, totalCobrosEstimados: 0, desgloseCobrosEstimados: [], totalReembolsos: 0 };
   }
 }
 

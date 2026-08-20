@@ -9,6 +9,9 @@ interface Props {
 
 export default function ViajerosKpiGrid({ viajeros, loading }: Props) {
   const activos = viajeros.filter((v) => v.status !== "ANULADO");
+  const pasajeros = activos.filter((v) => v.tipo === "pasajero");
+  const acompanantes = activos.filter((v) => v.tipo === "acompanante");
+  const choferes = activos.filter((v) => v.tipo === "chofer");
   const total = activos.length;
   const confirmados = activos.filter((v) => v.status === "CONFIRMADO").length;
   const femenino = activos.filter((v) => v.gender === "F").length;
@@ -36,17 +39,33 @@ export default function ViajerosKpiGrid({ viajeros, loading }: Props) {
       {/* KPI 1: Ocupación */}
       <div className={styles.viajerosKpiCard}>
         <div className={styles.blankKpiHeader}>
-          <span className={styles.blankKpiTitle}>Viajeros del Expediente</span>
+          <span className={styles.blankKpiTitle}>Pasajeros del Expediente</span>
           <span className={styles.blankKpiBadge}>
-            {loading ? "..." : `${total} viajero${total === 1 ? "" : "s"}`}
+            {loading ? "..." : `${total} persona${total === 1 ? "" : "s"}`}
           </span>
         </div>
         <div>
           <div className={styles.blankKpiNumber}>{loading ? "..." : `${confirmados} / ${total}`}</div>
           <div className={styles.blankKpiSubtext}>
-            {loading ? "Cargando..." : <><strong>{confirmados} confirmados</strong> de {total} viajero{total === 1 ? "" : "s"}.</>}
+            {loading ? "Cargando..." : <><strong>{confirmados} confirmados</strong> de {total} persona{total === 1 ? "" : "s"}.</>}
           </div>
         </div>
+        {!loading && total > 0 && (
+          <div style={{ display: "flex", gap: "1rem", paddingTop: "0.5rem", marginTop: "0.5rem", borderTop: "1px solid #f1f5f9" }}>
+            <div>
+              <div style={{ fontSize: "0.7rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Pasajeros</div>
+              <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#334155" }}>{pasajeros.length}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.7rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Acompañantes</div>
+              <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#334155" }}>{acompanantes.length}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.7rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Chofer</div>
+              <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#334155" }}>{choferes.length}</div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* KPI 2: Extras */}

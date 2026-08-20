@@ -187,7 +187,6 @@ export default function AnadirViajeroModal({ isOpen, onClose, expedienteId, pvpV
 
   return (
     <div
-      onClick={saving ? undefined : onClose}
       style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(12px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}
     >
       <div
