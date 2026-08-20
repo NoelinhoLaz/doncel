@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Landmark, Trash2 } from "lucide-react";
+import { AlertTriangle, Landmark, Trash2, Megaphone } from "lucide-react";
 import { Icons } from "@/lib/icons";
 import Pagination from "@/app/components/Pagination";
 import { formatBirthDate } from "@/lib/utils/date";
@@ -94,7 +94,7 @@ const CHECKBOX_LABEL_BASE: React.CSSProperties = {
 };
 
 interface FilterDropdownProps {
-  id: "plazos" | "extras" | "newsletter" | "contrato" | "estado";
+  id: "plazos" | "extras" | "newsletter" | "contrato" | "estado" | "pagoStatus";
   label: string;
   count: number;
   isOpen: boolean;
@@ -148,8 +148,8 @@ interface Props {
   onSearchChange: (v: string) => void;
   isFilterRowOpen: boolean;
   onToggleFilterRow: () => void;
-  openDropdown: "plazos" | "extras" | "newsletter" | "contrato" | "estado" | null;
-  onSetOpenDropdown: (d: "plazos" | "extras" | "newsletter" | "contrato" | "estado" | null) => void;
+  openDropdown: "plazos" | "extras" | "newsletter" | "contrato" | "estado" | "pagoStatus" | null;
+  onSetOpenDropdown: (d: "plazos" | "extras" | "newsletter" | "contrato" | "estado" | "pagoStatus" | null) => void;
   activePlazoFilters: string[];
   onTogglePlazoFilter: (id: string) => void;
   activeExtraFilters: string[];
@@ -160,6 +160,8 @@ interface Props {
   onToggleContratoFilter: (v: string) => void;
   activeEstadoFilters: string[];
   onToggleEstadoFilter: (v: string) => void;
+  activePagoStatusFilters: string[];
+  onTogglePagoStatusFilter: (v: string) => void;
   onClearAllFilters: () => void;
   sortKey: string;
   sortDirection: "asc" | "desc";
@@ -170,6 +172,8 @@ interface Props {
   onRowsPerPageChange: (r: number) => void;
   onExportClick?: () => void;
   onAnularClick?: (viajero: any) => void;
+  onDifusionClick?: () => void;
+  difusionLoading?: boolean;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -186,14 +190,17 @@ export default function TablaViajeros({
   activeNewsletterFilters, onToggleNewsletterFilter,
   activeContratoFilters, onToggleContratoFilter,
   activeEstadoFilters, onToggleEstadoFilter,
+  activePagoStatusFilters, onTogglePagoStatusFilter,
   onClearAllFilters,
   sortKey, sortDirection, onSort,
   currentPage, rowsPerPage, onPageChange, onRowsPerPageChange,
   onExportClick,
   onAnularClick,
+  onDifusionClick,
+  difusionLoading,
 }: Props) {
   const estadoFilterIsDefault = activeEstadoFilters.length === 1 && activeEstadoFilters[0] === "Activo";
-  const hasActiveFilters = activePlazoFilters.length + activeExtraFilters.length + activeNewsletterFilters.length + activeContratoFilters.length > 0 || !estadoFilterIsDefault;
+  const hasActiveFilters = activePlazoFilters.length + activeExtraFilters.length + activeNewsletterFilters.length + activeContratoFilters.length + activePagoStatusFilters.length > 0 || !estadoFilterIsDefault;
 
   return (
     <div className={styles.tabContainer}>
@@ -229,6 +236,7 @@ export default function TablaViajeros({
               </span>
             </button>
           )}
+          <button className={styles.actionIconButton} title="Enviar difusión" onClick={onDifusionClick} disabled={difusionLoading} style={difusionLoading ? { opacity: 0.6, cursor: "wait" } : undefined}><Megaphone size={18} /></button>
           <button className={styles.addActionButton} title="Añadir Viajero"><Icons.Add size={18} /></button>
         </div>
       </div>
@@ -301,6 +309,15 @@ export default function TablaViajeros({
           <FilterDropdown id="estado" label="Todos los viajeros" count={estadoFilterIsDefault ? 0 : activeEstadoFilters.length} isOpen={openDropdown === "estado"} onToggle={() => onSetOpenDropdown(openDropdown === "estado" ? null : "estado")}>
             {["Activo", "Inactivo"].map((opt) => (
               <CheckboxOption key={opt} value={opt} checked={activeEstadoFilters.includes(opt)} onChange={() => onToggleEstadoFilter(opt)}>
+                {opt}
+              </CheckboxOption>
+            ))}
+          </FilterDropdown>
+
+          {/* Estado de pago */}
+          <FilterDropdown id="pagoStatus" label="Estado de pago" count={activePagoStatusFilters.length} isOpen={openDropdown === "pagoStatus"} onToggle={() => onSetOpenDropdown(openDropdown === "pagoStatus" ? null : "pagoStatus")}>
+            {["Pagado", "Parcial", "Pendiente"].map((opt) => (
+              <CheckboxOption key={opt} value={opt} checked={activePagoStatusFilters.includes(opt.toUpperCase())} onChange={() => onTogglePagoStatusFilter(opt.toUpperCase())}>
                 {opt}
               </CheckboxOption>
             ))}

@@ -1,8 +1,8 @@
 "use client";
 
 import styles from "./nuevaDifusion.module.css";
-import { X, Send, Megaphone, Tag, Users, Paperclip, Pencil } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { X, Send, Megaphone, Tag, Users, Paperclip, Pencil, Search } from "lucide-react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { crearDifusion, getDestinatariosPorCampana, getDestinatariosPorEtiqueta, getDestinatariosClientesAgente, getEmailsDeEntidad, getEntidadCompleta, type EntidadDestinatarios } from "@/actions/difusiones";
 import { getCampanas } from "@/actions/crm";
@@ -47,6 +47,7 @@ export default function NuevaDifusionModal({ onClose, onCreated, initialCampanaI
   const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set()); // claves "entidadId::email"
   const [entidadEditandoId, setEntidadEditandoId] = useState<string | null>(null);
   const [entidadEditandoData, setEntidadEditandoData] = useState<any>(null);
+  const [busquedaDest, setBusquedaDest] = useState("");
 
   // Paso 3: mensaje
   const [asunto, setAsunto] = useState("");
@@ -155,6 +156,17 @@ export default function NuevaDifusionModal({ onClose, onCreated, initialCampanaI
   }
 
   const totalEmails = entidades.reduce((s, e) => s + e.emails.length, 0);
+
+  const entidadesOrdenadasFiltradas = useMemo(() => {
+    const term = busquedaDest.trim().toLowerCase();
+    const filtradas = term
+      ? entidades.filter((ent) =>
+          (ent.nombre || "").toLowerCase().includes(term) ||
+          ent.emails.some((em) => em.email.toLowerCase().includes(term))
+        )
+      : entidades;
+    return [...filtradas].sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "", "es"));
+  }, [entidades, busquedaDest]);
 
   function toggleSelectAll() {
     setSelectedEmails((prev) => {
@@ -313,13 +325,29 @@ export default function NuevaDifusionModal({ onClose, onCreated, initialCampanaI
               )}
             </div>
 
+            {!loadingDest && entidades.length > 0 && (
+              <div style={{ position: "relative", margin: "0.5rem 0 0.75rem" }}>
+                <Search size={14} style={{ position: "absolute", left: "0.6rem", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                <input
+                  type="text"
+                  placeholder="Buscar destinatario o email..."
+                  value={busquedaDest}
+                  onChange={(e) => setBusquedaDest(e.target.value)}
+                  className={styles.input}
+                  style={{ paddingLeft: "2rem" }}
+                />
+              </div>
+            )}
+
             {loadingDest ? (
               <p style={{ fontSize: "0.82rem", color: "#94a3b8", textAlign: "center", padding: "1rem 0" }}>Cargando destinatarios…</p>
             ) : entidades.length === 0 ? (
               <p className={styles.hint}>No se han encontrado destinatarios con email para esta selección.</p>
+            ) : entidadesOrdenadasFiltradas.length === 0 ? (
+              <p className={styles.hint}>Sin resultados para "{busquedaDest}".</p>
             ) : (
               <div className={styles.entidadesGrid}>
-                {entidades.map((ent) => {
+                {entidadesOrdenadasFiltradas.map((ent) => {
                   const multiple = ent.emails.length > 1;
                   const keys = ent.emails.map((e) => emailKey(ent.entidad_id, e.email));
                   const todosSeleccionados = keys.every((k) => selectedEmails.has(k));

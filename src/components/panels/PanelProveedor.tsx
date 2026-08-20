@@ -154,7 +154,7 @@ export function PanelProveedor({ proveedor, onClose }: { proveedor: ProveedorDet
     setSavingAlias(true);
     try {
       const res = await updateProveedorAlias(proveedor.id, nuevaLista);
-      if (res.success) setAlias(res.data.alias ?? nuevaLista);
+      if (res.success) setAlias(res.data?.alias ?? nuevaLista);
     } finally {
       setSavingAlias(false);
     }
@@ -201,7 +201,7 @@ export function PanelProveedor({ proveedor, onClose }: { proveedor: ProveedorDet
       const key = tipo?.id || c.tipo;
       if (key && !map.has(key)) map.set(key, { etiqueta: tipo?.etiqueta || c.tipo || "Sin tipo", icono: tipo?.icono });
       return map;
-    }, new Map())
+    }, new Map<string, { etiqueta: string; icono?: string }>())
   ).map(([id, v]) => ({ id, ...v }));
 
   const cotizacionesAgrupadas = Array.from(

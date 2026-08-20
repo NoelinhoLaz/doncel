@@ -6,6 +6,8 @@ import ViajerosKpiGrid from "@/app/components/viajeros/ViajerosKpiGrid";
 import TablaViajeros from "@/app/components/viajeros/TablaViajeros";
 import ExportViajerosModal from "@/components/modals/ExportViajerosModal";
 import AnularViajeroModal from "@/components/modals/AnularViajeroModal";
+import NuevaDifusionModal from "@/components/modals/NuevaDifusionModal";
+import { getDestinatariosPorEntidadIds, type EntidadDestinatarios } from "@/actions/difusiones";
 
 interface Props {
   expedienteId: string;
@@ -20,6 +22,22 @@ export default function ViajerosTab({ expedienteId, fechaSalida, pvpViajero, pag
   const v = useViajeros(expedienteId, fechaSalida, pvpViajero, pagadores, plazos);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [viajeroAAnular, setViajeroAAnular] = useState<any | null>(null);
+  const [difusionEntidades, setDifusionEntidades] = useState<EntidadDestinatarios[] | null>(null);
+  const [loadingDifusion, setLoadingDifusion] = useState(false);
+
+  const handleAbrirDifusion = async () => {
+    setLoadingDifusion(true);
+    try {
+      const entidadIds = v.filteredData
+        .filter((viajero) => viajero.status !== "ANULADO")
+        .map((viajero) => viajero.entidad_id)
+        .filter(Boolean);
+      const entidades = await getDestinatariosPorEntidadIds(entidadIds);
+      setDifusionEntidades(entidades);
+    } finally {
+      setLoadingDifusion(false);
+    }
+  };
 
   return (
     <>
@@ -53,6 +71,8 @@ export default function ViajerosTab({ expedienteId, fechaSalida, pvpViajero, pag
         onToggleContratoFilter={v.toggleContratoFilter}
         activeEstadoFilters={v.activeEstadoFilters}
         onToggleEstadoFilter={v.toggleEstadoFilter}
+        activePagoStatusFilters={v.activePagoStatusFilters}
+        onTogglePagoStatusFilter={v.togglePagoStatusFilter}
         onClearAllFilters={v.clearAllFilters}
         sortKey={v.sortKey}
         sortDirection={v.sortDirection}
@@ -63,6 +83,8 @@ export default function ViajerosTab({ expedienteId, fechaSalida, pvpViajero, pag
         onRowsPerPageChange={v.handleRowsPerPageChange}
         onExportClick={() => setIsExportOpen(true)}
         onAnularClick={setViajeroAAnular}
+        onDifusionClick={handleAbrirDifusion}
+        difusionLoading={loadingDifusion}
       />
 
       <ExportViajerosModal
@@ -78,6 +100,14 @@ export default function ViajerosTab({ expedienteId, fechaSalida, pvpViajero, pag
         expedienteId={expedienteId}
         onSuccess={v.reload}
       />
+
+      {difusionEntidades && (
+        <NuevaDifusionModal
+          onClose={() => setDifusionEntidades(null)}
+          onCreated={() => setDifusionEntidades(null)}
+          initialEntidades={difusionEntidades}
+        />
+      )}
     </>
   );
 }

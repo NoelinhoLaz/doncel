@@ -19,8 +19,10 @@ export function useCobros(
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isFilterRowOpen, setIsFilterRowOpen] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState<"plazos" | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<"plazos" | "estado" | "medioPago" | null>(null);
   const [activePlazoFilters, setActivePlazoFilters] = useState<string[]>([]);
+  const [activeEstadoFilters, setActiveEstadoFilters] = useState<string[]>([]);
+  const [activeMedioPagoFilters, setActiveMedioPagoFilters] = useState<string[]>([]);
   const [matchesCobros, setMatchesCobros] = useState<any[]>([]);
   const [sortKey, setSortKey] = useState("cliente");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
@@ -73,6 +75,26 @@ export function useCobros(
 
   const clearPlazoFilters = () => {
     setActivePlazoFilters([]);
+    setCurrentPage(1);
+  };
+
+  const toggleEstadoFilter = (v: string) => {
+    setActiveEstadoFilters((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
+    setCurrentPage(1);
+  };
+
+  const clearEstadoFilters = () => {
+    setActiveEstadoFilters([]);
+    setCurrentPage(1);
+  };
+
+  const toggleMedioPagoFilter = (v: string) => {
+    setActiveMedioPagoFilters((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
+    setCurrentPage(1);
+  };
+
+  const clearMedioPagoFilters = () => {
+    setActiveMedioPagoFilters([]);
     setCurrentPage(1);
   };
 
@@ -146,9 +168,23 @@ export function useCobros(
       for (const [pIdxStr, statuses] of Object.entries(plazoFiltersGrouped)) {
         if (!statuses.includes(getPlazoDetail(item, plazos, Number(pIdxStr)).color)) return false;
       }
+
+      if (activeEstadoFilters.length > 0) {
+        const estadoLabel = item.estado === "completado" ? "Pagado" : item.estado === "parcial" ? "Parcial" : "Pendiente";
+        if (!activeEstadoFilters.includes(estadoLabel)) return false;
+      }
+
+      if (activeMedioPagoFilters.length > 0) {
+        const entityIds = new Set([item.entidad_id, ...myViajeros.map((v) => v.entidad_id)]);
+        const tieneMedio = movimientos.some(
+          (m) => entityIds.has(m.entidad_id) && m.tipo === "cobro" && activeMedioPagoFilters.includes(m.medio_pago)
+        );
+        if (!tieneMedio) return false;
+      }
+
       return true;
     });
-  }, [pagadores, search, viajerosByPagador, plazoFiltersGrouped, plazos]);
+  }, [pagadores, search, viajerosByPagador, plazoFiltersGrouped, plazos, activeEstadoFilters, activeMedioPagoFilters, movimientos]);
 
   const sortedData = useMemo(() => {
     const data = [...filteredData];
@@ -244,6 +280,12 @@ export function useCobros(
     activePlazoFilters,
     togglePlazoFilter,
     clearPlazoFilters,
+    activeEstadoFilters,
+    toggleEstadoFilter,
+    clearEstadoFilters,
+    activeMedioPagoFilters,
+    toggleMedioPagoFilter,
+    clearMedioPagoFilters,
     matchesCobros,
     sortKey,
     sortDirection,

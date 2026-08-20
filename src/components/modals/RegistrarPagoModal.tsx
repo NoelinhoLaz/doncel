@@ -64,7 +64,7 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
     const map = new Map<string, { key: string; nombre: string; servicios: any[] }>();
     for (const ser of seleccionablesFiltrados) {
       const key = ser.proveedor_id || ser.proveedor || "__sin_proveedor__";
-      const grupo = map.get(key) || { key, nombre: ser.proveedor || "Sin proveedor", servicios: [] };
+      const grupo = map.get(key) || { key, nombre: ser.proveedor || "Sin proveedor", servicios: [] as any[] };
       grupo.servicios.push(ser);
       map.set(key, grupo);
     }

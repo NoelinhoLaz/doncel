@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
-import { Landmark } from "lucide-react";
+import { Landmark, Megaphone } from "lucide-react";
 import { Icons } from "@/lib/icons";
 import Pagination from "@/app/components/Pagination";
 import PlazoDots from "./PlazoDots";
@@ -31,15 +31,23 @@ interface Props {
   onToggleExpand: (id: string) => void;
   isFilterRowOpen: boolean;
   onToggleFilterRow: () => void;
-  openDropdown: "plazos" | null;
-  onSetOpenDropdown: (v: "plazos" | null) => void;
+  openDropdown: "plazos" | "estado" | "medioPago" | null;
+  onSetOpenDropdown: (v: "plazos" | "estado" | "medioPago" | null) => void;
   activePlazoFilters: string[];
   onTogglePlazoFilter: (id: string) => void;
   onClearPlazoFilters: () => void;
+  activeEstadoFilters: string[];
+  onToggleEstadoFilter: (v: string) => void;
+  onClearEstadoFilters: () => void;
+  activeMedioPagoFilters: string[];
+  onToggleMedioPagoFilter: (v: string) => void;
+  onClearMedioPagoFilters: () => void;
   paymentPlazosList: any[];
   matchesCobros: any[];
   onOpenMatchModal?: () => void;
   onAddCobro: () => void;
+  onDifusionClick?: () => void;
+  difusionLoading?: boolean;
 }
 
 // Helper para encabezados de columna ordenables
@@ -116,10 +124,18 @@ export default function TablaPagadores({
   activePlazoFilters,
   onTogglePlazoFilter,
   onClearPlazoFilters,
+  activeEstadoFilters,
+  onToggleEstadoFilter,
+  onClearEstadoFilters,
+  activeMedioPagoFilters,
+  onToggleMedioPagoFilter,
+  onClearMedioPagoFilters,
   paymentPlazosList,
   matchesCobros,
   onOpenMatchModal,
   onAddCobro,
+  onDifusionClick,
+  difusionLoading,
 }: Props) {
   return (
     <div
@@ -198,6 +214,9 @@ export default function TablaPagadores({
               </span>
             </button>
           )}
+          <button className={styles.actionIconButton} title="Enviar difusión" onClick={onDifusionClick} disabled={difusionLoading} style={difusionLoading ? { opacity: 0.6, cursor: "wait" } : undefined}>
+            <Megaphone size={18} />
+          </button>
           <button className={styles.addActionButton} title="Añadir cobro" onClick={onAddCobro}>
             <Icons.Add size={18} />
           </button>
@@ -379,9 +398,216 @@ export default function TablaPagadores({
             )}
           </div>
 
-          {activePlazoFilters.length > 0 && (
+          <div style={{ position: "relative" }}>
             <button
-              onClick={onClearPlazoFilters}
+              onClick={() => onSetOpenDropdown(openDropdown === "estado" ? null : "estado")}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.5rem",
+                padding: "0.35rem 0.75rem",
+                borderRadius: "0.5rem",
+                border: "1px solid #cbd5e1",
+                backgroundColor: "#fff",
+                color: "#334155",
+                fontSize: "0.75rem",
+                fontWeight: "600",
+                cursor: "pointer",
+                boxShadow: "0 1px 2px 0 rgba(0,0,0,0.05)",
+                outline: "none",
+                minWidth: "180px",
+              }}
+            >
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+                <span>Estado de pago</span>
+                {activeEstadoFilters.length > 0 && (
+                  <span
+                    style={{
+                      backgroundColor: "var(--primary-color, #475569)",
+                      color: "#fff",
+                      fontSize: "0.65rem",
+                      fontWeight: "700",
+                      padding: "0.05rem 0.35rem",
+                      borderRadius: "9999px",
+                    }}
+                  >
+                    {activeEstadoFilters.length}
+                  </span>
+                )}
+              </span>
+              <Icons.ChevronDown
+                size={12}
+                style={{
+                  transform: openDropdown === "estado" ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s",
+                }}
+              />
+            </button>
+
+            {openDropdown === "estado" && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  minWidth: "180px",
+                  backgroundColor: "#fff",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "0.5rem",
+                  boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+                  padding: "0.4rem",
+                  marginTop: "0.25rem",
+                  zIndex: 999,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.1rem",
+                }}
+              >
+                {["Pagado", "Parcial", "Pendiente"].map((opt) => {
+                  const isChecked = activeEstadoFilters.includes(opt);
+                  return (
+                    <label
+                      key={opt}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.4rem",
+                        padding: "0.25rem 0.4rem",
+                        borderRadius: "0.25rem",
+                        cursor: "pointer",
+                        fontSize: "0.7rem",
+                        color: "#475569",
+                        fontWeight: "600",
+                        backgroundColor: isChecked ? "#f1f5f9" : "transparent",
+                        transition: "background-color 0.1s",
+                      }}
+                      onMouseEnter={(e) => { if (!isChecked) e.currentTarget.style.backgroundColor = "#f8fafc"; }}
+                      onMouseLeave={(e) => { if (!isChecked) e.currentTarget.style.backgroundColor = "transparent"; }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => onToggleEstadoFilter(opt)}
+                        style={{ accentColor: "var(--primary-color, #475569)", cursor: "pointer", transform: "scale(0.85)" }}
+                      />
+                      {opt}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => onSetOpenDropdown(openDropdown === "medioPago" ? null : "medioPago")}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.5rem",
+                padding: "0.35rem 0.75rem",
+                borderRadius: "0.5rem",
+                border: "1px solid #cbd5e1",
+                backgroundColor: "#fff",
+                color: "#334155",
+                fontSize: "0.75rem",
+                fontWeight: "600",
+                cursor: "pointer",
+                boxShadow: "0 1px 2px 0 rgba(0,0,0,0.05)",
+                outline: "none",
+                minWidth: "180px",
+              }}
+            >
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+                <span>Medio de pago</span>
+                {activeMedioPagoFilters.length > 0 && (
+                  <span
+                    style={{
+                      backgroundColor: "var(--primary-color, #475569)",
+                      color: "#fff",
+                      fontSize: "0.65rem",
+                      fontWeight: "700",
+                      padding: "0.05rem 0.35rem",
+                      borderRadius: "9999px",
+                    }}
+                  >
+                    {activeMedioPagoFilters.length}
+                  </span>
+                )}
+              </span>
+              <Icons.ChevronDown
+                size={12}
+                style={{
+                  transform: openDropdown === "medioPago" ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s",
+                }}
+              />
+            </button>
+
+            {openDropdown === "medioPago" && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  minWidth: "180px",
+                  backgroundColor: "#fff",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "0.5rem",
+                  boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+                  padding: "0.4rem",
+                  marginTop: "0.25rem",
+                  zIndex: 999,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.1rem",
+                }}
+              >
+                {[
+                  { value: "banco", label: "Banco" },
+                  { value: "efectivo", label: "Efectivo" },
+                  { value: "tarjeta", label: "Tarjeta" },
+                  { value: "online", label: "Online" },
+                ].map((opt) => {
+                  const isChecked = activeMedioPagoFilters.includes(opt.value);
+                  return (
+                    <label
+                      key={opt.value}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.4rem",
+                        padding: "0.25rem 0.4rem",
+                        borderRadius: "0.25rem",
+                        cursor: "pointer",
+                        fontSize: "0.7rem",
+                        color: "#475569",
+                        fontWeight: "600",
+                        backgroundColor: isChecked ? "#f1f5f9" : "transparent",
+                        transition: "background-color 0.1s",
+                      }}
+                      onMouseEnter={(e) => { if (!isChecked) e.currentTarget.style.backgroundColor = "#f8fafc"; }}
+                      onMouseLeave={(e) => { if (!isChecked) e.currentTarget.style.backgroundColor = "transparent"; }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => onToggleMedioPagoFilter(opt.value)}
+                        style={{ accentColor: "var(--primary-color, #475569)", cursor: "pointer", transform: "scale(0.85)" }}
+                      />
+                      {opt.label}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {(activePlazoFilters.length > 0 || activeEstadoFilters.length > 0 || activeMedioPagoFilters.length > 0) && (
+            <button
+              onClick={() => { onClearPlazoFilters(); onClearEstadoFilters(); onClearMedioPagoFilters(); }}
               style={{
                 padding: "0.35rem 0.75rem",
                 borderRadius: "0.5rem",
@@ -492,8 +718,8 @@ export default function TablaPagadores({
                       <PlazoDots pagador={item} globalPlazos={globalPlazos} />
                     </td>
                     <td style={{ textAlign: "right" }}>
-                      <span className={`${styles.statusTag} ${item.estado === "completado" ? styles.statusSuccess : styles.statusPending}`}>
-                        {item.estado}
+                      <span className={`${styles.statusTag} ${item.estado === "completado" ? styles.statusSuccess : item.estado === "parcial" ? styles.statusParcial : styles.statusPending}`}>
+                        {item.estado === "completado" ? "pagado" : item.estado}
                       </span>
                     </td>
                   </tr>

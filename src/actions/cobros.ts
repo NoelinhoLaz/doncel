@@ -231,7 +231,7 @@ export async function registrarCobroOficina(payload: {
       const concepto = medio_pago === "efectivo"
         ? "Cobro en efectivo - Anticipo plaza viaje"
         : `Cobro TPV${tique ? " Nº Tique " + tique : ""} - Anticipo plaza viaje`;
-      const estado = medio_pago === "efectivo" ? "confirmado" : "pendiente";
+      const estado = "confirmado";
 
       const { data: movimiento, error: errMov } = await agencyDb
         .from("contabilidad_movimientos")

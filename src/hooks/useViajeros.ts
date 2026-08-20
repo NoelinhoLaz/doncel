@@ -89,12 +89,13 @@ export function useViajeros(
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isFilterRowOpen, setIsFilterRowOpen] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState<"plazos" | "extras" | "newsletter" | "contrato" | "estado" | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<"plazos" | "extras" | "newsletter" | "contrato" | "estado" | "pagoStatus" | null>(null);
   const [activePlazoFilters, setActivePlazoFilters] = useState<string[]>([]);
   const [activeExtraFilters, setActiveExtraFilters] = useState<string[]>([]);
   const [activeNewsletterFilters, setActiveNewsletterFilters] = useState<string[]>([]);
   const [activeContratoFilters, setActiveContratoFilters] = useState<string[]>([]);
   const [activeEstadoFilters, setActiveEstadoFilters] = useState<string[]>(["Activo"]);
+  const [activePagoStatusFilters, setActivePagoStatusFilters] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
@@ -204,10 +205,11 @@ export function useViajeros(
       if (activeNewsletterFilters.length > 0 && !activeNewsletterFilters.includes(v.newsletter === "S" ? "Sí" : "No")) return false;
       if (activeContratoFilters.length > 0 && !activeContratoFilters.includes(v.contrato === "S" ? "Sí" : "No")) return false;
       if (activeEstadoFilters.length > 0 && !activeEstadoFilters.includes(v.status === "ANULADO" ? "Inactivo" : "Activo")) return false;
+      if (activePagoStatusFilters.length > 0 && !activePagoStatusFilters.includes(v.pagoStatus)) return false;
 
       return true;
     });
-  }, [viajerosConPagoStatus, search, pagadorMap, plazoFiltersGrouped, plazos, activeExtraFilters, activeNewsletterFilters, activeContratoFilters, activeEstadoFilters]);
+  }, [viajerosConPagoStatus, search, pagadorMap, plazoFiltersGrouped, plazos, activeExtraFilters, activeNewsletterFilters, activeContratoFilters, activeEstadoFilters, activePagoStatusFilters]);
 
   const sortedData = useMemo(() => {
     const data = [...filteredData];
@@ -257,7 +259,8 @@ export function useViajeros(
   const toggleNewsletterFilter = (v: string) => { setActiveNewsletterFilters((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]); setCurrentPage(1); };
   const toggleContratoFilter = (v: string) => { setActiveContratoFilters((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]); setCurrentPage(1); };
   const toggleEstadoFilter = (v: string) => { setActiveEstadoFilters((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]); setCurrentPage(1); };
-  const clearAllFilters = () => { setActivePlazoFilters([]); setActiveExtraFilters([]); setActiveNewsletterFilters([]); setActiveContratoFilters([]); setActiveEstadoFilters(["Activo"]); setCurrentPage(1); };
+  const togglePagoStatusFilter = (v: string) => { setActivePagoStatusFilters((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]); setCurrentPage(1); };
+  const clearAllFilters = () => { setActivePlazoFilters([]); setActiveExtraFilters([]); setActiveNewsletterFilters([]); setActiveContratoFilters([]); setActiveEstadoFilters(["Activo"]); setActivePagoStatusFilters([]); setCurrentPage(1); };
 
   return {
     viajeros, loading, reload: loadViajeros, extrasIconMap, matchesCobros, dynamicExtras, paymentPlazosList, pagadorMap,
@@ -269,6 +272,7 @@ export function useViajeros(
     activeNewsletterFilters, toggleNewsletterFilter,
     activeContratoFilters, toggleContratoFilter,
     activeEstadoFilters, toggleEstadoFilter,
+    activePagoStatusFilters, togglePagoStatusFilter,
     clearAllFilters,
     sortKey, sortDirection, handleSort,
     currentPage, setCurrentPage, rowsPerPage, handleRowsPerPageChange,

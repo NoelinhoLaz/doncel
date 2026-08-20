@@ -148,6 +148,18 @@ export async function getEmailsDeEntidad(entidadId: string): Promise<EntidadDest
   return resultado ?? null;
 }
 
+export async function getDestinatariosPorEntidadIds(entidadIds: string[]): Promise<EntidadDestinatarios[]> {
+  const ids = [...new Set(entidadIds)].filter(Boolean);
+  if (ids.length === 0) return [];
+  const agencyDb = await getAgencyDbClient();
+  const { data, error } = await agencyDb
+    .from("contabilidad_entidades")
+    .select("id, nombre, email, otros_emails")
+    .in("id", ids);
+  if (error) throw error;
+  return buildEmailsPorEntidad((data ?? []) as any[]);
+}
+
 export async function getEntidadCompleta(entidadId: string) {
   const agencyDb = await getAgencyDbClient();
   const { data, error } = await agencyDb
