@@ -858,6 +858,25 @@ export default function MovimientosOfiviajePage() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
         <h1 style={{ fontSize: "1.3rem", fontWeight: 700, color: "#0f172a", margin: 0 }}>Movimientos OFIviaje</h1>
         <div style={{ display: "flex", gap: "0.6rem" }}>
+          <NextLink
+            href="/banco/historial-procesos"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              padding: "0.5rem 0.9rem",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              color: "#334155",
+              background: "#fff",
+              border: "1px solid #e2e8f0",
+              borderRadius: "0.375rem",
+              textDecoration: "none",
+            }}
+          >
+            <Icons.History size={16} />
+            Historial de procesos
+          </NextLink>
           <button
             onClick={handleConciliar}
             disabled={conciliando}

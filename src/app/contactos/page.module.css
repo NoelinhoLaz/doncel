@@ -12,6 +12,153 @@
   gap: 1rem;
 }
 
+.tipCard {
+  flex: 1;
+  min-width: 0;
+  border-radius: 12px;
+  background: linear-gradient(120deg,
+    color-mix(in srgb, var(--primary-color, #475569) 8%, white) 0%,
+    color-mix(in srgb, var(--primary-color, #475569) 30%, white) 50%,
+    color-mix(in srgb, var(--primary-color, #475569) 8%, white) 100%
+  );
+  background-size: 250% 100%;
+  border: 1px solid color-mix(in srgb, var(--primary-color, #475569) 18%, white);
+  padding: 0.6rem 0.85rem;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  min-height: 44px;
+  animation: tipPulse 1.4s ease;
+}
+
+@keyframes tipPulse {
+  0% {
+    background-position: 100% 0;
+    border-color: var(--primary-color, #475569);
+  }
+  100% {
+    background-position: 0 0;
+    border-color: color-mix(in srgb, var(--primary-color, #475569) 18%, white);
+  }
+}
+
+.tipIcon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--primary-color, #475569);
+  animation: tipIconWiggle 0.6s ease;
+  transform-origin: 50% 90%;
+}
+
+@keyframes tipIconWiggle {
+  0% { transform: rotate(0deg); }
+  30% { transform: rotate(-12deg); }
+  60% { transform: rotate(10deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.tipText {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  color: color-mix(in srgb, var(--primary-color, #475569) 85%, black);
+  animation: tipFadeIn 0.4s ease;
+  flex: 1;
+  min-width: 0;
+}
+
+.tipText p {
+  margin: 0;
+}
+
+.tipTextClamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tipMoreBtn {
+  margin: 0.2rem 0 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--primary-color, #475569);
+  text-decoration: underline;
+}
+
+.filtroEspecialBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.85rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary-color, #475569) 10%, white);
+  border: 1px solid color-mix(in srgb, var(--primary-color, #475569) 25%, white);
+  font-size: 0.78rem;
+  color: color-mix(in srgb, var(--primary-color, #475569) 85%, black);
+}
+
+.filtroEspecialBanner button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--primary-color, #475569);
+  text-decoration: underline;
+}
+
+@keyframes tipFadeIn {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.tipNavBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--primary-color, #475569);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+
+.tipNavBtn:hover { background: rgba(255, 255, 255, 0.9); }
+
+.tipActionBtn {
+  margin-top: 0.15rem;
+  padding: 0.3rem 0.7rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--primary-color, #475569);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.tipActionBtn:hover { opacity: 0.88; }
+
+.tipIconWatermark {
+  position: absolute;
+  bottom: -14px;
+  right: -10px;
+  color: var(--primary-color, #475569);
+  opacity: 0.1;
+  pointer-events: none;
+}
+
 .title {
   font-size: 2.25rem;
   font-weight: 400;
@@ -55,8 +202,8 @@
 
 .table th {
   text-align: left;
-  padding: 0.75rem 1rem;
-  font-size: 0.75rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.68rem;
   font-weight: 600;
   color: #64748b;
   text-transform: uppercase;
@@ -66,8 +213,8 @@
 }
 
 .table td {
-  padding: 0.4rem 1rem;
-  font-size: 0.875rem;
+  padding: 0.35rem 1rem;
+  font-size: 0.78rem;
   color: #1e293b;
   border-bottom: 1px solid #f1f5f9;
 }
@@ -85,4 +232,123 @@
   padding: 3rem;
   color: #94a3b8;
   font-size: 0.875rem;
+}
+
+.tableWrapper {
+  background: #ffffff;
+  border-radius: 1rem;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
+}
+
+.tableWrapper .table {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.tableHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--primary-color, #475569), transparent 80%);
+  background-color: color-mix(in srgb, var(--primary-color, #475569), transparent 60%);
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
+  gap: 0.75rem;
+}
+
+.tableTitle {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.tableHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.tableHeaderActions .searchBar {
+  background-color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  width: 220px;
+}
+
+.tableHeaderActions .searchBar input {
+  color: #1e293b;
+}
+
+.tableHeaderActions .searchBar input::placeholder {
+  color: rgba(30, 41, 59, 0.65);
+}
+
+.tableHeaderActions .searchBar svg {
+  color: #475569;
+}
+
+.filterIconBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.6);
+  color: var(--primary-color, #475569);
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.filterIconBtn:hover { background-color: rgba(255, 255, 255, 0.8); }
+
+.filterIconBtnActive {
+  background-color: rgba(255, 255, 255, 0.9);
+}
+
+.addIconBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary-color, #7c3aed);
+  color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+.addIconBtn:hover { opacity: 0.88; }
+
+.filterBadge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--primary-color, #475569);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.filtersRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1.5rem;
 }

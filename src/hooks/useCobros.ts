@@ -92,6 +92,18 @@ export function useCobros(
     return map;
   }, [viajeros]);
 
+  // Abonado neto = importe_abonado persistido en BD menos los reembolsos a
+  // cliente ya confirmados de ese pagador (y sus viajeros asociados), que
+  // el campo de BD no descuenta.
+  const abonadoNetoDe = (pagador: Pagador) => {
+    const myViajeros = viajerosByPagador.get(pagador.entidad_id) || [];
+    const entityIds = new Set([pagador.entidad_id, ...myViajeros.map((v) => v.entidad_id)]);
+    const reembolsosConfirmados = movimientos
+      .filter((m) => entityIds.has(m.entidad_id) && m.tipo === "reembolso_cobro" && m.estado === "confirmado")
+      .reduce((sum, m) => sum + Number(m.importe_total || 0), 0);
+    return Number(pagador.importe_abonado || 0) - reembolsosConfirmados;
+  };
+
   const paymentPlazosList = useMemo(() => {
     return (plazos || []).filter((p: any) => !p.tipo || p.tipo === "pago");
   }, [plazos]);
@@ -164,12 +176,12 @@ export function useCobros(
           valB = Number(b.importe_total || 0);
           break;
         case "abonado":
-          valA = Number(a.importe_abonado || 0);
-          valB = Number(b.importe_abonado || 0);
+          valA = abonadoNetoDe(a);
+          valB = abonadoNetoDe(b);
           break;
         case "saldo":
-          valA = Number(a.importe_total || 0) - Number(a.importe_abonado || 0);
-          valB = Number(b.importe_total || 0) - Number(b.importe_abonado || 0);
+          valA = Number(a.importe_total || 0) - abonadoNetoDe(a);
+          valB = Number(b.importe_total || 0) - abonadoNetoDe(b);
           break;
         case "plazos":
           valA = getPaymentPlazos(a, plazos).length;
@@ -237,6 +249,7 @@ export function useCobros(
     sortDirection,
     handleSort,
     viajerosByPagador,
+    abonadoNetoDe,
     paymentPlazosList,
     filteredData,
     paginatedData,

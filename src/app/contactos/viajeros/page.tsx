@@ -5,6 +5,9 @@ import { Search } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import Pagination from "@/app/components/Pagination";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
+import { SortableTh, sortToggle, compareValues, type SortState } from "@/app/components/SortableTh";
+
+type SortKey = "nombre" | "apellidos" | "email" | "telefono" | "pasaporte" | "nacionalidad";
 
 type Viajero = {
   id: string;
@@ -24,6 +27,7 @@ export default function ViajerosPage() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(15);
+  const [sort, setSort] = useState<SortState<SortKey>>(null);
 
   useEffect(() => {
     fetch("/api/contactos/viajeros")
@@ -53,10 +57,18 @@ export default function ViajerosPage() {
     return true;
   });
 
-  const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const sorted = sort
+    ? [...filtered].sort((a, b) => {
+        const cmp = compareValues(a[sort.key], b[sort.key]);
+        return sort.direction === "asc" ? cmp : -cmp;
+      })
+    : filtered;
+
+  const paginated = sorted.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handleSearch = (v: string) => { setSearch(v); setCurrentPage(1); };
   const handleExpedienteFilter = (v: string[]) => { setExpedienteFilter(v); setCurrentPage(1); };
+  const handleSort = (key: SortKey) => { setSort((prev) => sortToggle(prev, key)); setCurrentPage(1); };
 
   return (
     <div className={styles.container}>
@@ -85,12 +97,12 @@ export default function ViajerosPage() {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Nombre</th>
-                <th>Apellidos</th>
-                <th>Email</th>
-                <th>Teléfono</th>
-                <th>Pasaporte</th>
-                <th>Nacionalidad</th>
+                <SortableTh label="Nombre" sortKey="nombre" sort={sort} onSort={handleSort} />
+                <SortableTh label="Apellidos" sortKey="apellidos" sort={sort} onSort={handleSort} />
+                <SortableTh label="Email" sortKey="email" sort={sort} onSort={handleSort} />
+                <SortableTh label="Teléfono" sortKey="telefono" sort={sort} onSort={handleSort} />
+                <SortableTh label="Pasaporte" sortKey="pasaporte" sort={sort} onSort={handleSort} />
+                <SortableTh label="Nacionalidad" sortKey="nacionalidad" sort={sort} onSort={handleSort} />
               </tr>
             </thead>
             <tbody>
@@ -116,7 +128,7 @@ export default function ViajerosPage() {
                 <td colSpan={6} style={{ padding: 0 }}>
                   <Pagination
                     currentPage={currentPage}
-                    totalItems={filtered.length}
+                    totalItems={sorted.length}
                     itemsPerPage={itemsPerPage}
                     onPageChange={setCurrentPage}
                     onItemsPerPageChange={(n) => { setItemsPerPage(n); setCurrentPage(1); }}

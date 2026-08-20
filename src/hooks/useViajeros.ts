@@ -36,6 +36,7 @@ function mapRawViajero(v: any, pvpViajero: number, fechaSalida?: string): any {
 
   return {
     id: v.id,
+    estado: v.estado,
     entidad_id: v.entidad_id,
     pagador_id: v.pagador_id,
     name: entidad.nombre || "Sin nombre",
@@ -88,15 +89,16 @@ export function useViajeros(
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isFilterRowOpen, setIsFilterRowOpen] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState<"plazos" | "extras" | "newsletter" | "contrato" | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<"plazos" | "extras" | "newsletter" | "contrato" | "estado" | null>(null);
   const [activePlazoFilters, setActivePlazoFilters] = useState<string[]>([]);
   const [activeExtraFilters, setActiveExtraFilters] = useState<string[]>([]);
   const [activeNewsletterFilters, setActiveNewsletterFilters] = useState<string[]>([]);
   const [activeContratoFilters, setActiveContratoFilters] = useState<string[]>([]);
+  const [activeEstadoFilters, setActiveEstadoFilters] = useState<string[]>(["Activo"]);
   const [sortKey, setSortKey] = useState("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
-  useEffect(() => {
+  const loadViajeros = () => {
     if (!expedienteId) return;
     setLoading(true);
     Promise.all([getViajerosByExpediente(expedienteId), getExtrasIconMap(expedienteId)])
@@ -106,6 +108,11 @@ export function useViajeros(
       })
       .catch(() => setViajeros([]))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadViajeros();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expedienteId, fechaSalida, pvpViajero]);
 
   useEffect(() => {
@@ -151,6 +158,24 @@ export function useViajeros(
     return groups;
   }, [activePlazoFilters, plazoFilterOptions]);
 
+  const viajerosConPagoStatus = useMemo(() => {
+    return viajeros.map((v) => {
+      const pagador = pagadorMap.get(v.pagador_id);
+      const plazosList = pagador ? getPaymentPlazos(pagador as Pagador, plazos) : [];
+      const dots = plazosList.map((_: any, i: number) =>
+        pagador ? getPlazoDetail(pagador as Pagador, plazos, i) : { color: "gray", tooltip: "" }
+      );
+      const pagoStatus = v.status === "ANULADO"
+        ? "ANULADO"
+        : dots.length > 0 && dots.every((d) => d.color === "green")
+          ? "PAGADO"
+          : dots.some((d) => d.color === "green" || d.color === "orange")
+            ? "PARCIAL"
+            : "PENDIENTE";
+      return { ...v, pagoStatus };
+    });
+  }, [viajeros, pagadorMap, plazos]);
+
   const dynamicExtras = useMemo(() => {
     const set = new Set<string>();
     viajeros.forEach((v) => (v.extras || []).forEach((e: any) => { if (e.descripcion) set.add(e.descripcion); }));
@@ -158,7 +183,7 @@ export function useViajeros(
   }, [viajeros]);
 
   const filteredData = useMemo(() => {
-    return viajeros.filter((v) => {
+    return viajerosConPagoStatus.filter((v) => {
       const term = search.toLowerCase();
       if (
         !v.name.toLowerCase().includes(term) &&
@@ -178,10 +203,11 @@ export function useViajeros(
       if (activeExtraFilters.length > 0 && !(v.extras || []).some((e: any) => activeExtraFilters.includes(e.descripcion))) return false;
       if (activeNewsletterFilters.length > 0 && !activeNewsletterFilters.includes(v.newsletter === "S" ? "Sí" : "No")) return false;
       if (activeContratoFilters.length > 0 && !activeContratoFilters.includes(v.contrato === "S" ? "Sí" : "No")) return false;
+      if (activeEstadoFilters.length > 0 && !activeEstadoFilters.includes(v.status === "ANULADO" ? "Inactivo" : "Activo")) return false;
 
       return true;
     });
-  }, [viajeros, search, pagadorMap, plazoFiltersGrouped, plazos, activeExtraFilters, activeNewsletterFilters, activeContratoFilters]);
+  }, [viajerosConPagoStatus, search, pagadorMap, plazoFiltersGrouped, plazos, activeExtraFilters, activeNewsletterFilters, activeContratoFilters, activeEstadoFilters]);
 
   const sortedData = useMemo(() => {
     const data = [...filteredData];
@@ -196,7 +222,7 @@ export function useViajeros(
         case "gender": va = (a.gender || "").toLowerCase(); vb = (b.gender || "").toLowerCase(); break;
         case "extras": va = (a.extras || []).length; vb = (b.extras || []).length; break;
         case "birthDate": va = a.birthDate || ""; vb = b.birthDate || ""; break;
-        case "status": va = (a.status || "").toLowerCase(); vb = (b.status || "").toLowerCase(); break;
+        case "status": va = (a.pagoStatus || "").toLowerCase(); vb = (b.pagoStatus || "").toLowerCase(); break;
         case "newsletter": va = a.newsletter; vb = b.newsletter; break;
         case "contrato": va = a.contrato; vb = b.contrato; break;
         case "importe": va = Number(a.importe || 0); vb = Number(b.importe || 0); break;
@@ -230,10 +256,11 @@ export function useViajeros(
   const toggleExtraFilter = (v: string) => { setActiveExtraFilters((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]); setCurrentPage(1); };
   const toggleNewsletterFilter = (v: string) => { setActiveNewsletterFilters((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]); setCurrentPage(1); };
   const toggleContratoFilter = (v: string) => { setActiveContratoFilters((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]); setCurrentPage(1); };
-  const clearAllFilters = () => { setActivePlazoFilters([]); setActiveExtraFilters([]); setActiveNewsletterFilters([]); setActiveContratoFilters([]); setCurrentPage(1); };
+  const toggleEstadoFilter = (v: string) => { setActiveEstadoFilters((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]); setCurrentPage(1); };
+  const clearAllFilters = () => { setActivePlazoFilters([]); setActiveExtraFilters([]); setActiveNewsletterFilters([]); setActiveContratoFilters([]); setActiveEstadoFilters(["Activo"]); setCurrentPage(1); };
 
   return {
-    viajeros, loading, extrasIconMap, matchesCobros, dynamicExtras, paymentPlazosList, pagadorMap,
+    viajeros, loading, reload: loadViajeros, extrasIconMap, matchesCobros, dynamicExtras, paymentPlazosList, pagadorMap,
     search, handleSearchChange,
     isFilterRowOpen, setIsFilterRowOpen,
     openDropdown, setOpenDropdown,
@@ -241,6 +268,7 @@ export function useViajeros(
     activeExtraFilters, toggleExtraFilter,
     activeNewsletterFilters, toggleNewsletterFilter,
     activeContratoFilters, toggleContratoFilter,
+    activeEstadoFilters, toggleEstadoFilter,
     clearAllFilters,
     sortKey, sortDirection, handleSort,
     currentPage, setCurrentPage, rowsPerPage, handleRowsPerPageChange,

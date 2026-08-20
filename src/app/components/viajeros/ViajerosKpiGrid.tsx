@@ -8,18 +8,19 @@ interface Props {
 }
 
 export default function ViajerosKpiGrid({ viajeros, loading }: Props) {
-  const total = viajeros.length;
-  const confirmados = viajeros.filter((v) => v.status === "CONFIRMADO").length;
-  const femenino = viajeros.filter((v) => v.gender === "F").length;
-  const masculino = viajeros.filter((v) => v.gender === "M").length;
-  const noConsta = viajeros.filter((v) => v.gender !== "F" && v.gender !== "M").length;
+  const activos = viajeros.filter((v) => v.status !== "ANULADO");
+  const total = activos.length;
+  const confirmados = activos.filter((v) => v.status === "CONFIRMADO").length;
+  const femenino = activos.filter((v) => v.gender === "F").length;
+  const masculino = activos.filter((v) => v.gender === "M").length;
+  const noConsta = activos.filter((v) => v.gender !== "F" && v.gender !== "M").length;
   const pctF = total > 0 ? Math.round((femenino / total) * 100) : 0;
   const pctM = total > 0 ? Math.round((masculino / total) * 100) : 0;
   const pctNC = total > 0 ? Math.round((noConsta / total) * 100) : 0;
 
   const extrasCount = (() => {
     const counts: Record<string, { count: number; descripcion: string }> = {};
-    viajeros.forEach((v) =>
+    activos.forEach((v) =>
       (v.extras || []).forEach((e: any) => {
         const key = e.descripcion || "extra";
         if (!counts[key]) counts[key] = { count: 0, descripcion: e.descripcion || "Extra" };

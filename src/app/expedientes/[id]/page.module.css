@@ -384,6 +384,16 @@
   color: #b45309;
 }
 
+.statusAnulado {
+  background-color: #fef2f2;
+  color: #dc2626;
+}
+
+.statusParcial {
+  background-color: #fff7ed;
+  color: #ea580c;
+}
+
 .paginationWrapper {
   display: flex;
   justify-content: space-between;

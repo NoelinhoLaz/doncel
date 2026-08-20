@@ -23,6 +23,7 @@ import {
   checkAjusteFechasCotizacion,
   linkCotizacionToPropuestaConAjuste,
 } from "@/actions/propuestas";
+import ImportarServiciosCotizacionModal from "@/components/modals/ImportarServiciosCotizacionModal";
 
 interface ExpedienteActionsToolbarProps {
   expedienteId?: string;
@@ -61,6 +62,9 @@ export default function ExpedienteActionsToolbar({
     diasItinerario: number;
     diasCotizacion: number;
   } | null>(null);
+
+  // Tras vincular/crear un expediente desde una cotización, ofrecer importar sus servicios
+  const [importServiciosExpedienteId, setImportServiciosExpedienteId] = useState<string | null>(null);
 
   const loadLinks = async () => {
     setLoading(true);
@@ -155,17 +159,23 @@ export default function ExpedienteActionsToolbar({
           return;
         }
       } else if (showLinkModal === "expediente") {
+        let cotVinculada: string | null = null;
         if (initialCotizacionId) {
           await linkCotizacionToExpediente(initialCotizacionId, targetId);
+          cotVinculada = initialCotizacionId;
         } else if (initialPropuestaId) {
           await linkPropuestaToExpediente(initialPropuestaId, targetId);
         } else if (initialPresupuestoId) {
           // Link the cotizacion already tied to this presupuesto to the expediente
           const cotId = links.cotizaciones[0]?.id;
-          if (cotId) await linkCotizacionToExpediente(cotId, targetId);
+          if (cotId) {
+            await linkCotizacionToExpediente(cotId, targetId);
+            cotVinculada = cotId;
+          }
         }
+        if (cotVinculada) setImportServiciosExpedienteId(targetId);
       }
-      
+
       await loadLinks();
       setShowLinkModal(null);
       setSearchQuery("");
@@ -242,6 +252,7 @@ export default function ExpedienteActionsToolbar({
         const res = await createNewExpedienteLinked(linkedId, type);
         if (res.success && res.data) {
           alert(`Se ha creado el expediente "${res.data.numero} - ${res.data.referencia}" y se ha vinculado.`);
+          if (type === "cotizacion") setImportServiciosExpedienteId(res.data.id);
         } else {
           throw new Error(res.error);
         }
@@ -608,6 +619,15 @@ export default function ExpedienteActionsToolbar({
             </div>
           </div>
         </div>
+      )}
+
+      {importServiciosExpedienteId && (
+        <ImportarServiciosCotizacionModal
+          isOpen={true}
+          onClose={() => setImportServiciosExpedienteId(null)}
+          expedienteId={importServiciosExpedienteId}
+          onSuccess={() => setImportServiciosExpedienteId(null)}
+        />
       )}
     </>
   );

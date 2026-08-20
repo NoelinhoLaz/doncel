@@ -132,7 +132,7 @@ export async function getExpedienteServicios(expedienteId: string) {
         const list = directPagosPorServicio.get(r.servicio_id) || [];
         list.push({
           id: mov.id,
-          importe: Number(r.importe),
+          importe: Number(mov.importe_total ?? r.importe),
           fecha: mov.fecha || null,
           fecha_registro: mov.fecha_registro || mov.created_at,
           concepto: mov.concepto,
@@ -694,9 +694,9 @@ async function sincronizarConfirmadoSegunPago(agencyDb: any, servicioId: string)
  *  agrupando dentro de él los servicios que lo comparten (mismo patrón que
  *  vincularServiciosAMovimientoBanco: un movimiento + N filas en operativa_servicio_pagos). */
 export async function registrarPagoServicios(payload: {
-  expediente_id: string;
+  expediente_id?: string;
   medio_pago: "efectivo" | "tarjeta";
-  servicios: Array<{ id: string; importe: number; proveedor?: string | null; proveedor_id?: string | null }>;
+  servicios: Array<{ id: string; importe: number; proveedor?: string | null; proveedor_id?: string | null; expediente_id?: string | null }>;
   concepto?: string;
   fecha?: string;
 }) {
@@ -709,21 +709,25 @@ export async function registrarPagoServicios(payload: {
       throw new Error("Debes seleccionar al menos un servicio para registrar el pago.");
     }
 
-    // Se agrupa por proveedor_id (identificador real, sin ambigüedad) cuando existe; si no,
-    // por el texto de proveedor tal cual — usar solo el nombre resuelto puede agrupar mal
-    // servicios del mismo proveedor si difieren en formato/espacios/mayúsculas.
-    const gruposPorProveedor = new Map<string, typeof serviciosValidos>();
+    // Se agrupa por (proveedor, expediente): un movimiento (contabilidad_movimientos) es
+    // siempre de un único proveedor Y un único expediente. proveedor_id es el identificador
+    // real sin ambigüedad; si no existe se usa el texto de proveedor tal cual.
+    const gruposPorProveedorYExpediente = new Map<string, typeof serviciosValidos>();
     for (const ser of serviciosValidos) {
-      const key = ser.proveedor_id || ser.proveedor || "__sin_proveedor__";
-      const grupo = gruposPorProveedor.get(key) || [];
+      const expId = ser.expediente_id || expediente_id;
+      const key = `${ser.proveedor_id || ser.proveedor || "__sin_proveedor__"}::${expId || "__sin_expediente__"}`;
+      const grupo = gruposPorProveedorYExpediente.get(key) || [];
       grupo.push(ser);
-      gruposPorProveedor.set(key, grupo);
+      gruposPorProveedorYExpediente.set(key, grupo);
     }
 
     const results: { servicio_id: string; movimiento_id: string }[] = [];
+    const expedientesAfectados = new Set<string>();
 
-    for (const grupo of gruposPorProveedor.values()) {
+    for (const grupo of gruposPorProveedorYExpediente.values()) {
       const importeGrupo = grupo.reduce((sum, s) => sum + s.importe, 0);
+      const expId = grupo[0].expediente_id || expediente_id;
+      if (expId) expedientesAfectados.add(expId);
 
       const { data: movimiento, error: movError } = await agencyDb
         .from("contabilidad_movimientos")
@@ -739,7 +743,7 @@ export async function registrarPagoServicios(payload: {
           fecha: fecha || new Date().toISOString().split("T")[0],
           concepto: concepto || `Pago ${medio_pago === "efectivo" ? "en efectivo" : "con tarjeta"} - ${grupo[0].proveedor || "Proveedor"}`,
           estado: "confirmado",
-          expediente_id,
+          expediente_id: expId,
         }])
         .select("id")
         .single();
@@ -758,7 +762,7 @@ export async function registrarPagoServicios(payload: {
       }
     }
 
-    revalidatePath(`/expedientes/${expediente_id}`);
+    for (const expId of expedientesAfectados) revalidatePath(`/expedientes/${expId}`);
     return { success: true, data: results };
   } catch (error: any) {
     console.error("Failed to registrar pago servicios:", error.message);
@@ -773,9 +777,9 @@ export async function registrarPagoServicios(payload: {
  *  filtra por estado='confirmado', así que el servicio sigue en Pendiente/Parcial hasta que se
  *  concilie con conciliarPagoPendiente. */
 export async function registrarPagoPendienteConciliar(payload: {
-  expediente_id: string;
+  expediente_id?: string;
   medio_pago: "efectivo" | "tarjeta" | "banco";
-  servicios: Array<{ id: string; importe: number; proveedor?: string | null; proveedor_id?: string | null }>;
+  servicios: Array<{ id: string; importe: number; proveedor?: string | null; proveedor_id?: string | null; expediente_id?: string | null }>;
   concepto?: string;
 }) {
   try {
@@ -787,18 +791,22 @@ export async function registrarPagoPendienteConciliar(payload: {
       throw new Error("Debes seleccionar al menos un servicio para registrar el pago.");
     }
 
-    const gruposPorProveedor = new Map<string, typeof serviciosValidos>();
+    const gruposPorProveedorYExpediente = new Map<string, typeof serviciosValidos>();
     for (const ser of serviciosValidos) {
-      const key = ser.proveedor_id || ser.proveedor || "__sin_proveedor__";
-      const grupo = gruposPorProveedor.get(key) || [];
+      const expId = ser.expediente_id || expediente_id;
+      const key = `${ser.proveedor_id || ser.proveedor || "__sin_proveedor__"}::${expId || "__sin_expediente__"}`;
+      const grupo = gruposPorProveedorYExpediente.get(key) || [];
       grupo.push(ser);
-      gruposPorProveedor.set(key, grupo);
+      gruposPorProveedorYExpediente.set(key, grupo);
     }
 
     const results: { servicio_id: string; movimiento_id: string }[] = [];
+    const expedientesAfectados = new Set<string>();
 
-    for (const grupo of gruposPorProveedor.values()) {
+    for (const grupo of gruposPorProveedorYExpediente.values()) {
       const importeGrupo = grupo.reduce((sum, s) => sum + s.importe, 0);
+      const expId = grupo[0].expediente_id || expediente_id;
+      if (expId) expedientesAfectados.add(expId);
 
       const { data: movimiento, error: movError } = await agencyDb
         .from("contabilidad_movimientos")
@@ -814,7 +822,7 @@ export async function registrarPagoPendienteConciliar(payload: {
           fecha: null,
           concepto: concepto || `Pago Servicio - ${grupo[0].proveedor || "Proveedor"}`,
           estado: "pendiente_conciliar",
-          expediente_id,
+          expediente_id: expId,
         }])
         .select("id")
         .single();
@@ -832,7 +840,7 @@ export async function registrarPagoPendienteConciliar(payload: {
       }
     }
 
-    revalidatePath(`/expedientes/${expediente_id}`);
+    for (const expId of expedientesAfectados) revalidatePath(`/expedientes/${expId}`);
     return { success: true, data: results };
   } catch (error: any) {
     console.error("Failed to registrar pago pendiente de conciliar:", error.message);
@@ -1243,6 +1251,194 @@ export async function getAllServicios() {
   }
 }
 
+// Versión enriquecida (proveedor resuelto, abonado, pagos, expediente) para el
+// listado global "Pago de Servicios" — replica el enriquecimiento que hace
+// getExpedienteServicios, pero sobre todos los expedientes a la vez.
+export async function getAllServiciosEnriquecidos() {
+  try {
+    const agencyDb = await getAgencyDbClient();
+
+    const { data, error } = await agencyDb
+      .from("operativa_expedientes_servicios")
+      .select("*, maestro_destinos(id, nombre, nombre_comercial, admin_area_l1, admin_area_l2)")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+
+    const servicios = data || [];
+    if (servicios.length === 0) return [];
+
+    const servicioIds = servicios.map((s: any) => s.id).filter(Boolean);
+    const expedienteIds = [...new Set(servicios.map((s: any) => s.expediente_id).filter(Boolean))];
+
+    const { data: expedientes } = await agencyDb
+      .from("operativa_expedientes")
+      .select("id, numero, referencia, entidad_id, agente_id")
+      .in("id", expedienteIds);
+    const expedientePorId = new Map((expedientes || []).map((e: any) => [e.id, e]));
+
+    const clienteIds = [...new Set((expedientes || []).map((e: any) => e.entidad_id).filter(Boolean))];
+    const clientePorId = new Map<string, string>();
+    if (clienteIds.length > 0) {
+      const { data: clientes } = await agencyDb
+        .from("contabilidad_entidades")
+        .select("id, nombre")
+        .in("id", clienteIds);
+      for (const c of (clientes || [])) clientePorId.set(c.id, c.nombre);
+    }
+
+    // operativa_expedientes.agente_id es TEXT y puede contener auth_uid o
+    // crm_agentes.id según la fila (datos legados) — resolver contra ambos.
+    const { data: agentesRows } = await agencyDb
+      .from("crm_agentes")
+      .select("id, auth_uid, nombre, apellidos");
+    const agenteNombrePorRef = new Map<string, string>();
+    for (const a of (agentesRows || []) as any[]) {
+      const nombreCompleto = `${a.nombre} ${a.apellidos ?? ""}`.trim();
+      if (a.id) agenteNombrePorRef.set(a.id, nombreCompleto);
+      if (a.auth_uid) agenteNombrePorRef.set(a.auth_uid, nombreCompleto);
+    }
+
+    const providerIds = [...new Set(servicios.map((s: any) => s.proveedor).filter((p: any) => p && UUID_REGEX.test(p)))];
+    const providerMap = new Map<string, string>();
+    const providerEmailMap = new Map<string, string>();
+    if (providerIds.length > 0) {
+      const { data: provs } = await agencyDb
+        .from("contabilidad_proveedores")
+        .select("id, nombre, razon_social, email")
+        .in("id", providerIds);
+      if (provs) {
+        provs.forEach((p: any) => {
+          providerMap.set(p.id, p.nombre || p.razon_social || p.id);
+          if (p.email) providerEmailMap.set(p.id, p.email);
+        });
+      }
+    }
+
+    const abonoMap = new Map<string, number>();
+    if (servicioIds.length > 0) {
+      const { data: abonos } = await agencyDb
+        .from("v_abonados_servicios")
+        .select("servicio_id, total_abonado")
+        .in("servicio_id", servicioIds);
+      if (abonos) {
+        for (const a of abonos) abonoMap.set(a.servicio_id, Number(a.total_abonado || 0));
+      }
+    }
+
+    const { data: movimientos } = await agencyDb
+      .from("contabilidad_movimientos")
+      .select("id, importe_total, concepto, fecha, fecha_registro, created_at, movimiento_banco_id, medio_pago, sobrante, sobrante_aplicado, estado, expediente_id")
+      .eq("tipo", "pago")
+      .in("estado", ["confirmado", "pendiente_conciliar"])
+      .in("expediente_id", expedienteIds);
+
+    const bancoIds = [...new Set((movimientos || []).map((m: any) => m.movimiento_banco_id).filter(Boolean))];
+    const bancosPorId = new Map<string, any>();
+    if (bancoIds.length > 0) {
+      const { data: bancos } = await agencyDb
+        .from("contabilidad_movimientos_banco")
+        .select("id, fecha_operacion, concepto_original, importe, match_metadatos")
+        .in("id", bancoIds);
+      for (const b of (bancos || [])) bancosPorId.set(b.id, b);
+    }
+
+    const directPagosPorServicio = new Map<string, any[]>();
+    if (servicioIds.length > 0) {
+      const { data: sp } = await agencyDb
+        .from("operativa_servicio_pagos")
+        .select("servicio_id, importe, movimiento_id")
+        .in("servicio_id", servicioIds);
+      const movIdsDirectos = [...new Set((sp || []).map((r: any) => r.movimiento_id))];
+      const movimientosMap = new Map<string, any>(
+        (movimientos || []).filter((m: any) => movIdsDirectos.includes(m.id)).map((m: any) => [m.id, m])
+      );
+      for (const r of (sp || [])) {
+        const mov = movimientosMap.get(r.movimiento_id);
+        if (!mov) continue;
+        const list = directPagosPorServicio.get(r.servicio_id) || [];
+        list.push({
+          id: mov.id,
+          importe: Number(mov.importe_total ?? r.importe),
+          fecha: mov.fecha || null,
+          fecha_registro: mov.fecha_registro || mov.created_at,
+          concepto: mov.concepto,
+          medio_pago: mov.medio_pago,
+          sobrante: Number(mov.sobrante || 0),
+          sobrante_aplicado: !!mov.sobrante_aplicado,
+          pendiente_conciliar: mov.estado === "pendiente_conciliar",
+          movimiento_id: mov.id,
+        });
+        directPagosPorServicio.set(r.servicio_id, list);
+      }
+    }
+
+    const result = servicios.map((s: any) => {
+      let resolvedProveedor = s.proveedor;
+      const proveedorEmail = s.proveedor && UUID_REGEX.test(s.proveedor) ? providerEmailMap.get(s.proveedor) || "" : "";
+      if (resolvedProveedor && UUID_REGEX.test(resolvedProveedor) && providerMap.has(resolvedProveedor)) {
+        resolvedProveedor = providerMap.get(resolvedProveedor);
+      }
+      const docId = s.documento_id;
+      const seen = new Set<string>();
+      const movsVinculados: any[] = [];
+
+      for (const m of (movimientos || [])) {
+        if (m.expediente_id !== s.expediente_id) continue;
+        const banco = bancosPorId.get(m.movimiento_banco_id);
+        if (!banco) continue;
+        const mm = banco.match_metadatos;
+        if (!mm) continue;
+
+        let linked = false;
+        if (mm.servicio_id === s.id) linked = true;
+        else if (docId && mm.pagos) linked = mm.pagos.some((p: any) => p.documento_id === docId);
+
+        if (linked && !seen.has(banco.id)) {
+          seen.add(banco.id);
+          movsVinculados.push({
+            id: banco.id,
+            importe: Math.abs(Number(banco.importe || 0)),
+            fecha: banco.fecha_operacion,
+            fecha_registro: m.fecha_registro || banco.fecha_operacion,
+            concepto: banco.concepto_original || m.concepto,
+            medio_pago: m.medio_pago,
+          });
+        }
+      }
+
+      for (const dp of (directPagosPorServicio.get(s.id) || [])) {
+        if (!seen.has(dp.id)) {
+          seen.add(dp.id);
+          movsVinculados.push(dp);
+        }
+      }
+
+      const proveedorId = s.proveedor && UUID_REGEX.test(s.proveedor) ? s.proveedor : null;
+      const tienePagoPendienteConciliar = movsVinculados.some((p: any) => p.pendiente_conciliar);
+      const expediente = expedientePorId.get(s.expediente_id);
+
+      return {
+        ...s,
+        proveedor: resolvedProveedor,
+        proveedor_id: proveedorId,
+        proveedor_email: proveedorEmail,
+        abonado: abonoMap.get(s.id) || 0,
+        pagos: movsVinculados,
+        pendiente_conciliar: tienePagoPendienteConciliar,
+        expediente_numero: expediente?.numero ?? null,
+        expediente_referencia: expediente?.referencia ?? null,
+        expediente_cliente: expediente?.entidad_id ? (clientePorId.get(expediente.entidad_id) ?? null) : null,
+        expediente_agente: expediente?.agente_id ? (agenteNombrePorRef.get(expediente.agente_id) ?? null) : null,
+      };
+    });
+
+    return result;
+  } catch (error: any) {
+    console.error("Failed to get all servicios enriquecidos:", error.message);
+    return [];
+  }
+}
+
 export async function getOptionalServicesFromLinkedQuote(expedienteId: string) {
   try {
     const agencyDb = await getAgencyDbClient();
@@ -1261,7 +1457,7 @@ export async function getOptionalServicesFromLinkedQuote(expedienteId: string) {
     // Get optional lines from those cotizaciones
     const { data: lineas, error: lineasError } = await agencyDb
       .from("operativa_cotizacion_lineas")
-      .select("id, descripcion, pvp, neto, tipo, proveedor, plazas, cotizacion_id")
+      .select("id, descripcion, pvp, neto, tipo, proveedor, contabilidad_proveedores!proveedor(nombre), plazas, cotizacion_id")
       .in("cotizacion_id", cotIds)
       .eq("opcional", true);
 
@@ -1271,6 +1467,7 @@ export async function getOptionalServicesFromLinkedQuote(expedienteId: string) {
     const cotsMap = new Map(cotizaciones.map((c: any) => [c.id, c.titulo]));
     return (lineas || []).map((l: any) => ({
       ...l,
+      proveedor: l.contabilidad_proveedores?.nombre || null,
       cotizacion_titulo: cotsMap.get(l.cotizacion_id) || "Cotización",
     }));
 
@@ -1454,7 +1651,7 @@ export async function getNonOptionalServicesFromLinkedQuote(expedienteId: string
 
     const { data: lineas, error: lineasError } = await agencyDb
       .from("operativa_cotizacion_lineas")
-      .select("id, descripcion, pvp, neto, tipo, proveedor, plazas, cotizacion_id")
+      .select("id, descripcion, pvp, neto, tipo, proveedor, contabilidad_proveedores!proveedor(nombre), plazas, cotizacion_id")
       .in("cotizacion_id", cotIds)
       .eq("opcional", false);
 
@@ -1463,6 +1660,7 @@ export async function getNonOptionalServicesFromLinkedQuote(expedienteId: string
     const cotsMap = new Map(cotizaciones.map((c: any) => [c.id, c.titulo]));
     return (lineas || []).map((l: any) => ({
       ...l,
+      proveedor: l.contabilidad_proveedores?.nombre || null,
       cotizacion_titulo: cotsMap.get(l.cotizacion_id) || "Cotización",
     }));
   } catch (error: any) {

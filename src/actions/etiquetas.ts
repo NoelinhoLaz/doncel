@@ -89,9 +89,70 @@ export async function getEtiquetasEntidad(entidadId: string) {
 export async function asignarEtiqueta(entidadId: string, etiquetaId: string) {
   const { agenteId } = await getCurrentAgenteConOficina();
   const agencyDb = await getAgencyDbClient();
+
+  // Evita duplicados "por nombre": si la entidad ya tiene una etiqueta distinta
+  // con el mismo nombre (creada por otro agente), no se vuelve a asignar.
+  const { data: nueva, error: errNueva } = await agencyDb
+    .from("crm_etiquetas")
+    .select("nombre")
+    .eq("id", etiquetaId)
+    .single();
+  if (errNueva) throw errNueva;
+
+  const { data: yaAsignadas, error: errAsignadas } = await agencyDb
+    .from("crm_entidades_etiquetas")
+    .select("etiqueta_id, crm_etiquetas(nombre)")
+    .eq("entidad_id", entidadId);
+  if (errAsignadas) throw errAsignadas;
+
+  const yaTieneMismoNombre = (yaAsignadas ?? []).some(
+    (r: any) => r.crm_etiquetas?.nombre?.toLowerCase() === nueva.nombre.toLowerCase()
+  );
+  if (yaTieneMismoNombre) return;
+
   const { error } = await agencyDb
     .from("crm_entidades_etiquetas")
     .upsert({ entidad_id: entidadId, etiqueta_id: etiquetaId, added_by: agenteId }, { onConflict: "entidad_id,etiqueta_id" });
+  if (error) throw error;
+}
+
+// Versión masiva de asignarEtiqueta: resuelve todo en pocas queries en vez de
+// una invocación de server action por entidad (evita saturar el servidor con
+// cientos de llamadas en paralelo cuando se aplica a un listado filtrado grande).
+export async function asignarEtiquetaMasiva(entidadIds: string[], etiquetaId: string) {
+  if (entidadIds.length === 0) return;
+
+  const { agenteId } = await getCurrentAgenteConOficina();
+  const agencyDb = await getAgencyDbClient();
+
+  const { data: nueva, error: errNueva } = await agencyDb
+    .from("crm_etiquetas")
+    .select("nombre")
+    .eq("id", etiquetaId)
+    .single();
+  if (errNueva) throw errNueva;
+
+  const { data: yaAsignadas, error: errAsignadas } = await agencyDb
+    .from("crm_entidades_etiquetas")
+    .select("entidad_id, crm_etiquetas(nombre)")
+    .in("entidad_id", entidadIds);
+  if (errAsignadas) throw errAsignadas;
+
+  const entidadesConMismoNombre = new Set(
+    (yaAsignadas ?? [])
+      .filter((r: any) => r.crm_etiquetas?.nombre?.toLowerCase() === nueva.nombre.toLowerCase())
+      .map((r: any) => r.entidad_id)
+  );
+
+  const rows = entidadIds
+    .filter((id) => !entidadesConMismoNombre.has(id))
+    .map((entidadId) => ({ entidad_id: entidadId, etiqueta_id: etiquetaId, added_by: agenteId }));
+
+  if (rows.length === 0) return;
+
+  const { error } = await agencyDb
+    .from("crm_entidades_etiquetas")
+    .upsert(rows, { onConflict: "entidad_id,etiqueta_id" });
   if (error) throw error;
 }
 

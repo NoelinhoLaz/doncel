@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Landmark, CreditCard, Banknote, Receipt, ChevronDown, ChevronRight, FileText, Plus } from "lucide-react";
 import styles from "@/app/expedientes/shared.module.css";
 import listStyles from "@/app/expedientes/page.module.css";
@@ -9,7 +9,7 @@ interface Props {
   serviciosList: any[];
   onConciliar?: (movimientoId: string) => void;
   documentosPorMovimiento?: Record<string, any[]>;
-  onRegistrarPago?: () => void;
+  onRegistrarDocumento?: () => void;
 }
 
 const MEDIO_ICON: Record<string, any> = {
@@ -24,9 +24,11 @@ const MEDIO_LABEL: Record<string, string> = {
   efectivo: "Efectivo",
 };
 
-export default function PagosRealizadosList({ serviciosList, onConciliar, documentosPorMovimiento = {}, onRegistrarPago }: Props) {
+export default function PagosRealizadosList({ serviciosList, onConciliar, documentosPorMovimiento = {}, onRegistrarDocumento }: Props) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [docsTooltipId, setDocsTooltipId] = useState<string | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const addDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!docsTooltipId) return;
@@ -34,6 +36,17 @@ export default function PagosRealizadosList({ serviciosList, onConciliar, docume
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
   }, [docsTooltipId]);
+
+  useEffect(() => {
+    if (!showDropdown) return;
+    const close = (e: MouseEvent) => {
+      if (addDropdownRef.current && !addDropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [showDropdown]);
 
   const pagos = useMemo(() => {
     const grupos = new Map<string, any>();
@@ -80,10 +93,21 @@ export default function PagosRealizadosList({ serviciosList, onConciliar, docume
           <div style={{ color: "#fff", fontSize: "0.85rem", fontWeight: 600 }}>
             Total: {totalPagado.toLocaleString("es-ES", { minimumFractionDigits: 2 })} €
           </div>
-          {onRegistrarPago && (
-            <button className={styles.addActionButton} title="Registrar Pago" onClick={onRegistrarPago}>
-              <Plus size={18} />
-            </button>
+          {onRegistrarDocumento && (
+            <div ref={addDropdownRef} style={{ position: "relative" }}>
+              <button className={styles.addActionButton} title="Añadir" onClick={() => setShowDropdown((v) => !v)}>
+                <Plus size={18} />
+              </button>
+              {showDropdown && (
+                <div style={{ position: "absolute", right: 0, top: "110%", zIndex: 2002, width: "220px", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "8px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)", padding: "0.4rem 0" }}>
+                  {onRegistrarDocumento && (
+                    <button onClick={() => { setShowDropdown(false); onRegistrarDocumento(); }} style={{ background: "none", border: "none", width: "100%", padding: "0.6rem 1rem", textAlign: "left", fontSize: "0.8rem", fontWeight: 500, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                      <FileText size={14} /> Registrar documento
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

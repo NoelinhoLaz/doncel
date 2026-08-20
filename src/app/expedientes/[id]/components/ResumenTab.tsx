@@ -74,6 +74,7 @@ interface ResumenKpis {
   saldoPendiente: number;
   totalCobrosEstimados: number;
   desgloseCobrosEstimados: DesgloseItem[];
+  totalReembolsos: number;
 }
 
 interface ResumenPagos {
@@ -83,6 +84,7 @@ interface ResumenPagos {
   facturasSoportadas: number;
   totalPagosEstimados: number;
   desglosePagosEstimados: DesgloseItem[];
+  totalReembolsos: number;
 }
 
 export default function ResumenTab({ expediente, resumenKpis, resumenPagos }: { expediente: any; resumenKpis?: ResumenKpis | null; resumenPagos?: ResumenPagos | null }) {
@@ -104,7 +106,9 @@ export default function ResumenTab({ expediente, resumenKpis, resumenPagos }: { 
       value: resumenKpis ? formatEuroKpi(resumenKpis.totalCobrosEstimados) : null,
       icon: <Icons.Cobros size={20} style={{ color: "#7c3aed" }} />,
       bg: "#ede9fe",
-      desglose: resumenKpis?.desgloseCobrosEstimados,
+      desglose: resumenKpis
+        ? [...resumenKpis.desgloseCobrosEstimados, { label: "Reembolsos", importe: resumenKpis.totalReembolsos }]
+        : undefined,
     },
     {
       label: "Viajeros Totales",
@@ -138,7 +142,9 @@ export default function ResumenTab({ expediente, resumenKpis, resumenPagos }: { 
       value: resumenPagos ? formatEuroKpi(resumenPagos.totalPagosEstimados) : null,
       icon: <Icons.Cobros size={20} style={{ color: "#7c3aed" }} />,
       bg: "#ede9fe",
-      desglose: resumenPagos?.desglosePagosEstimados,
+      desglose: resumenPagos
+        ? [...resumenPagos.desglosePagosEstimados, { label: "Reembolsos", importe: resumenPagos.totalReembolsos }]
+        : undefined,
     },
     {
       label: "Servicios",

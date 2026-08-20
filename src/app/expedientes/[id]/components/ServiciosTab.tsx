@@ -10,7 +10,7 @@ import ImportarPdfModal from "@/components/modals/ImportarPdfModal";
 import ServicioFormModal from "@/components/modals/ServicioFormModal";
 import ModalInfoServicio from "@/components/modals/ModalInfoServicio";
 import ModalEnviarValoracion from "@/components/modals/ModalEnviarValoracion";
-import RegistrarPagoModal from "@/components/modals/RegistrarPagoModal";
+import RegistrarPagoMultiModal from "@/components/modals/RegistrarPagoMultiModal";
 import ConciliarPagoModal from "@/components/modals/ConciliarPagoModal";
 import RegistrarDocumentoModal from "@/components/modals/RegistrarDocumentoModal";
 const NuevaComunicacionModal = dynamic(() => import("@/app/expedientes/[id]/components/NuevaComunicacionModal"), { ssr: false });
@@ -29,6 +29,8 @@ export default function ServiciosTab({ expedienteId, onOpenMatchModal }: Servici
   const [valoracionOpen, setValoracionOpen] = useState(false);
   const [isImportarCotizacionOpen, setIsImportarCotizacionOpen] = useState(false);
   const [mailModalProveedor, setMailModalProveedor] = useState<{ nombre: string; email: string } | null>(null);
+  const [servicioIdsParaPago, setServicioIdsParaPago] = useState<string[] | null>(null);
+  const [pagoInitialStep, setPagoInitialStep] = useState<"buscador" | undefined>(undefined);
 
   return (
     <>
@@ -60,13 +62,14 @@ export default function ServiciosTab({ expedienteId, onOpenMatchModal }: Servici
         serviceTypes={s.serviceTypes}
         pendingMatchCount={s.pendingMatchCount}
         onOpenMatchModal={onOpenMatchModal}
-        onRegistrarPago={s.openRegistrarPago}
+        onRegistrarPago={(ids) => { setPagoInitialStep(undefined); setServicioIdsParaPago(ids); }}
         onRegistrarDocumento={s.openRegistrarDocumento}
         onEnviarValoracion={() => setValoracionOpen(true)}
         onOpenConciliar={s.openConciliarPago}
+        onBuscarMovimiento={(servicio) => { setPagoInitialStep("buscador"); setServicioIdsParaPago([servicio.id]); }}
       />
 
-      <PagosRealizadosList serviciosList={s.servicios} onConciliar={s.openConciliarPago} documentosPorMovimiento={s.documentosPorMovimiento} onRegistrarPago={s.openRegistrarPago} />
+      <PagosRealizadosList serviciosList={s.servicios} onConciliar={s.openConciliarPago} documentosPorMovimiento={s.documentosPorMovimiento} onRegistrarDocumento={s.openRegistrarDocumento} />
 
       <ImportarServiciosCotizacionModal
         isOpen={isImportarCotizacionOpen}
@@ -89,11 +92,12 @@ export default function ServiciosTab({ expedienteId, onOpenMatchModal }: Servici
         onConciliado={() => { s.loadMatches(); s.loadServicios(); }}
       />
 
-      <RegistrarPagoModal
-        isOpen={s.isRegistrarPagoOpen}
-        onClose={s.closeRegistrarPago}
-        servicios={s.servicios}
-        onSuccess={() => { s.loadServicios(); s.loadMatches(); }}
+      <RegistrarPagoMultiModal
+        isOpen={!!servicioIdsParaPago}
+        onClose={() => { setServicioIdsParaPago(null); setPagoInitialStep(undefined); }}
+        servicios={s.servicios.filter((ser: any) => servicioIdsParaPago?.includes(ser.id))}
+        onSuccess={() => { setServicioIdsParaPago(null); setPagoInitialStep(undefined); s.loadServicios(); s.loadMatches(); }}
+        initialStep={pagoInitialStep}
       />
 
       <ConciliarPagoModal

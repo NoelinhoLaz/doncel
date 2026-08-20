@@ -2,6 +2,7 @@
 
 import { getAgencyDbClient } from "@/lib/agencyDb";
 import { decryptAllergies } from "@/lib/encryption";
+import { revalidatePath } from "next/cache";
 
 export async function getViajerosByExpediente(expedienteId: string) {
   try {
@@ -33,6 +34,27 @@ export async function getViajerosByExpediente(expedienteId: string) {
   } catch (error: any) {
     console.error("Failed to get viajeros:", error.message);
     return [];
+  }
+}
+
+export async function anularViajero(viajeroId: string, motivo?: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { error } = await agencyDb
+      .from("operativa_viajeros_expedientes")
+      .update({
+        estado: "anulado",
+        fecha_anulacion: new Date().toISOString().split("T")[0],
+        motivo_anulacion: motivo || null,
+      })
+      .eq("id", viajeroId);
+
+    if (error) throw error;
+    revalidatePath("/expedientes");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to anular viajero:", error.message);
+    return { success: false, error: error.message };
   }
 }
 

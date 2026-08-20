@@ -77,7 +77,9 @@ import {
   Percent,
   ShoppingCart,
   Presentation,
-  Target
+  Target,
+  Megaphone,
+  IdCard
 } from "lucide-react";
 
 export const Icons = {
@@ -163,7 +165,9 @@ export const Icons = {
   Warning: AlertTriangle,
   Mails,
   Document: FileText,
-  Iva: Percent
+  Iva: Percent,
+  Megaphone,
+  IdCard
 };
 
 export type IconType = keyof typeof Icons;

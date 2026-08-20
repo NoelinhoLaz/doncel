@@ -16,6 +16,7 @@ export function initForm(e: any) {
     fecha_tope_registro: e?.metadata?.fecha_tope_registro
       ? String(e.metadata.fecha_tope_registro).split("T")[0]
       : "",
+    etiqueta_cliente_id: e?.metadata?.etiqueta_cliente_id ?? null,
   };
 }
 
@@ -129,6 +130,7 @@ export function hasFormChanges(
     form.apuntes_desde !== (o.apuntes_desde ? String(o.apuntes_desde).split("T")[0] : "") ||
     form.plazas_max !== (o.metadata?.plazas_max ?? "") ||
     form.fecha_tope_registro !== (o.metadata?.fecha_tope_registro ? String(o.metadata.fecha_tope_registro).split("T")[0] : "") ||
+    form.etiqueta_cliente_id !== (o.metadata?.etiqueta_cliente_id ?? null) ||
     !arraysEqual(formasPagoAceptadas, o.formas_pago_aceptadas || []) ||
     !serviciosListEquals(serviciosList, origServicios) ||
     !listEquals(plazosList, origPlazos) ||

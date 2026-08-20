@@ -13,7 +13,7 @@ interface RegistrarPagoModalProps {
   onSuccess: () => void;
 }
 
-type Step = "seleccion" | "metodo" | "buscador" | "confirmarBanco";
+type Step = "importe" | "seleccion" | "metodo" | "buscador" | "confirmarBanco";
 
 function totalNeto(ser: any) {
   const noches = Number(ser.noches || 0) || 1;
@@ -24,9 +24,15 @@ function pendiente(ser: any) {
   return Math.max(0, totalNeto(ser) - Number(ser.abonado || 0));
 }
 
+function hoyISO() {
+  return new Date().toISOString().split("T")[0];
+}
+
 export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSuccess }: RegistrarPagoModalProps) {
-  const [step, setStep] = useState<Step>("seleccion");
-  const [selected, setSelected] = useState<Record<string, number>>({});
+  const [step, setStep] = useState<Step>("importe");
+  const [importePago, setImportePago] = useState<number | "">("");
+  const [fechaPago, setFechaPago] = useState(hoyISO());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,10 +60,23 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
     [seleccionables, searchSeleccion]
   );
 
+  const gruposPorProveedor = useMemo(() => {
+    const map = new Map<string, { key: string; nombre: string; servicios: any[] }>();
+    for (const ser of seleccionablesFiltrados) {
+      const key = ser.proveedor_id || ser.proveedor || "__sin_proveedor__";
+      const grupo = map.get(key) || { key, nombre: ser.proveedor || "Sin proveedor", servicios: [] };
+      grupo.servicios.push(ser);
+      map.set(key, grupo);
+    }
+    return Array.from(map.values()).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  }, [seleccionablesFiltrados]);
+
   useEffect(() => {
     if (!isOpen) {
-      setStep("seleccion");
-      setSelected({});
+      setStep("importe");
+      setImportePago("");
+      setFechaPago(hoyISO());
+      setSelectedIds(new Set());
       setError(null);
       setSearch("");
       setSearchSeleccion("");
@@ -89,38 +108,50 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
   // proveedor por pago, igual que el resto del flujo de este modal). El cruce se hace por
   // proveedor_id directamente (contabilidad_proveedores), sin pasar por entidad_id.
   useEffect(() => {
-    const proveedorId = Object.entries(selected)
-      .filter(([, importe]) => importe > 0)
-      .map(([id]) => servicios.find((s) => s.id === id)?.proveedor_id)[0];
+    const proveedorId = Array.from(selectedIds)
+      .map((id) => servicios.find((s) => s.id === id)?.proveedor_id)[0];
     setSobranteActivo(proveedorId ? sobrantesPorProveedor[proveedorId] || null : null);
-  }, [selected, sobrantesPorProveedor, servicios]);
+  }, [selectedIds, sobrantesPorProveedor, servicios]);
+
+  const importeValido = typeof importePago === "number" && importePago > 0;
+
+  // Reparto equitativo del importe total del pago entre los servicios marcados en el paso 2.
+  const selected = useMemo(() => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0 || !importeValido) return {} as Record<string, number>;
+    const porServicio = Math.round(((importePago as number) / ids.length) * 100) / 100;
+    const map: Record<string, number> = {};
+    ids.forEach((id, i) => {
+      // El último servicio absorbe el redondeo para que la suma cuadre exactamente con el importe total.
+      map[id] = i === ids.length - 1
+        ? Math.round(((importePago as number) - porServicio * (ids.length - 1)) * 100) / 100
+        : porServicio;
+    });
+    return map;
+  }, [selectedIds, importePago, importeValido]);
+
+  const totalSeleccionado = Object.values(selected).reduce((acc: number, v: number) => acc + (v || 0), 0);
 
   if (!isOpen) return null;
 
-  const totalSeleccionado = Object.values(selected).reduce((acc, v) => acc + (v || 0), 0);
-
   const toggleServicio = (ser: any) => {
-    setSelected((prev) => {
-      const next = { ...prev };
-      if (next[ser.id] != null) delete next[ser.id];
-      else next[ser.id] = pendiente(ser);
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(ser.id)) next.delete(ser.id);
+      else next.add(ser.id);
       return next;
     });
   };
 
-  const updateImporte = (id: string, value: number) => {
-    setSelected((prev) => ({ ...prev, [id]: value }));
-  };
-
   const serviciosSeleccionados = () =>
     Object.entries(selected)
-      .filter(([, importe]) => importe > 0)
+      .filter(([, importe]) => (importe as number) > 0)
       .map(([id, importe]) => {
         const ser = servicios.find((s) => s.id === id);
         // proveedor_id identifica al proveedor de forma inequívoca (evita agrupar mal por
         // pequeñas diferencias de texto en el nombre resuelto cuando hay varios servicios
         // del mismo proveedor real).
-        return { id, importe, proveedor: ser?.proveedor, proveedor_id: ser?.proveedor_id };
+        return { id, importe: importe as number, proveedor: ser?.proveedor, proveedor_id: ser?.proveedor_id };
       });
 
   const handleConfirmarDirecto = async (medio: "tarjeta" | "efectivo") => {
@@ -131,6 +162,7 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
         expediente_id: servicios[0]?.expediente_id,
         medio_pago: medio,
         servicios: serviciosSeleccionados(),
+        fecha: fechaPago,
       });
       if (!res.success) throw new Error(res.error);
       onSuccess();
@@ -229,6 +261,13 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
     }
   };
 
+  const handleVolver = () => {
+    if (step === "confirmarBanco") { setMovimientoElegido(null); setStep("buscador"); return; }
+    if (step === "buscador") { setStep("metodo"); return; }
+    if (step === "metodo") { setStep("seleccion"); return; }
+    if (step === "seleccion") { setStep("importe"); return; }
+  };
+
   return (
     <div
       onClick={onClose}
@@ -245,22 +284,66 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
           <Icons.Close size={16} />
         </button>
 
-        {step !== "seleccion" && (
+        {step !== "importe" && (
           <button
-            onClick={() => {
-              if (step === "confirmarBanco") { setMovimientoElegido(null); setStep("buscador"); }
-              else setStep(step === "buscador" ? "metodo" : "seleccion");
-            }}
+            onClick={handleVolver}
             style={{ display: "flex", alignItems: "center", gap: "0.25rem", background: "none", border: "none", color: "#64748b", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer", padding: 0, marginBottom: "0.75rem" }}
           >
             <ArrowLeft size={14} /> Volver
           </button>
         )}
 
-        {step === "seleccion" && (
+        {step === "importe" && (
           <>
             <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f172a", margin: "0 0 0.25rem 0" }}>Registrar pago</h3>
-            <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "0 0 1rem 0" }}>Selecciona los servicios que se abonan en este pago.</p>
+            <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "0 0 1.25rem 0" }}>Indica el importe y la fecha del pago que vas a registrar.</p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 600, color: "#334155", marginBottom: "0.35rem" }}>Importe del pago</label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    autoFocus
+                    placeholder="0,00"
+                    value={importePago}
+                    onChange={(e) => setImportePago(e.target.value === "" ? "" : parseFloat(e.target.value))}
+                    style={{ width: "100%", padding: "0.6rem 2rem 0.6rem 0.75rem", border: "1px solid #cbd5e1", borderRadius: "0.5rem", fontSize: "0.95rem", fontWeight: 600, color: "#0f172a", boxSizing: "border-box" }}
+                  />
+                  <span style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: "0.9rem" }}>€</span>
+                </div>
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 600, color: "#334155", marginBottom: "0.35rem" }}>Fecha del pago</label>
+                <input
+                  type="date"
+                  value={fechaPago}
+                  onChange={(e) => setFechaPago(e.target.value)}
+                  style={{ width: "100%", padding: "0.6rem 0.75rem", border: "1px solid #cbd5e1", borderRadius: "0.5rem", fontSize: "0.85rem", color: "#0f172a", boxSizing: "border-box" }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.25rem", paddingTop: "0.75rem", borderTop: "1px solid #e2e8f0" }}>
+              <button
+                disabled={!importeValido}
+                onClick={() => setStep("seleccion")}
+                style={{ backgroundColor: "var(--primary-color, #475569)", color: "#fff", border: "none", padding: "0.55rem 1.1rem", borderRadius: "0.375rem", fontSize: "0.82rem", fontWeight: 600, cursor: importeValido ? "pointer" : "not-allowed", opacity: importeValido ? 1 : 0.5 }}
+              >
+                Continuar
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === "seleccion" && (
+          <>
+            <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f172a", margin: "0 0 0.25rem 0" }}>Servicios abonados</h3>
+            <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "0 0 1rem 0" }}>
+              Selecciona los servicios que se abonan con este pago de <strong>{(importePago as number).toLocaleString("es-ES", { minimumFractionDigits: 2 })} €</strong>. El importe se reparte a partes iguales.
+            </p>
 
             {seleccionables.length === 0 ? (
               <p style={{ fontSize: "0.85rem", color: "#94a3b8", textAlign: "center", padding: "2rem 0" }}>No hay servicios pendientes de abonar.</p>
@@ -276,42 +359,49 @@ export default function RegistrarPagoModal({ isOpen, onClose, servicios, onSucce
                     style={{ width: "100%", padding: "0.5rem 0.75rem 0.5rem 2rem", border: "1px solid #cbd5e1", borderRadius: "0.375rem", fontSize: "0.82rem", boxSizing: "border-box" }}
                   />
                 </div>
-                {seleccionablesFiltrados.length === 0 ? (
+                {gruposPorProveedor.length === 0 ? (
                   <p style={{ fontSize: "0.82rem", color: "#94a3b8", textAlign: "center", padding: "1.5rem 0" }}>Sin resultados.</p>
                 ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxHeight: "340px", overflowY: "auto" }}>
-                {seleccionablesFiltrados.map((ser) => {
-                  const isChecked = selected[ser.id] != null;
-                  return (
-                    <div key={ser.id} style={{ display: "flex", alignItems: "center", gap: "0.6rem", padding: "0.6rem 0.75rem", border: "1px solid #e2e8f0", borderRadius: "0.5rem", backgroundColor: isChecked ? "#f8fafc" : "#fff" }}>
-                      <input type="checkbox" checked={isChecked} onChange={() => toggleServicio(ser)} style={{ accentColor: "var(--primary-color, #475569)", cursor: "pointer" }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ser.descripcion}</div>
-                        <div style={{ fontSize: "0.72rem", color: "#64748b" }}>{ser.proveedor || "Sin proveedor"} · Pendiente: {pendiente(ser).toLocaleString("es-ES", { minimumFractionDigits: 2 })} €</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxHeight: "340px", overflowY: "auto" }}>
+                    {gruposPorProveedor.map((grupo) => (
+                      <div key={grupo.key}>
+                        <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.03em", marginBottom: "0.4rem", textTransform: "uppercase" }}>
+                          {grupo.nombre}
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                          {grupo.servicios.map((ser) => {
+                            const isChecked = selectedIds.has(ser.id);
+                            return (
+                              <div key={ser.id} onClick={() => toggleServicio(ser)} style={{ display: "flex", alignItems: "center", gap: "0.6rem", padding: "0.6rem 0.75rem", border: "1px solid #e2e8f0", borderRadius: "0.5rem", backgroundColor: isChecked ? "#f8fafc" : "#fff", cursor: "pointer" }}>
+                                <input type="checkbox" checked={isChecked} onChange={() => toggleServicio(ser)} style={{ accentColor: "var(--primary-color, #475569)", cursor: "pointer" }} />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ser.descripcion}</div>
+                                  <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Pendiente: {pendiente(ser).toLocaleString("es-ES", { minimumFractionDigits: 2 })} €</div>
+                                </div>
+                                {isChecked && (
+                                  <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#0f172a" }}>
+                                    {(selected[ser.id] || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 })} €
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                      {isChecked && (
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={selected[ser.id]}
-                          onChange={(e) => updateImporte(ser.id, parseFloat(e.target.value) || 0)}
-                          style={{ width: "90px", padding: "0.3rem 0.4rem", border: "1px solid #cbd5e1", borderRadius: "0.375rem", fontSize: "0.8rem", textAlign: "right" }}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                    ))}
+                  </div>
                 )}
               </>
             )}
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid #e2e8f0" }}>
-              <span style={{ fontSize: "0.85rem", color: "#64748b" }}>Total seleccionado: <strong style={{ color: "#0f172a" }}>{totalSeleccionado.toLocaleString("es-ES", { minimumFractionDigits: 2 })} €</strong></span>
+              <span style={{ fontSize: "0.85rem", color: "#64748b" }}>
+                Repartido: <strong style={{ color: totalSeleccionado > (importePago as number) + 0.01 ? "#dc2626" : "#0f172a" }}>{totalSeleccionado.toLocaleString("es-ES", { minimumFractionDigits: 2 })} €</strong> / {(importePago as number).toLocaleString("es-ES", { minimumFractionDigits: 2 })} €
+              </span>
               <button
-                disabled={totalSeleccionado <= 0}
+                disabled={selectedIds.size === 0}
                 onClick={() => setStep("metodo")}
-                style={{ backgroundColor: "var(--primary-color, #475569)", color: "#fff", border: "none", padding: "0.55rem 1.1rem", borderRadius: "0.375rem", fontSize: "0.82rem", fontWeight: 600, cursor: totalSeleccionado > 0 ? "pointer" : "not-allowed", opacity: totalSeleccionado > 0 ? 1 : 0.5 }}
+                style={{ backgroundColor: "var(--primary-color, #475569)", color: "#fff", border: "none", padding: "0.55rem 1.1rem", borderRadius: "0.375rem", fontSize: "0.82rem", fontWeight: 600, cursor: selectedIds.size > 0 ? "pointer" : "not-allowed", opacity: selectedIds.size > 0 ? 1 : 0.5 }}
               >
                 Continuar
               </button>

@@ -220,8 +220,18 @@ export async function loadRecalcularMatchesData(agencyDb: any): Promise<Recalcul
       const { data: raw } = await agencyDb
         .from("operativa_expedientes_servicios")
         .select("id, expediente_id, proveedor, descripcion, total, pvp, neto");
+      const servicioIds = (raw || []).map((sv: any) => sv.id).filter(Boolean);
+      const abonoMap = new Map<string, number>();
+      if (servicioIds.length > 0) {
+        const { data: abonos } = await agencyDb
+          .from("v_abonados_servicios")
+          .select("servicio_id, total_abonado")
+          .in("servicio_id", servicioIds);
+        for (const a of (abonos || [])) abonoMap.set(a.servicio_id, Number(a.total_abonado || 0));
+      }
       const rawMap = (raw || []).map((sv: any) => {
-        const importe = Number(sv.total) || Number(sv.pvp) || Number(sv.neto) || 0;
+        const total = Number(sv.total) || Number(sv.pvp) || Number(sv.neto) || 0;
+        const importe = Math.max(0, total - (abonoMap.get(sv.id) || 0));
         return { ...sv, importe_efectivo: importe };
       });
       const expIds = [...new Set(rawMap.map((sv: any) => sv.expediente_id).filter(Boolean))] as string[];

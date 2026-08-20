@@ -334,17 +334,36 @@ export function nombreCoincide(
 }
 
 /**
- * Carga los alias proveedor OFI → nombre bancario confirmados por la agencia
- * (tabla ofiviaje_alias_proveedor), agrupados por proveedor.
+ * Carga los alias bancarios conocidos por proveedor, combinando dos fuentes:
+ * 1. ofiviaje_alias_proveedor — aprendidos automáticamente al conciliar manualmente
+ *    una tarea "Proveedor distinto" (ver guardarAliasProveedorOfi).
+ * 2. contabilidad_proveedores.alias — editados a mano desde la ficha del proveedor.
+ * Ambas se indexan por el mismo criterio (nombre de proveedor en mayúsculas) porque
+ * pago.proveedorNombre (el nombre tal como viene del XML de OFIviaje) es texto libre,
+ * no un proveedor_id — es la única clave común entre ambos sistemas.
  */
 export async function getAliasProveedorPorAgencia(agencyDb: any): Promise<Map<string, string[]>> {
-  const { data } = await agencyDb.from("ofiviaje_alias_proveedor").select("proveedor_ofi, alias_banco");
+  const [ofiRes, provRes] = await Promise.all([
+    agencyDb.from("ofiviaje_alias_proveedor").select("proveedor_ofi, alias_banco"),
+    agencyDb.from("contabilidad_proveedores").select("nombre, razon_social, alias"),
+  ]);
+
   const mapa = new Map<string, string[]>();
-  for (const fila of data || []) {
+  for (const fila of ofiRes.data || []) {
     const key = (fila.proveedor_ofi || "").trim().toUpperCase();
     if (!key) continue;
     if (!mapa.has(key)) mapa.set(key, []);
     mapa.get(key)!.push(fila.alias_banco);
+  }
+  for (const prov of provRes.data || []) {
+    const aliasList: string[] = Array.isArray(prov.alias) ? prov.alias.filter(Boolean) : [];
+    if (aliasList.length === 0) continue;
+    for (const nombreClave of [prov.nombre, prov.razon_social]) {
+      const key = (nombreClave || "").trim().toUpperCase();
+      if (!key) continue;
+      if (!mapa.has(key)) mapa.set(key, []);
+      mapa.get(key)!.push(...aliasList);
+    }
   }
   return mapa;
 }

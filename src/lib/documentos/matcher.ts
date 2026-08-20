@@ -174,8 +174,18 @@ export async function buscarMatchesParaMovimiento(
           const { data: raw } = await db
             .from("operativa_expedientes_servicios")
             .select("id, expediente_id, proveedor, descripcion, total, pvp, neto");
+          const servicioIds = (raw || []).map((sv: any) => sv.id).filter(Boolean);
+          const abonoMap = new Map<string, number>();
+          if (servicioIds.length > 0) {
+            const { data: abonos } = await db
+              .from("v_abonados_servicios")
+              .select("servicio_id, total_abonado")
+              .in("servicio_id", servicioIds);
+            for (const a of (abonos || [])) abonoMap.set(a.servicio_id, Number(a.total_abonado || 0));
+          }
           const rawMap = (raw || []).map((sv: any) => {
-            const importe = Number(sv.total) || Number(sv.pvp) || Number(sv.neto) || 0;
+            const total = Number(sv.total) || Number(sv.pvp) || Number(sv.neto) || 0;
+            const importe = Math.max(0, total - (abonoMap.get(sv.id) || 0));
             return { ...sv, importe_efectivo: importe };
           });
           const expIds = [...new Set(rawMap.map((sv: any) => sv.expediente_id).filter(Boolean))] as string[];
@@ -194,6 +204,20 @@ export async function buscarMatchesParaMovimiento(
           return rawMap.map((sv: any) => ({ ...sv, exp_numero: "", exp_referencia: "" }));
         })();
 
+    // sv.proveedor es el UUID de contabilidad_proveedores, no el nombre — se resuelve en
+    // batch antes de construir los candidatos para no propagar el ID crudo hasta el modal.
+    const proveedorIds = [...new Set((serviciosData || []).map((sv: any) => sv.proveedor).filter(Boolean))] as string[];
+    const proveedorNombreMap = new Map<string, string>();
+    if (proveedorIds.length > 0) {
+      const db = await getAgencyDbClient();
+      const { data: provs } = await db
+        .from("contabilidad_proveedores")
+        .select("id, nombre, razon_social")
+        .in("id", proveedorIds);
+      for (const p of (provs || [])) proveedorNombreMap.set(p.id, p.nombre || p.razon_social || p.id);
+    }
+    const nombreProveedor = (id: string) => proveedorNombreMap.get(id) || id;
+
     (serviciosData || []).forEach((sv: any) => {
       const importeServicio = Number(sv.importe_efectivo || 0);
       if (importeServicio <= 0) return;
@@ -203,7 +227,7 @@ export async function buscarMatchesParaMovimiento(
       sv.expedienteDescripcion = `${sv.exp_numero || ""} ${sv.exp_referencia || ""}`.trim();
       pagosPorDocumento.set(key, {
         documentoId: key,
-        proveedorNombre: sv.proveedor || "Proveedor",
+        proveedorNombre: sv.proveedor ? nombreProveedor(sv.proveedor) : "Proveedor",
         proveedorNif: "",
         expedienteId: sv.expediente_id,
         expedienteNumero: sv.expedienteNumero,
@@ -242,7 +266,7 @@ export async function buscarMatchesParaMovimiento(
       if (pagosPorDocumento.has(grupoKey)) continue;
       pagosPorDocumento.set(grupoKey, {
         documentoId: grupoKey,
-        proveedorNombre: g.proveedor,
+        proveedorNombre: nombreProveedor(g.proveedor),
         proveedorNif: "",
         expedienteId: g.expedienteId,
         expedienteNumero: g.expNumero,

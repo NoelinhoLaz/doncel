@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Landmark } from "lucide-react";
+import { AlertTriangle, Landmark, Trash2 } from "lucide-react";
 import { Icons } from "@/lib/icons";
 import Pagination from "@/app/components/Pagination";
 import { formatBirthDate } from "@/lib/utils/date";
@@ -94,7 +94,7 @@ const CHECKBOX_LABEL_BASE: React.CSSProperties = {
 };
 
 interface FilterDropdownProps {
-  id: "plazos" | "extras" | "newsletter" | "contrato";
+  id: "plazos" | "extras" | "newsletter" | "contrato" | "estado";
   label: string;
   count: number;
   isOpen: boolean;
@@ -148,8 +148,8 @@ interface Props {
   onSearchChange: (v: string) => void;
   isFilterRowOpen: boolean;
   onToggleFilterRow: () => void;
-  openDropdown: "plazos" | "extras" | "newsletter" | "contrato" | null;
-  onSetOpenDropdown: (d: "plazos" | "extras" | "newsletter" | "contrato" | null) => void;
+  openDropdown: "plazos" | "extras" | "newsletter" | "contrato" | "estado" | null;
+  onSetOpenDropdown: (d: "plazos" | "extras" | "newsletter" | "contrato" | "estado" | null) => void;
   activePlazoFilters: string[];
   onTogglePlazoFilter: (id: string) => void;
   activeExtraFilters: string[];
@@ -158,6 +158,8 @@ interface Props {
   onToggleNewsletterFilter: (v: string) => void;
   activeContratoFilters: string[];
   onToggleContratoFilter: (v: string) => void;
+  activeEstadoFilters: string[];
+  onToggleEstadoFilter: (v: string) => void;
   onClearAllFilters: () => void;
   sortKey: string;
   sortDirection: "asc" | "desc";
@@ -167,6 +169,7 @@ interface Props {
   onPageChange: (p: number) => void;
   onRowsPerPageChange: (r: number) => void;
   onExportClick?: () => void;
+  onAnularClick?: (viajero: any) => void;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -182,12 +185,15 @@ export default function TablaViajeros({
   activeExtraFilters, onToggleExtraFilter,
   activeNewsletterFilters, onToggleNewsletterFilter,
   activeContratoFilters, onToggleContratoFilter,
+  activeEstadoFilters, onToggleEstadoFilter,
   onClearAllFilters,
   sortKey, sortDirection, onSort,
   currentPage, rowsPerPage, onPageChange, onRowsPerPageChange,
   onExportClick,
+  onAnularClick,
 }: Props) {
-  const hasActiveFilters = activePlazoFilters.length + activeExtraFilters.length + activeNewsletterFilters.length + activeContratoFilters.length > 0;
+  const estadoFilterIsDefault = activeEstadoFilters.length === 1 && activeEstadoFilters[0] === "Activo";
+  const hasActiveFilters = activePlazoFilters.length + activeExtraFilters.length + activeNewsletterFilters.length + activeContratoFilters.length > 0 || !estadoFilterIsDefault;
 
   return (
     <div className={styles.tabContainer}>
@@ -291,6 +297,15 @@ export default function TablaViajeros({
             ))}
           </FilterDropdown>
 
+          {/* Estado */}
+          <FilterDropdown id="estado" label="Todos los viajeros" count={estadoFilterIsDefault ? 0 : activeEstadoFilters.length} isOpen={openDropdown === "estado"} onToggle={() => onSetOpenDropdown(openDropdown === "estado" ? null : "estado")}>
+            {["Activo", "Inactivo"].map((opt) => (
+              <CheckboxOption key={opt} value={opt} checked={activeEstadoFilters.includes(opt)} onChange={() => onToggleEstadoFilter(opt)}>
+                {opt}
+              </CheckboxOption>
+            ))}
+          </FilterDropdown>
+
           {hasActiveFilters && (
             <button
               onClick={onClearAllFilters}
@@ -319,14 +334,15 @@ export default function TablaViajeros({
               <SortTh label="FEC. NAC." colKey="birthDate" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="left" />
               <SortTh label="Newsletter" icon={<Icons.Mails size={16} style={{ color: sortKey === "newsletter" ? "#1e293b" : "#64748b" }} />} colKey="newsletter" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="center" />
               <SortTh label="Contrato Firmado" icon={<Icons.Document size={16} style={{ color: sortKey === "contrato" ? "#1e293b" : "#64748b" }} />} colKey="contrato" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="center" />
-              <SortTh label="ESTADO" colKey="status" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="right" />
+              <SortTh label="ESTADO" colKey="status" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="center" />
               <SortTh label="PLAZOS" colKey="plazos" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="center" />
               <SortTh label="IMPORTE" colKey="importe" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="right" />
+              <th style={{ width: "1%" }} />
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={13} style={{ textAlign: "center", color: "#64748b", padding: "2rem" }}>Cargando viajeros...</td></tr>
+              <tr><td colSpan={14} style={{ textAlign: "center", color: "#64748b", padding: "2rem" }}>Cargando viajeros...</td></tr>
             ) : paginatedData.map((v) => {
               const pagador = pagadorMap.get(v.pagador_id);
               const plazosList = pagador ? getPaymentPlazos(pagador as Pagador, globalPlazos) : [];
@@ -334,6 +350,8 @@ export default function TablaViajeros({
                 pagador ? getPlazoDetail(pagador as Pagador, globalPlazos, i) : { color: "gray", tooltip: "" }
               );
               if (dots.length === 0) for (let i = 0; i < 3; i++) dots.push({ color: "gray", tooltip: "" });
+
+              const pagoStatus = v.pagoStatus || "PENDIENTE";
 
               return (
                 <tr key={v.id}>
@@ -403,9 +421,9 @@ export default function TablaViajeros({
                       {v.contrato}
                     </span>
                   </td>
-                  <td style={{ textAlign: "right" }}>
-                    <span className={`${styles.statusTag} ${v.status === "CONFIRMADO" ? styles.statusSuccess : styles.statusPending}`}>
-                      {v.status}
+                  <td style={{ textAlign: "center" }}>
+                    <span className={`${styles.statusTag} ${pagoStatus === "PAGADO" ? styles.statusSuccess : pagoStatus === "ANULADO" ? styles.statusAnulado : pagoStatus === "PARCIAL" ? styles.statusParcial : styles.statusPending}`} style={{ fontSize: "0.62rem" }}>
+                      {pagoStatus}
                     </span>
                   </td>
                   <td>
@@ -420,11 +438,24 @@ export default function TablaViajeros({
                       {Number(v.importe).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                     </span>
                   </td>
+                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                    {v.status !== "ANULADO" && (
+                      <button
+                        onClick={() => onAnularClick?.(v)}
+                        title="Anular viajero"
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "0.35rem", borderRadius: "0.25rem", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = "#dc2626"; e.currentTarget.style.backgroundColor = "#fef2f2"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.backgroundColor = "transparent"; }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </td>
                 </tr>
               );
             })}
             {!loading && paginatedData.length === 0 && (
-              <tr><td colSpan={12} style={{ textAlign: "center", color: "#64748b", padding: "2rem" }}>No se encontraron viajeros registrados.</td></tr>
+              <tr><td colSpan={13} style={{ textAlign: "center", color: "#64748b", padding: "2rem" }}>No se encontraron viajeros registrados.</td></tr>
             )}
           </tbody>
         </table>

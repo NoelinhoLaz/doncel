@@ -111,7 +111,7 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
           {...makeHover(setCampanasSubOpen, campanasTimer)}
         >
           <button
-            className={`${styles.menuItem} ${styles.moduleRadar} ${isActive("/campanas") || isActive("/oportunidades") || isActive("/contactos") ? styles.active : ""}`}
+            className={`${styles.menuItem} ${styles.moduleRadar} ${isActive("/campanas") || isActive("/oportunidades") || isActive("/contactos") || isActive("/crm/contactos") ? styles.active : ""}`}
             title="Campañas"
             onClick={() => router.push("/campanas")}
           >
@@ -140,6 +140,13 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
               >
                 <Icons.Viajeros size={14} className={styles.submenuIcon} />
                 <span>Viajeros</span>
+              </button>
+              <button
+                className={styles.submenuItem}
+                onClick={() => { setCampanasSubOpen(false); router.push("/crm/contactos"); }}
+              >
+                <Icons.IdCard size={14} className={styles.submenuIcon} />
+                <span>Contactos</span>
               </button>
               {!isBranchUser && (
                 <button
@@ -230,6 +237,16 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
               <Icons.Calendar size={14} className={styles.submenuIcon} />
               <span>Reservas Unificadas</span>
             </button>
+            <button
+              className={styles.submenuItem}
+              onClick={() => {
+                setExpSubOpen(false);
+                router.push("/banco/pago-servicios");
+              }}
+            >
+              <Icons.Servicios size={14} className={styles.submenuIcon} />
+              <span>Servicios</span>
+            </button>
           </div>
         )}
       </div>
@@ -268,16 +285,6 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
               >
                 <Icons.Landmark size={14} className={styles.submenuIcon} />
                 <span>Movimientos banco</span>
-              </button>
-              <button
-                className={styles.submenuItem}
-                onClick={() => {
-                  setBancoSubOpen(false);
-                  router.push("/banco/historial-procesos");
-                }}
-              >
-                <Icons.History size={14} className={styles.submenuIcon} />
-                <span>Historial de procesos</span>
               </button>
               <button
                 className={styles.submenuItem}
@@ -329,10 +336,10 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
         {...makeHover(setPulseSubOpen, pulseTimer)}
       >
         <button
-          className={`${styles.menuItem} ${styles.modulePulse} ${isActive("/web") ? styles.active : ""}`}
+          className={`${styles.menuItem} ${styles.modulePulse} ${isActive("/web") || isActive("/fidelizacion") ? styles.active : ""}`}
           title="Fidelización"
         >
-          <Icons.Heart size={20} strokeWidth={isActive("/web") ? 3 : 2} />
+          <Icons.Heart size={20} strokeWidth={isActive("/web") || isActive("/fidelizacion") ? 3 : 2} />
         </button>
 
         {pulseSubOpen && (
@@ -343,6 +350,13 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
             >
               <Icons.Propuestas size={14} className={styles.submenuIcon} />
               <span>Web</span>
+            </button>
+            <button
+              className={styles.submenuItem}
+              onClick={() => { setPulseSubOpen(false); router.push("/fidelizacion/difusion"); }}
+            >
+              <Icons.Megaphone size={14} className={styles.submenuIcon} />
+              <span>Difusión</span>
             </button>
           </div>
         )}

@@ -380,14 +380,24 @@ export async function getResumenPagosExpediente(expedienteId: string) {
     const servicioIds = lista.map((s: any) => s.id).filter(Boolean);
     const documentoIds = [...new Set(lista.map((s: any) => s.documento_id).filter(Boolean))];
 
-    const [abonosRes, documentosRes] = await Promise.all([
+    const [abonosRes, documentosRes, reembolsosRes] = await Promise.all([
       servicioIds.length > 0
         ? agencyDb.from("v_abonados_servicios").select("servicio_id, total_abonado").in("servicio_id", servicioIds)
         : Promise.resolve({ data: [] as any[] }),
       documentoIds.length > 0
         ? agencyDb.from("operativa_documentos_proveedor").select("total_documento").in("id", documentoIds)
         : Promise.resolve({ data: [] as any[] }),
+      agencyDb
+        .from("contabilidad_movimientos")
+        .select("importe_total")
+        .eq("expediente_id", expedienteId)
+        .eq("tipo", "reembolso_cobro")
+        .eq("estado", "confirmado"),
     ]);
+
+    // Un reembolso a cliente (reembolso_cobro) es dinero que sale de la
+    // agencia, por lo que computa como un pago dentro de este resumen.
+    const totalReembolsos = (reembolsosRes.data ?? []).reduce((s: number, r: any) => s + Number(r.importe_total || 0), 0);
 
     const abonoMap = new Map<string, number>();
     for (const a of (abonosRes.data ?? [])) abonoMap.set(a.servicio_id, Number(a.total_abonado || 0));
@@ -432,12 +442,13 @@ export async function getResumenPagosExpediente(expedienteId: string) {
       pagosRealizados,
       pendientePago: Math.max(totalNeto - pagosRealizados, 0),
       facturasSoportadas: (documentosRes.data ?? []).reduce((sum: number, d: any) => sum + Number(d.total_documento || 0), 0),
-      totalPagosEstimados: totalNeto,
+      totalPagosEstimados: totalNeto + totalReembolsos,
       desglosePagosEstimados: desglose,
+      totalReembolsos,
     };
   } catch (error: any) {
     console.error("Failed to get resumen pagos expediente:", error.message);
-    return { serviciosCount: 0, pagosRealizados: 0, pendientePago: 0, facturasSoportadas: 0, totalPagosEstimados: 0, desglosePagosEstimados: [] };
+    return { serviciosCount: 0, pagosRealizados: 0, pendientePago: 0, facturasSoportadas: 0, totalPagosEstimados: 0, desglosePagosEstimados: [], totalReembolsos: 0 };
   }
 }
 
@@ -448,10 +459,10 @@ export async function getResumenKpisExpediente(expedienteId: string) {
   try {
     const agencyDb = await getAgencyDbClient();
 
-    const [viajerosRes, pagadoresRes, facturasRes, serviciosRes] = await Promise.all([
+    const [viajerosRes, pagadoresRes, facturasRes, serviciosRes, reembolsosRes] = await Promise.all([
       agencyDb
         .from("operativa_viajeros_expedientes")
-        .select("id, extras")
+        .select("id, extras, estado")
         .eq("expediente_id", expedienteId)
         .order("id", { ascending: true }),
       agencyDb
@@ -466,7 +477,17 @@ export async function getResumenKpisExpediente(expedienteId: string) {
         .from("operativa_expedientes_servicios")
         .select("id, descripcion")
         .eq("expediente_id", expedienteId),
+      agencyDb
+        .from("contabilidad_movimientos")
+        .select("importe_total")
+        .eq("expediente_id", expedienteId)
+        .eq("tipo", "reembolso_pago")
+        .eq("estado", "confirmado"),
     ]);
+
+    // Un reembolso de proveedor (reembolso_pago) es dinero que entra a la
+    // agencia, por lo que computa como un cobro dentro de este resumen.
+    const totalReembolsos = (reembolsosRes.data ?? []).reduce((s: number, r: any) => s + Number(r.importe_total || 0), 0);
 
     const pagadores = pagadoresRes.data ?? [];
     const totalFacturable = pagadores.reduce((s, p: any) => s + Number(p.importe_total || 0), 0);
@@ -499,7 +520,7 @@ export async function getResumenKpisExpediente(expedienteId: string) {
       }
     }
 
-    const viajerosCount = viajerosData.length;
+    const viajerosCount = viajerosData.filter((v: any) => v.estado !== "anulado").length;
     // El total del KPI es el real (facturación a pagadores). El desglose
     // debe sumar exactamente ese total: "PVP Base" es el resto tras restar
     // los extras conocidos, en vez de recalcularse desde pvp_viajero.
@@ -518,12 +539,13 @@ export async function getResumenKpisExpediente(expedienteId: string) {
       cobrosRecibidos,
       facturacionEmitida: (facturasRes.data ?? []).reduce((s, f: any) => s + Number(f.importe_total || 0), 0),
       saldoPendiente: totalFacturable - cobrosRecibidos,
-      totalCobrosEstimados: totalFacturable,
+      totalCobrosEstimados: totalFacturable + totalReembolsos,
       desgloseCobrosEstimados: desglose,
+      totalReembolsos,
     };
   } catch (error: any) {
     console.error("Failed to get resumen KPIs expediente:", error.message);
-    return { viajerosCount: 0, cobrosRecibidos: 0, facturacionEmitida: 0, saldoPendiente: 0, totalCobrosEstimados: 0, desgloseCobrosEstimados: [] };
+    return { viajerosCount: 0, cobrosRecibidos: 0, facturacionEmitida: 0, saldoPendiente: 0, totalCobrosEstimados: 0, desgloseCobrosEstimados: [], totalReembolsos: 0 };
   }
 }
 

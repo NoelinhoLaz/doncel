@@ -131,9 +131,17 @@ export async function processBankMovementMatch(
   };
 }
 
+export interface MatchRecalculationFiltros {
+  cuentaIds?: string[];
+  fechaDesde?: string;
+  fechaHasta?: string;
+  tipoMovimiento?: "debe" | "haber";
+}
+
 export async function executeMatchRecalculation(
   agencyDb: any,
-  preloadedData?: RecalcularMatchesData
+  preloadedData?: RecalcularMatchesData,
+  filtros?: MatchRecalculationFiltros
 ) {
   const startTime = Date.now();
   let pendientes: any[] = [];
@@ -142,12 +150,17 @@ export async function executeMatchRecalculation(
     let page = 0;
     const pageSize = 1000;
     while (true) {
-      const { data: batch, error: batchError } = await agencyDb
+      let query = agencyDb
         .from("contabilidad_movimientos_banco")
         .select("id, estado, match_score, match_metadatos, concepto_limpio, concepto_original, fecha_operacion, importe, metadatos, referencia1, referencia2")
         .in("estado", ["pendiente", "propuesto"])
-        .eq("deleted", false)
-        .range(page * pageSize, (page + 1) * pageSize - 1);
+        .eq("deleted", false);
+      if (filtros?.cuentaIds?.length) query = query.in("cuenta_bancaria_id", filtros.cuentaIds);
+      if (filtros?.fechaDesde) query = query.gte("fecha_operacion", filtros.fechaDesde);
+      if (filtros?.fechaHasta) query = query.lte("fecha_operacion", filtros.fechaHasta);
+      if (filtros?.tipoMovimiento === "debe") query = query.lt("importe", 0);
+      if (filtros?.tipoMovimiento === "haber") query = query.gt("importe", 0);
+      const { data: batch, error: batchError } = await query.range(page * pageSize, (page + 1) * pageSize - 1);
       if (batchError) { fetchError = batchError; break; }
       if (!batch || batch.length === 0) break;
       pendientes = pendientes.concat(batch);
@@ -168,6 +181,11 @@ const data = preloadedData || await loadRecalcularMatchesData(agencyDb);
   let bajos = 0;
   let medios = 0;
   let altos = 0;
+
+  // Se acumulan los updates en vez de aplicarlos uno a uno (secuencial) contra la BD:
+  // con muchos movimientos pendientes, N round-trips secuenciales dominan el tiempo total.
+  const sinMatchIds: string[] = [];
+  const propuestos: Array<{ id: string; scorePct: number; matchMetadatos: any }> = [];
 
   for (const mov of pendientes) {
     const movImporte = Number(mov.importe || 0);
@@ -213,37 +231,58 @@ const data = preloadedData || await loadRecalcularMatchesData(agencyDb);
 
     if (!match) {
       // Sin match: resetear siempre a pendiente para que no queden propuestas huérfanas
-      await agencyDb
-        .from("contabilidad_movimientos_banco")
-        .update({ estado: "pendiente", match_score: null, match_propuesto_at: null, match_metadatos: null })
-        .eq("id", mov.id);
+      sinMatchIds.push(mov.id);
       continue;
     }
 
     const scorePct = normalizeScore((match as any).match_score ?? (match as any).score ?? 0);
     if (scorePct < MIN_MATCH_SCORE) {
-      await agencyDb
-        .from("contabilidad_movimientos_banco")
-        .update({ estado: "pendiente", match_score: null, match_propuesto_at: null, match_metadatos: null })
-        .eq("id", mov.id);
+      sinMatchIds.push(mov.id);
       continue;
     }
 
-    const { error: errorUpdate } = await agencyDb
-      .from("contabilidad_movimientos_banco")
-      .update({
-        estado: "propuesto",
-        match_score: scorePct,
-        match_propuesto_at: new Date().toISOString(),
-        match_metadatos: { ...match, match_score: scorePct, criterios: match.metadatos },
-      })
-      .eq("id", mov.id);
+    propuestos.push({
+      id: mov.id,
+      scorePct,
+      matchMetadatos: { ...match, match_score: scorePct, criterios: match.metadatos },
+    });
+  }
 
-    if (!errorUpdate) {
-      count++;
-      if (scorePct >= 90) altos++;
-      else if (scorePct >= 80) medios++;
-      else bajos++;
+  // Aplicar todos los "sin match" en un único UPDATE (mismo valor para todas las filas).
+  if (sinMatchIds.length > 0) {
+    await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .update({ estado: "pendiente", match_score: null, match_propuesto_at: null, match_metadatos: null })
+      .in("id", sinMatchIds);
+  }
+
+  // Los "propuestos" llevan match_metadatos distinto por fila, así que no pueden ir en un único
+  // UPDATE — se lanzan en paralelo (en tandas) en vez de secuenciales para evitar N round-trips.
+  const CONCURRENCIA = 20;
+  const propuestoAt = new Date().toISOString();
+  for (let i = 0; i < propuestos.length; i += CONCURRENCIA) {
+    const tanda = propuestos.slice(i, i + CONCURRENCIA);
+    const resultados = await Promise.all(
+      tanda.map((p) =>
+        agencyDb
+          .from("contabilidad_movimientos_banco")
+          .update({
+            estado: "propuesto",
+            match_score: p.scorePct,
+            match_propuesto_at: propuestoAt,
+            match_metadatos: p.matchMetadatos,
+          })
+          .eq("id", p.id)
+      )
+    );
+    for (let j = 0; j < resultados.length; j++) {
+      if (!resultados[j].error) {
+        count++;
+        const scorePct = tanda[j].scorePct;
+        if (scorePct >= 90) altos++;
+        else if (scorePct >= 80) medios++;
+        else bajos++;
+      }
     }
   }
 

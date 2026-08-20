@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Icons } from "@/lib/icons";
 import styles from "./MultiSelectDropdown.module.css";
 
@@ -21,12 +22,17 @@ export default function MultiSelectDropdown({
 }: MultiSelectDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
-  // Cerrar el dropdown cuando se haga click afuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        containerRef.current && !containerRef.current.contains(target) &&
+        !(target as HTMLElement).closest?.(`.${styles.dropdown}`)
+      ) {
         setIsOpen(false);
       }
     };
@@ -36,6 +42,13 @@ export default function MultiSelectDropdown({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  useEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    }
+  }, [isOpen]);
 
   const filteredOptions = options.filter((opt) =>
     opt.toLowerCase().includes(searchTerm.toLowerCase())
@@ -64,6 +77,7 @@ export default function MultiSelectDropdown({
   return (
     <div ref={containerRef} className={styles.container}>
       <button
+        ref={triggerRef}
         className={styles.trigger}
         onClick={() => setIsOpen(!isOpen)}
         type="button"
@@ -76,8 +90,11 @@ export default function MultiSelectDropdown({
         />
       </button>
 
-      {isOpen && (
-        <div className={styles.dropdown}>
+      {isOpen && dropdownPos && typeof document !== "undefined" && createPortal(
+        <div
+          className={styles.dropdown}
+          style={{ position: "fixed", top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width, marginTop: 0, zIndex: 9000 }}
+        >
           <div className={styles.searchContainer}>
             <input
               type="text"
@@ -107,18 +124,19 @@ export default function MultiSelectDropdown({
             )}
           </div>
 
-          {selected.length > 0 && (
-            <div className={styles.footer}>
-              <button
-                type="button"
-                className={styles.clearButton}
-                onClick={clearAll}
-              >
-                Limpiar
-              </button>
-            </div>
-          )}
-        </div>
+          <div className={styles.footer}>
+            <button
+              type="button"
+              className={styles.clearButton}
+              onClick={clearAll}
+              disabled={selected.length === 0}
+              style={selected.length === 0 ? { opacity: 0.4, cursor: "not-allowed" } : undefined}
+            >
+              Limpiar
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

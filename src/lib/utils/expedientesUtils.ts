@@ -61,7 +61,8 @@ export function mapExpedienteToRow(exp: RawExpediente): ExpedienteRow {
   const viajerosConfirmados =
     exp.operativa_viajeros_expedientes?.filter((v) => v.estado === "confirmado")?.length ?? 0;
   const plazasMax = exp.metadata?.plazas_max ? Number(exp.metadata.plazas_max) : 0;
-  const totalViajeros = exp.operativa_viajeros_expedientes?.length ?? 0;
+  const totalViajeros =
+    exp.operativa_viajeros_expedientes?.filter((v) => v.estado !== "anulado")?.length ?? 0;
   const capacidad = plazasMax > 0 ? plazasMax : totalViajeros;
   const plazasText = capacidad > 0 ? `${viajerosConfirmados}/${capacidad}` : `${viajerosConfirmados}`;
   const plazasProg = capacidad > 0 ? Math.min(100, Math.round((viajerosConfirmados / capacidad) * 100)) : 0;

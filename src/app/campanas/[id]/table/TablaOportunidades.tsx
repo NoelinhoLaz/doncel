@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
 import {
   Search, SlidersHorizontal, Plus, ChevronLeft, ChevronRight,
-  ChevronUp, ChevronDown, X, Pencil, Trash2, MapPin, Rocket, List,
+  ChevronUp, ChevronDown, X, Pencil, Trash2, MapPin, Rocket, List, Megaphone,
 } from "lucide-react";
 import styles from "../page.module.css";
 import { Oportunidad, Estado, AgenteObjetivo, EntidadDetalle } from "../types";
@@ -15,6 +15,7 @@ import { EstadosBubbles } from "../components/EstadosBubbles";
 import { ResponsablesTooltip } from "../components/ResponsablesTooltip";
 import { ModalEstrategia } from "../modals/ModalEstrategia";
 import { BuscarNegocioModal, LugarPlaces } from "@/components/modals/BuscarNegocioModal";
+import NuevaDifusionModal from "@/components/modals/NuevaDifusionModal";
 
 const MapaOportunidadesDynamic = dynamic(
   () => import("../MapaOportunidades").then(m => m.MapaOportunidades),
@@ -42,6 +43,7 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
 }) {
   const [search, setSearch] = useState("");
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showDifusionModal, setShowDifusionModal] = useState(false);
   const addBtnRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -406,6 +408,13 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
             title={showMapa ? "Ver listado" : "Ver mapa"}
           >
             {showMapa ? <List size={15} /> : <MapPin size={15} />}
+          </button>
+          <button
+            className={styles.filterIconBtn}
+            onClick={() => setShowDifusionModal(true)}
+            title="Crear difusión"
+          >
+            <Megaphone size={15} />
           </button>
           {isOwner && <div ref={addBtnRef} style={{ position: "relative" }}>
             <button className={styles.addBtn} onClick={() => setShowAddMenu(v => !v)} title="Nueva oportunidad">
@@ -1022,6 +1031,15 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
         />
       );
     })()}
+
+    {/* Modal crear difusión, con la campaña actual preseleccionada */}
+    {showDifusionModal && (
+      <NuevaDifusionModal
+        initialCampanaId={campanaId}
+        onClose={() => setShowDifusionModal(false)}
+        onCreated={() => setShowDifusionModal(false)}
+      />
+    )}
     </>
   );
 }

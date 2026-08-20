@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, Fragment } from "react";
 import { createPortal } from "react-dom";
-import { Trash2, Plus, Download, Package, Users, Moon, Landmark, Info, Mail, FileText, ChevronDown, ChevronRight } from "lucide-react";
+import { Trash2, Plus, Download, Package, Users, Moon, Landmark, Info, Mail, FileText, ChevronDown, ChevronRight, Wallet } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import { FolderPlus } from "lucide-react";
 import { Icons } from "@/lib/icons";
@@ -13,6 +13,7 @@ import DestinationSelector from "@/app/expedientes/[id]/components/DestinationSe
 import styles from "@/app/expedientes/shared.module.css";
 import listStyles from "@/app/expedientes/page.module.css";
 import tablaStyles from "@/app/components/cotizacion/tabla.module.css";
+import EstadoPagoBadgeConTooltip from "@/app/components/servicios/EstadoPagoBadgeConTooltip";
 
 interface Props {
   serviciosList: any[];
@@ -36,10 +37,11 @@ interface Props {
   serviceTypes?: any[];
   pendingMatchCount?: number;
   onOpenMatchModal?: () => void;
-  onRegistrarPago?: () => void;
+  onRegistrarPago?: (ids: string[]) => void;
   onRegistrarDocumento?: () => void;
   onEnviarValoracion?: () => void;
   onOpenConciliar?: (movimientoId: string) => void;
+  onBuscarMovimiento?: (servicio: any) => void;
 }
 
 const fieldStyle: React.CSSProperties = {
@@ -128,7 +130,7 @@ function TipoSelectorServicio({
   );
 }
 
-function EstadoPagoBadge({ abonado, totalNeto, pendienteConciliar, movimientoId, onOpenConciliar }: { abonado: number; totalNeto: number; pendienteConciliar?: boolean; movimientoId?: string; onOpenConciliar?: (movimientoId: string) => void }) {
+function EstadoPagoBadge({ abonado, totalNeto, pendienteConciliar, movimientoId, onOpenConciliar, servicio, onBuscarMovimiento }: { abonado: number; totalNeto: number; pendienteConciliar?: boolean; movimientoId?: string; onOpenConciliar?: (movimientoId: string) => void; servicio?: any; onBuscarMovimiento?: (servicio: any) => void }) {
   const { label, color, bg } = totalNeto > 0 && abonado >= totalNeto
     ? { label: "Pagado", color: "#16a34a", bg: "#f0fdf4" }
     : abonado > 0
@@ -137,16 +139,27 @@ function EstadoPagoBadge({ abonado, totalNeto, pendienteConciliar, movimientoId,
         ? { label: "Pdt. Conciliar", color: "#2563eb", bg: "#eff6ff" }
         : { label: "Pendiente", color: "#94a3b8", bg: "#f8fafc" };
 
-  const clicable = pendienteConciliar && movimientoId && onOpenConciliar;
+  // Si hay un movimiento propuesto (movimientoId), se abre el flujo clásico de conciliación.
+  // Si no, se abre directamente el buscador de movimiento bancario para este servicio.
+  const clicable = !!(pendienteConciliar && ((movimientoId && onOpenConciliar) || (servicio && onBuscarMovimiento)));
+  const handleClick = movimientoId && onOpenConciliar
+    ? () => onOpenConciliar(movimientoId)
+    : servicio && onBuscarMovimiento
+      ? () => onBuscarMovimiento(servicio)
+      : undefined;
+
+  const esPagado = totalNeto > 0 && abonado >= totalNeto;
 
   return (
-    <span
-      onClick={clicable ? (e) => { e.stopPropagation(); onOpenConciliar!(movimientoId!); } : undefined}
-      title={clicable ? "Haz clic para vincular el movimiento bancario real" : undefined}
-      style={{ display: "inline-flex", alignItems: "center", padding: "0.2rem 0.5rem", borderRadius: "0.25rem", backgroundColor: bg, color, fontSize: "0.68rem", fontWeight: 700, whiteSpace: "nowrap", cursor: clicable ? "pointer" : "default", textDecoration: clicable ? "underline" : "none" }}
-    >
-      {label}
-    </span>
+    <EstadoPagoBadgeConTooltip
+      label={label}
+      color={color}
+      bg={bg}
+      clicable={clicable}
+      onClick={handleClick}
+      pagos={servicio?.pagos}
+      mostrarTooltipPagos={esPagado}
+    />
   );
 }
 
@@ -176,8 +189,10 @@ export default function TablaServiciosNoOpcionales({
   onRegistrarDocumento,
   onEnviarValoracion,
   onOpenConciliar,
+  onBuscarMovimiento,
 }: Props) {
   const [showDropdown, setShowDropdown] = useState(false);
+  const addDropdownRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
   const [openTipoRowId, setOpenTipoRowId] = useState<string | null>(null);
   const [showFiltros, setShowFiltros] = useState(false);
@@ -187,6 +202,12 @@ export default function TablaServiciosNoOpcionales({
   const agruparBtnRef = useRef<HTMLButtonElement>(null);
   const [agruparPor, setAgruparPor] = useState<"proveedor" | "tipo" | "opcional" | null>("proveedor");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const toggleSelected = (id: string) => setSelectedIds((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
 
   useEffect(() => {
     if (!openTipoRowId) return;
@@ -194,6 +215,17 @@ export default function TablaServiciosNoOpcionales({
     window.addEventListener("mousedown", close);
     return () => window.removeEventListener("mousedown", close);
   }, [openTipoRowId]);
+
+  useEffect(() => {
+    if (!showDropdown) return;
+    const close = (e: MouseEvent) => {
+      if (addDropdownRef.current && !addDropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [showDropdown]);
 
   useEffect(() => {
     if (!showAgruparDropdown) return;
@@ -285,7 +317,7 @@ export default function TablaServiciosNoOpcionales({
       <Fragment key={item.id}>
         {index === firstOpcionalIndex && (
           <tr>
-            <td colSpan={12} style={{ padding: "0.75rem 1rem 0.5rem 1rem" }}>
+            <td colSpan={13} style={{ padding: "0.75rem 1rem 0.5rem 1rem" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
                 <span style={{ fontSize: "0.7rem", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>OPCIONALES</span>
                 <div style={{ flex: 1, height: "1px", backgroundColor: "#e2e8f0" }} />
@@ -294,6 +326,14 @@ export default function TablaServiciosNoOpcionales({
           </tr>
         )}
         <tr>
+          <td style={{ whiteSpace: "nowrap", width: "1%", verticalAlign: "middle" }}>
+            <input
+              type="checkbox"
+              checked={selectedIds.has(item.id)}
+              onChange={() => toggleSelected(item.id)}
+              style={{ cursor: "pointer" }}
+            />
+          </td>
           <td style={{ whiteSpace: "nowrap", width: "1%", verticalAlign: "middle" }}>
             <TipoSelectorServicio
               ser={item}
@@ -392,6 +432,8 @@ export default function TablaServiciosNoOpcionales({
               pendienteConciliar={item.pendiente_conciliar}
               movimientoId={(item.pagos || []).find((p: any) => p.pendiente_conciliar)?.movimiento_id}
               onOpenConciliar={onOpenConciliar}
+              servicio={item}
+              onBuscarMovimiento={onBuscarMovimiento}
             />
           </td>
           <td style={{ verticalAlign: "middle", width: "1%", whiteSpace: "nowrap", position: "relative" }}>
@@ -456,32 +498,31 @@ export default function TablaServiciosNoOpcionales({
               </span>
             </button>
           )}
-          <div style={{ position: "relative" }}>
-            <button className={styles.addActionButton} title="Añadir" onClick={() => setShowDropdown(!showDropdown)}>
+          <div ref={addDropdownRef} style={{ position: "relative" }}>
+            <button className={styles.addActionButton} title="Añadir" onClick={() => setShowDropdown(!showDropdown)} style={{ position: "relative" }}>
               <Plus size={18} />
+              {selectedIds.size > 0 && (
+                <span style={{ position: "absolute", top: "-6px", right: "-6px", minWidth: "16px", height: "16px", borderRadius: "8px", backgroundColor: "var(--primary-color, #475569)", color: "#fff", fontSize: "0.6rem", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px", lineHeight: 1, border: "1.5px solid #fff" }}>
+                  {selectedIds.size}
+                </span>
+              )}
             </button>
             {showDropdown && (
-              <div style={{ position: "absolute", right: 0, top: "110%", zIndex: 2002, width: "220px", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "8px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)", padding: "0.4rem 0" }}>
-                {onRegistrarPago && (
-                  <button onClick={() => { setShowDropdown(false); onRegistrarPago(); }} style={{ background: "none", border: "none", width: "100%", padding: "0.6rem 1rem", textAlign: "left", fontSize: "0.8rem", fontWeight: 500, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                    <Landmark size={14} /> Registrar Pago
-                  </button>
-                )}
-                {onRegistrarPago && onRegistrarDocumento && (
-                  <div style={{ height: "1px", backgroundColor: "#e2e8f0", margin: "0.35rem 0" }} />
-                )}
-                {onRegistrarDocumento && (
-                  <button onClick={() => { setShowDropdown(false); onRegistrarDocumento(); }} style={{ background: "none", border: "none", width: "100%", padding: "0.6rem 1rem", textAlign: "left", fontSize: "0.8rem", fontWeight: 500, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                    <FileText size={14} /> Registrar documento
-                  </button>
-                )}
-                <div style={{ height: "1px", backgroundColor: "#e2e8f0", margin: "0.35rem 0" }} />
+              <div style={{ position: "absolute", right: 0, top: "110%", zIndex: 2002, width: "240px", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "8px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)", padding: "0.4rem 0" }}>
                 <button onClick={() => { setShowDropdown(false); onAbrirManual(); }} style={{ background: "none", border: "none", width: "100%", padding: "0.6rem 1rem", textAlign: "left", fontSize: "0.8rem", fontWeight: 500, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem" }}>
                   <Plus size={14} /> Añadir servicio manual
                 </button>
                 <button onClick={() => { setShowDropdown(false); onAbrirImportar(); }} style={{ background: "none", border: "none", width: "100%", padding: "0.6rem 1rem", textAlign: "left", fontSize: "0.8rem", fontWeight: 500, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem", borderTop: "1px solid #f1f5f9" }}>
                   <Download size={14} /> Importar de cotización
                 </button>
+                {selectedIds.size > 0 && onRegistrarPago && (
+                  <button
+                    onClick={() => { setShowDropdown(false); onRegistrarPago(Array.from(selectedIds)); }}
+                    style={{ background: "none", border: "none", width: "100%", padding: "0.6rem 1rem", textAlign: "left", fontSize: "0.8rem", fontWeight: 500, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem", borderTop: "1px solid #f1f5f9" }}
+                  >
+                    <Wallet size={14} /> Registrar pago ({selectedIds.size})
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -582,6 +623,7 @@ export default function TablaServiciosNoOpcionales({
         <div className={listStyles.tableContainer} style={{ overflow: "visible", boxShadow: "none", border: "none", background: "transparent", padding: 0 }}>
           <table className={styles.table} style={{ tableLayout: "fixed", width: "100%" }}>
             <colgroup>
+              <col style={{ width: 32 }} />
               <col style={{ width: 36 }} />
               <col />
               <col style={{ width: 160 }} />
@@ -598,6 +640,7 @@ export default function TablaServiciosNoOpcionales({
             {!grupos && (
               <thead>
                 <tr>
+                  <th />
                   <th style={{ whiteSpace: "nowrap" }}>TIPO</th>
                   <th>Descripción</th>
                   <th>Proveedor</th>
@@ -616,7 +659,7 @@ export default function TablaServiciosNoOpcionales({
             {grupos && grupos.length > 0 && (
               <thead>
                 <tr>
-                  <th colSpan={12} style={{ padding: 0 }}>
+                  <th colSpan={13} style={{ padding: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", padding: "0.4rem 1rem", fontSize: "0.68rem", fontWeight: 600, color: "#94a3b8", textTransform: "uppercase" }}>
                       <span style={{ width: 15 }} />
                       <span style={{ flex: 1, textAlign: "left" }}>Proveedor</span>
@@ -635,11 +678,23 @@ export default function TablaServiciosNoOpcionales({
                 const totalGrupo = grupo.items.reduce((sum, it) => sum + (parseFloat(it.neto) || 0) * ((it.plazas || 0) || 1) * (Number(it.noches || 0) || 1), 0);
                 const abonadoGrupo = grupo.items.reduce((sum, it) => sum + (Number(it.abonado) || 0), 0);
                 const pendienteGrupo = Math.max(totalGrupo - abonadoGrupo, 0);
+                const grupoIds = grupo.items.map((it: any) => it.id);
+                const grupoAllChecked = grupoIds.length > 0 && grupoIds.every((id: string) => selectedIds.has(id));
                 return (
                   <Fragment key={grupo.key}>
                     <tr onClick={() => toggleGroup(grupo.key)} style={{ cursor: "pointer" }}>
-                      <td colSpan={12} style={{ padding: 0, borderTop: "1px solid #e2e8f0", borderBottom: isCollapsed ? "1px solid #e2e8f0" : "none" }}>
+                      <td colSpan={13} style={{ padding: 0, borderTop: "1px solid #e2e8f0", borderBottom: isCollapsed ? "1px solid #e2e8f0" : "none" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", padding: "0.6rem 1rem", backgroundColor: "#fff" }}>
+                          <input
+                            type="checkbox"
+                            checked={grupoAllChecked}
+                            onChange={() => setSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              grupoIds.forEach((id: string) => grupoAllChecked ? next.delete(id) : next.add(id));
+                              return next;
+                            })}
+                            onClick={(e) => e.stopPropagation()}
+                          />
                           {isCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
                           <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.02em" }}>{grupo.label}</span>
                           <div style={{ flex: 1 }} />
@@ -652,6 +707,7 @@ export default function TablaServiciosNoOpcionales({
                     </tr>
                     {!isCollapsed && (
                       <tr>
+                        <th />
                         <th style={{ whiteSpace: "nowrap" }}>TIPO</th>
                         <th>Descripción</th>
                         <th>Proveedor</th>

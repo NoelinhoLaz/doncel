@@ -5,6 +5,8 @@ import { Info } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import SafeDateInput from "./SafeDateInput";
 import s from "./ajustes.module.css";
+import { EtiquetasSelector, type Etiqueta } from "@/components/EtiquetasSelector";
+import { getEtiquetas } from "@/actions/etiquetas";
 
 function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -79,6 +81,34 @@ interface Props {
 }
 
 export default function InfoExpedienteSection({ form, setField, expediente, formasPagoAceptadas, setFormasPagoAceptadas }: Props) {
+  const [etiquetaCliente, setEtiquetaCliente] = useState<Etiqueta | null>(null);
+  const [etiquetaResuelta, setEtiquetaResuelta] = useState(false);
+  const [asignarEtiquetaActivo, setAsignarEtiquetaActivo] = useState(!!form.etiqueta_cliente_id);
+
+  useEffect(() => {
+    if (!form.etiqueta_cliente_id) { setEtiquetaResuelta(true); return; }
+    getEtiquetas("agencia").then((etiquetas) => {
+      const encontrada = etiquetas.find((e: any) => e.id === form.etiqueta_cliente_id);
+      if (encontrada) setEtiquetaCliente(encontrada as Etiqueta);
+      setEtiquetaResuelta(true);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handleToggleAsignarEtiqueta(activo: boolean) {
+    setAsignarEtiquetaActivo(activo);
+    if (!activo) {
+      setField("etiqueta_cliente_id", null);
+      setEtiquetaCliente(null);
+    }
+  }
+
+  function handleChangeEtiqueta(etiquetas: Etiqueta[]) {
+    const seleccionada = etiquetas[etiquetas.length - 1] ?? null;
+    setEtiquetaCliente(seleccionada);
+    setField("etiqueta_cliente_id", seleccionada?.id ?? null);
+  }
+
   return (
     <div style={{ padding: "0 1.5rem 1.25rem 1.5rem" }}>
       <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "#0f172a", margin: "0 0 1rem 0", display: "flex", alignItems: "center", gap: "0.4rem" }}>
@@ -175,6 +205,34 @@ export default function InfoExpedienteSection({ form, setField, expediente, form
             selected={formasPagoAceptadas}
             onChange={setFormasPagoAceptadas}
           />
+        </div>
+
+        {/* Asignar etiqueta al cliente al darse de alta en el expediente */}
+        <div className={s.fieldWrap} style={{ gridColumn: "1 / span 3" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span className={s.fieldLabel} style={{ marginBottom: 0 }}>Asignar etiqueta al cliente</span>
+            <label className={s.toggleWrapSm} style={{ marginLeft: "auto" }}>
+              <input
+                type="checkbox"
+                checked={asignarEtiquetaActivo}
+                onChange={e => handleToggleAsignarEtiqueta(e.target.checked)}
+                className={s.toggleInput}
+              />
+              <span className={`${s.toggleTrack} ${asignarEtiquetaActivo ? s.toggleTrackOn : ""}`}>
+                <span className={`${s.toggleKnobSm} ${asignarEtiquetaActivo ? s.toggleKnobSmOn : ""}`} />
+              </span>
+            </label>
+          </div>
+          {asignarEtiquetaActivo && etiquetaResuelta ? (
+            <EtiquetasSelector
+              value={etiquetaCliente ? [etiquetaCliente] : []}
+              onChange={handleChangeEtiqueta}
+            />
+          ) : (
+            <span style={{ fontSize: "0.82rem", color: "#cbd5e1", fontStyle: "italic", padding: "0.4rem 0" }}>
+              Los clientes que se den de alta no recibirán etiqueta
+            </span>
+          )}
         </div>
       </div>
     </div>

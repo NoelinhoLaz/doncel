@@ -5,13 +5,13 @@ import { Search } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import Pagination from "@/app/components/Pagination";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
+import { PanelProveedor, type ProveedorDetalle } from "@/components/panels/PanelProveedor";
+import { SortableTh, sortToggle, compareValues, type SortState } from "@/app/components/SortableTh";
 
-type Proveedor = {
-  id: string;
+type SortKey = "nombre" | "tipo" | "email" | "telefono" | "ciudad" | "pais";
+
+type Proveedor = ProveedorDetalle & {
   nombre: string;
-  tipo: string | null;
-  email: string | null;
-  telefono: string | null;
   ciudad: string | null;
   pais: string | null;
   expedientes: { id: string; numero: string | null; referencia: string }[];
@@ -24,6 +24,8 @@ export default function ProveedoresPage() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(15);
+  const [proveedorPanel, setProveedorPanel] = useState<Proveedor | null>(null);
+  const [sort, setSort] = useState<SortState<SortKey>>(null);
 
   useEffect(() => {
     fetch("/api/contactos/proveedores")
@@ -42,21 +44,33 @@ export default function ProveedoresPage() {
     return Array.from(labels).sort();
   }, [proveedores]);
 
+  const normalizar = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
   const filtered = proveedores.filter((p) => {
-    const q = search.toLowerCase();
-    const matchesSearch =
-      p.nombre?.toLowerCase().includes(q) ||
-      p.tipo?.toLowerCase().includes(q) ||
-      p.ciudad?.toLowerCase().includes(q);
-    if (!matchesSearch) return false;
+    const q = normalizar(search.trim());
+    if (q.length >= 3) {
+      const matchesSearch =
+        (p.nombre && normalizar(p.nombre).includes(q)) ||
+        (p.tipo && normalizar(p.tipo).includes(q)) ||
+        (p.ciudad && normalizar(p.ciudad).includes(q));
+      if (!matchesSearch) return false;
+    }
     if (expedienteFilter.length > 0 && !p.expedientes.some((e) => expedienteFilter.includes(expedienteLabel(e)))) return false;
     return true;
   });
 
-  const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const sorted = sort
+    ? [...filtered].sort((a, b) => {
+        const cmp = compareValues(a[sort.key], b[sort.key]);
+        return sort.direction === "asc" ? cmp : -cmp;
+      })
+    : filtered;
+
+  const paginated = sorted.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handleSearch = (v: string) => { setSearch(v); setCurrentPage(1); };
   const handleExpedienteFilter = (v: string[]) => { setExpedienteFilter(v); setCurrentPage(1); };
+  const handleSort = (key: SortKey) => { setSort((prev) => sortToggle(prev, key)); setCurrentPage(1); };
 
   return (
     <div className={styles.container}>
@@ -85,12 +99,12 @@ export default function ProveedoresPage() {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Nombre</th>
-                <th>Tipo</th>
-                <th>Email</th>
-                <th>Teléfono</th>
-                <th>Ciudad</th>
-                <th>País</th>
+                <SortableTh label="Nombre" sortKey="nombre" sort={sort} onSort={handleSort} />
+                <SortableTh label="Tipo" sortKey="tipo" sort={sort} onSort={handleSort} />
+                <SortableTh label="Email" sortKey="email" sort={sort} onSort={handleSort} />
+                <SortableTh label="Teléfono" sortKey="telefono" sort={sort} onSort={handleSort} />
+                <SortableTh label="Ciudad" sortKey="ciudad" sort={sort} onSort={handleSort} />
+                <SortableTh label="País" sortKey="pais" sort={sort} onSort={handleSort} />
               </tr>
             </thead>
             <tbody>
@@ -100,7 +114,7 @@ export default function ProveedoresPage() {
                 </tr>
               ) : (
                 paginated.map((p) => (
-                  <tr key={p.id}>
+                  <tr key={p.id} onClick={() => setProveedorPanel(p)} style={{ cursor: "pointer" }}>
                     <td>{p.nombre?.toUpperCase()}</td>
                     <td>{p.tipo ?? "—"}</td>
                     <td>{p.email ?? "—"}</td>
@@ -116,7 +130,7 @@ export default function ProveedoresPage() {
                 <td colSpan={6} style={{ padding: 0 }}>
                   <Pagination
                     currentPage={currentPage}
-                    totalItems={filtered.length}
+                    totalItems={sorted.length}
                     itemsPerPage={itemsPerPage}
                     onPageChange={setCurrentPage}
                     onItemsPerPageChange={(n) => { setItemsPerPage(n); setCurrentPage(1); }}
@@ -126,6 +140,13 @@ export default function ProveedoresPage() {
             </tfoot>
           </table>
         </>
+      )}
+
+      {proveedorPanel && (
+        <PanelProveedor
+          proveedor={proveedorPanel}
+          onClose={() => setProveedorPanel(null)}
+        />
       )}
     </div>
   );

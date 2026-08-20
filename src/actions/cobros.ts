@@ -132,6 +132,30 @@ export async function createReembolsoMovimiento(payload: {
   }
 }
 
+export async function vincularReembolsoAMovimientoBanco(reembolsoId: string, movimientoBancoId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+
+    const { error: errMov } = await agencyDb
+      .from("contabilidad_movimientos")
+      .update({ movimiento_banco_id: movimientoBancoId, estado: "confirmado" })
+      .eq("id", reembolsoId);
+    if (errMov) throw errMov;
+
+    const { error: errBanco } = await agencyDb
+      .from("contabilidad_movimientos_banco")
+      .update({ estado: "conciliado" })
+      .eq("id", movimientoBancoId);
+    if (errBanco) throw errBanco;
+
+    revalidatePath("/expedientes");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to vincular reembolso a movimiento banco:", error.message);
+    return { success: false, error: error.message };
+  }
+}
+
 export async function registrarCobroOficina(payload: {
   expediente_id: string;
   medio_pago: "efectivo" | "tarjeta";

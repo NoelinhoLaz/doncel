@@ -96,6 +96,7 @@ export function useAjustes(expedienteId: string, expediente: any) {
           comunicaciones_automaticas: comunicacionesList.map(c => ({ descripcion: c.descripcion, activa: c.activa, plantilla: c.plantilla })),
           plazas_max: form.plazas_max || null,
           fecha_tope_registro: form.fecha_tope_registro || null,
+          etiqueta_cliente_id: form.etiqueta_cliente_id || null,
         },
       };
       if (form.numero.trim()) payload.numero = form.numero.trim();

@@ -478,10 +478,21 @@ export async function submitRegistro(payload: {
 
     const { data: exp, error: expError } = await agencyDb
       .from("operativa_expedientes")
-      .select("id, pvp_viajero, pvp_total, forma_pago")
+      .select("id, pvp_viajero, pvp_total, forma_pago, metadata")
       .eq("slug", payload.slug)
       .single();
     if (expError || !exp) return { error: "Expediente no encontrado" };
+
+    const etiquetaClienteId: string | null = exp.metadata?.etiqueta_cliente_id ?? null;
+    async function asignarEtiquetaSiCorresponde(entidadId: string | null) {
+      if (!etiquetaClienteId || !entidadId) return;
+      try {
+        const { asignarEtiqueta } = await import("@/actions/etiquetas");
+        await asignarEtiqueta(entidadId, etiquetaClienteId);
+      } catch (err) {
+        console.error("[submitRegistro] Error asignando etiqueta al cliente:", err);
+      }
+    }
 
     const pvpViajero = parseFloat(
       exp.forma_pago === "varios_pagadores" ? exp.pvp_viajero : exp.pvp_total
@@ -565,6 +576,7 @@ export async function submitRegistro(payload: {
     });
 
     if (!pagadorEntidadId) return { error: "Error al crear el pagador" };
+    await asignarEtiquetaSiCorresponde(pagadorEntidadId);
 
     // ── 2. Procesar cada viajero ──────────────────────────────────────────────
     const viajeroEntidadIds: string[] = [];
@@ -596,6 +608,7 @@ export async function submitRegistro(payload: {
 
       if (!entidadId) continue;
       viajeroEntidadIds.push(entidadId);
+      await asignarEtiquetaSiCorresponde(entidadId);
 
       // ── 2a. Resolver tutor (si menor) ──────────────────────────────────────
       // Si el tutor es la misma persona que el pagador (mismo nombre o email),
@@ -635,6 +648,7 @@ export async function submitRegistro(payload: {
             rolNuevo: "tutor",
           });
         }
+        await asignarEtiquetaSiCorresponde(tutorEntidadId);
       }
 
       // ── 2b. Extras de este viajero ─────────────────────────────────────────

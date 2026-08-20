@@ -296,9 +296,9 @@ export async function conciliarDesdeMovimientoBanco(movimientoBancoId: string, p
   return result;
 }
 
-export async function recalcularTodosLosMatches(preloadedData?: any) {
+export async function recalcularTodosLosMatches(preloadedData?: any, filtros?: import("@/lib/banco/matchEngine").MatchRecalculationFiltros) {
   const agencyDb = await getAgencyDbClient();
-  const result = await executeMatchRecalculation(agencyDb, preloadedData);
+  const result = await executeMatchRecalculation(agencyDb, preloadedData, filtros);
   await sanitizeDocumentStates(agencyDb);
   revalidatePath("/banco");
   return result;

@@ -16,6 +16,7 @@ interface Props {
   movimientos: MovimientoCobro[];
   movimientosBanco: any[];
   viajerosByPagador: Map<string, any[]>;
+  abonadoNetoDe: (pagador: Pagador) => number;
   globalPlazos: any[];
   search: string;
   onSearchChange: (v: string) => void;
@@ -95,6 +96,7 @@ export default function TablaPagadores({
   movimientos,
   movimientosBanco,
   viajerosByPagador,
+  abonadoNetoDe,
   globalPlazos,
   search,
   onSearchChange,
@@ -421,7 +423,8 @@ export default function TablaPagadores({
           </thead>
           <tbody>
             {paginatedData.map((item) => {
-              const saldo = Number(item.importe_total || 0) - Number(item.importe_abonado || 0);
+              const abonadoNeto = abonadoNetoDe(item);
+              const saldo = Number(item.importe_total || 0) - abonadoNeto;
               const myViajeros = viajerosByPagador.get(item.entidad_id) || [];
               const travelersText =
                 myViajeros.length === 0
@@ -480,7 +483,7 @@ export default function TablaPagadores({
                       {formatEuro(Number(item.importe_total || 0))}
                     </td>
                     <td style={{ textAlign: "right", fontWeight: "600", color: "#16a34a", width: "1%", whiteSpace: "nowrap" }}>
-                      {formatEuro(Number(item.importe_abonado || 0))}
+                      {formatEuro(abonadoNeto)}
                     </td>
                     <td style={{ textAlign: "right", fontWeight: "600", color: saldo > 0 ? "#d97706" : "#64748b", width: "1%", whiteSpace: "nowrap" }}>
                       {formatEuro(saldo)}
@@ -592,10 +595,9 @@ function MovimientosSubTable({
           <tbody>
             {myMovs.map((m) => {
               let conceptoText = m.concepto || "—";
-              if (m.movimiento_banco_id) {
-                const b = movimientosBanco.find((x) => x.id === m.movimiento_banco_id);
-                if (b) conceptoText = b.concepto_original || b.concepto_limpio || m.concepto || "—";
-              }
+              const movimientoBanco = m.movimiento_banco_id ? movimientosBanco.find((x) => x.id === m.movimiento_banco_id) : null;
+              if (movimientoBanco) conceptoText = movimientoBanco.concepto_original || movimientoBanco.concepto_limpio || m.concepto || "—";
+              const esDebe = m.tipo === "reembolso_cobro" || (movimientoBanco ? Number(movimientoBanco.importe) < 0 : false);
               const medioBg = m.medio_pago === "banco" ? "#eff6ff" : m.medio_pago === "tarjeta" ? "#fdf2f8" : "#f0fdf4";
               const medioColor = m.medio_pago === "banco" ? "#2563eb" : m.medio_pago === "tarjeta" ? "#db2777" : "#16a34a";
               const estadoBg = m.estado === "confirmado" ? "#e6f4ea" : m.estado === "pendiente" ? "#fef3c7" : "#f1f5f9";
@@ -616,8 +618,8 @@ function MovimientosSubTable({
                       {m.estado || "—"}
                     </span>
                   </td>
-                  <td style={{ textAlign: "right", fontWeight: "600", color: "#16a34a", width: "1%", whiteSpace: "nowrap", fontSize: "0.75rem", padding: "0.2rem 0.5rem" }}>
-                    {formatEuro(Math.abs(Number(m.importe_total || 0)))}
+                  <td style={{ textAlign: "right", fontWeight: "600", color: esDebe ? "#dc2626" : "#16a34a", width: "1%", whiteSpace: "nowrap", fontSize: "0.75rem", padding: "0.2rem 0.5rem" }}>
+                    {esDebe ? "-" : ""}{formatEuro(Math.abs(Number(m.importe_total || 0)))}
                   </td>
                 </tr>
               );

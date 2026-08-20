@@ -37,6 +37,7 @@ export default function CobrosTab({
         movimientos={movimientos}
         movimientosBanco={movimientosBanco}
         viajerosByPagador={cobros.viajerosByPagador}
+        abonadoNetoDe={cobros.abonadoNetoDe}
         globalPlazos={plazos}
         search={cobros.search}
         onSearchChange={cobros.handleSearchChange}

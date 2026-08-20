@@ -1518,14 +1518,6 @@ CREATE INDEX IF NOT EXISTS idx_facturas_emitidas_fecha ON public.facturas_emitid
 CREATE INDEX IF NOT EXISTS idx_facturas_recibidas_expediente ON public.facturas_recibidas(expediente_id);
 CREATE INDEX IF NOT EXISTS idx_facturas_recibidas_proveedor ON public.facturas_recibidas(proveedor_id);
 
--- Vista para matching de servicios bancarios: precalcula importe efectivo + join expediente
-CREATE OR REPLACE VIEW public.v_servicios_match AS
-SELECT s.id, s.expediente_id, s.proveedor, s.descripcion, s.total, s.pvp, s.neto,
-       COALESCE(NULLIF(s.total, 0), NULLIF(s.pvp, 0), NULLIF(s.neto, 0), 0) AS importe_efectivo,
-       e.numero AS exp_numero, e.referencia AS exp_referencia
-FROM public.operativa_expedientes_servicios s
-LEFT JOIN public.operativa_expedientes e ON e.id = s.expediente_id;
-
 -- Vista para calcular total abonado por servicio
 -- Fuente: contabilidad_movimientos (tipo=pago) + join a banco para extraer servicio_id
 CREATE OR REPLACE VIEW public.v_abonados_servicios AS
@@ -2260,6 +2252,44 @@ $$;
 CREATE INDEX IF NOT EXISTS idx_expedientes_oportunidad ON operativa_expedientes(oportunidad_id);
 
 -- ------------------------------------------------------------
+-- MÓDULO FIDELIZACIÓN: DIFUSIONES (mailing masivo)
+-- ------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS fidelizacion_difusiones (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    asunto        VARCHAR(255) NOT NULL,
+    cuerpo        TEXT NOT NULL,
+    origen        VARCHAR(20) NOT NULL DEFAULT 'campana'
+                      CHECK (origen IN ('campana', 'etiqueta', 'clientes_agente')),
+    campana_id    UUID REFERENCES crm_campanas(id) ON DELETE SET NULL,
+    etiqueta_id   UUID REFERENCES crm_etiquetas(id) ON DELETE SET NULL,
+    num_destinatarios INTEGER NOT NULL DEFAULT 0,
+    num_enviados      INTEGER NOT NULL DEFAULT 0,
+    num_errores       INTEGER NOT NULL DEFAULT 0,
+    estado        VARCHAR(20) NOT NULL DEFAULT 'enviado'
+                      CHECK (estado IN ('enviando', 'enviado', 'error')),
+    agente_id     UUID REFERENCES crm_agentes(id) ON DELETE SET NULL,
+    created_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_difusiones_agente  ON fidelizacion_difusiones(agente_id);
+CREATE INDEX IF NOT EXISTS idx_difusiones_campana ON fidelizacion_difusiones(campana_id);
+
+CREATE TABLE IF NOT EXISTS fidelizacion_difusiones_destinatarios (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    difusion_id  UUID NOT NULL REFERENCES fidelizacion_difusiones(id) ON DELETE CASCADE,
+    entidad_id   UUID REFERENCES contabilidad_entidades(id) ON DELETE SET NULL,
+    nombre       VARCHAR(255),
+    email        VARCHAR(255) NOT NULL,
+    estado       VARCHAR(20) NOT NULL DEFAULT 'enviado'
+                     CHECK (estado IN ('enviado', 'error')),
+    error_detalle TEXT,
+    created_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_difusiones_dest_difusion ON fidelizacion_difusiones_destinatarios(difusion_id);
+
+-- ------------------------------------------------------------
 -- 9. LOG DE HISTORIAL DE ESTADOS DE OPORTUNIDAD
 -- ------------------------------------------------------------
 
@@ -2796,6 +2826,22 @@ FROM combined
 WHERE servicio_id IS NOT NULL
 GROUP BY servicio_id;
 
+-- Vista para matching de servicios bancarios: precalcula el PENDIENTE (total - ya abonado),
+-- no el total bruto, para que un pago parcial ya registrado no impida matchear el importe
+-- restante contra un movimiento bancario posterior (ej: servicio de 3000€, ya pagados 1000€ →
+-- pendiente 2000€, matchea con un movimiento de banco de 2000€).
+CREATE OR REPLACE VIEW public.v_servicios_match AS
+SELECT s.id, s.expediente_id, s.proveedor, s.descripcion, s.total, s.pvp, s.neto,
+       GREATEST(
+         COALESCE(NULLIF(s.total, 0), NULLIF(s.pvp, 0), NULLIF(s.neto, 0), 0)
+           - COALESCE(a.total_abonado, 0),
+         0
+       ) AS importe_efectivo,
+       e.numero AS exp_numero, e.referencia AS exp_referencia
+FROM public.operativa_expedientes_servicios s
+LEFT JOIN public.operativa_expedientes e ON e.id = s.expediente_id
+LEFT JOIN public.v_abonados_servicios a ON a.servicio_id = s.id;
+
 -- Añade el campo "noches" a los servicios del expediente, para mostrar/editar
 -- el número de noches (p.ej. en alojamientos) junto a plazas en los listados de servicios.
 ALTER TABLE public.operativa_expedientes_servicios
@@ -3056,3 +3102,18 @@ BEGIN
   ORDER BY total DESC;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ------------------------------------------------------------
+-- Caché diaria de tips del "Director Comercial IA" por agente
+-- ------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS agent_ai_tips (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    agente_id   UUID NOT NULL,
+    fecha       DATE NOT NULL,
+    tips        JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT agent_ai_tips_uniq_agente_fecha UNIQUE (agente_id, fecha)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_ai_tips_agente_fecha ON agent_ai_tips(agente_id, fecha);

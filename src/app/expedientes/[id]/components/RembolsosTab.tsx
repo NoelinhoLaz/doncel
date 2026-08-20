@@ -10,6 +10,7 @@ import { getReembolsosByExpediente, createReembolsoMovimiento } from "@/actions/
 import { getEntidades } from "@/actions/entidades";
 import { getMatchesPendientesPorExpediente, recalcularMatchesReembolsos } from "@/actions/banco";
 import { Landmark } from "lucide-react";
+import ConciliarReembolsoModal from "@/components/modals/ConciliarReembolsoModal";
 
 interface Rembolso {
   id: string;
@@ -40,10 +41,19 @@ interface Props {
 }
 
 const estadoColors: Record<string, { bg: string; color: string }> = {
-  pendiente:  { bg: "#fef9c3", color: "#a16207" },
+  pendiente:  { bg: "#eff6ff", color: "#2563eb" },
   confirmado: { bg: "#dcfce7", color: "#16a34a" },
   anulado:    { bg: "#fee2e2", color: "#dc2626" },
 };
+
+const estadoLabels: Record<string, string> = {
+  pendiente:  "Pdt. Conciliar",
+  confirmado: "Confirmado",
+  anulado:    "Anulado",
+};
+
+const getEstadoLabel = (estado: string) =>
+  estadoLabels[estado] || estado.charAt(0).toUpperCase() + estado.slice(1);
 
 const formatEuro = (n: number) =>
   new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(n);
@@ -77,6 +87,7 @@ export default function RembolsosTab({ expedienteId, onOpenMatchModal }: Props) 
 
   const [matchesPagos, setMatchesPagos] = useState<any[]>([]);
   const [matchingRunning, setMatchingRunning] = useState(false);
+  const [conciliarReembolso, setConciliarReembolso] = useState<Rembolso | null>(null);
 
   const loadRembolsos = useCallback(async () => {
     setLoading(true);
@@ -290,7 +301,7 @@ export default function RembolsosTab({ expedienteId, onOpenMatchModal }: Props) 
               return (
                 <div key={estado} className={styles.progressItemRow} style={{ marginBottom: "0.25rem" }}>
                   <div className={styles.progressItemLabelRow}>
-                    <span>{estado.charAt(0).toUpperCase() + estado.slice(1)}</span>
+                    <span>{getEstadoLabel(estado)}</span>
                     <span className={styles.progressItemVal}>{count} ({pct}%)</span>
                   </div>
                   <div className={styles.progressBarContainer}>
@@ -414,9 +425,12 @@ export default function RembolsosTab({ expedienteId, onOpenMatchModal }: Props) 
                     <td style={{ textAlign: "right", fontWeight: "600", color: "#1e293b", whiteSpace: "nowrap" }}>
                       {formatEuro(item.importe_total)}
                     </td>
-                    <td style={{ textAlign: "right" }}>
-                      <span style={{ display: "inline-flex", padding: "0.2rem 0.5rem", borderRadius: "0.25rem", backgroundColor: colors.bg, color: colors.color, fontSize: "0.75rem", fontWeight: "600" }}>
-                        {item.estado.charAt(0).toUpperCase() + item.estado.slice(1)}
+                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                      <span
+                        onClick={() => { if (item.estado === "pendiente") setConciliarReembolso(item); }}
+                        style={{ display: "inline-flex", padding: "0.2rem 0.5rem", borderRadius: "0.25rem", backgroundColor: colors.bg, color: colors.color, fontSize: "0.68rem", fontWeight: "600", whiteSpace: "nowrap", cursor: item.estado === "pendiente" ? "pointer" : "default" }}
+                      >
+                        {getEstadoLabel(item.estado)}
                       </span>
                     </td>
                     <td style={{ textAlign: "right" }}>
@@ -693,6 +707,13 @@ export default function RembolsosTab({ expedienteId, onOpenMatchModal }: Props) 
           </div>
         </div>
       )}
+
+      <ConciliarReembolsoModal
+        isOpen={!!conciliarReembolso}
+        onClose={() => setConciliarReembolso(null)}
+        reembolso={conciliarReembolso}
+        onSuccess={loadRembolsos}
+      />
     </>
   );
 }

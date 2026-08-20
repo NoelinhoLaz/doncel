@@ -19,6 +19,7 @@ export default function ImportarServiciosCotizacionModal({ isOpen, onClose, expe
   const [selectedObligatoriasIds, setSelectedObligatoriasIds] = useState<Set<string>>(new Set());
   const [selectedOpcionalesIds, setSelectedOpcionalesIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (isOpen) {
@@ -26,6 +27,7 @@ export default function ImportarServiciosCotizacionModal({ isOpen, onClose, expe
       setLoading(true);
       setSelectedObligatoriasIds(new Set());
       setSelectedOpcionalesIds(new Set());
+      setSearch("");
       Promise.all([
         getNonOptionalServicesFromLinkedQuote(expedienteId),
         getOptionalServicesFromLinkedQuote(expedienteId),
@@ -52,6 +54,14 @@ export default function ImportarServiciosCotizacionModal({ isOpen, onClose, expe
   };
 
   const totalSelected = selectedObligatoriasIds.size + selectedOpcionalesIds.size;
+
+  const matchesSearch = (s: any) => {
+    if (!search.trim()) return true;
+    const q = search.trim().toLowerCase();
+    return (s.descripcion || "").toLowerCase().includes(q) || (s.proveedor || "").toLowerCase().includes(q);
+  };
+  const obligatoriasFiltradas = obligatorias.filter(matchesSearch);
+  const opcionalesFiltradas = opcionales.filter(matchesSearch);
 
   const handleImport = async () => {
     if (totalSelected === 0) return;
@@ -100,14 +110,14 @@ export default function ImportarServiciosCotizacionModal({ isOpen, onClose, expe
               {isSelected && <LucideIcons.Check size={11} style={{ color: "#fff" }} />}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "#0f172a" }}>{s.descripcion}</div>
-              <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "0.1rem" }}>{s.cotizacion_titulo}</div>
+              <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.descripcion}</div>
+              <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "0.1rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.proveedor || "Sin proveedor"}</div>
             </div>
             <div style={{ textAlign: "right", flexShrink: 0 }}>
               <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "#0f172a" }}>
-                {parseFloat(s.pvp || 0) > 0 ? `${f(s.pvp)} €` : "Gratis"}
+                {f(s.neto)} €
               </div>
-              <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>Neto: {f(s.neto)} €</div>
+              <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>PVP: {f(s.pvp)} €</div>
             </div>
           </div>
         );
@@ -117,12 +127,12 @@ export default function ImportarServiciosCotizacionModal({ isOpen, onClose, expe
 
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "1rem" }}>
-      <div style={{ background: "#ffffff", borderRadius: "12px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)", width: "100%", maxWidth: "560px", display: "flex", flexDirection: "column", maxHeight: "85vh" }}>
+      <div style={{ background: "#ffffff", borderRadius: "12px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)", width: "100%", maxWidth: "820px", display: "flex", flexDirection: "column", maxHeight: "85vh" }}>
         <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
             <LucideIcons.Download size={18} style={{ color: "#475569" }} />
             <div>
-              <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>Importar de cotización</h3>
+              <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>Importar servicios de la cotización</h3>
               <p style={{ margin: 0, fontSize: "0.75rem", color: "#64748b" }}>Servicios de la cotización vinculada al expediente</p>
             </div>
           </div>
@@ -130,6 +140,21 @@ export default function ImportarServiciosCotizacionModal({ isOpen, onClose, expe
             <LucideIcons.X size={20} />
           </button>
         </div>
+
+        {!loading && !error && (obligatorias.length > 0 || opcionales.length > 0) && (
+          <div style={{ padding: "0.9rem 1.5rem 0" }}>
+            <div style={{ position: "relative" }}>
+              <LucideIcons.Search size={16} style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+              <input
+                type="text"
+                placeholder="Buscar por descripción o proveedor..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{ width: "100%", padding: "0.5rem 0.75rem 0.5rem 2.1rem", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "0.82rem", color: "#0f172a", outline: "none" }}
+              />
+            </div>
+          </div>
+        )}
 
         <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.5rem" }}>
           {loading ? (
@@ -140,23 +165,25 @@ export default function ImportarServiciosCotizacionModal({ isOpen, onClose, expe
             <div style={{ padding: "1rem", backgroundColor: "#fef2f2", borderRadius: "8px", color: "#dc2626", fontSize: "0.85rem" }}>{error}</div>
           ) : obligatorias.length === 0 && opcionales.length === 0 ? (
             <div style={{ textAlign: "center", padding: "2rem", color: "#64748b", fontSize: "0.85rem" }}>No hay servicios disponibles en la cotización vinculada.</div>
+          ) : obligatoriasFiltradas.length === 0 && opcionalesFiltradas.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "2rem", color: "#64748b", fontSize: "0.85rem" }}>No hay servicios que coincidan con la búsqueda.</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-              {obligatorias.length > 0 && (
+              {obligatoriasFiltradas.length > 0 && (
                 <div>
                   <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
                     SERVICIOS
                   </div>
-                  {renderLista(obligatorias, selectedObligatoriasIds, setSelectedObligatoriasIds)}
+                  {renderLista(obligatoriasFiltradas, selectedObligatoriasIds, setSelectedObligatoriasIds)}
                 </div>
               )}
-              {opcionales.length > 0 && (
+              {opcionalesFiltradas.length > 0 && (
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.5rem" }}>
                     <span style={{ fontSize: "0.7rem", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>OPCIONALES</span>
                     <div style={{ flex: 1, height: "1px", backgroundColor: "#e2e8f0" }} />
                   </div>
-                  {renderLista(opcionales, selectedOpcionalesIds, setSelectedOpcionalesIds)}
+                  {renderLista(opcionalesFiltradas, selectedOpcionalesIds, setSelectedOpcionalesIds)}
                 </div>
               )}
             </div>

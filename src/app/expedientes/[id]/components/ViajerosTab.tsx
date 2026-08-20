@@ -5,6 +5,7 @@ import { useViajeros } from "@/hooks/useViajeros";
 import ViajerosKpiGrid from "@/app/components/viajeros/ViajerosKpiGrid";
 import TablaViajeros from "@/app/components/viajeros/TablaViajeros";
 import ExportViajerosModal from "@/components/modals/ExportViajerosModal";
+import AnularViajeroModal from "@/components/modals/AnularViajeroModal";
 
 interface Props {
   expedienteId: string;
@@ -18,6 +19,7 @@ interface Props {
 export default function ViajerosTab({ expedienteId, fechaSalida, pvpViajero, pagadores = [], plazos = [], onOpenMatchModal }: Props) {
   const v = useViajeros(expedienteId, fechaSalida, pvpViajero, pagadores, plazos);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [viajeroAAnular, setViajeroAAnular] = useState<any | null>(null);
 
   return (
     <>
@@ -49,6 +51,8 @@ export default function ViajerosTab({ expedienteId, fechaSalida, pvpViajero, pag
         onToggleNewsletterFilter={v.toggleNewsletterFilter}
         activeContratoFilters={v.activeContratoFilters}
         onToggleContratoFilter={v.toggleContratoFilter}
+        activeEstadoFilters={v.activeEstadoFilters}
+        onToggleEstadoFilter={v.toggleEstadoFilter}
         onClearAllFilters={v.clearAllFilters}
         sortKey={v.sortKey}
         sortDirection={v.sortDirection}
@@ -58,12 +62,21 @@ export default function ViajerosTab({ expedienteId, fechaSalida, pvpViajero, pag
         onPageChange={v.setCurrentPage}
         onRowsPerPageChange={v.handleRowsPerPageChange}
         onExportClick={() => setIsExportOpen(true)}
+        onAnularClick={setViajeroAAnular}
       />
 
       <ExportViajerosModal
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}
         expedienteId={expedienteId}
+      />
+
+      <AnularViajeroModal
+        isOpen={!!viajeroAAnular}
+        onClose={() => setViajeroAAnular(null)}
+        viajero={viajeroAAnular}
+        expedienteId={expedienteId}
+        onSuccess={v.reload}
       />
     </>
   );

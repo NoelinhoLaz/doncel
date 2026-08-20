@@ -11,6 +11,7 @@ import { apiFetch, initials } from "../utils";
 import styles from "../page.module.css";
 import { EtiquetasSelector } from "@/components/EtiquetasSelector";
 import { ConfirmarCampanaModal } from "../modals/ConfirmarCampanaModal";
+import { MiniPager, useMiniPager } from "@/components/panels/MiniPager";
 
 const EntidadMapaDynamic = dynamic(
   () => import("../EntidadMapa").then(m => m.EntidadMapa),
@@ -35,9 +36,9 @@ function SeccionColapsable({ icon, titulo, count, isOpen, onToggle, children }: 
         onClick={onToggle}
         style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: isOpen ? "0.5rem" : 0, userSelect: "none" }}
       >
-        {isOpen ? <ChevronDown size={14} color="#94a3b8" /> : <ChevronRight size={14} color="#94a3b8" />}
+        {isOpen ? <ChevronDown size={16} color="#94a3b8" /> : <ChevronRight size={16} color="#94a3b8" />}
         <span style={{ display: "flex", color: "#64748b" }}>{icon}</span>
-        <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", flex: 1 }}>
+        <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", flex: 1 }}>
           {titulo}{count !== undefined && ` (${count})`}
         </div>
       </div>
@@ -55,6 +56,11 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
   const [cotizaciones, setCotizaciones] = useState<any[]>([]);
   const [propuestas, setPropuestas] = useState<any[]>([]);
   const [expedientes, setExpedientes] = useState<any[]>([]);
+  const [pagCampanas, setPagCampanas] = useState(0);
+  const [pagPresupuestos, setPagPresupuestos] = useState(0);
+  const [pagCotizaciones, setPagCotizaciones] = useState(0);
+  const [pagPropuestas, setPagPropuestas] = useState(0);
+  const [pagExpedientes, setPagExpedientes] = useState(0);
   const [contactos, setContactos] = useState(data.entidad?.crm_contactos ?? []);
   const [showAnadirCampana, setShowAnadirCampana] = useState(false);
   const [showNuevoContacto, setShowNuevoContacto] = useState(false);
@@ -160,7 +166,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
   const [editingEntidad, setEditingEntidad] = useState(false);
   const [savingEntidad, setSavingEntidad] = useState(false);
   const [entidadLocal, setEntidadLocal] = useState<any>(entidad);
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({ datos: true });
   const [etiquetasCount, setEtiquetasCount] = useState<number | undefined>(undefined);
   const toggleSection = (key: string) => setOpenSections(p => ({ ...p, [key]: !p[key] }));
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
@@ -574,6 +580,12 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
   if (!entidad) return null;
   const dir = entidadLocal.direccion;
 
+  const pagerCampanas = useMiniPager(historial, [pagCampanas, setPagCampanas]);
+  const pagerPresupuestos = useMiniPager(presupuestos, [pagPresupuestos, setPagPresupuestos]);
+  const pagerCotizaciones = useMiniPager(cotizaciones, [pagCotizaciones, setPagCotizaciones]);
+  const pagerPropuestas = useMiniPager(propuestas, [pagPropuestas, setPagPropuestas]);
+  const pagerExpedientes = useMiniPager(expedientes, [pagExpedientes, setPagExpedientes]);
+
   return (
     <>
       <div style={{ position: "fixed", inset: 0, zIndex: 1000 }} onClick={onClose} />
@@ -714,7 +726,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
 
           {/* Datos del cliente (incluye Dirección): NIF/CIF, fecha de nacimiento, fecha de alta, dirección */}
           <SeccionColapsable
-            icon={entidadLocal.config_tipos_cliente?.etiqueta === "Persona" ? <User size={14} /> : <Building2 size={14} />}
+            icon={entidadLocal.config_tipos_cliente?.etiqueta === "Persona" ? <User size={17} /> : <Building2 size={17} />}
             titulo="Datos del cliente"
             isOpen={!!openSections.datos}
             onToggle={() => toggleSection("datos")}
@@ -1030,7 +1042,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
           {/* Contactos (no aplica a clientes tipo Persona) */}
           {entidadLocal.config_tipos_cliente?.etiqueta !== "Persona" && (
           <SeccionColapsable
-            icon={<Users size={14} />}
+            icon={<Users size={17} />}
             titulo="Contactos"
             count={contactos.length}
             isOpen={!!openSections.contactos}
@@ -1281,7 +1293,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
 
           {/* Campañas */}
           <SeccionColapsable
-            icon={<Target size={14} />}
+            icon={<Target size={17} />}
             titulo="Campañas"
             count={!loading ? historial.length : undefined}
             isOpen={!!openSections.campanas}
@@ -1312,11 +1324,11 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                   </tr>
                 </thead>
                 <tbody>
-                  {historial.map((h, i) => {
+                  {pagerCampanas.paginated.map((h, i) => {
                     const estado = h.crm_campanas_estados;
                     const ag = h.crm_agentes;
                     return (
-                      <tr key={h.id} style={{ borderBottom: i < historial.length - 1 ? "1px solid #f1f5f9" : undefined }}>
+                      <tr key={h.id} style={{ borderBottom: i < pagerCampanas.paginated.length - 1 ? "1px solid #f1f5f9" : undefined }}>
                         <td style={{ ...td, width: 30 }}>
                           <span
                             className={styles.agenteCircle}
@@ -1345,11 +1357,12 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                 </tbody>
               </table>
             )}
+            <MiniPager page={pagerCampanas.page} totalPages={pagerCampanas.totalPages} onChange={setPagCampanas} />
           </SeccionColapsable>
 
           {/* Presupuestos */}
           <SeccionColapsable
-            icon={<FileText size={14} />}
+            icon={<FileText size={17} />}
             titulo="Presupuestos"
             count={!loading ? presupuestos.length : undefined}
             isOpen={!!openSections.presupuestos}
@@ -1371,8 +1384,8 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                   </tr>
                 </thead>
                 <tbody>
-                  {presupuestos.map((p: any, i: number) => (
-                    <tr key={p.id} style={{ borderBottom: i < presupuestos.length - 1 ? "1px solid #f1f5f9" : undefined }}>
+                  {pagerPresupuestos.paginated.map((p: any, i: number) => (
+                    <tr key={p.id} style={{ borderBottom: i < pagerPresupuestos.paginated.length - 1 ? "1px solid #f1f5f9" : undefined }}>
                       <td style={td} title={p.titulo_viaje}>{p.titulo_viaje}</td>
                       <td style={{ ...td, color: "#64748b", fontSize: "0.72rem" }}>{p.tipo_presupuesto ?? "—"}</td>
                       <td style={{ ...td }}>
@@ -1387,11 +1400,12 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                 </tbody>
               </table>
             )}
+            <MiniPager page={pagerPresupuestos.page} totalPages={pagerPresupuestos.totalPages} onChange={setPagPresupuestos} />
           </SeccionColapsable>
 
           {/* Cotizaciones */}
           <SeccionColapsable
-            icon={<Calculator size={14} />}
+            icon={<Calculator size={17} />}
             titulo="Cotizaciones"
             count={!loading ? cotizaciones.length : undefined}
             isOpen={!!openSections.cotizaciones}
@@ -1413,11 +1427,11 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                   </tr>
                 </thead>
                 <tbody>
-                  {cotizaciones.map((c: any, i: number) => (
+                  {pagerCotizaciones.paginated.map((c: any, i: number) => (
                     <tr
                       key={c.id}
                       onClick={() => router.push(`/cotizaciones/nueva?id=${c.id}`)}
-                      style={{ borderBottom: i < cotizaciones.length - 1 ? "1px solid #f1f5f9" : undefined, cursor: "pointer" }}
+                      style={{ borderBottom: i < pagerCotizaciones.paginated.length - 1 ? "1px solid #f1f5f9" : undefined, cursor: "pointer" }}
                       onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")}
                       onMouseLeave={e => (e.currentTarget.style.background = "")}
                     >
@@ -1435,11 +1449,12 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                 </tbody>
               </table>
             )}
+            <MiniPager page={pagerCotizaciones.page} totalPages={pagerCotizaciones.totalPages} onChange={setPagCotizaciones} />
           </SeccionColapsable>
 
           {/* Propuestas */}
           <SeccionColapsable
-            icon={<Presentation size={14} />}
+            icon={<Presentation size={17} />}
             titulo="Propuestas"
             count={!loading ? propuestas.length : undefined}
             isOpen={!!openSections.propuestas}
@@ -1459,11 +1474,11 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                   </tr>
                 </thead>
                 <tbody>
-                  {propuestas.map((p: any, i: number) => (
+                  {pagerPropuestas.paginated.map((p: any, i: number) => (
                     <tr
                       key={p.id}
                       onClick={() => router.push(`/propuestas/${p.id}`)}
-                      style={{ borderBottom: i < propuestas.length - 1 ? "1px solid #f1f5f9" : undefined, cursor: "pointer" }}
+                      style={{ borderBottom: i < pagerPropuestas.paginated.length - 1 ? "1px solid #f1f5f9" : undefined, cursor: "pointer" }}
                       onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")}
                       onMouseLeave={e => (e.currentTarget.style.background = "")}
                     >
@@ -1475,11 +1490,12 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                 </tbody>
               </table>
             )}
+            <MiniPager page={pagerPropuestas.page} totalPages={pagerPropuestas.totalPages} onChange={setPagPropuestas} />
           </SeccionColapsable>
 
           {/* Expedientes */}
           <SeccionColapsable
-            icon={<FolderOpen size={14} />}
+            icon={<FolderOpen size={17} />}
             titulo="Expedientes"
             count={!loading ? expedientes.length : undefined}
             isOpen={!!openSections.expedientes}
@@ -1499,11 +1515,11 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                   </tr>
                 </thead>
                 <tbody>
-                  {expedientes.map((e: any, i: number) => (
+                  {pagerExpedientes.paginated.map((e: any, i: number) => (
                     <tr
                       key={e.id}
                       onClick={() => router.push(`/expedientes/${e.id}`)}
-                      style={{ borderBottom: i < expedientes.length - 1 ? "1px solid #f1f5f9" : undefined, cursor: "pointer" }}
+                      style={{ borderBottom: i < pagerExpedientes.paginated.length - 1 ? "1px solid #f1f5f9" : undefined, cursor: "pointer" }}
                       onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")}
                       onMouseLeave={e => (e.currentTarget.style.background = "")}
                     >
@@ -1526,6 +1542,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                 </tbody>
               </table>
             )}
+            <MiniPager page={pagerExpedientes.page} totalPages={pagerExpedientes.totalPages} onChange={setPagExpedientes} />
           </SeccionColapsable>
 
           {/* Etiquetas */}
@@ -1535,9 +1552,9 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                 onClick={() => toggleSection("etiquetas")}
                 style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: openSections.etiquetas ? "0.5rem" : 0, userSelect: "none" }}
               >
-                {openSections.etiquetas ? <ChevronDown size={14} color="#94a3b8" /> : <ChevronRight size={14} color="#94a3b8" />}
-                <span style={{ display: "flex", color: "#64748b" }}><Tag size={14} /></span>
-                <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", flex: 1 }}>
+                {openSections.etiquetas ? <ChevronDown size={16} color="#94a3b8" /> : <ChevronRight size={16} color="#94a3b8" />}
+                <span style={{ display: "flex", color: "#64748b" }}><Tag size={17} /></span>
+                <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", flex: 1 }}>
                   Etiquetas{etiquetasCount !== undefined && ` (${etiquetasCount})`}
                 </div>
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Fragment } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { Icons } from "@/lib/icons";
 import Pagination from "@/app/components/Pagination";
 import styles from "../expedientes/[id]/page.module.css";
@@ -146,6 +146,28 @@ export default function BancoPage() {
     altos: number;
     tiempoMs: number;
   } | null>(null);
+
+  const [showMatchFiltrosModal, setShowMatchFiltrosModal] = useState(false);
+  const [matchFiltros, setMatchFiltros] = useState({
+    cuentaIds: [] as string[],
+    fechaDesde: "",
+    fechaHasta: "",
+    tipoMovimiento: "todos" as "todos" | "debe" | "haber",
+  });
+  const [matchFiltradoLoading, setMatchFiltradoLoading] = useState(false);
+  const [showMatchCuentasDropdown, setShowMatchCuentasDropdown] = useState(false);
+  const matchCuentasDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showMatchCuentasDropdown) return;
+    const close = (e: MouseEvent) => {
+      if (matchCuentasDropdownRef.current && !matchCuentasDropdownRef.current.contains(e.target as Node)) {
+        setShowMatchCuentasDropdown(false);
+      }
+    };
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [showMatchCuentasDropdown]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(15);
@@ -406,6 +428,14 @@ export default function BancoPage() {
               disabled={loading}
             >
               <Icons.RefreshCw size={18} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
+            </button>
+            <button
+              className={styles.actionIconButton}
+              title="Buscar match en movimientos filtrados"
+              onClick={() => setShowMatchFiltrosModal(true)}
+              disabled={loading}
+            >
+              <Icons.Search size={18} />
             </button>
             <button
               className={`${styles.actionIconButton} ${showFilters || filtros.bancosIds.length > 0 || filtros.estados.length > 0 || filtros.matchRanges.length > 0 || filtros.tipoMovimiento !== "todos" || filtros.fechaDesde || filtros.fechaHasta || filtros.importeMin || filtros.importeMax || filtros.soloGastosFinancieros ? listStyles.activeAction : ""}`}
@@ -966,6 +996,172 @@ export default function BancoPage() {
         }}
         cuentasBancarias={cuentasBancarias}
       />
+
+      {/* MODAL FILTROS PARA BUSCAR MATCH SOLO EN UN SUBCONJUNTO DE MOVIMIENTOS */}
+      {showMatchFiltrosModal && (
+        <div
+          onClick={() => !matchFiltradoLoading && setShowMatchFiltrosModal(false)}
+          style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            backgroundColor: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(4px)"
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: "#ffffff", borderRadius: "1rem", padding: "1.5rem", width: "380px",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+              fontFamily: '"Inter", sans-serif'
+            }}
+          >
+            <h3 style={{ margin: "0 0 0.25rem 0", fontSize: "1.05rem", fontWeight: 700, color: "#0f172a" }}>Buscar match en movimientos filtrados</h3>
+            <p style={{ margin: "0 0 1.1rem 0", fontSize: "0.8rem", color: "#64748b" }}>
+              Reduce el tiempo de cálculo limitando el recálculo a un subconjunto de movimientos pendientes.
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+              <div ref={matchCuentasDropdownRef} style={{ position: "relative" }}>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#334155", marginBottom: "0.3rem" }}>Cuenta bancaria</label>
+                <button
+                  type="button"
+                  onClick={() => setShowMatchCuentasDropdown((v) => !v)}
+                  style={{
+                    width: "100%", padding: "0.55rem 0.75rem", border: "1px solid #cbd5e1", borderRadius: "0.5rem",
+                    fontSize: "0.82rem", background: "#fff", color: matchFiltros.cuentaIds.length > 0 ? "#0f172a" : "#94a3b8",
+                    textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {matchFiltros.cuentaIds.length === 0
+                      ? "Todas las cuentas"
+                      : matchFiltros.cuentaIds.length === 1
+                        ? (cuentasBancarias.find((c: any) => c.id === matchFiltros.cuentaIds[0])?.banco || "1 cuenta seleccionada")
+                        : `${matchFiltros.cuentaIds.length} cuentas seleccionadas`}
+                  </span>
+                  <Icons.ChevronDown size={14} style={{ flexShrink: 0, color: "#94a3b8", transform: showMatchCuentasDropdown ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+                </button>
+                {showMatchCuentasDropdown && (
+                  <div style={{
+                    position: "absolute", top: "100%", left: 0, right: 0, marginTop: "0.3rem", zIndex: 2002,
+                    background: "#fff", border: "1px solid #cbd5e1", borderRadius: "0.5rem",
+                    boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)", maxHeight: "180px", overflowY: "auto", padding: "0.4rem 0",
+                  }}>
+                    {cuentasBancarias.filter((c: any) => c.iban).length === 0 ? (
+                      <div style={{ padding: "0.5rem 0.9rem", fontSize: "0.78rem", color: "#94a3b8" }}>Sin cuentas</div>
+                    ) : (
+                      cuentasBancarias.filter((c: any) => c.iban).map((c: any) => {
+                        const checked = matchFiltros.cuentaIds.includes(c.id);
+                        return (
+                          <label key={c.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.4rem 0.9rem", cursor: "pointer", fontSize: "0.8rem", color: "#334155" }}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => setMatchFiltros((prev) => ({
+                                ...prev,
+                                cuentaIds: checked ? prev.cuentaIds.filter((id) => id !== c.id) : [...prev.cuentaIds, c.id],
+                              }))}
+                              style={{ accentColor: "var(--primary-color, #475569)", cursor: "pointer" }}
+                            />
+                            {c.banco || c.iban}
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+                <span style={{ fontSize: "0.68rem", color: "#94a3b8" }}>Sin selección = todas las cuentas</span>
+              </div>
+
+              <div style={{ display: "flex", gap: "0.6rem" }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#334155", marginBottom: "0.3rem" }}>Fecha desde</label>
+                  <input
+                    type="date"
+                    value={matchFiltros.fechaDesde}
+                    onChange={(e) => setMatchFiltros((prev) => ({ ...prev, fechaDesde: e.target.value }))}
+                    style={{ width: "100%", padding: "0.5rem", border: "1px solid #cbd5e1", borderRadius: "0.5rem", fontSize: "0.82rem", boxSizing: "border-box" }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#334155", marginBottom: "0.3rem" }}>Fecha hasta</label>
+                  <input
+                    type="date"
+                    value={matchFiltros.fechaHasta}
+                    onChange={(e) => setMatchFiltros((prev) => ({ ...prev, fechaHasta: e.target.value }))}
+                    style={{ width: "100%", padding: "0.5rem", border: "1px solid #cbd5e1", borderRadius: "0.5rem", fontSize: "0.82rem", boxSizing: "border-box" }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#334155", marginBottom: "0.3rem" }}>Tipo de movimiento</label>
+                <div style={{ display: "flex", gap: "0.4rem" }}>
+                  {(["todos", "debe", "haber"] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setMatchFiltros((prev) => ({ ...prev, tipoMovimiento: t }))}
+                      style={{
+                        flex: 1, padding: "0.45rem", borderRadius: "0.5rem", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer",
+                        border: `1px solid ${matchFiltros.tipoMovimiento === t ? "var(--primary-color, #475569)" : "#e2e8f0"}`,
+                        backgroundColor: matchFiltros.tipoMovimiento === t ? "color-mix(in srgb, var(--primary-color, #475569), transparent 90%)" : "#fff",
+                        color: matchFiltros.tipoMovimiento === t ? "var(--primary-color, #475569)" : "#64748b",
+                      }}
+                    >
+                      {t === "todos" ? "Todos" : t === "debe" ? "Debe" : "Haber"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.6rem", marginTop: "1.25rem" }}>
+              <button
+                onClick={() => setShowMatchFiltrosModal(false)}
+                disabled={matchFiltradoLoading}
+                style={{ padding: "0.55rem 1.1rem", borderRadius: "0.5rem", border: "1px solid #cbd5e1", background: "#fff", color: "#475569", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer" }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => {
+                  setMatchFiltradoLoading(true);
+                  try {
+                    const result = await recalcularTodosLosMatches(undefined, {
+                      cuentaIds: matchFiltros.cuentaIds.length > 0 ? matchFiltros.cuentaIds : undefined,
+                      fechaDesde: matchFiltros.fechaDesde || undefined,
+                      fechaHasta: matchFiltros.fechaHasta || undefined,
+                      tipoMovimiento: matchFiltros.tipoMovimiento === "todos" ? undefined : matchFiltros.tipoMovimiento,
+                    });
+                    if (result && result.tiempoMs !== undefined) {
+                      setMatchReport({
+                        procesados: result.procesados || 0,
+                        bajos: result.bajos || 0,
+                        medios: result.medios || 0,
+                        altos: result.altos || 0,
+                        tiempoMs: result.tiempoMs || 0
+                      });
+                    }
+                    setShowMatchFiltrosModal(false);
+                    setCurrentPage(1);
+                    await loadData(filtros);
+                  } catch (err) {
+                    console.error("Error al recalcular matches filtrados:", err);
+                  } finally {
+                    setMatchFiltradoLoading(false);
+                  }
+                }}
+                disabled={matchFiltradoLoading}
+                style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.55rem 1.1rem", borderRadius: "0.5rem", border: "none", background: "var(--primary-color, #475569)", color: "#fff", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer", opacity: matchFiltradoLoading ? 0.7 : 1 }}
+              >
+                {matchFiltradoLoading && <Icons.RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} />}
+                Buscar match
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL REPORTE MATCHING */}
       {matchReport && (

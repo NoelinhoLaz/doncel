@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getAgencyDbClient } from "@/lib/agencyDb";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET() {
   try {
     const db = await getAgencyDbClient();
@@ -49,6 +52,19 @@ export async function GET() {
     const oficinaNombrePorId = new Map((oficinas ?? []).map((o: any) => [o.id, o.nombre]));
     const oficinaIdPorAgente = new Map((configUsuarios ?? []).map((cu: any) => [cu.usuario_id, cu.oficina]));
 
+    // Etiquetas asignadas a cada entidad
+    const { data: etiquetasRows } = await db
+      .from("crm_entidades_etiquetas")
+      .select("entidad_id, crm_etiquetas(id, nombre, color)");
+    const etiquetasPorEntidad = new Map<string, { id: string; nombre: string; color: string }[]>();
+    for (const row of (etiquetasRows ?? []) as any[]) {
+      const et = row.crm_etiquetas;
+      if (!et) continue;
+      const list = etiquetasPorEntidad.get(row.entidad_id) ?? [];
+      list.push(et);
+      etiquetasPorEntidad.set(row.entidad_id, list);
+    }
+
     // Datos de agentes (para mostrar el agente asignado al cliente)
     const { data: agentesRows } = await db
       .from("crm_agentes")
@@ -62,12 +78,12 @@ export async function GET() {
     // Todos los expedientes (para resolver numero/referencia por id)
     const { data: todosExpedientes, error: e4 } = await db
       .from("operativa_expedientes")
-      .select("id, numero, referencia, entidad_id");
+      .select("id, numero, referencia, entidad_id, fecha_inicio");
     if (e4) throw e4;
-    const expedientePorId = new Map((todosExpedientes ?? []).map((e: any) => [e.id, { id: e.id, numero: e.numero ?? null, referencia: e.referencia }]));
+    const expedientePorId = new Map((todosExpedientes ?? []).map((e: any) => [e.id, { id: e.id, numero: e.numero ?? null, referencia: e.referencia, fecha_inicio: e.fecha_inicio ?? null }]));
 
-    const expedientesPorEntidad = new Map<string, { id: string; numero: string | null; referencia: string }[]>();
-    const addExpediente = (entidadId: string, exp: { id: string; numero: string | null; referencia: string }) => {
+    const expedientesPorEntidad = new Map<string, { id: string; numero: string | null; referencia: string; fecha_inicio: string | null }[]>();
+    const addExpediente = (entidadId: string, exp: { id: string; numero: string | null; referencia: string; fecha_inicio: string | null }) => {
       const list = expedientesPorEntidad.get(entidadId) ?? [];
       if (!list.some((e) => e.id === exp.id)) list.push(exp);
       expedientesPorEntidad.set(entidadId, list);
@@ -75,7 +91,7 @@ export async function GET() {
 
     // Vinculados como contacto principal del expediente
     for (const exp of todosExpedientes ?? []) {
-      if (exp.entidad_id) addExpediente(exp.entidad_id, { id: exp.id, numero: exp.numero ?? null, referencia: exp.referencia });
+      if (exp.entidad_id) addExpediente(exp.entidad_id, { id: exp.id, numero: exp.numero ?? null, referencia: exp.referencia, fecha_inicio: exp.fecha_inicio ?? null });
     }
 
     // Vinculados como viajero o tutor
@@ -133,6 +149,7 @@ export async function GET() {
         created_at: r.created_at ?? null,
         tipo_cliente_id: r.tipo_cliente_id ?? null,
         tipo_cliente: r.tipo_cliente_id ? (tipoClientePorId.get(r.tipo_cliente_id) ?? null) : null,
+        etiquetas: etiquetasPorEntidad.get(r.id) ?? [],
       });
     }
 
