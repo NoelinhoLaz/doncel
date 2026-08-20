@@ -641,7 +641,7 @@ export default function TablaPagadores({
               <SortTh label="CIF/NIF" colKey="cif_nif" currentKey={sortKey} direction={sortDirection} onSort={onSort} />
               <SortTh label="VIAJEROS ASOCIADOS" colKey="viajeros" currentKey={sortKey} direction={sortDirection} onSort={onSort} />
               <SortTh label="TOTAL" colKey="total" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="right" narrow />
-              <SortTh label="Abonado" colKey="abonado" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="right" narrow />
+              <SortTh label="Cobrado" colKey="abonado" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="right" narrow />
               <SortTh label="Saldo" colKey="saldo" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="right" narrow />
               <SortTh label="PLAZOS" colKey="plazos" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="right" narrow />
               <SortTh label="ESTADO" colKey="estado" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="right" />

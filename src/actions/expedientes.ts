@@ -391,12 +391,12 @@ export async function getResumenPagosExpediente(expedienteId: string) {
         .from("contabilidad_movimientos")
         .select("importe_total")
         .eq("expediente_id", expedienteId)
-        .eq("tipo", "reembolso_cobro")
+        .eq("tipo", "reembolso_pago")
         .eq("estado", "confirmado"),
     ]);
 
-    // Un reembolso a cliente (reembolso_cobro) es dinero que sale de la
-    // agencia, por lo que computa como un pago dentro de este resumen.
+    // Un reembolso de proveedor (reembolso_pago) es dinero que vuelve a la
+    // agencia, por lo que resta del total de Pagos a proveedores.
     const totalReembolsos = (reembolsosRes.data ?? []).reduce((s: number, r: any) => s + Number(r.importe_total || 0), 0);
 
     const abonoMap = new Map<string, number>();
@@ -442,7 +442,7 @@ export async function getResumenPagosExpediente(expedienteId: string) {
       pagosRealizados,
       pendientePago: Math.max(totalNeto - pagosRealizados, 0),
       facturasSoportadas: (documentosRes.data ?? []).reduce((sum: number, d: any) => sum + Number(d.total_documento || 0), 0),
-      totalPagosEstimados: totalNeto + totalReembolsos,
+      totalPagosEstimados: totalNeto - totalReembolsos,
       desglosePagosEstimados: desglose,
       totalReembolsos,
     };
@@ -481,12 +481,12 @@ export async function getResumenKpisExpediente(expedienteId: string) {
         .from("contabilidad_movimientos")
         .select("importe_total")
         .eq("expediente_id", expedienteId)
-        .eq("tipo", "reembolso_pago")
+        .eq("tipo", "reembolso_cobro")
         .eq("estado", "confirmado"),
     ]);
 
-    // Un reembolso de proveedor (reembolso_pago) es dinero que entra a la
-    // agencia, por lo que computa como un cobro dentro de este resumen.
+    // Un reembolso a cliente (reembolso_cobro) es dinero que sale de la
+    // agencia, por lo que resta del total de Cobros de clientes.
     const totalReembolsos = (reembolsosRes.data ?? []).reduce((s: number, r: any) => s + Number(r.importe_total || 0), 0);
 
     const pagadores = pagadoresRes.data ?? [];
@@ -539,7 +539,7 @@ export async function getResumenKpisExpediente(expedienteId: string) {
       cobrosRecibidos,
       facturacionEmitida: (facturasRes.data ?? []).reduce((s, f: any) => s + Number(f.importe_total || 0), 0),
       saldoPendiente: totalFacturable - cobrosRecibidos,
-      totalCobrosEstimados: totalFacturable + totalReembolsos,
+      totalCobrosEstimados: totalFacturable - totalReembolsos,
       desgloseCobrosEstimados: desglose,
       totalReembolsos,
     };

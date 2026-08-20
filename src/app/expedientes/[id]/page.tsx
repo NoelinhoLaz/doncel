@@ -154,7 +154,7 @@ export default function ExpedienteDetailPage({ params }: { params: Promise<{ id:
   const renderTabContent = () => {
     switch (activeTab) {
       case "resumen":
-        return <ResumenTab expediente={expediente} resumenKpis={resumenKpis} resumenPagos={resumenPagos} />;
+        return <ResumenTab expediente={expediente} resumenKpis={resumenKpis} resumenPagos={resumenPagos} onNavigateTab={setActiveTab} />;
       case "ajustes":
         return <AjustesTab key={expediente?.id || "loading"} expedienteId={resolvedParams.id} expediente={expediente} />;
       case "viajeros":

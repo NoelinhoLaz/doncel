@@ -87,7 +87,7 @@ interface ResumenPagos {
   totalReembolsos: number;
 }
 
-export default function ResumenTab({ expediente, resumenKpis, resumenPagos }: { expediente: any; resumenKpis?: ResumenKpis | null; resumenPagos?: ResumenPagos | null }) {
+export default function ResumenTab({ expediente, resumenKpis, resumenPagos, onNavigateTab }: { expediente: any; resumenKpis?: ResumenKpis | null; resumenPagos?: ResumenPagos | null; onNavigateTab?: (tab: string) => void }) {
   if (!expediente) {
     return (
       <div style={{ padding: "2rem", textAlign: "center", color: "#94a3b8" }}>
@@ -102,12 +102,12 @@ export default function ResumenTab({ expediente, resumenKpis, resumenPagos }: { 
 
   const kpiDataCobros = [
     {
-      label: "Total Cobros",
+      label: "Cobros de clientes",
       value: resumenKpis ? formatEuroKpi(resumenKpis.totalCobrosEstimados) : null,
       icon: <Icons.Cobros size={20} style={{ color: "#7c3aed" }} />,
       bg: "#ede9fe",
       desglose: resumenKpis
-        ? [...resumenKpis.desgloseCobrosEstimados, { label: "Reembolsos", importe: resumenKpis.totalReembolsos }]
+        ? [...resumenKpis.desgloseCobrosEstimados, { label: "Reembolsos", importe: -resumenKpis.totalReembolsos }]
         : undefined,
     },
     {
@@ -138,12 +138,12 @@ export default function ResumenTab({ expediente, resumenKpis, resumenPagos }: { 
 
   const kpiDataPagos = [
     {
-      label: "Total Pagos",
+      label: "Pagos a proveedores",
       value: resumenPagos ? formatEuroKpi(resumenPagos.totalPagosEstimados) : null,
       icon: <Icons.Cobros size={20} style={{ color: "#7c3aed" }} />,
       bg: "#ede9fe",
       desglose: resumenPagos
-        ? [...resumenPagos.desglosePagosEstimados, { label: "Reembolsos", importe: resumenPagos.totalReembolsos }]
+        ? [...resumenPagos.desglosePagosEstimados, { label: "Reembolsos", importe: -resumenPagos.totalReembolsos }]
         : undefined,
     },
     {
@@ -286,7 +286,10 @@ export default function ResumenTab({ expediente, resumenKpis, resumenPagos }: { 
               <div className={styles.kpiContent}>
                 <span className={styles.kpiLabel}>Total Beneficios</span>
                 <span className={styles.kpiValue} style={{ color: beneficioTotal >= 0 ? "#16a34a" : "#dc2626" }}>
-                  {formatEuroKpi(beneficioTotal)} ({beneficioTotal >= 0 ? "+" : "-"}{Math.abs(beneficioPct)}%)
+                  Bruto {formatEuroKpi(beneficioTotal)}
+                </span>
+                <span className={styles.kpiValue} style={{ color: beneficioTotal >= 0 ? "#16a34a" : "#dc2626", fontSize: "1rem" }}>
+                  Porcentaje de beneficio {beneficioTotal >= 0 ? "+" : "-"}{Math.abs(beneficioPct)}%
                 </span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "2px", paddingTop: "0.5rem", borderTop: "1px solid #f1f5f9" }}>
@@ -309,10 +312,20 @@ export default function ResumenTab({ expediente, resumenKpis, resumenPagos }: { 
 
           {kpiDataCobros.map((kpiCobro: any, idx) => {
             const kpiPago = kpiDataPagos[idx];
+            const tabCobros = idx === 1 ? "viajeros" : "cobros";
+            const tabPagos = "servicios";
             return (
               <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                {[kpiCobro, kpiPago].map((kpi: any, col: number) => (
-                  <div key={col} className={styles.kpiCard} style={kpi.desglose?.length ? { flexDirection: "column", alignItems: "stretch", gap: "0.5rem" } : undefined}>
+                {[{ ...kpiCobro, tab: tabCobros }, { ...kpiPago, tab: tabPagos }].map((kpi: any, col: number) => (
+                  <div
+                    key={col}
+                    className={styles.kpiCard}
+                    onClick={onNavigateTab ? () => onNavigateTab(kpi.tab) : undefined}
+                    style={{
+                      ...(kpi.desglose?.length ? { flexDirection: "column", alignItems: "stretch", gap: "0.5rem" } : {}),
+                      ...(onNavigateTab ? { cursor: "pointer" } : {}),
+                    }}
+                  >
                     {kpi.icon && cloneElement(kpi.icon, { size: 72, className: styles.kpiIconBg })}
                     <div className={styles.kpiContent}>
                       <span className={styles.kpiLabel}>{kpi.label}</span>
@@ -330,7 +343,7 @@ export default function ResumenTab({ expediente, resumenKpis, resumenPagos }: { 
                             >
                               {d.label}
                             </span>
-                            <span style={{ fontWeight: 600, color: "#334155", flexShrink: 0 }}>{formatEuroKpi(d.importe)}</span>
+                            <span style={{ fontWeight: 600, color: d.importe < 0 ? "#dc2626" : "#334155", flexShrink: 0 }}>{formatEuroKpi(d.importe)}</span>
                           </div>
                         ))}
                       </div>

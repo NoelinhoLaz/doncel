@@ -6,6 +6,10 @@ import { getMatchesPendientesPorExpediente } from "@/actions/banco";
 import { getPaymentPlazos, getPlazoDetail } from "@/lib/utils/cobrosUtils";
 import type { Pagador, MovimientoCobro } from "@/lib/types/cobros";
 
+function normalize(s: string) {
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
 export function useCobros(
   pagadores: Pagador[],
   movimientos: MovimientoCobro[],
@@ -157,12 +161,12 @@ export function useCobros(
 
   const filteredData = useMemo(() => {
     return pagadores.filter((item) => {
-      const term = search.toLowerCase();
+      const term = normalize(search);
       const myViajeros = viajerosByPagador.get(item.entidad_id) || [];
       const matchesSearch =
-        (item.contabilidad_entidades?.nombre || "").toLowerCase().includes(term) ||
-        (item.contabilidad_entidades?.documento || "").toLowerCase().includes(term) ||
-        myViajeros.some((v) => (v.contabilidad_entidades?.nombre || "").toLowerCase().includes(term));
+        normalize(item.contabilidad_entidades?.nombre || "").includes(term) ||
+        normalize(item.contabilidad_entidades?.documento || "").includes(term) ||
+        myViajeros.some((v) => normalize(v.contabilidad_entidades?.nombre || "").includes(term));
       if (!matchesSearch) return false;
 
       for (const [pIdxStr, statuses] of Object.entries(plazoFiltersGrouped)) {
