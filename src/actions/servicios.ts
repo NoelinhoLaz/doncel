@@ -1124,6 +1124,27 @@ export async function getExtrasIconMap(expedienteId: string) {
   }
 }
 
+export async function getServiciosOpcionalesByExpediente(expedienteId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { data, error } = await agencyDb
+      .from("operativa_expedientes_servicios")
+      .select("id, descripcion, pvp, opcional")
+      .eq("expediente_id", expedienteId)
+      .eq("opcional", true)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return (data || []).map((s: any) => ({
+      id: s.id,
+      nombre: s.descripcion,
+      pvp: parseFloat(s.pvp) || 0,
+    }));
+  } catch (error: any) {
+    console.error("Failed to get servicios opcionales:", error.message);
+    return [];
+  }
+}
+
 export async function getServiciosOpcionalesByDomain(expedienteId: string, domain: string) {
   try {
     const { getAgencyDbClientByDomain } = await import("@/lib/agencyDb");

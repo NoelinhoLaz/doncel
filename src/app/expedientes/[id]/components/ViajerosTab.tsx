@@ -6,6 +6,7 @@ import ViajerosKpiGrid from "@/app/components/viajeros/ViajerosKpiGrid";
 import TablaViajeros from "@/app/components/viajeros/TablaViajeros";
 import ExportViajerosModal from "@/components/modals/ExportViajerosModal";
 import AnularViajeroModal from "@/components/modals/AnularViajeroModal";
+import AnadirViajeroModal from "@/components/modals/AnadirViajeroModal";
 import NuevaDifusionModal from "@/components/modals/NuevaDifusionModal";
 import { getDestinatariosPorEntidadIds, type EntidadDestinatarios } from "@/actions/difusiones";
 
@@ -22,8 +23,13 @@ export default function ViajerosTab({ expedienteId, fechaSalida, pvpViajero, pag
   const v = useViajeros(expedienteId, fechaSalida, pvpViajero, pagadores, plazos);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [viajeroAAnular, setViajeroAAnular] = useState<any | null>(null);
+  const [isAddOpen, setIsAddOpen] = useState(false);
   const [difusionEntidades, setDifusionEntidades] = useState<EntidadDestinatarios[] | null>(null);
   const [loadingDifusion, setLoadingDifusion] = useState(false);
+
+  const pagadorOptions = pagadores
+    .filter((p: any) => p.entidad_id)
+    .map((p: any) => ({ entidad_id: p.entidad_id, nombre: p.contabilidad_entidades?.nombre || "Sin nombre" }));
 
   const handleAbrirDifusion = async () => {
     setLoadingDifusion(true);
@@ -85,6 +91,7 @@ export default function ViajerosTab({ expedienteId, fechaSalida, pvpViajero, pag
         onAnularClick={setViajeroAAnular}
         onDifusionClick={handleAbrirDifusion}
         difusionLoading={loadingDifusion}
+        onAddClick={() => setIsAddOpen(true)}
       />
 
       <ExportViajerosModal
@@ -98,6 +105,15 @@ export default function ViajerosTab({ expedienteId, fechaSalida, pvpViajero, pag
         onClose={() => setViajeroAAnular(null)}
         viajero={viajeroAAnular}
         expedienteId={expedienteId}
+        onSuccess={v.reload}
+      />
+
+      <AnadirViajeroModal
+        isOpen={isAddOpen}
+        onClose={() => setIsAddOpen(false)}
+        expedienteId={expedienteId}
+        pvpViajero={pvpViajero}
+        pagadores={pagadorOptions}
         onSuccess={v.reload}
       />
 

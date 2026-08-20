@@ -174,6 +174,7 @@ interface Props {
   onAnularClick?: (viajero: any) => void;
   onDifusionClick?: () => void;
   difusionLoading?: boolean;
+  onAddClick?: () => void;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -198,6 +199,7 @@ export default function TablaViajeros({
   onAnularClick,
   onDifusionClick,
   difusionLoading,
+  onAddClick,
 }: Props) {
   const estadoFilterIsDefault = activeEstadoFilters.length === 1 && activeEstadoFilters[0] === "Activo";
   const hasActiveFilters = activePlazoFilters.length + activeExtraFilters.length + activeNewsletterFilters.length + activeContratoFilters.length + activePagoStatusFilters.length > 0 || !estadoFilterIsDefault;
@@ -237,7 +239,7 @@ export default function TablaViajeros({
             </button>
           )}
           <button className={styles.actionIconButton} title="Enviar difusión" onClick={onDifusionClick} disabled={difusionLoading} style={difusionLoading ? { opacity: 0.6, cursor: "wait" } : undefined}><Megaphone size={18} /></button>
-          <button className={styles.addActionButton} title="Añadir Viajero"><Icons.Add size={18} /></button>
+          <button className={styles.addActionButton} title="Añadir Viajero" onClick={onAddClick}><Icons.Add size={18} /></button>
         </div>
       </div>
 
