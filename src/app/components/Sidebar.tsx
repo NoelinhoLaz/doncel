@@ -231,16 +231,6 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
               className={styles.submenuItem}
               onClick={() => {
                 setExpSubOpen(false);
-                router.push("/expedientes/reservas");
-              }}
-            >
-              <Icons.Calendar size={14} className={styles.submenuIcon} />
-              <span>Reservas Unificadas</span>
-            </button>
-            <button
-              className={styles.submenuItem}
-              onClick={() => {
-                setExpSubOpen(false);
                 router.push("/banco/pago-servicios");
               }}
             >

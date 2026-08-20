@@ -123,7 +123,7 @@ export default function ResumenTab({ expediente, resumenKpis, resumenPagos, onNa
       bg: "#dcfce7",
     },
     {
-      label: "Pendiente",
+      label: "Pendiente Cobro",
       value: resumenKpis ? formatEuroKpi(resumenKpis.saldoPendiente) : null,
       icon: <Icons.Cobros size={20} style={{ color: "#d97706" }} />,
       bg: "#fef3c7",
@@ -153,13 +153,13 @@ export default function ResumenTab({ expediente, resumenKpis, resumenPagos, onNa
       bg: "color-mix(in srgb, var(--primary-color, #475569), transparent 90%)",
     },
     {
-      label: "Pagos",
+      label: "Pagos a proveedores",
       value: resumenPagos ? formatEuroKpi(resumenPagos.pagosRealizados) : null,
       icon: <Icons.Cobros size={20} style={{ color: "#16a34a" }} />,
       bg: "#dcfce7",
     },
     {
-      label: "Pendiente",
+      label: "Pendiente Pago",
       value: resumenPagos ? formatEuroKpi(resumenPagos.pendientePago) : null,
       icon: <Icons.Cobros size={20} style={{ color: "#d97706" }} />,
       bg: "#fef3c7",
