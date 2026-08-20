@@ -158,16 +158,18 @@ export async function vincularReembolsoAMovimientoBanco(reembolsoId: string, mov
 
 export async function registrarCobroOficina(payload: {
   expediente_id: string;
-  medio_pago: "efectivo" | "tarjeta";
+  medio_pago: "efectivo" | "tarjeta" | "transferencia";
   cuenta_bancaria_id: string;
   selectedViajerosIds: string[];
   selectedClientesIds: string[];
   importe: number;
   tique?: string;
+  fecha?: string;
+  movimiento_banco_id?: string | null;
 }) {
   try {
     const agencyDb = await getAgencyDbClient();
-    const { expediente_id, medio_pago, cuenta_bancaria_id, selectedViajerosIds, selectedClientesIds, importe, tique } = payload;
+    const { expediente_id, medio_pago, cuenta_bancaria_id, selectedViajerosIds, selectedClientesIds, importe, tique, movimiento_banco_id } = payload;
 
     const { data: expediente, error: errExp } = await agencyDb
       .from("operativa_expedientes")
@@ -185,7 +187,7 @@ export async function registrarCobroOficina(payload: {
       .maybeSingle();
 
     if (errCb) throw errCb;
-    const subcuentaBanco = cBancaria?.cuenta_contable || (medio_pago === "efectivo" ? "57000010000" : "57250010000");
+    const subcuentaBanco = cBancaria?.cuenta_contable || (medio_pago === "efectivo" ? "57000010000" : medio_pago === "tarjeta" ? "57250010000" : "57200010000");
 
     const entitiesToInsert: Array<{ entityId: string; isTraveler: boolean }> = [];
 
@@ -206,7 +208,7 @@ export async function registrarCobroOficina(payload: {
 
     const N = entitiesToInsert.length;
     let remaining = importe;
-    const today = new Date().toISOString().split("T")[0];
+    const today = payload.fecha || new Date().toISOString().split("T")[0];
     const results: string[] = [];
 
     for (let i = 0; i < N; i++) {
@@ -230,8 +232,13 @@ export async function registrarCobroOficina(payload: {
 
       const concepto = medio_pago === "efectivo"
         ? "Cobro en efectivo - Anticipo plaza viaje"
-        : `Cobro TPV${tique ? " Nº Tique " + tique : ""} - Anticipo plaza viaje`;
-      const estado = "confirmado";
+        : medio_pago === "tarjeta"
+          ? `Cobro TPV${tique ? " Nº Tique " + tique : ""} - Anticipo plaza viaje`
+          : "Cobro por transferencia - Anticipo plaza viaje";
+      // Transferencia solo queda confirmada si ya se ha vinculado a un
+      // movimiento bancario real; si no, se deja pendiente de conciliar.
+      const estado = medio_pago === "transferencia" && !movimiento_banco_id ? "pendiente" : "confirmado";
+      const medioPagoDb = medio_pago === "transferencia" ? "banco" : medio_pago;
 
       const { data: movimiento, error: errMov } = await agencyDb
         .from("contabilidad_movimientos")
@@ -241,11 +248,11 @@ export async function registrarCobroOficina(payload: {
           tipo: "cobro",
           importe_total: itemImporte,
           moneda: "EUR",
-          medio_pago,
+          medio_pago: medioPagoDb,
           fecha: today,
           concepto,
           estado,
-          movimiento_banco_id: null,
+          movimiento_banco_id: movimiento_banco_id || null,
           expediente_id,
         }])
         .select("id")
@@ -267,7 +274,7 @@ export async function registrarCobroOficina(payload: {
       }
 
       if (generaApunte) {
-        const ctaDebeMaster = medio_pago === "efectivo" ? "570" : "4109";
+        const ctaDebeMaster = medio_pago === "efectivo" ? "570" : medio_pago === "tarjeta" ? "4109" : "572";
         const ctaHaberMaster = "438";
 
         const { data: cuentasContables, error: errCtas } = await agencyDb

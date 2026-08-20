@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Banknote, CreditCard } from "lucide-react";
+import { Banknote, CreditCard, Landmark, Loader2, Clock, Search } from "lucide-react";
 import { Icons } from "@/lib/icons";
 import { getCuentasBancarias } from "@/actions/cuentasBancarias";
 import { registrarCobroOficina } from "@/actions/cobros";
+import { getMovimientosBanco } from "@/actions/banco";
 import styles from "./cobroOficina.module.css";
 
 interface PagadorSimple {
@@ -21,8 +22,12 @@ interface Props {
   onSuccess: () => void;
 }
 
+function hoyISO() {
+  return new Date().toISOString().split("T")[0];
+}
+
 export default function ModalCobroOficina({ isOpen, onClose, expedienteId, pagadores, viajeros, onSuccess }: Props) {
-  const [metodoCobro, setMetodoCobro] = useState<"efectivo" | "tarjeta" | null>(null);
+  const [metodoCobro, setMetodoCobro] = useState<"efectivo" | "tarjeta" | "transferencia" | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [cuentas, setCuentas] = useState<any[]>([]);
   const [loadingCuentas, setLoadingCuentas] = useState(false);
@@ -33,7 +38,14 @@ export default function ModalCobroOficina({ isOpen, onClose, expedienteId, pagad
   const [dropdownSearch, setDropdownSearch] = useState("");
   const [importeCobro, setImporteCobro] = useState("");
   const [tiqueTPV, setTiqueTPV] = useState("");
+  const [fechaCobro, setFechaCobro] = useState(hoyISO());
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Paso 3 (solo transferencia): buscador de movimiento bancario o "conciliar más tarde"
+  const [movBancoSearch, setMovBancoSearch] = useState("");
+  const [movimientosBanco, setMovimientosBanco] = useState<any[]>([]);
+  const [loadingMovsBanco, setLoadingMovsBanco] = useState(false);
+  const [movimientoBancoId, setMovimientoBancoId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -78,9 +90,30 @@ export default function ModalCobroOficina({ isOpen, onClose, expedienteId, pagad
 
   const filteredCuentas = useMemo(() => {
     if (!metodoCobro) return [];
-    const prefix = metodoCobro === "tarjeta" ? "5725" : "5700";
+    const prefix = metodoCobro === "tarjeta" ? "5725" : metodoCobro === "transferencia" ? "5720" : "5700";
     return cuentas.filter((c) => (c.cuenta_contable || "").startsWith(prefix));
   }, [metodoCobro, cuentas]);
+
+  useEffect(() => {
+    if (modalStep !== 3 || metodoCobro !== "transferencia") return;
+    let active = true;
+    setLoadingMovsBanco(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await getMovimientosBanco({
+          search: movBancoSearch,
+          tipoMovimiento: "haber",
+          estados: ["pendiente", "propuesto"],
+          cuentaIds: selectedAccountId ? [selectedAccountId] : undefined,
+          limit: 20,
+        });
+        if (active) setMovimientosBanco(res.data || []);
+      } finally {
+        if (active) setLoadingMovsBanco(false);
+      }
+    }, 300);
+    return () => { active = false; clearTimeout(t); };
+  }, [modalStep, metodoCobro, movBancoSearch, selectedAccountId]);
 
   const toggleViajeroSelection = (id: string) => {
     setSelectedViajerosIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -101,12 +134,16 @@ export default function ModalCobroOficina({ isOpen, onClose, expedienteId, pagad
     setDropdownSearch("");
     setImporteCobro("");
     setTiqueTPV("");
+    setFechaCobro(hoyISO());
     setIsSubmitting(false);
     setModalStep(1);
+    setMovBancoSearch("");
+    setMovimientosBanco([]);
+    setMovimientoBancoId(null);
     onClose();
   };
 
-  const handleConfirmar = async () => {
+  const confirmarCobro = async (movimientoBancoIdElegido?: string | null) => {
     if (!expedienteId || !metodoCobro || !selectedAccountId || !importeCobro) return;
     if (selectedViajerosIds.length === 0 && selectedClientesIds.length === 0) return;
     setIsSubmitting(true);
@@ -119,6 +156,8 @@ export default function ModalCobroOficina({ isOpen, onClose, expedienteId, pagad
         selectedClientesIds,
         importe: parseFloat(importeCobro),
         tique: metodoCobro === "tarjeta" ? tiqueTPV : undefined,
+        fecha: fechaCobro,
+        movimiento_banco_id: metodoCobro === "transferencia" ? (movimientoBancoIdElegido ?? null) : undefined,
       });
       if (res.success) {
         handleClose();
@@ -131,6 +170,14 @@ export default function ModalCobroOficina({ isOpen, onClose, expedienteId, pagad
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleConfirmar = async () => {
+    if (metodoCobro === "transferencia") {
+      setModalStep(3);
+      return;
+    }
+    await confirmarCobro();
   };
 
   if (!isOpen) return null;
@@ -161,7 +208,9 @@ export default function ModalCobroOficina({ isOpen, onClose, expedienteId, pagad
               <div className={styles.headerSubtitle}>
                 {modalStep === 1
                   ? "Paso 1: Selecciona la forma de cobro y la cuenta bancaria"
-                  : "Paso 2: Selecciona los viajeros y clientes asociados"}
+                  : modalStep === 2
+                    ? "Paso 2: Selecciona los viajeros y clientes asociados"
+                    : "Paso 3: Busca el movimiento bancario o concilia más tarde"}
               </div>
             </div>
           </div>
@@ -171,7 +220,7 @@ export default function ModalCobroOficina({ isOpen, onClose, expedienteId, pagad
         </div>
 
         {/* Wizard Slider */}
-        <div className={`${styles.slider} ${modalStep === 1 ? styles.sliderStep1 : styles.sliderStep2}`}>
+        <div className={`${styles.slider} ${modalStep === 1 ? styles.sliderStep1 : modalStep === 2 ? styles.sliderStep2 : styles.sliderStep3}`}>
           {/* PASO 1 */}
           <div className={styles.step}>
             <div>
@@ -196,6 +245,16 @@ export default function ModalCobroOficina({ isOpen, onClose, expedienteId, pagad
                     style={{ color: metodoCobro === "tarjeta" ? "var(--primary-color, #475569)" : "#64748b" }}
                   />
                   <span className={styles.methodCardLabel}>Tarjeta / TPV</span>
+                </div>
+                <div
+                  className={`${styles.methodCard} ${metodoCobro === "transferencia" ? styles.active : ""}`}
+                  onClick={() => { setMetodoCobro("transferencia"); setSelectedAccountId(""); }}
+                >
+                  <Landmark
+                    size={28}
+                    style={{ color: metodoCobro === "transferencia" ? "var(--primary-color, #475569)" : "#64748b" }}
+                  />
+                  <span className={styles.methodCardLabel}>Transferencia</span>
                 </div>
               </div>
             </div>
@@ -382,8 +441,72 @@ export default function ModalCobroOficina({ isOpen, onClose, expedienteId, pagad
                   disabled={isSubmitting}
                   className={styles.textInput}
                 />
+                {metodoCobro === "transferencia" && (
+                  <>
+                    <label className={styles.fieldLabel}>Fecha:</label>
+                    <input
+                      type="date"
+                      value={fechaCobro}
+                      onChange={(e) => setFechaCobro(e.target.value)}
+                      disabled={isSubmitting}
+                      className={styles.textInput}
+                    />
+                  </>
+                )}
               </div>
             )}
+          </div>
+
+          {/* PASO 3 (solo transferencia): buscar movimiento bancario */}
+          <div className={styles.step}>
+            <div className={styles.movSearchWrapper}>
+              <Search size={14} style={{ position: "absolute", left: "0.7rem", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+              <input
+                type="text"
+                placeholder="Buscar por concepto, referencia o fecha..."
+                value={movBancoSearch}
+                onChange={(e) => setMovBancoSearch(e.target.value)}
+                className={styles.movSearchInput}
+              />
+            </div>
+
+            {loadingMovsBanco ? (
+              <div style={{ textAlign: "center", padding: "1.5rem 0", color: "#64748b", fontSize: "0.8rem" }}>Buscando movimientos...</div>
+            ) : movimientosBanco.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "1.5rem 0", color: "#94a3b8", fontSize: "0.8rem" }}>Sin resultados.</div>
+            ) : (
+              <div className={styles.movList}>
+                {movimientosBanco.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    disabled={isSubmitting}
+                    className={styles.movItem}
+                    onClick={() => { setMovimientoBancoId(m.id); confirmarCobro(m.id); }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "320px" }}>
+                        {m.concepto_original || "Movimiento bancario"}
+                      </div>
+                      <div style={{ fontSize: "0.7rem", color: "#64748b" }}>{m.fecha_operacion}</div>
+                    </div>
+                    <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#16a34a" }}>
+                      {Number(m.importe).toLocaleString("es-ES", { minimumFractionDigits: 2 })} €
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <button
+              type="button"
+              className={styles.conciliarMasTardeBtn}
+              disabled={isSubmitting}
+              onClick={() => confirmarCobro(null)}
+            >
+              {isSubmitting ? <Loader2 size={15} className="animate-spin" /> : <Clock size={15} />}
+              Conciliar más tarde
+            </button>
           </div>
         </div>
 
@@ -398,7 +521,7 @@ export default function ModalCobroOficina({ isOpen, onClose, expedienteId, pagad
                 Siguiente
               </button>
             </>
-          ) : (
+          ) : modalStep === 2 ? (
             <>
               <button
                 className={styles.btnSecondary}
@@ -411,9 +534,17 @@ export default function ModalCobroOficina({ isOpen, onClose, expedienteId, pagad
                 {isSubmitting && (
                   <Icons.RefreshCw size={14} style={{ animation: "cobroSpin 1s linear infinite" }} />
                 )}
-                {isSubmitting ? "Confirmando..." : "Confirmar"}
+                {isSubmitting ? "Confirmando..." : metodoCobro === "transferencia" ? "Buscar movimiento" : "Confirmar"}
               </button>
             </>
+          ) : (
+            <button
+              className={styles.btnSecondary}
+              disabled={isSubmitting}
+              onClick={() => setModalStep(2)}
+            >
+              Atrás
+            </button>
           )}
         </div>
       </div>

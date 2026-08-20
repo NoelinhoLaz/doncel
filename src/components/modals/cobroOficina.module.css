@@ -73,7 +73,7 @@
 /* Wizard Slider */
 .slider {
   display: flex;
-  width: 200%;
+  width: 300%;
   flex: 1;
   overflow: hidden;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -84,11 +84,15 @@
 }
 
 .sliderStep2 {
-  transform: translateX(-50%);
+  transform: translateX(-33.3333%);
+}
+
+.sliderStep3 {
+  transform: translateX(-66.6667%);
 }
 
 .step {
-  width: 50%;
+  width: 33.3333%;
   padding: 1.5rem;
   box-sizing: border-box;
   display: flex;
@@ -386,6 +390,62 @@
 .textInput:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Step 3 – Bank movement search */
+.movSearchWrapper {
+  position: relative;
+}
+
+.movSearchInput {
+  width: 100%;
+  padding: 0.55rem 0.75rem 0.55rem 2.1rem;
+  border-radius: 0.5rem;
+  border: 1px solid #cbd5e1;
+  font-size: 0.82rem;
+  color: #1e293b;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.movList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.movItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+}
+
+.movItem:hover {
+  background-color: #f8fafc;
+}
+
+.conciliarMasTardeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.65rem 1rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 /* Footer */

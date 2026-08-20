@@ -9,6 +9,7 @@ import AnularViajeroModal from "@/components/modals/AnularViajeroModal";
 import AnadirViajeroModal from "@/components/modals/AnadirViajeroModal";
 import NuevaDifusionModal from "@/components/modals/NuevaDifusionModal";
 import { getDestinatariosPorEntidadIds, type EntidadDestinatarios } from "@/actions/difusiones";
+import { reactivarViajero } from "@/actions/viajeros";
 
 interface Props {
   expedienteId: string;
@@ -31,6 +32,13 @@ export default function ViajerosTab({ expedienteId, fechaSalida, pvpViajero, pag
     .filter((p: any) => p.entidad_id)
     .map((p: any) => ({ entidad_id: p.entidad_id, nombre: p.contabilidad_entidades?.nombre || "Sin nombre" }));
 
+  const handleReactivar = async (viajero: any) => {
+    if (!confirm(`¿Reactivar a ${viajero.name}?`)) return;
+    const res = await reactivarViajero(viajero.id);
+    if (res.success) v.reload();
+    else alert(res.error || "Error al reactivar el viajero");
+  };
+
   const handleAbrirDifusion = async () => {
     setLoadingDifusion(true);
     try {
@@ -47,7 +55,7 @@ export default function ViajerosTab({ expedienteId, fechaSalida, pvpViajero, pag
 
   return (
     <>
-      <ViajerosKpiGrid viajeros={v.viajeros} loading={v.loading} />
+      <ViajerosKpiGrid viajeros={v.viajerosConPagoStatus} loading={v.loading} />
 
       <TablaViajeros
         viajeros={v.viajeros}
@@ -89,6 +97,7 @@ export default function ViajerosTab({ expedienteId, fechaSalida, pvpViajero, pag
         onRowsPerPageChange={v.handleRowsPerPageChange}
         onExportClick={() => setIsExportOpen(true)}
         onAnularClick={setViajeroAAnular}
+        onReactivarClick={handleReactivar}
         onDifusionClick={handleAbrirDifusion}
         difusionLoading={loadingDifusion}
         onAddClick={() => setIsAddOpen(true)}

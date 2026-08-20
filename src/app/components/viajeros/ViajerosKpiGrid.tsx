@@ -13,7 +13,7 @@ export default function ViajerosKpiGrid({ viajeros, loading }: Props) {
   const acompanantes = activos.filter((v) => v.tipo === "acompanante");
   const choferes = activos.filter((v) => v.tipo === "chofer");
   const total = activos.length;
-  const confirmados = activos.filter((v) => v.status === "CONFIRMADO").length;
+  const confirmados = activos.filter((v) => v.pagoStatus === "PAGADO").length;
   const femenino = activos.filter((v) => v.gender === "F").length;
   const masculino = activos.filter((v) => v.gender === "M").length;
   const noConsta = activos.filter((v) => v.gender !== "F" && v.gender !== "M").length;
@@ -47,7 +47,7 @@ export default function ViajerosKpiGrid({ viajeros, loading }: Props) {
         <div>
           <div className={styles.blankKpiNumber}>{loading ? "..." : `${confirmados} / ${total}`}</div>
           <div className={styles.blankKpiSubtext}>
-            {loading ? "Cargando..." : <><strong>{confirmados} confirmados</strong> de {total} persona{total === 1 ? "" : "s"}.</>}
+            {loading ? "Cargando..." : <><strong>{confirmados} con pago completo</strong> de {total} persona{total === 1 ? "" : "s"}.</>}
           </div>
         </div>
         {!loading && total > 0 && (

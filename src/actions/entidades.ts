@@ -32,6 +32,24 @@ export async function getEntidades() {
   }
 }
 
+export async function buscarEntidadPorDocumento(documento: string) {
+  try {
+    const doc = documento.trim().toUpperCase();
+    if (!doc) return null;
+    const agencyDb = await getAgencyDbClient();
+    const { data, error } = await agencyDb
+      .from("contabilidad_entidades")
+      .select("id, nombre, documento, email, telefono, tipo_entidad, roles")
+      .eq("documento", doc)
+      .maybeSingle();
+    if (error) throw error;
+    return data ?? null;
+  } catch (error: any) {
+    console.error("Failed to buscar entidad por documento:", error.message);
+    return null;
+  }
+}
+
 export async function createEntidad(nombre: string) {
   try {
     const currentUser = await getCurrentUsuario();

@@ -274,7 +274,7 @@
 .tableHeaderActions .searchBar {
   background-color: rgba(255, 255, 255, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.4);
-  width: 220px;
+  width: 340px;
 }
 
 .tableHeaderActions .searchBar input {

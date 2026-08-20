@@ -3,6 +3,7 @@
 import styles from "../page.module.css";
 import { Search, Plus, SlidersHorizontal, Tag, Megaphone } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Pagination from "@/app/components/Pagination";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
 import SucursalAgenteFilter, { type AgenteOpcion } from "@/app/components/SucursalAgenteFilter";
@@ -42,6 +43,8 @@ type Cliente = {
 };
 
 export default function ClientesPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [search, setSearch] = useState("");
   const [expedienteFilter, setExpedienteFilter] = useState<string[]>([]);
@@ -71,6 +74,21 @@ export default function ClientesPage() {
   }
 
   useEffect(() => { cargarClientes(); }, []);
+
+  // Deep-link: si llegamos con ?clienteId=, abre directamente el panel de ese
+  // cliente en cuanto termine de cargar el listado (p.ej. desde "Usar este"
+  // en NuevoClientePanel al detectar un cliente duplicado por DNI/CIF).
+  useEffect(() => {
+    if (loading || clientes.length === 0) return;
+    const clienteId = searchParams.get("clienteId");
+    if (!clienteId) return;
+    const match = clientes.find((c) => c.id === clienteId);
+    if (match) {
+      setEntidadPanel(match);
+      router.replace("/contactos/clientes");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, clientes]);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -141,7 +159,8 @@ export default function ClientesPage() {
     const matchesSearch =
       c.nombre?.toLowerCase().includes(q) ||
       c.email?.toLowerCase().includes(q) ||
-      c.ciudad?.toLowerCase().includes(q);
+      c.ciudad?.toLowerCase().includes(q) ||
+      c.documento?.toLowerCase().includes(q);
     if (!matchesSearch) return false;
     if (expedienteFilter.length > 0 && !c.expedientes.some((e) => expedienteFilter.includes(expedienteLabel(e)))) return false;
     if (agenteFilter.length > 0 && !(c.agente?.id && agenteFilter.includes(c.agente.id))) return false;
@@ -241,7 +260,7 @@ export default function ClientesPage() {
             <div className={styles.searchBar}>
               <Search size={16} />
               <input
-                placeholder="Buscar clientes…"
+                placeholder="Buscar por nombre, documento, localidad…"
                 value={search}
                 onChange={(e) => handleSearch(e.target.value)}
               />

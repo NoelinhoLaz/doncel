@@ -9,9 +9,6 @@ import Pagination from "@/app/components/Pagination";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
 import { getExpedientes } from "@/actions/expedientes";
 import NuevoExpedienteModal from "@/app/components/operativa/NuevoExpedienteModal";
-import NominatimDestinoTooltip from "@/app/expedientes/components/NominatimDestinoTooltip";
-import ModalPvpExpediente from "@/components/modals/ModalPvpExpediente";
-import ModalContactoExpediente from "@/components/modals/ModalContactoExpediente";
 import {
   mapExpedienteToRow,
   computeMonthsData,
@@ -47,21 +44,9 @@ export default function ExpedientesPage() {
   const [sucursalFilter, setSucursalFilter] = useState<string[]>([]);
   const [destinoFilter, setDestinoFilter] = useState<string[]>([]);
 
-  // ── Destino tooltip ───────────────────────────────────────────────────────
-  const [activeDestinoTooltip, setActiveDestinoTooltip] = useState<string | null>(null);
-  const [destinoTooltipPos, setDestinoTooltipPos] = useState({ top: 0, left: 0 });
-
-  // ── Modal: Nuevo / Editar expediente ─────────────────────────────────────
+  // ── Modal: Nuevo expediente ───────────────────────────────────────────────
   const [isExpModalOpen, setIsExpModalOpen] = useState(false);
   const [selectedExpediente, setSelectedExpediente] = useState<any | null>(null);
-
-  // ── Modal: PVP ───────────────────────────────────────────────────────────
-  const [isPvpOpen, setIsPvpOpen] = useState(false);
-  const [pvpExpediente, setPvpExpediente] = useState<ExpedienteRow | null>(null);
-
-  // ── Modal: Contacto ───────────────────────────────────────────────────────
-  const [isContactOpen, setIsContactOpen] = useState(false);
-  const [contactExpediente, setContactExpediente] = useState<ExpedienteRow | null>(null);
 
   // ── Data loading ─────────────────────────────────────────────────────────
   const [agentFilterCargaCompleta, setAgentFilterCargaCompleta] = useState(false);
@@ -103,17 +88,6 @@ export default function ExpedientesPage() {
     };
     cargarIdentidad(3);
   }, [loadDbExpedientes]);
-
-  const openEditExpediente = useCallback(
-    (expediente: any) => {
-      const original = expediente.realId
-        ? dbExpedientes.find((item) => item.id === expediente.realId)
-        : expediente;
-      setSelectedExpediente(original ?? expediente);
-      setIsExpModalOpen(true);
-    },
-    [dbExpedientes]
-  );
 
   // ── Derived data ──────────────────────────────────────────────────────────
   const mappedExpedientes = useMemo(
@@ -427,19 +401,11 @@ export default function ExpedientesPage() {
                 <td>
                   <div className={styles.clientCell}>
                     {exp.contactoNombre ? (
-                      <div
-                        onClick={(e) => { e.stopPropagation(); setContactExpediente(exp); setIsContactOpen(true); }}
-                        className={styles.clientName}
-                        style={{ cursor: "pointer", display: "inline-block" }}
-                        title="Cambiar contacto"
-                      >
+                      <div className={styles.clientName}>
                         {exp.contactoNombre}
                       </div>
                     ) : (
-                      <div
-                        onClick={(e) => { e.stopPropagation(); setContactExpediente(exp); setIsContactOpen(true); }}
-                        className={styles.sinContactoWarning}
-                      >
+                      <div className={styles.sinContactoWarning}>
                         ⚠️ Sin Contacto
                       </div>
                     )}
@@ -447,17 +413,8 @@ export default function ExpedientesPage() {
                   </div>
                 </td>
                 <td>
-                  <div
-                    className={styles.destinoCell}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      setDestinoTooltipPos({ top: rect.bottom + 4, left: rect.left });
-                      setActiveDestinoTooltip(activeDestinoTooltip === exp.realId ? null : exp.realId);
-                    }}
-                  >
+                  <div className={styles.destinoCell}>
                     <div className={styles.tag}><Icons.Destino size={12} /> {exp.destino}</div>
-                    <Icons.ChevronDown size={10} className={styles.destinoChevron} />
                   </div>
                 </td>
                 <td><span className={styles.typeTag}>{exp.tipo}</span></td>
@@ -467,10 +424,7 @@ export default function ExpedientesPage() {
                   </span>
                 </td>
                 <td>
-                  <div
-                    className={styles.pvpCell}
-                    onClick={(e) => { e.stopPropagation(); setPvpExpediente(exp); setIsPvpOpen(true); }}
-                  >
+                  <div className={styles.pvpCell}>
                     {exp.pvpViajero != null
                       ? `${Number(exp.pvpViajero).toLocaleString("es-ES", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €`
                       : exp.pvpTotal != null
@@ -519,43 +473,11 @@ export default function ExpedientesPage() {
         />
       </div>
 
-      {/* Tooltip selector de destino */}
-      {activeDestinoTooltip && (() => {
-        const exp = filteredData.find((e) => e.realId === activeDestinoTooltip);
-        if (!exp) return null;
-        return (
-          <NominatimDestinoTooltip
-            expedienteId={exp.realId}
-            currentDestinoName={exp.destino}
-            currentDestinoId={exp.destinoId}
-            position={destinoTooltipPos}
-            onClose={() => setActiveDestinoTooltip(null)}
-            onUpdated={loadDbExpedientes}
-          />
-        );
-      })()}
-
-      {/* Modal: Nuevo / Editar expediente */}
+      {/* Modal: Nuevo expediente */}
       <NuevoExpedienteModal
         isOpen={isExpModalOpen}
         expedienteToEdit={selectedExpediente}
         onClose={() => { setIsExpModalOpen(false); setSelectedExpediente(null); }}
-        onSuccess={loadDbExpedientes}
-      />
-
-      {/* Modal: PVP */}
-      <ModalPvpExpediente
-        isOpen={isPvpOpen}
-        onClose={() => { setIsPvpOpen(false); setPvpExpediente(null); }}
-        expediente={pvpExpediente}
-        onSuccess={loadDbExpedientes}
-      />
-
-      {/* Modal: Contacto */}
-      <ModalContactoExpediente
-        isOpen={isContactOpen}
-        onClose={() => { setIsContactOpen(false); setContactExpediente(null); }}
-        expediente={contactExpediente}
         onSuccess={loadDbExpedientes}
       />
     </div>

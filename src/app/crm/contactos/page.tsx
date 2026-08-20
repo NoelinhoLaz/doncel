@@ -170,12 +170,12 @@ export default function ContactosCrmPage() {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1 className={styles.title}>Contactos</h1>
+        <h1 className={styles.title}>Responsables</h1>
       </div>
 
       <div className={styles.tableWrapper}>
         <div className={styles.tableHeader}>
-          <span className={styles.tableTitle}>Listado de contactos ({filtered.length})</span>
+          <span className={styles.tableTitle}>Listado de responsables ({filtered.length})</span>
           <div className={styles.tableHeaderActions}>
             <div className={styles.searchBar}>
               <Search size={16} />

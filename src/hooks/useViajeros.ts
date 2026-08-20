@@ -63,7 +63,9 @@ function mapRawViajero(v: any, pvpViajero: number, fechaSalida?: string): any {
     })(),
     status: v.estado ? v.estado.toUpperCase() : "PENDIENTE",
     extras,
-    importe: (pvpViajero ?? 0) + (v.importe_extras ?? 0),
+    // Acompañantes y chofer no facturan viaje (no tienen pagador asociado),
+    // por lo que su importe no debe sumar al total de beneficios del expediente.
+    importe: (datosViaje.tipo || "pasajero") === "pasajero" ? (pvpViajero ?? 0) + (v.importe_extras ?? 0) : 0,
     warningDoc,
     documentoCaducidad: documento_caducidad,
     newsletter: boolFlag(metadatos.newsletter, ["S", "si", "Sí"], ["N", "no", "No"], v.id.charCodeAt(0) % 2 === 0),
@@ -266,7 +268,7 @@ export function useViajeros(
   const clearAllFilters = () => { setActivePlazoFilters([]); setActiveExtraFilters([]); setActiveNewsletterFilters([]); setActiveContratoFilters([]); setActiveEstadoFilters(["Activo"]); setActivePagoStatusFilters([]); setCurrentPage(1); };
 
   return {
-    viajeros, loading, reload: loadViajeros, extrasIconMap, matchesCobros, dynamicExtras, paymentPlazosList, pagadorMap,
+    viajeros, viajerosConPagoStatus, loading, reload: loadViajeros, extrasIconMap, matchesCobros, dynamicExtras, paymentPlazosList, pagadorMap,
     search, handleSearchChange,
     isFilterRowOpen, setIsFilterRowOpen,
     openDropdown, setOpenDropdown,

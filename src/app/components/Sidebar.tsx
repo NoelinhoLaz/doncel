@@ -139,14 +139,14 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
                 onClick={() => { setCampanasSubOpen(false); router.push("/contactos/viajeros"); }}
               >
                 <Icons.Viajeros size={14} className={styles.submenuIcon} />
-                <span>Viajeros</span>
+                <span>Pasajeros</span>
               </button>
               <button
                 className={styles.submenuItem}
                 onClick={() => { setCampanasSubOpen(false); router.push("/crm/contactos"); }}
               >
                 <Icons.IdCard size={14} className={styles.submenuIcon} />
-                <span>Contactos</span>
+                <span>Responsables</span>
               </button>
               {!isBranchUser && (
                 <button
@@ -197,7 +197,7 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
               onClick={() => { setPresupSubOpen(false); router.push("/propuestas"); }}
             >
               <Icons.Propuestas size={14} className={styles.submenuIcon} />
-              <span>Propuestas</span>
+              <span>Propuesta Visual</span>
             </button>
           </div>
         )}
@@ -225,7 +225,7 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
               }}
             >
               <Icons.List size={14} className={styles.submenuIcon} />
-              <span>Listado</span>
+              <span>Expedientes</span>
             </button>
             <button
               className={styles.submenuItem}

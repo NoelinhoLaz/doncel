@@ -75,9 +75,9 @@ export default function AccionesRapidasCard() {
       {nuevoClienteOpen && (
         <NuevoClientePanel
           onClose={() => setNuevoClienteOpen(false)}
-          onCreated={() => {
+          onCreated={(cliente) => {
             setNuevoClienteOpen(false);
-            router.push("/contactos/clientes");
+            router.push(`/contactos/clientes?clienteId=${cliente.id}`);
           }}
         />
       )}

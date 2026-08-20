@@ -158,7 +158,7 @@ export default function ResumenTab({ expediente, resumenKpis, resumenPagos, onNa
       bg: "color-mix(in srgb, var(--primary-color, #475569), transparent 90%)",
     },
     {
-      label: "Pagos a proveedores",
+      label: "Pagos emitidos",
       value: resumenPagos ? formatEuroKpi(resumenPagos.pagosRealizados) : null,
       icon: <Icons.Cobros size={20} style={{ color: "#16a34a" }} />,
       bg: "#dcfce7",

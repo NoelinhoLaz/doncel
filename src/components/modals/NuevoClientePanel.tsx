@@ -6,6 +6,7 @@ import styles from "./nuevoClientePanel.module.css";
 import { EtiquetasSelector, Etiqueta } from "@/components/EtiquetasSelector";
 import { BuscarNegocioModal, LugarPlaces } from "@/components/modals/BuscarNegocioModal";
 import { searchNominatim, type NominatimResult } from "@/actions/nominatim";
+import { buscarEntidadPorDocumento } from "@/actions/entidades";
 
 const lbl: React.CSSProperties = { display: "block", fontSize: "0.72rem", fontWeight: 600, color: "#64748b", marginBottom: "0.25rem" };
 const inp: React.CSSProperties = { width: "100%", fontSize: "0.8rem", padding: "0.35rem 0.55rem", borderRadius: 6, border: "1.5px solid #e2e8f0", outline: "none", boxSizing: "border-box" };
@@ -63,6 +64,25 @@ export function NuevoClientePanel({
   const setCF = (k: keyof ContactoForm) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setContactoForm(p => ({ ...p, [k]: e.target.value }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Búsqueda de cliente existente por DNI/CIF
+  const [clienteExistente, setClienteExistente] = useState<{ id: string; nombre: string; email?: string | null; telefono?: string | null; documento?: string | null; tipo_entidad?: string | null } | null>(null);
+  const [buscandoDocumento, setBuscandoDocumento] = useState(false);
+
+  useEffect(() => {
+    const doc = form.documento.trim();
+    if (doc.length < 5) { setClienteExistente(null); return; }
+    setBuscandoDocumento(true);
+    const t = setTimeout(async () => {
+      try {
+        const found = await buscarEntidadPorDocumento(doc);
+        setClienteExistente(found);
+      } finally {
+        setBuscandoDocumento(false);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [form.documento]);
 
   // Buscador de contactos existentes
   const [contactoSearch, setContactoSearch] = useState("");
@@ -317,12 +337,18 @@ export function NuevoClientePanel({
           <div className={styles.fieldRow}>
             <div className={styles.field}>
               <label className={styles.label}>{tipoCliente === "empresa" ? "CIF" : "NIF"}</label>
-              <input
-                className={styles.input}
-                placeholder={tipoCliente === "empresa" ? "B12345678" : "12345678A"}
-                value={form.documento}
-                onChange={e => setForm(p => ({ ...p, documento: e.target.value }))}
-              />
+              <div style={{ position: "relative" }}>
+                <input
+                  className={styles.input}
+                  placeholder={tipoCliente === "empresa" ? "B12345678" : "12345678A"}
+                  value={form.documento}
+                  onChange={e => setForm(p => ({ ...p, documento: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", paddingRight: buscandoDocumento ? "2rem" : undefined }}
+                />
+                {buscandoDocumento && (
+                  <Loader2 size={13} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", animation: "spin 0.8s linear infinite" }} />
+                )}
+              </div>
             </div>
             {tipoCliente === "persona" && (
               <div className={styles.field}>
@@ -336,6 +362,21 @@ export function NuevoClientePanel({
               </div>
             )}
           </div>
+
+          {clienteExistente && (
+            <div style={{ padding: "0.55rem 0.7rem", borderRadius: 8, background: "#fffbeb", border: "1px solid #fde68a", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.6rem" }}>
+              <span style={{ fontSize: "0.72rem", color: "#92400e" }}>
+                Ya existe un cliente con este documento: <strong>{clienteExistente.nombre}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => onCreated(clienteExistente)}
+                style={{ flexShrink: 0, fontSize: "0.7rem", fontWeight: 600, color: "#92400e", background: "#fff", border: "1px solid #fde68a", cursor: "pointer", padding: "0.2rem 0.5rem", borderRadius: 6 }}
+              >
+                Usar este
+              </button>
+            </div>
+          )}
 
           <div className={styles.field}>
             <label className={styles.label}>Dirección</label>

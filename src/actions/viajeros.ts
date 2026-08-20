@@ -317,6 +317,27 @@ export async function crearViajeroCompleto(payload: {
   }
 }
 
+export async function reactivarViajero(viajeroId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { error } = await agencyDb
+      .from("operativa_viajeros_expedientes")
+      .update({
+        estado: "pendiente",
+        fecha_anulacion: null,
+        motivo_anulacion: null,
+      })
+      .eq("id", viajeroId);
+
+    if (error) throw error;
+    revalidatePath("/expedientes");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to reactivar viajero:", error.message);
+    return { success: false, error: error.message };
+  }
+}
+
 export async function getViajerosConPagadorByExpediente(expedienteId: string) {
   try {
     const agencyDb = await getAgencyDbClient();

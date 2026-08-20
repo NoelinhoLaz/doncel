@@ -301,6 +301,22 @@ export default function PagoServiciosPage() {
                 <col style={{ width: 92 }} />
                 <col style={{ width: 110 }} />
               </colgroup>
+              <thead>
+                <tr>
+                  <th></th>
+                  <th colSpan={4} style={{ padding: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", padding: "0.5rem 1rem", fontSize: "0.68rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                      <span>Proveedor</span>
+                      <div style={{ flex: 1 }} />
+                      <span style={{ width: 100, textAlign: "right" }}>Exp.</span>
+                      <span style={{ width: 90, textAlign: "right" }}>Serv.</span>
+                      <span style={{ width: 130, textAlign: "right" }}>Total Serv.</span>
+                      <span style={{ width: 130, textAlign: "right" }}>Pagado</span>
+                      <span style={{ width: 130, textAlign: "right" }}>Pendiente</span>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
               <tbody>
                 {gruposProveedor.map((provGrupo) => {
                   const isCollapsed = collapsedGroups.has(provGrupo.key);

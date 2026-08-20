@@ -73,7 +73,7 @@ export default function ViajerosPage() {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1 className={styles.title}>Viajeros</h1>
+        <h1 className={styles.title}>Pasajeros</h1>
         <div className={styles.searchBar}>
           <Search size={16} />
           <input

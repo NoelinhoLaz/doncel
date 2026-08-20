@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Landmark, Trash2, Megaphone } from "lucide-react";
+import { AlertTriangle, Landmark, Trash2, Megaphone, RotateCcw } from "lucide-react";
 import { Icons } from "@/lib/icons";
 import Pagination from "@/app/components/Pagination";
 import { formatBirthDate } from "@/lib/utils/date";
@@ -172,6 +172,7 @@ interface Props {
   onRowsPerPageChange: (r: number) => void;
   onExportClick?: () => void;
   onAnularClick?: (viajero: any) => void;
+  onReactivarClick?: (viajero: any) => void;
   onDifusionClick?: () => void;
   difusionLoading?: boolean;
   onAddClick?: () => void;
@@ -197,6 +198,7 @@ export default function TablaViajeros({
   currentPage, rowsPerPage, onPageChange, onRowsPerPageChange,
   onExportClick,
   onAnularClick,
+  onReactivarClick,
   onDifusionClick,
   difusionLoading,
   onAddClick,
@@ -211,7 +213,7 @@ export default function TablaViajeros({
         <div className={styles.listTitleWrapper}>
           <Icons.Viajeros size={18} className={styles.titleIcon} />
           <h2 className={styles.listTitle}>
-            Listado de Viajeros ({loading ? "..." : filteredData.length})
+            Listado de Pasajeros ({loading ? "..." : filteredData.length})
           </h2>
         </div>
         <div className={styles.actionsWrapper}>
@@ -343,7 +345,7 @@ export default function TablaViajeros({
         <table className={styles.table}>
           <thead>
             <tr>
-              <SortTh label="VIAJERO / TUTOR" colKey="name" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="left" />
+              <SortTh label="PASAJERO / CLIENTE" colKey="name" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="left" />
               <SortTh label="EMAIL" colKey="email" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="left" />
               <SortTh label="TELÉFONO" colKey="phone" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="left" />
               <SortTh label="DOCUMENTO" colKey="dni" currentKey={sortKey} direction={sortDirection} onSort={onSort} align="left" />
@@ -458,7 +460,17 @@ export default function TablaViajeros({
                     </span>
                   </td>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                    {v.status !== "ANULADO" && (
+                    {v.status === "ANULADO" ? (
+                      <button
+                        onClick={() => onReactivarClick?.(v)}
+                        title="Reactivar viajero"
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "0.35rem", borderRadius: "0.25rem", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = "#16a34a"; e.currentTarget.style.backgroundColor = "#f0fdf4"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.backgroundColor = "transparent"; }}
+                      >
+                        <RotateCcw size={16} />
+                      </button>
+                    ) : (
                       <button
                         onClick={() => onAnularClick?.(v)}
                         title="Anular viajero"
