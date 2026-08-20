@@ -101,7 +101,7 @@ export default function SucursalAgenteFilter({
             <input
               type="text"
               className={styles.searchInput}
-              placeholder="Buscar agente o sucursal..."
+              placeholder="Buscar..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               autoFocus

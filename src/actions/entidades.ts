@@ -32,6 +32,22 @@ export async function getEntidades() {
   }
 }
 
+export async function reasignarAgenteMasivo(entidadIds: string[], agenteId: string) {
+  if (entidadIds.length === 0) return { success: true, count: 0 };
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { error } = await agencyDb
+      .from("contabilidad_entidades")
+      .update({ agente_id: agenteId })
+      .in("id", entidadIds);
+    if (error) throw error;
+    return { success: true, count: entidadIds.length };
+  } catch (error: any) {
+    console.error("Failed to reasignar agente masivo:", error.message);
+    return { success: false, error: error.message };
+  }
+}
+
 export async function buscarEntidadPorDocumento(documento: string) {
   try {
     const doc = documento.trim().toUpperCase();

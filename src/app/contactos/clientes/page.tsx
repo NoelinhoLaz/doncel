@@ -1,7 +1,7 @@
 "use client";
 
 import styles from "../page.module.css";
-import { Search, Plus, SlidersHorizontal, Tag, Megaphone } from "lucide-react";
+import { Search, Plus, SlidersHorizontal, Tag, Megaphone, IdCard } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Pagination from "@/app/components/Pagination";
@@ -9,8 +9,10 @@ import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
 import SucursalAgenteFilter, { type AgenteOpcion } from "@/app/components/SucursalAgenteFilter";
 import { NuevoClientePanel } from "@/components/modals/NuevoClientePanel";
 import AsignarEtiquetaMasivaModal from "@/components/modals/AsignarEtiquetaMasivaModal";
+import ReasignarAgenteMasivoModal from "@/components/modals/ReasignarAgenteMasivoModal";
 import NuevaDifusionModal from "@/components/modals/NuevaDifusionModal";
 import type { EntidadDestinatarios } from "@/actions/difusiones";
+import { getCurrentAgentePublic } from "@/actions/crm";
 import { PanelEntidad } from "@/app/campanas/[id]/panels/PanelEntidad";
 import { SortableTh, sortToggle, compareValues, type SortState } from "@/app/components/SortableTh";
 import TipClientesCard from "./TipClientesCard";
@@ -61,6 +63,8 @@ export default function ClientesPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [showEtiquetaMasiva, setShowEtiquetaMasiva] = useState(false);
   const [showDifusionModal, setShowDifusionModal] = useState(false);
+  const [showReasignarAgente, setShowReasignarAgente] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
   const [entidadPanel, setEntidadPanel] = useState<Cliente | null>(null);
   const [sort, setSort] = useState<SortState<SortKey>>(null);
 
@@ -94,6 +98,12 @@ export default function ClientesPage() {
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((d) => { if (d?.success && d.data?.usuarioId) setAgenteFilter([d.data.usuarioId]); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    getCurrentAgentePublic()
+      .then(({ rol }) => setIsOwner(rol === "Owner"))
       .catch(() => {});
   }, []);
 
@@ -282,6 +292,16 @@ export default function ClientesPage() {
             >
               <Tag size={16} />
             </button>
+            {isOwner && (
+              <button
+                type="button"
+                className={styles.filterIconBtn}
+                onClick={() => setShowReasignarAgente(true)}
+                title="Reasignar agente a los clientes filtrados"
+              >
+                <IdCard size={16} />
+              </button>
+            )}
             <button
               type="button"
               className={styles.filterIconBtn}
@@ -308,7 +328,7 @@ export default function ClientesPage() {
                 options={expedienteOptions}
                 selected={expedienteFilter}
                 onChange={handleExpedienteFilter}
-                placeholder="Todos los expedientes"
+                placeholder="Expedientes"
               />
             </div>
             <div style={{ width: 220, flexShrink: 0 }}>
@@ -318,7 +338,7 @@ export default function ClientesPage() {
                 onChangeAgentes={handleAgenteFilter}
                 selectedSucursales={sucursalFilter}
                 onChangeSucursales={handleSucursalFilter}
-                placeholder="Todas las agencias"
+                placeholder="Agencia"
               />
             </div>
             <div style={{ width: 180, flexShrink: 0 }}>
@@ -326,7 +346,7 @@ export default function ClientesPage() {
                 options={tipoClienteOptions}
                 selected={tipoFilter}
                 onChange={handleTipoFilter}
-                placeholder="Todos los tipos"
+                placeholder="Tipo"
               />
             </div>
             <div style={{ width: 180, flexShrink: 0 }}>
@@ -334,7 +354,7 @@ export default function ClientesPage() {
                 options={etiquetaOptions}
                 selected={etiquetaFilter}
                 onChange={handleEtiquetaFilter}
-                placeholder="Todas las etiquetas"
+                placeholder="Etiquetas"
               />
             </div>
             <div style={{ width: 180, flexShrink: 0 }}>
@@ -342,7 +362,7 @@ export default function ClientesPage() {
                 options={localidadOptions}
                 selected={localidadFilter}
                 onChange={handleLocalidadFilter}
-                placeholder="Todas las localidades"
+                placeholder="Localidad"
               />
             </div>
           </div>
@@ -456,6 +476,23 @@ export default function ClientesPage() {
           initialEntidades={entidadesParaDifusion}
           onClose={() => setShowDifusionModal(false)}
           onCreated={() => setShowDifusionModal(false)}
+        />
+      )}
+
+      {showReasignarAgente && (
+        <ReasignarAgenteMasivoModal
+          entidadIds={filtered.map((c) => c.id)}
+          onClose={() => setShowReasignarAgente(false)}
+          onApplied={(agente) => {
+            const idsFiltrados = new Set(filtered.map((c) => c.id));
+            setClientes((prev) =>
+              prev.map((c) =>
+                idsFiltrados.has(c.id)
+                  ? { ...c, agente_id: agente.id, agente: { id: agente.id, nombre: agente.nombre, apellidos: agente.apellidos || "" } }
+                  : c
+              )
+            );
+          }}
         />
       )}
     </div>
