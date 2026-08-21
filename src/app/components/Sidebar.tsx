@@ -348,6 +348,13 @@ export default function MenuPrincipal({ onOpenCopiloto }: Props) {
               <Icons.Megaphone size={14} className={styles.submenuIcon} />
               <span>Difusión</span>
             </button>
+            <button
+              className={styles.submenuItem}
+              onClick={() => { setPulseSubOpen(false); router.push("/fidelizacion/encuestas"); }}
+            >
+              <Icons.Encuestas size={14} className={styles.submenuIcon} />
+              <span>Encuestas</span>
+            </button>
           </div>
         )}
       </div>

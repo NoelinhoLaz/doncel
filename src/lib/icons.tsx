@@ -167,7 +167,8 @@ export const Icons = {
   Document: FileText,
   Iva: Percent,
   Megaphone,
-  IdCard
+  IdCard,
+  Encuestas: ClipboardList
 };
 
 export type IconType = keyof typeof Icons;

@@ -2651,6 +2651,75 @@ CREATE INDEX IF NOT EXISTS idx_val_encuestas_token ON public.valoraciones_encues
 CREATE INDEX IF NOT EXISTS idx_val_servicios_encuesta ON public.valoraciones_servicios(encuesta_id);
 CREATE INDEX IF NOT EXISTS idx_val_servicios_linea ON public.valoraciones_servicios(linea_id);
 
+-- ------------------------------------------------------------
+-- ENCUESTAS CONFIGURABLES (Fidelización)
+-- ------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS public.encuestas_plantillas (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre          TEXT NOT NULL,
+    descripcion     TEXT,
+    creado_por      UUID,               -- usuarios.id (BD admin, sin FK cross-db)
+    activa          BOOLEAN NOT NULL DEFAULT true,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.encuestas_preguntas (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    plantilla_id    UUID NOT NULL REFERENCES public.encuestas_plantillas(id) ON DELETE CASCADE,
+    orden           SMALLINT NOT NULL DEFAULT 0,
+    texto           TEXT NOT NULL,
+    tipo            TEXT NOT NULL CHECK (tipo IN ('rating','texto_libre','opcion_unica','opcion_multiple','si_no','nps')),
+    opciones        JSONB,              -- array de strings, solo para opcion_unica/opcion_multiple
+    obligatoria     BOOLEAN NOT NULL DEFAULT false,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.encuestas_envios (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    plantilla_id    UUID NOT NULL REFERENCES public.encuestas_plantillas(id) ON DELETE CASCADE,
+    token           UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+    entidad_id      UUID NOT NULL REFERENCES public.contabilidad_entidades(id) ON DELETE CASCADE,
+    expediente_id   UUID REFERENCES public.operativa_expedientes(id) ON DELETE SET NULL,
+    email_destino   TEXT NOT NULL,
+    enviado_por     UUID,               -- usuarios.id
+    enviado_at      TIMESTAMPTZ,
+    completado_at   TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.encuestas_respuestas (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    envio_id        UUID NOT NULL REFERENCES public.encuestas_envios(id) ON DELETE CASCADE,
+    pregunta_id     UUID NOT NULL REFERENCES public.encuestas_preguntas(id) ON DELETE CASCADE,
+    valor_texto     TEXT,               -- texto_libre, si_no
+    valor_numero    SMALLINT,           -- rating, nps
+    valor_opciones  JSONB,              -- opcion_unica (string) / opcion_multiple (array)
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.encuestas_plantillas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "encuestas_plantillas_all" ON public.encuestas_plantillas;
+CREATE POLICY "encuestas_plantillas_all" ON public.encuestas_plantillas FOR ALL USING (true);
+
+ALTER TABLE public.encuestas_preguntas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "encuestas_preguntas_all" ON public.encuestas_preguntas;
+CREATE POLICY "encuestas_preguntas_all" ON public.encuestas_preguntas FOR ALL USING (true);
+
+ALTER TABLE public.encuestas_envios ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "encuestas_envios_all" ON public.encuestas_envios;
+CREATE POLICY "encuestas_envios_all" ON public.encuestas_envios FOR ALL USING (true);
+
+ALTER TABLE public.encuestas_respuestas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "encuestas_respuestas_all" ON public.encuestas_respuestas;
+CREATE POLICY "encuestas_respuestas_all" ON public.encuestas_respuestas FOR ALL USING (true);
+
+CREATE INDEX IF NOT EXISTS idx_enc_preguntas_plantilla ON public.encuestas_preguntas(plantilla_id);
+CREATE INDEX IF NOT EXISTS idx_enc_envios_token ON public.encuestas_envios(token);
+CREATE INDEX IF NOT EXISTS idx_enc_envios_entidad ON public.encuestas_envios(entidad_id);
+CREATE INDEX IF NOT EXISTS idx_enc_envios_plantilla ON public.encuestas_envios(plantilla_id);
+CREATE INDEX IF NOT EXISTS idx_enc_respuestas_envio ON public.encuestas_respuestas(envio_id);
+
 
 -- ============================================================
 -- ANALÍTICA: MÉTRICAS DE COTIZACIONES (tabla en BD Admin)

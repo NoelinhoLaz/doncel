@@ -143,7 +143,7 @@ export async function buscarEntidades(query: string) {
     const agencyDb = await getAgencyDbClient();
     const { data, error } = await agencyDb
       .from("contabilidad_entidades")
-      .select("id, nombre, direccion")
+      .select("id, nombre, direccion, email")
       .ilike("nombre", `%${query.trim()}%`)
       .order("nombre", { ascending: true })
       .limit(30);
@@ -157,6 +157,7 @@ export async function buscarEntidades(query: string) {
       id: e.id,
       nombre: e.nombre,
       localidad: e.direccion?.ciudad || null,
+      email: e.email || null,
     }));
   } catch (error: any) {
     console.error("Failed to search entidades:", error.message);

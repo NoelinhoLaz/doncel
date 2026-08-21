@@ -561,7 +561,7 @@ export async function getExpedienteById(id: string) {
     const agencyDb = await getAgencyDbClient();
     const { data, error } = await agencyDb
       .from("operativa_expedientes")
-      .select("*, config_oficinas(nombre), maestro_destinos(nombre), contabilidad_entidades(nombre)")
+      .select("*, config_oficinas(nombre), maestro_destinos(nombre), contabilidad_entidades(nombre, email)")
       .eq("id", id)
       .single();
 

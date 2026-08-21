@@ -21,6 +21,7 @@ import AcomodacionTab from "./components/AcomodacionTab";
 import DocumentosTab from "./components/DocumentosTab";
 import ComunicacionesTab from "./components/ComunicacionesTab";
 import RembolsosTab from "./components/RembolsosTab";
+import EncuestasTab from "./components/EncuestasTab";
 
 export default function ExpedienteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const [activeTab, setActiveTab] = useState("resumen");
@@ -148,7 +149,8 @@ export default function ExpedienteDetailPage({ params }: { params: Promise<{ id:
     { id: "facturacion", label: "Facturación", icon: <Icons.Facturacion size={16} /> },
     { id: "acomodacion", label: "Acomodación", icon: <Icons.Acomodacion size={16} /> },
     { id: "documentos", label: "Documentos", icon: <Icons.Documentos size={16} /> },
-    { id: "comunicaciones", label: "Comunicaciones", icon: <Icons.Mail size={16} /> }
+    { id: "comunicaciones", label: "Comunicaciones", icon: <Icons.Mail size={16} /> },
+    { id: "encuestas", label: "Encuestas", icon: <Icons.Heart size={16} /> }
   ];
 
   const renderTabContent = () => {
@@ -173,6 +175,17 @@ export default function ExpedienteDetailPage({ params }: { params: Promise<{ id:
         return <DocumentosTab expedienteId={resolvedParams.id} />;
       case "comunicaciones":
         return <ComunicacionesTab expedienteId={resolvedParams.id} pagadores={cobrosData.pagadores} />;
+      case "encuestas":
+        return (
+          <EncuestasTab
+            expedienteId={resolvedParams.id}
+            entidad={
+              expediente?.entidad_id
+                ? { id: expediente.entidad_id, nombre: expediente.contabilidad_entidades?.nombre || "", email: expediente.contabilidad_entidades?.email || null }
+                : null
+            }
+          />
+        );
       default:
         return null;
     }
