@@ -202,7 +202,7 @@ export async function enviarEncuesta({
   appBaseUrl,
 }: {
   plantillaId: string;
-  entidadId: string;
+  entidadId?: string;
   expedienteId?: string;
   emailDestino: string;
   appBaseUrl: string;
@@ -214,7 +214,7 @@ export async function enviarEncuesta({
     .from("encuestas_envios")
     .insert({
       plantilla_id: plantillaId,
-      entidad_id: entidadId,
+      entidad_id: entidadId || null,
       expediente_id: expedienteId || null,
       email_destino: emailDestino,
       enviado_por: usuario?.id ?? null,
@@ -365,6 +365,14 @@ export async function guardarRespuestas(
 }
 
 // Constancia: listado de envíos de una plantilla (quién ha respondido)
+// Elimina un envío (y en cascada sus respuestas)
+export async function eliminarEnvio(envioId: string) {
+  const agencyDb = await getAgencyDbClient();
+  const { error } = await agencyDb.from("encuestas_envios").delete().eq("id", envioId);
+  if (error) return { success: false, error: "Error al eliminar el envío." };
+  return { success: true };
+}
+
 export async function getEnviosDePlantilla(plantillaId: string) {
   const agencyDb = await getAgencyDbClient();
 
@@ -376,16 +384,17 @@ export async function getEnviosDePlantilla(plantillaId: string) {
 
   if (error || !envios?.length) return [];
 
-  const entidadIds = [...new Set((envios as any[]).map((e) => e.entidad_id))];
-  const { data: entidades } = await agencyDb
-    .from("contabilidad_entidades")
-    .select("id, nombre")
-    .in("id", entidadIds);
-
+  const entidadIds = [...new Set((envios as any[]).map((e) => e.entidad_id).filter(Boolean))];
   const nombreById: Record<string, string> = {};
-  for (const e of (entidades ?? []) as any[]) nombreById[e.id] = e.nombre;
+  if (entidadIds.length > 0) {
+    const { data: entidades } = await agencyDb
+      .from("contabilidad_entidades")
+      .select("id, nombre")
+      .in("id", entidadIds);
+    for (const e of (entidades ?? []) as any[]) nombreById[e.id] = e.nombre;
+  }
 
-  return (envios as any[]).map((e) => ({ ...e, entidad_nombre: nombreById[e.entidad_id] ?? "—" }));
+  return (envios as any[]).map((e) => ({ ...e, entidad_nombre: e.entidad_id ? (nombreById[e.entidad_id] ?? "—") : e.email_destino }));
 }
 
 // Constancia: listado de envíos de encuesta hechos desde un expediente concreto

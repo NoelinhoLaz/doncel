@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Send, ClipboardList } from "lucide-react";
-import { getEnviosDeExpediente, getRespuestasDeEnvio } from "@/actions/encuestas";
+import { Send, ClipboardList, Trash2 } from "lucide-react";
+import { getEnviosDeExpediente, getRespuestasDeEnvio, eliminarEnvio } from "@/actions/encuestas";
 import ModalEnviarEncuesta from "@/components/modals/ModalEnviarEncuesta";
 
 interface Envio {
@@ -56,6 +56,12 @@ export default function EncuestasTab({ expedienteId, entidad }: Props) {
     setDetalleEnvio(data);
   };
 
+  const handleEliminarEnvio = async (envioId: string) => {
+    if (!confirm("¿Eliminar este envío y sus respuestas? Esta acción no se puede deshacer.")) return;
+    await eliminarEnvio(envioId);
+    load();
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -85,7 +91,7 @@ export default function EncuestasTab({ expedienteId, entidad }: Props) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
             <thead>
               <tr>
-                {["Encuesta", "Email", "Enviada", "Estado"].map((h) => (
+                {["Encuesta", "Email", "Enviada", "Estado", ""].map((h) => (
                   <th
                     key={h}
                     style={{ padding: "0.75rem 1rem", background: "#f8fafc", color: "#64748b", fontWeight: 600, fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e2e8f0", textAlign: "left", whiteSpace: "nowrap" }}
@@ -116,6 +122,18 @@ export default function EncuestasTab({ expedienteId, entidad }: Props) {
                     >
                       {e.completado_at ? "Respondida" : "Pendiente"}
                     </span>
+                  </td>
+                  <td style={{ padding: "0.7rem 1rem", textAlign: "center" }}>
+                    <button
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        handleEliminarEnvio(e.id);
+                      }}
+                      title="Eliminar envío"
+                      style={{ border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", padding: 4, display: "inline-flex" }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </td>
                 </tr>
               ))}

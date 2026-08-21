@@ -1,10 +1,10 @@
 "use client";
 
 import styles from "./page.module.css";
-import { Send, Users, Eye } from "lucide-react";
+import { Send, Users, Eye, Trash2 } from "lucide-react";
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { getPlantilla, getEnviosDePlantilla, getRespuestasDeEnvio, toggleActivaPlantilla } from "@/actions/encuestas";
+import { getPlantilla, getEnviosDePlantilla, getRespuestasDeEnvio, toggleActivaPlantilla, eliminarEnvio } from "@/actions/encuestas";
 import ModalEnviarEncuesta from "@/components/modals/ModalEnviarEncuesta";
 import { NIVELES_SATISFACCION } from "@/components/EscalaSatisfaccion";
 
@@ -66,6 +66,12 @@ export default function EncuestaDetallePage({ params }: { params: Promise<{ id: 
     setDetalleEnvio(data);
   };
 
+  const handleEliminarEnvio = async (envioId: string) => {
+    if (!confirm("¿Eliminar este envío y sus respuestas? Esta acción no se puede deshacer.")) return;
+    await eliminarEnvio(envioId);
+    load();
+  };
+
   if (loading) return <div className={styles.container}><div className={styles.emptyState}>Cargando…</div></div>;
   if (!plantilla) return <div className={styles.container}><div className={styles.emptyState}>Encuesta no encontrada.</div></div>;
 
@@ -121,6 +127,7 @@ export default function EncuestaDetallePage({ params }: { params: Promise<{ id: 
                 <th className={styles.th}>Email</th>
                 <th className={styles.th}>Enviado</th>
                 <th className={styles.th}>Estado</th>
+                <th className={styles.th}></th>
               </tr>
             </thead>
             <tbody>
@@ -136,6 +143,18 @@ export default function EncuestaDetallePage({ params }: { params: Promise<{ id: 
                     >
                       {e.completado_at ? "Respondida" : "Pendiente"}
                     </span>
+                  </td>
+                  <td className={styles.tdCenter}>
+                    <button
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        handleEliminarEnvio(e.id);
+                      }}
+                      title="Eliminar envío"
+                      style={{ border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", padding: 4, display: "inline-flex" }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </td>
                 </tr>
               ))}

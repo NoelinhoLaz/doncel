@@ -2679,7 +2679,7 @@ CREATE TABLE IF NOT EXISTS public.encuestas_envios (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     plantilla_id    UUID NOT NULL REFERENCES public.encuestas_plantillas(id) ON DELETE CASCADE,
     token           UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
-    entidad_id      UUID NOT NULL REFERENCES public.contabilidad_entidades(id) ON DELETE CASCADE,
+    entidad_id      UUID REFERENCES public.contabilidad_entidades(id) ON DELETE CASCADE,
     expediente_id   UUID REFERENCES public.operativa_expedientes(id) ON DELETE SET NULL,
     email_destino   TEXT NOT NULL,
     enviado_por     UUID,               -- usuarios.id
@@ -2687,6 +2687,9 @@ CREATE TABLE IF NOT EXISTS public.encuestas_envios (
     completado_at   TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Migración para BDs de agencia ya creadas con entidad_id NOT NULL:
+-- ALTER TABLE public.encuestas_envios ALTER COLUMN entidad_id DROP NOT NULL;
 
 CREATE TABLE IF NOT EXISTS public.encuestas_respuestas (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
