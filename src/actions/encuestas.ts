@@ -400,6 +400,7 @@ export async function getEnviosDePlantilla(plantillaId: string) {
     .eq("plantilla_id", plantillaId)
     .order("enviado_at", { ascending: false });
 
+  if (error) console.error("Error en getEnviosDePlantilla:", error);
   if (error || !envios?.length) return [];
 
   const entidadIds = [...new Set((envios as any[]).map((e) => e.entidad_id).filter(Boolean))];
@@ -425,6 +426,7 @@ export async function getEnviosDeExpediente(expedienteId: string) {
     .eq("expediente_id", expedienteId)
     .order("enviado_at", { ascending: false });
 
+  if (error) console.error("Error en getEnviosDeExpediente:", error);
   if (error || !envios?.length) return [];
 
   const plantillaIds = [...new Set((envios as any[]).map((e) => e.plantilla_id))];
