@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Send, ClipboardList, Trash2 } from "lucide-react";
-import { getEnviosDeExpediente, getRespuestasDeEnvio, eliminarEnvio } from "@/actions/encuestas";
+import { useState, useEffect, useMemo } from "react";
+import { Send, ClipboardList, Trash2, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { getEnviosDeExpediente, getRespuestasDeEnvio, eliminarEnvio, generarResumenValoracion } from "@/actions/encuestas";
 import ModalEnviarEncuesta from "@/components/modals/ModalEnviarEncuesta";
+import ValoracionBadge from "@/components/ValoracionBadge";
 
 interface Envio {
   id: string;
@@ -13,6 +14,14 @@ interface Envio {
   email_destino: string;
   enviado_at: string | null;
   completado_at: string | null;
+  valoracion_promedio: number | null;
+  valoracion_resumen: string | null;
+}
+
+interface GrupoPlantilla {
+  plantillaId: string;
+  plantillaNombre: string;
+  envios: Envio[];
 }
 
 interface Props {
@@ -41,6 +50,8 @@ export default function EncuestasTab({ expedienteId, entidad }: Props) {
   const [loading, setLoading] = useState(true);
   const [showEnviar, setShowEnviar] = useState(false);
   const [detalleEnvio, setDetalleEnvio] = useState<any>(null);
+  const [grupoAbierto, setGrupoAbierto] = useState<string | null>(null);
+  const [analizando, setAnalizando] = useState(false);
 
   function load() {
     setLoading(true);
@@ -51,6 +62,19 @@ export default function EncuestasTab({ expedienteId, entidad }: Props) {
 
   useEffect(() => { load(); }, [expedienteId]);
 
+  const grupos = useMemo<GrupoPlantilla[]>(() => {
+    const byPlantilla = new Map<string, GrupoPlantilla>();
+    for (const e of envios) {
+      if (!byPlantilla.has(e.plantilla_id)) {
+        byPlantilla.set(e.plantilla_id, { plantillaId: e.plantilla_id, plantillaNombre: e.plantilla_nombre, envios: [] });
+      }
+      byPlantilla.get(e.plantilla_id)!.envios.push(e);
+    }
+    return [...byPlantilla.values()];
+  }, [envios]);
+
+  const grupoActual = grupos.find((g) => g.plantillaId === grupoAbierto) || null;
+
   const handleVerRespuestas = async (envioId: string) => {
     const data = await getRespuestasDeEnvio(envioId);
     setDetalleEnvio(data);
@@ -60,6 +84,16 @@ export default function EncuestasTab({ expedienteId, entidad }: Props) {
     if (!confirm("¿Eliminar este envío y sus respuestas? Esta acción no se puede deshacer.")) return;
     await eliminarEnvio(envioId);
     load();
+  };
+
+  const handleAnalizar = async (envioId: string) => {
+    setAnalizando(true);
+    const res = await generarResumenValoracion(envioId);
+    if (res.success) {
+      setDetalleEnvio((prev: any) => (prev ? { ...prev, envio: { ...prev.envio, valoracion_resumen: res.resumen } } : prev));
+      load();
+    }
+    setAnalizando(false);
   };
 
   return (
@@ -87,11 +121,78 @@ export default function EncuestasTab({ expedienteId, entidad }: Props) {
             <ClipboardList size={24} style={{ opacity: 0.4, marginBottom: 8 }} />
             <div>Todavía no se ha enviado ninguna encuesta desde este expediente.</div>
           </div>
+        ) : grupoActual ? (
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.75rem 1rem", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
+              <button
+                onClick={() => setGrupoAbierto(null)}
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, border: "none", background: "transparent", color: "#475569", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600, padding: 0 }}
+              >
+                <ChevronLeft size={15} />
+                Encuestas
+              </button>
+              <span style={{ color: "#cbd5e1" }}>/</span>
+              <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#1e293b" }}>{grupoActual.plantillaNombre}</span>
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+              <thead>
+                <tr>
+                  {["Email", "Enviada", "Estado", "Valoración", ""].map((h) => (
+                    <th
+                      key={h}
+                      style={{ padding: "0.75rem 1rem", background: "#f8fafc", color: "#64748b", fontWeight: 600, fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e2e8f0", textAlign: "left", whiteSpace: "nowrap" }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {grupoActual.envios.map((e) => (
+                  <tr
+                    key={e.id}
+                    onClick={() => handleVerRespuestas(e.id)}
+                    style={{ borderBottom: "1px solid #f1f5f9", cursor: "pointer" }}
+                  >
+                    <td style={{ padding: "0.7rem 1rem", color: "#475569" }}>{e.email_destino}</td>
+                    <td style={{ padding: "0.7rem 1rem", color: "#475569" }}>{formatFecha(e.enviado_at)}</td>
+                    <td style={{ padding: "0.7rem 1rem" }}>
+                      <span
+                        style={{
+                          display: "inline-flex", alignItems: "center", padding: "0.15rem 0.55rem",
+                          borderRadius: 999, fontSize: "0.7rem", fontWeight: 600,
+                          background: e.completado_at ? "#dcfce7" : "#fef9c3",
+                          color: e.completado_at ? "#16a34a" : "#a16207",
+                        }}
+                      >
+                        {e.completado_at ? "Respondida" : "Pendiente"}
+                      </span>
+                    </td>
+                    <td style={{ padding: "0.7rem 1rem" }}>
+                      <ValoracionBadge valor={e.valoracion_promedio} />
+                    </td>
+                    <td style={{ padding: "0.7rem 1rem", textAlign: "center" }}>
+                      <button
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          handleEliminarEnvio(e.id);
+                        }}
+                        title="Eliminar envío"
+                        style={{ border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", padding: 4, display: "inline-flex" }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
             <thead>
               <tr>
-                {["Encuesta", "Email", "Enviada", "Estado", ""].map((h) => (
+                {["Encuesta", "Envíos", "Respondidas", ""].map((h) => (
                   <th
                     key={h}
                     style={{ padding: "0.75rem 1rem", background: "#f8fafc", color: "#64748b", fontWeight: 600, fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e2e8f0", textAlign: "left", whiteSpace: "nowrap" }}
@@ -102,41 +203,34 @@ export default function EncuestasTab({ expedienteId, entidad }: Props) {
               </tr>
             </thead>
             <tbody>
-              {envios.map((e) => (
-                <tr
-                  key={e.id}
-                  onClick={() => handleVerRespuestas(e.id)}
-                  style={{ borderBottom: "1px solid #f1f5f9", cursor: "pointer" }}
-                >
-                  <td style={{ padding: "0.7rem 1rem", color: "#1e293b", fontWeight: 600 }}>{e.plantilla_nombre}</td>
-                  <td style={{ padding: "0.7rem 1rem", color: "#475569" }}>{e.email_destino}</td>
-                  <td style={{ padding: "0.7rem 1rem", color: "#475569" }}>{formatFecha(e.enviado_at)}</td>
-                  <td style={{ padding: "0.7rem 1rem" }}>
-                    <span
-                      style={{
-                        display: "inline-flex", alignItems: "center", padding: "0.15rem 0.55rem",
-                        borderRadius: 999, fontSize: "0.7rem", fontWeight: 600,
-                        background: e.completado_at ? "#dcfce7" : "#fef9c3",
-                        color: e.completado_at ? "#16a34a" : "#a16207",
-                      }}
-                    >
-                      {e.completado_at ? "Respondida" : "Pendiente"}
-                    </span>
-                  </td>
-                  <td style={{ padding: "0.7rem 1rem", textAlign: "center" }}>
-                    <button
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        handleEliminarEnvio(e.id);
-                      }}
-                      title="Eliminar envío"
-                      style={{ border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", padding: 4, display: "inline-flex" }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {grupos.map((g) => {
+                const respondidas = g.envios.filter((e) => e.completado_at).length;
+                return (
+                  <tr
+                    key={g.plantillaId}
+                    onClick={() => setGrupoAbierto(g.plantillaId)}
+                    style={{ borderBottom: "1px solid #f1f5f9", cursor: "pointer" }}
+                  >
+                    <td style={{ padding: "0.7rem 1rem", color: "#1e293b", fontWeight: 600 }}>{g.plantillaNombre}</td>
+                    <td style={{ padding: "0.7rem 1rem", color: "#475569" }}>{g.envios.length}</td>
+                    <td style={{ padding: "0.7rem 1rem" }}>
+                      <span
+                        style={{
+                          display: "inline-flex", alignItems: "center", padding: "0.15rem 0.55rem",
+                          borderRadius: 999, fontSize: "0.7rem", fontWeight: 600,
+                          background: respondidas === g.envios.length ? "#dcfce7" : "#fef9c3",
+                          color: respondidas === g.envios.length ? "#16a34a" : "#a16207",
+                        }}
+                      >
+                        {respondidas} / {g.envios.length}
+                      </span>
+                    </td>
+                    <td style={{ padding: "0.7rem 1rem", textAlign: "center", color: "#94a3b8" }}>
+                      <ChevronRight size={16} />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -165,12 +259,31 @@ export default function EncuestasTab({ expedienteId, entidad }: Props) {
               <button onClick={() => setDetalleEnvio(null)} style={{ border: "none", background: "transparent", color: "#64748b", fontSize: "1.3rem", cursor: "pointer" }}>×</button>
             </div>
             {detalleEnvio.envio.completado_at ? (
-              detalleEnvio.items.map((it: any) => (
-                <div key={it.id} style={{ padding: "0.7rem 1.25rem", borderBottom: "1px solid #f1f5f9" }}>
-                  <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "#475569", marginBottom: 4 }}>{it.texto}</div>
-                  <div style={{ fontSize: "0.85rem", color: "#1e293b" }}>{formatValor(it.tipo, it.respuesta)}</div>
+              <>
+                <div style={{ padding: "0.9rem 1.25rem", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
+                  {detalleEnvio.envio.valoracion_resumen ? (
+                    <div style={{ fontSize: "0.85rem", color: "#334155", fontStyle: "italic" }}>
+                      <Sparkles size={13} style={{ marginRight: 6, verticalAlign: "-2px", color: "var(--primary-color,#475569)" }} />
+                      {detalleEnvio.envio.valoracion_resumen}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleAnalizar(detalleEnvio.envio.id)}
+                      disabled={analizando}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid #cbd5e1", background: "#fff", color: "#334155", borderRadius: 6, padding: "0.4rem 0.7rem", fontSize: "0.78rem", cursor: analizando ? "default" : "pointer" }}
+                    >
+                      <Sparkles size={13} />
+                      {analizando ? "Analizando..." : "Analizar con Copiloto"}
+                    </button>
+                  )}
                 </div>
-              ))
+                {detalleEnvio.items.map((it: any) => (
+                  <div key={it.id} style={{ padding: "0.7rem 1.25rem", borderBottom: "1px solid #f1f5f9" }}>
+                    <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "#475569", marginBottom: 4 }}>{it.texto}</div>
+                    <div style={{ fontSize: "0.85rem", color: "#1e293b" }}>{formatValor(it.tipo, it.respuesta)}</div>
+                  </div>
+                ))}
+              </>
             ) : (
               <div style={{ padding: "2.5rem", textAlign: "center", color: "#94a3b8", fontSize: "0.85rem" }}>
                 Este envío todavía no ha sido respondido.

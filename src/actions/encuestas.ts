@@ -2,8 +2,19 @@
 
 import nodemailer from "nodemailer";
 import { getAgencyDbClient } from "@/lib/agencyDb";
+import { getAnthropicClient } from "@/lib/anthropic";
+import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { getCurrentUsuario, getCurrentUserEmailConfig } from "./usuarios";
 import { verifyToken } from "@/lib/encryption";
+
+async function getAgenciaId(): Promise<string> {
+  const adminSupabase = await createAdminServerClient();
+  const { data: { user } } = await adminSupabase.auth.getUser();
+  if (!user) return "";
+  const svc = createAdminServiceClient();
+  const { data } = await svc.from("usuarios").select("agencia_id").eq("auth_user_id", user.id).single();
+  return data?.agencia_id ?? "";
+}
 
 export type TipoPregunta = "rating" | "texto_libre" | "opcion_unica" | "opcion_multiple" | "si_no" | "nps";
 
@@ -356,9 +367,16 @@ export async function guardarRespuestas(
   const { error: insertErr } = await agencyDb.from("encuestas_respuestas").insert(inserts);
   if (insertErr) return { success: false, error: "Error al guardar las respuestas." };
 
+  const normalizados = respuestas
+    .filter((r) => r.tipo === "rating" || r.tipo === "nps")
+    .map((r) => (r.tipo === "rating" ? (Number(r.valor) - 1) / 5 : Number(r.valor) / 10));
+  const valoracionPromedio = normalizados.length
+    ? Math.round((normalizados.reduce((a, b) => a + b, 0) / normalizados.length) * 100) / 100
+    : null;
+
   await agencyDb
     .from("encuestas_envios")
-    .update({ completado_at: new Date().toISOString() })
+    .update({ completado_at: new Date().toISOString(), valoracion_promedio: valoracionPromedio })
     .eq("id", (envio as any).id);
 
   return { success: true };
@@ -378,7 +396,7 @@ export async function getEnviosDePlantilla(plantillaId: string) {
 
   const { data: envios, error } = await agencyDb
     .from("encuestas_envios")
-    .select("id, entidad_id, expediente_id, email_destino, enviado_at, completado_at")
+    .select("id, entidad_id, expediente_id, email_destino, enviado_at, completado_at, valoracion_promedio, valoracion_resumen")
     .eq("plantilla_id", plantillaId)
     .order("enviado_at", { ascending: false });
 
@@ -403,7 +421,7 @@ export async function getEnviosDeExpediente(expedienteId: string) {
 
   const { data: envios, error } = await agencyDb
     .from("encuestas_envios")
-    .select("id, plantilla_id, entidad_id, email_destino, enviado_at, completado_at")
+    .select("id, plantilla_id, entidad_id, email_destino, enviado_at, completado_at, valoracion_promedio, valoracion_resumen")
     .eq("expediente_id", expedienteId)
     .order("enviado_at", { ascending: false });
 
@@ -427,7 +445,7 @@ export async function getRespuestasDeEnvio(envioId: string) {
 
   const { data: envio } = await agencyDb
     .from("encuestas_envios")
-    .select("id, plantilla_id, entidad_id, email_destino, enviado_at, completado_at")
+    .select("id, plantilla_id, entidad_id, email_destino, enviado_at, completado_at, valoracion_promedio, valoracion_resumen")
     .eq("id", envioId)
     .single();
 
@@ -453,6 +471,61 @@ export async function getRespuestasDeEnvio(envioId: string) {
   }));
 
   return { envio, items };
+}
+
+// Genera (bajo demanda) un resumen corto con IA de las respuestas de un envío, y lo guarda
+export async function generarResumenValoracion(envioId: string) {
+  const agencyDb = await getAgencyDbClient();
+
+  const { data: envio } = await agencyDb
+    .from("encuestas_envios")
+    .select("id, completado_at, valoracion_promedio")
+    .eq("id", envioId)
+    .single();
+
+  if (!envio || !(envio as any).completado_at) {
+    return { success: false, error: "Este envío todavía no ha sido respondido." };
+  }
+
+  const detalle = await getRespuestasDeEnvio(envioId);
+  if (!detalle) return { success: false, error: "Envío no encontrado." };
+
+  const lineas = detalle.items
+    .map((it: any) => {
+      let valor = "(sin responder)";
+      if (it.respuesta) {
+        if (it.tipo === "rating" || it.tipo === "nps") valor = String(it.respuesta.valor_numero);
+        else if (it.tipo === "opcion_unica" || it.tipo === "opcion_multiple") valor = (it.respuesta.valor_opciones || []).join(", ");
+        else valor = it.respuesta.valor_texto || "(sin responder)";
+      }
+      return `- ${it.texto}: ${valor}`;
+    })
+    .join("\n");
+
+  const agenciaId = await getAgenciaId();
+  if (!agenciaId) return { success: false, error: "No se pudo identificar la agencia." };
+
+  try {
+    const anthropic = await getAnthropicClient(agenciaId);
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 256,
+      system: "Eres un asistente de una agencia de viajes. Resume en una sola frase, en español, la valoración de un cliente a partir de sus respuestas a una encuesta de satisfacción. Sé conciso y concreto, sin repetir literalmente las preguntas.",
+      messages: [{ role: "user", content: `Respuestas del cliente:\n${lineas}` }],
+    });
+
+    const resumen = response.content[0].type === "text" ? response.content[0].text.trim() : "";
+    if (!resumen) return { success: false, error: "No se pudo generar el resumen." };
+
+    await agencyDb
+      .from("encuestas_envios")
+      .update({ valoracion_resumen: resumen, valoracion_resumen_at: new Date().toISOString() })
+      .eq("id", envioId);
+
+    return { success: true, resumen };
+  } catch (err: any) {
+    return { success: false, error: `Error al generar el resumen: ${err.message}` };
+  }
 }
 
 function buildEmailHtml(url: string): string {

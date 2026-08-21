@@ -1,11 +1,12 @@
 "use client";
 
 import styles from "./page.module.css";
-import { Send, Users, Eye, Trash2 } from "lucide-react";
+import { Send, Users, Eye, Trash2, Sparkles } from "lucide-react";
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { getPlantilla, getEnviosDePlantilla, getRespuestasDeEnvio, toggleActivaPlantilla, eliminarEnvio } from "@/actions/encuestas";
+import { getPlantilla, getEnviosDePlantilla, getRespuestasDeEnvio, toggleActivaPlantilla, eliminarEnvio, generarResumenValoracion } from "@/actions/encuestas";
 import ModalEnviarEncuesta from "@/components/modals/ModalEnviarEncuesta";
+import ValoracionBadge from "@/components/ValoracionBadge";
 import { NIVELES_SATISFACCION } from "@/components/EscalaSatisfaccion";
 
 const TIPO_LABELS: Record<string, string> = {
@@ -19,7 +20,7 @@ const TIPO_LABELS: Record<string, string> = {
 
 type Pregunta = { id: string; orden: number; texto: string; tipo: string; opciones: string[] | null; obligatoria: boolean };
 type Plantilla = { id: string; nombre: string; descripcion: string | null; activa: boolean; preguntas: Pregunta[] };
-type Envio = { id: string; entidad_nombre: string; email_destino: string; enviado_at: string | null; completado_at: string | null };
+type Envio = { id: string; entidad_nombre: string; email_destino: string; enviado_at: string | null; completado_at: string | null; valoracion_promedio: number | null; valoracion_resumen: string | null };
 
 function formatFecha(iso: string | null) {
   if (!iso) return "—";
@@ -42,6 +43,7 @@ export default function EncuestaDetallePage({ params }: { params: Promise<{ id: 
   const [loading, setLoading] = useState(true);
   const [showEnviar, setShowEnviar] = useState(false);
   const [detalleEnvio, setDetalleEnvio] = useState<any>(null);
+  const [analizando, setAnalizando] = useState(false);
 
   function load() {
     setLoading(true);
@@ -70,6 +72,16 @@ export default function EncuestaDetallePage({ params }: { params: Promise<{ id: 
     if (!confirm("¿Eliminar este envío y sus respuestas? Esta acción no se puede deshacer.")) return;
     await eliminarEnvio(envioId);
     load();
+  };
+
+  const handleAnalizar = async (envioId: string) => {
+    setAnalizando(true);
+    const res = await generarResumenValoracion(envioId);
+    if (res.success) {
+      setDetalleEnvio((prev: any) => (prev ? { ...prev, envio: { ...prev.envio, valoracion_resumen: res.resumen } } : prev));
+      load();
+    }
+    setAnalizando(false);
   };
 
   if (loading) return <div className={styles.container}><div className={styles.emptyState}>Cargando…</div></div>;
@@ -127,6 +139,7 @@ export default function EncuestaDetallePage({ params }: { params: Promise<{ id: 
                 <th className={styles.th}>Email</th>
                 <th className={styles.th}>Enviado</th>
                 <th className={styles.th}>Estado</th>
+                <th className={styles.th}>Valoración</th>
                 <th className={styles.th}></th>
               </tr>
             </thead>
@@ -143,6 +156,9 @@ export default function EncuestaDetallePage({ params }: { params: Promise<{ id: 
                     >
                       {e.completado_at ? "Respondida" : "Pendiente"}
                     </span>
+                  </td>
+                  <td className={styles.td}>
+                    <ValoracionBadge valor={e.valoracion_promedio} />
                   </td>
                   <td className={styles.tdCenter}>
                     <button
@@ -181,12 +197,31 @@ export default function EncuestaDetallePage({ params }: { params: Promise<{ id: 
               <button onClick={() => setDetalleEnvio(null)} style={{ border: "none", background: "transparent", color: "#64748b", fontSize: "1.3rem", cursor: "pointer" }}>×</button>
             </div>
             {detalleEnvio.envio.completado_at ? (
-              detalleEnvio.items.map((it: any) => (
-                <div key={it.id} className={styles.respuestaBlock}>
-                  <div className={styles.respuestaPregunta}>{it.texto}</div>
-                  <div className={styles.respuestaValor}>{formatValor(it.tipo, it.respuesta)}</div>
+              <>
+                <div style={{ padding: "0.9rem 1.25rem", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
+                  {detalleEnvio.envio.valoracion_resumen ? (
+                    <div style={{ fontSize: "0.85rem", color: "#334155", fontStyle: "italic" }}>
+                      <Sparkles size={13} style={{ marginRight: 6, verticalAlign: "-2px", color: "var(--primary-color,#475569)" }} />
+                      {detalleEnvio.envio.valoracion_resumen}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleAnalizar(detalleEnvio.envio.id)}
+                      disabled={analizando}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid #cbd5e1", background: "#fff", color: "#334155", borderRadius: 6, padding: "0.4rem 0.7rem", fontSize: "0.78rem", cursor: analizando ? "default" : "pointer" }}
+                    >
+                      <Sparkles size={13} />
+                      {analizando ? "Analizando..." : "Analizar con Copiloto"}
+                    </button>
+                  )}
                 </div>
-              ))
+                {detalleEnvio.items.map((it: any) => (
+                  <div key={it.id} className={styles.respuestaBlock}>
+                    <div className={styles.respuestaPregunta}>{it.texto}</div>
+                    <div className={styles.respuestaValor}>{formatValor(it.tipo, it.respuesta)}</div>
+                  </div>
+                ))}
+              </>
             ) : (
               <div className={styles.emptyState}>Este envío todavía no ha sido respondido.</div>
             )}

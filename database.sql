@@ -2685,11 +2685,17 @@ CREATE TABLE IF NOT EXISTS public.encuestas_envios (
     enviado_por     UUID,               -- usuarios.id
     enviado_at      TIMESTAMPTZ,
     completado_at   TIMESTAMPTZ,
+    valoracion_promedio    NUMERIC(3,2),  -- promedio 0-1 normalizado de preguntas rating/nps, calculado al completar
+    valoracion_resumen     TEXT,          -- resumen corto generado por IA bajo demanda (Copiloto)
+    valoracion_resumen_at  TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Migración para BDs de agencia ya creadas con entidad_id NOT NULL:
+-- Migraciones para BDs de agencia ya creadas:
 -- ALTER TABLE public.encuestas_envios ALTER COLUMN entidad_id DROP NOT NULL;
+-- ALTER TABLE public.encuestas_envios ADD COLUMN IF NOT EXISTS valoracion_promedio NUMERIC(3,2);
+-- ALTER TABLE public.encuestas_envios ADD COLUMN IF NOT EXISTS valoracion_resumen TEXT;
+-- ALTER TABLE public.encuestas_envios ADD COLUMN IF NOT EXISTS valoracion_resumen_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS public.encuestas_respuestas (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
