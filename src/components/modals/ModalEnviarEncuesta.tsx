@@ -125,6 +125,7 @@ export default function ModalEnviarEncuesta({ plantillaId, expedienteId, entidad
     if (errores.length === 0) {
       setResult({ ok: true, msg: `Encuesta enviada a ${okCount} destinatario${okCount === 1 ? "" : "s"}.` });
       onSent?.();
+      onClose();
     } else {
       setResult({
         ok: false,
@@ -137,10 +138,8 @@ export default function ModalEnviarEncuesta({ plantillaId, expedienteId, entidad
   return (
     <div
       style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 1400, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
-      onClick={onClose}
     >
       <div
-        onClick={(e) => e.stopPropagation()}
         style={{ width: "min(520px,100%)", maxHeight: "88vh", overflow: "auto", background: "#fff", borderRadius: 12, boxShadow: "0 20px 40px rgba(0,0,0,0.16)", display: "flex", flexDirection: "column" }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.9rem 1rem", borderBottom: "1px solid #e2e8f0" }}>

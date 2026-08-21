@@ -103,6 +103,7 @@ export default function AgentBar() {
   }, [isLogoutOpen]);
 
   const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();

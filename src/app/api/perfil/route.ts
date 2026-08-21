@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
+import { signToken } from "@/lib/encryption";
+
+const AGENCY_CTX_COOKIE = "agency_ctx";
+const AGENCY_CTX_MAX_AGE = 8 * 60 * 60; // 8 horas
 
 export async function GET(request: NextRequest) {
   try {
@@ -39,7 +43,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Perfil no encontrado" }, { status: 404 });
     }
 
-    return NextResponse.json({ usuario });
+    const response = NextResponse.json({ usuario });
+
+    if (usuario.agencia_id) {
+      const { data: agencia } = await adminServiceSupabase
+        .from("agencias")
+        .select("schema_name")
+        .eq("id", usuario.agencia_id)
+        .single();
+
+      const schemaName = (agencia?.schema_name as string | null) || "public";
+      const agencyCtxToken = signToken(JSON.stringify({ v: 1, authUserId, agenciaId: usuario.agencia_id, schemaName }));
+
+      response.cookies.set(AGENCY_CTX_COOKIE, agencyCtxToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: AGENCY_CTX_MAX_AGE,
+      });
+    }
+
+    return response;
   } catch (error: any) {
     console.error("Error in GET /api/perfil:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

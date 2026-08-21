@@ -4,13 +4,23 @@ import { useState, useEffect, cloneElement } from "react";
 import { Icons } from "@/lib/icons";
 import styles from "../page.module.css";
 import { getResumenSatisfaccion } from "@/actions/valoraciones";
+import { getEnviosDeExpediente } from "@/actions/encuestas";
+import ValoracionBadge from "@/components/ValoracionBadge";
 
 function SatisfaccionCard({ expedienteId }: { expedienteId: string }) {
   const [data, setData] = useState<any>(null);
+  const [enviosEncuestas, setEnviosEncuestas] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getResumenSatisfaccion(expedienteId).then((d) => { setData(d); setLoading(false); });
+    Promise.all([
+      getResumenSatisfaccion(expedienteId),
+      getEnviosDeExpediente(expedienteId),
+    ]).then(([d, envios]) => {
+      setData(d);
+      setEnviosEncuestas(envios);
+      setLoading(false);
+    });
   }, [expedienteId]);
 
   if (loading) return (
@@ -20,43 +30,80 @@ function SatisfaccionCard({ expedienteId }: { expedienteId: string }) {
     </div>
   );
 
-  if (!data || !data.encuestas?.length) return (
+  const tieneValoraciones = !!(data && data.encuestas?.length);
+  const tieneEncuestas = !!(enviosEncuestas && enviosEncuestas.length);
+
+  if (!tieneValoraciones && !tieneEncuestas) return (
     <div className={styles.detailsCard}>
       <h3 className={styles.detailsTitle}>Satisfacción del cliente</h3>
       <div style={{ color: "#cbd5e1", fontSize: "0.8rem", fontStyle: "italic" }}>No se ha enviado ninguna encuesta aún.</div>
     </div>
   );
 
-  const completadas = data.encuestas.filter((e: any) => e.completado_at).length;
-  const total = data.encuestas.length;
-  const stars = data.promedioGlobal != null ? Math.round(data.promedioGlobal) : 0;
+  const completadas = tieneValoraciones ? data.encuestas.filter((e: any) => e.completado_at).length : 0;
+  const total = tieneValoraciones ? data.encuestas.length : 0;
+  const stars = data?.promedioGlobal != null ? Math.round(data.promedioGlobal) : 0;
+
+  const encuestasRespondidas = enviosEncuestas?.filter((e: any) => e.completado_at) ?? [];
+  const encuestasTotal = enviosEncuestas?.length ?? 0;
+  const valoraciones = encuestasRespondidas
+    .map((e: any) => e.valoracion_promedio)
+    .filter((v: any): v is number => v !== null && v !== undefined);
+  const valoracionMediaEncuestas = valoraciones.length
+    ? Math.round((valoraciones.reduce((a: number, b: number) => a + b, 0) / valoraciones.length) * 100) / 100
+    : null;
 
   return (
     <div className={styles.detailsCard}>
       <h3 className={styles.detailsTitle}>Satisfacción del cliente</h3>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {data.promedioGlobal != null && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ color: "#f59e0b", fontSize: "1.3rem", letterSpacing: 2 }}>
-              {'★'.repeat(stars)}{'☆'.repeat(5 - stars)}
-            </span>
-            <span style={{ fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>{data.promedioGlobal.toFixed(1)}</span>
-            <span style={{ fontSize: "0.78rem", color: "#64748b" }}>({data.totalValoraciones} valoracione{data.totalValoraciones !== 1 ? "s" : ""})</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {tieneValoraciones && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {data.promedioGlobal != null && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ color: "#f59e0b", fontSize: "1.3rem", letterSpacing: 2 }}>
+                  {'★'.repeat(stars)}{'☆'.repeat(5 - stars)}
+                </span>
+                <span style={{ fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>{data.promedioGlobal.toFixed(1)}</span>
+                <span style={{ fontSize: "0.78rem", color: "#64748b" }}>({data.totalValoraciones} valoracione{data.totalValoraciones !== 1 ? "s" : ""})</span>
+              </div>
+            )}
+            {data.promedioGlobal == null && (
+              <div style={{ color: "#94a3b8", fontSize: "0.8rem" }}>Encuesta enviada pero aún sin respuestas.</div>
+            )}
+            <div style={{ display: "flex", gap: 16 }}>
+              <div>
+                <div style={{ fontSize: "0.7rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Encuestas</div>
+                <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#334155" }}>{total} enviada{total !== 1 ? "s" : ""}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: "0.7rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Completadas</div>
+                <div style={{ fontSize: "0.85rem", fontWeight: 600, color: completadas > 0 ? "#15803d" : "#334155" }}>{completadas} / {total}</div>
+              </div>
+            </div>
           </div>
         )}
-        {data.promedioGlobal == null && (
-          <div style={{ color: "#94a3b8", fontSize: "0.8rem" }}>Encuesta enviada pero aún sin respuestas.</div>
+
+        {tieneEncuestas && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: tieneValoraciones ? 10 : 0, borderTop: tieneValoraciones ? "1px solid #f1f5f9" : "none" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <ValoracionBadge valor={valoracionMediaEncuestas} />
+              {valoracionMediaEncuestas == null && (
+                <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>Encuesta enviada pero aún sin respuestas.</span>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 16 }}>
+              <div>
+                <div style={{ fontSize: "0.7rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Encuestas</div>
+                <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#334155" }}>{encuestasTotal} enviada{encuestasTotal !== 1 ? "s" : ""}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: "0.7rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Completadas</div>
+                <div style={{ fontSize: "0.85rem", fontWeight: 600, color: encuestasRespondidas.length > 0 ? "#15803d" : "#334155" }}>{encuestasRespondidas.length} / {encuestasTotal}</div>
+              </div>
+            </div>
+          </div>
         )}
-        <div style={{ display: "flex", gap: 16 }}>
-          <div>
-            <div style={{ fontSize: "0.7rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Encuestas</div>
-            <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#334155" }}>{total} enviada{total !== 1 ? "s" : ""}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: "0.7rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Completadas</div>
-            <div style={{ fontSize: "0.85rem", fontWeight: 600, color: completadas > 0 ? "#15803d" : "#334155" }}>{completadas} / {total}</div>
-          </div>
-        </div>
       </div>
     </div>
   );

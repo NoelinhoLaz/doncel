@@ -2,7 +2,7 @@
 
 import { encrypt } from "@/lib/encryption";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
-import { getAgencyDbClient } from "@/lib/agencyDb";
+import { getAgencyDbClient, getAgencyContext } from "@/lib/agencyDb";
 
 export async function encryptAgencySecrets(
   serviceRoleKey: string,
@@ -74,28 +74,13 @@ export async function getCurrentAgenciaSlug(): Promise<string | null> {
 
 export async function getCurrentAgencyDetails() {
   try {
-    const adminSupabase = await createAdminServerClient();
-
-    const { data: { user }, error: userError } = await adminSupabase.auth.getUser();
-    if (userError || !user) {
-      return null;
-    }
+    const { agenciaId } = await getAgencyContext();
 
     const adminServiceSupabase = createAdminServiceClient();
-    const { data: usuario, error: usuarioError } = await adminServiceSupabase
-      .from("usuarios")
-      .select("agencia_id")
-      .eq("auth_user_id", user.id)
-      .single();
-
-    if (usuarioError || !usuario || !usuario.agencia_id) {
-      return null;
-    }
-
     const { data: agencia, error: agenciaError } = await adminServiceSupabase
       .from("agencias")
       .select("logo_url, nombre_comercial, color_corporativo, color_secundario")
-      .eq("id", usuario.agencia_id)
+      .eq("id", agenciaId)
       .single();
 
     if (agenciaError || !agencia) {

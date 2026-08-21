@@ -93,6 +93,7 @@ export default function LoginPage() {
       }
 
       if (!usuario) {
+        await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
         await supabase.auth.signOut();
         setError("Tu usuario no tiene un perfil en el sistema.");
         setLoading(false);
@@ -100,6 +101,7 @@ export default function LoginPage() {
       }
 
       if (!usuario.agencia_id && usuario.rol !== "SuperAdmin") {
+        await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
         await supabase.auth.signOut();
         setError("No tienes ninguna agencia asignada. Contacta con soporte.");
         setLoading(false);

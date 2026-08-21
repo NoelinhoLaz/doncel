@@ -39,15 +39,10 @@ export async function getPlantillas() {
   const ids = (plantillas as any[]).map((p) => p.id);
   if (ids.length === 0) return plantillas as any[];
 
-  const { data: preguntas } = await agencyDb
-    .from("encuestas_preguntas")
-    .select("id, plantilla_id")
-    .in("plantilla_id", ids);
-
-  const { data: envios } = await agencyDb
-    .from("encuestas_envios")
-    .select("id, plantilla_id, valoracion_promedio")
-    .in("plantilla_id", ids);
+  const [{ data: preguntas }, { data: envios }] = await Promise.all([
+    agencyDb.from("encuestas_preguntas").select("id, plantilla_id").in("plantilla_id", ids),
+    agencyDb.from("encuestas_envios").select("id, plantilla_id, valoracion_promedio").in("plantilla_id", ids),
+  ]);
 
   const countBy = (rows: any[] | null, key: string) => {
     const map: Record<string, number> = {};
@@ -80,19 +75,12 @@ export async function getPlantillas() {
 export async function getPlantilla(id: string) {
   const agencyDb = await getAgencyDbClient();
 
-  const { data: plantilla, error } = await agencyDb
-    .from("encuestas_plantillas")
-    .select("id, nombre, descripcion, activa, created_at")
-    .eq("id", id)
-    .single();
+  const [{ data: plantilla, error }, { data: preguntas }] = await Promise.all([
+    agencyDb.from("encuestas_plantillas").select("id, nombre, descripcion, activa, created_at").eq("id", id).single(),
+    agencyDb.from("encuestas_preguntas").select("id, orden, texto, tipo, opciones, obligatoria").eq("plantilla_id", id).order("orden", { ascending: true }),
+  ]);
 
   if (error || !plantilla) return null;
-
-  const { data: preguntas } = await agencyDb
-    .from("encuestas_preguntas")
-    .select("id, orden, texto, tipo, opciones, obligatoria")
-    .eq("plantilla_id", id)
-    .order("orden", { ascending: true });
 
   return { ...(plantilla as any), preguntas: preguntas ?? [] };
 }
@@ -301,19 +289,12 @@ export async function getPlantillaPreview(plantillaId: string) {
     agencyDb = agency.db;
   }
 
-  const { data: plantilla } = await agencyDb
-    .from("encuestas_plantillas")
-    .select("nombre, descripcion")
-    .eq("id", plantillaId)
-    .single();
+  const [{ data: plantilla }, { data: preguntas }] = await Promise.all([
+    agencyDb.from("encuestas_plantillas").select("nombre, descripcion").eq("id", plantillaId).single(),
+    agencyDb.from("encuestas_preguntas").select("id, orden, texto, tipo, opciones, obligatoria").eq("plantilla_id", plantillaId).order("orden", { ascending: true }),
+  ]);
 
   if (!plantilla) return null;
-
-  const { data: preguntas } = await agencyDb
-    .from("encuestas_preguntas")
-    .select("id, orden, texto, tipo, opciones, obligatoria")
-    .eq("plantilla_id", plantillaId)
-    .order("orden", { ascending: true });
 
   return {
     nombre: (plantilla as any).nombre,
@@ -341,17 +322,10 @@ export async function getEncuestaByToken(token: string) {
 
   const env = envio as any;
 
-  const { data: plantilla } = await agencyDb
-    .from("encuestas_plantillas")
-    .select("nombre, descripcion")
-    .eq("id", env.plantilla_id)
-    .single();
-
-  const { data: preguntas } = await agencyDb
-    .from("encuestas_preguntas")
-    .select("id, orden, texto, tipo, opciones, obligatoria")
-    .eq("plantilla_id", env.plantilla_id)
-    .order("orden", { ascending: true });
+  const [{ data: plantilla }, { data: preguntas }] = await Promise.all([
+    agencyDb.from("encuestas_plantillas").select("nombre, descripcion").eq("id", env.plantilla_id).single(),
+    agencyDb.from("encuestas_preguntas").select("id, orden, texto, tipo, opciones, obligatoria").eq("plantilla_id", env.plantilla_id).order("orden", { ascending: true }),
+  ]);
 
   return {
     id: env.id,
@@ -483,16 +457,10 @@ export async function getRespuestasDeEnvio(envioId: string) {
 
   if (!envio) return null;
 
-  const { data: preguntas } = await agencyDb
-    .from("encuestas_preguntas")
-    .select("id, orden, texto, tipo")
-    .eq("plantilla_id", (envio as any).plantilla_id)
-    .order("orden", { ascending: true });
-
-  const { data: respuestas } = await agencyDb
-    .from("encuestas_respuestas")
-    .select("pregunta_id, valor_texto, valor_numero, valor_opciones")
-    .eq("envio_id", envioId);
+  const [{ data: preguntas }, { data: respuestas }] = await Promise.all([
+    agencyDb.from("encuestas_preguntas").select("id, orden, texto, tipo").eq("plantilla_id", (envio as any).plantilla_id).order("orden", { ascending: true }),
+    agencyDb.from("encuestas_respuestas").select("pregunta_id, valor_texto, valor_numero, valor_opciones").eq("envio_id", envioId),
+  ]);
 
   const respuestaByPregunta: Record<string, any> = {};
   for (const r of (respuestas ?? []) as any[]) respuestaByPregunta[r.pregunta_id] = r;

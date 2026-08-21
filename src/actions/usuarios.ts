@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
-import { getAgencyDbClient } from "@/lib/agencyDb";
+import { getAgencyDbClient, getAuthUserId } from "@/lib/agencyDb";
 import { revalidatePath } from "next/cache";
 import { signToken, verifyToken } from "@/lib/encryption";
 
@@ -341,9 +341,8 @@ export async function updateMiPerfil(payload: {
 
 export async function getCurrentUsuario() {
   try {
-    const adminSupabase = await createAdminServerClient();
-    const { data: { user }, error: userError } = await adminSupabase.auth.getUser();
-    if (userError || !user) {
+    const authUserId = await getAuthUserId();
+    if (!authUserId) {
       return null;
     }
 
@@ -351,7 +350,7 @@ export async function getCurrentUsuario() {
     const { data: usuario, error: usuarioError } = await adminServiceSupabase
       .from("usuarios")
       .select("id, nombre, apellidos, email, rol, telefono, avatar_url")
-      .eq("auth_user_id", user.id)
+      .eq("auth_user_id", authUserId)
       .single();
 
     if (usuarioError || !usuario) {
