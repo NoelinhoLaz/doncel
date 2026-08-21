@@ -1,104 +1,108 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { X } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import styles from "./enviarEncuesta.module.css";
+import { X, Send, Plus } from "lucide-react";
 import { enviarEncuesta, getPlantillas } from "@/actions/encuestas";
-import { buscarEntidades } from "@/actions/entidades";
+import { type EntidadDestinatarios } from "@/actions/difusiones";
+import ModalNuevaEncuesta from "./ModalNuevaEncuesta";
+import SelectorDestinatarios, { ARBOL_EXPEDIENTE, ARBOL_GENERAL } from "./SelectorDestinatarios";
 
-interface Entidad {
-  id: string;
-  nombre: string;
-  localidad: string | null;
-  email: string | null;
-}
+type PlantillaOption = { id: string; nombre: string; activa: boolean };
 
-interface Destinatario {
-  entidadId?: string;
-  nombre: string;
-  email: string;
-}
-
-interface PlantillaOption {
-  id: string;
-  nombre: string;
-  activa: boolean;
-}
+const ASUNTO_DEFECTO = "Nos encantaría conocer tu opinión";
+const MENSAJE_DEFECTO = "Tenemos una breve encuesta para ti. Solo te llevará un minuto y nos ayuda a mejorar.";
 
 interface Props {
   plantillaId?: string;
   expedienteId?: string;
-  entidadPreseleccionada?: { id: string; nombre: string; email: string | null };
   onClose: () => void;
   onSent?: () => void;
 }
 
-export default function ModalEnviarEncuesta({ plantillaId, expedienteId, entidadPreseleccionada, onClose, onSent }: Props) {
+export default function ModalEnviarEncuesta({ plantillaId, expedienteId, onClose, onSent }: Props) {
+  const skipStep1 = !!plantillaId;
+  const [step, setStep] = useState<1 | 2 | 3>(skipStep1 ? 2 : 1);
+
+  // Paso 1: plantilla
   const [plantillas, setPlantillas] = useState<PlantillaOption[]>([]);
   const [selectedPlantillaId, setSelectedPlantillaId] = useState(plantillaId || "");
-  const [query, setQuery] = useState("");
-  const [resultados, setResultados] = useState<Entidad[]>([]);
+  const [loadingPlantillas, setLoadingPlantillas] = useState(!skipStep1);
+  const [showNuevaEncuesta, setShowNuevaEncuesta] = useState(false);
+
+  // Paso 2: destinatarios
+  const [entidades, setEntidades] = useState<EntidadDestinatarios[]>([]);
+  const [loadingDest, setLoadingDest] = useState(false);
+  const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set());
+
   const [emailsManual, setEmailsManual] = useState("");
-  const [destinatarios, setDestinatarios] = useState<Destinatario[]>(
-    entidadPreseleccionada
-      ? [{ entidadId: entidadPreseleccionada.id, nombre: entidadPreseleccionada.nombre, email: entidadPreseleccionada.email || "" }]
-      : []
-  );
+  const [manualEntidades, setManualEntidades] = useState<EntidadDestinatarios[]>([]);
+
+  // Paso 3: mensaje
+  const [asunto, setAsunto] = useState(ASUNTO_DEFECTO);
+  const [mensaje, setMensaje] = useState(MENSAJE_DEFECTO);
+
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (plantillaId) return;
-    getPlantillas().then((data) => setPlantillas((data as PlantillaOption[]).filter((p) => p.activa)));
-  }, [plantillaId]);
+    if (skipStep1) return;
+    getPlantillas()
+      .then((data) => setPlantillas((data as PlantillaOption[]).filter((p) => p.activa)))
+      .finally(() => setLoadingPlantillas(false));
+  }, [skipStep1]);
 
-  useEffect(() => {
-    if (!query.trim()) {
-      setResultados([]);
-      return;
-    }
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      const res = await buscarEntidades(query);
-      setResultados(res as Entidad[]);
-    }, 300);
-  }, [query]);
+  function emailKey(entidadId: string, email: string) {
+    return `${entidadId}::${email}`;
+  }
 
-  const addDestinatario = (e: Entidad) => {
-    setDestinatarios((prev) => {
-      if (prev.some((d) => d.entidadId === e.id)) return prev;
-      return [...prev, { entidadId: e.id, nombre: e.nombre, email: e.email || "" }];
+  function toggleEmail(entidadId: string, email: string) {
+    const key = emailKey(entidadId, email);
+    setSelectedEmails((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
     });
-    setQuery("");
-    setResultados([]);
-  };
+  }
 
-  const removeDestinatario = (key: string) => {
-    setDestinatarios((prev) => prev.filter((d) => (d.entidadId || d.email) !== key));
-  };
+  function addEmailsManual() {
+    const emails = emailsManual.split(",").map((e) => e.trim()).filter((e) => e.includes("@"));
+    if (emails.length === 0) return;
+    const existentes = new Set(manualEntidades.map((e) => e.entidad_id));
+    const nuevas: EntidadDestinatarios[] = emails
+      .filter((e) => !existentes.has(`manual::${e}`))
+      .map((e) => ({ entidad_id: `manual::${e}`, nombre: e, emails: [{ email: e, etiqueta: "Manual", principal: false, tipo: "institucional" as const }] }));
 
-  const updateEmail = (key: string, email: string) => {
-    setDestinatarios((prev) => prev.map((d) => ((d.entidadId || d.email) === key ? { ...d, email } : d)));
-  };
-
-  const addEmailsManual = () => {
-    const emails = emailsManual
-      .split(",")
-      .map((e) => e.trim())
-      .filter((e) => e.length > 0);
-
-    setDestinatarios((prev) => {
-      const existentes = new Set(prev.map((d) => d.email.toLowerCase()));
-      const nuevos = emails
-        .filter((e) => !existentes.has(e.toLowerCase()))
-        .map((e) => ({ nombre: e, email: e }));
-      return [...prev, ...nuevos];
+    setManualEntidades((prev) => [...prev, ...nuevas]);
+    setSelectedEmails((prev) => {
+      const next = new Set(prev);
+      nuevas.forEach((ent) => ent.emails.forEach((em) => next.add(emailKey(ent.entidad_id, em.email))));
+      return next;
     });
     setEmailsManual("");
-  };
+  }
 
-  const destinatariosValidos = destinatarios.filter((d) => d.email.includes("@"));
-  const puedeEnviar = !!selectedPlantillaId && destinatariosValidos.length === destinatarios.length && destinatarios.length > 0;
+  const todasLasEntidades = useMemo(() => [...entidades, ...manualEntidades], [entidades, manualEntidades]);
+
+  const emailsSeleccionados = useMemo(() => {
+    const vistos = new Set<string>();
+    const out: { entidadId: string; nombre: string; email: string }[] = [];
+    for (const ent of todasLasEntidades) {
+      for (const em of ent.emails) {
+        if (!selectedEmails.has(emailKey(ent.entidad_id, em.email))) continue;
+        const emailNorm = em.email.trim().toLowerCase();
+        if (vistos.has(emailNorm)) continue;
+        vistos.add(emailNorm);
+        const idReal = ent.entidad_id.includes("::") ? ent.entidad_id.split("::")[1] : ent.entidad_id;
+        out.push({ entidadId: ent.entidad_id.startsWith("manual::") ? "" : idReal, nombre: ent.nombre, email: em.email });
+      }
+    }
+    return out;
+  }, [todasLasEntidades, selectedEmails]);
+
+  const step1Valid = !!selectedPlantillaId;
+  const step2Valid = emailsSeleccionados.length > 0;
+  const puedeEnviar = asunto.trim() && mensaje.trim() && step2Valid && !sending;
 
   const handleSend = async () => {
     if (!puedeEnviar) return;
@@ -108,13 +112,15 @@ export default function ModalEnviarEncuesta({ plantillaId, expedienteId, entidad
     let okCount = 0;
     const errores: string[] = [];
 
-    for (const d of destinatarios) {
+    for (const d of emailsSeleccionados) {
       const res = await enviarEncuesta({
         plantillaId: selectedPlantillaId,
-        entidadId: d.entidadId,
+        entidadId: d.entidadId || undefined,
         expedienteId,
         emailDestino: d.email,
         appBaseUrl: window.location.origin,
+        asunto,
+        mensaje,
       });
       if (res.success) okCount++;
       else errores.push(`${d.nombre}: ${res.error || "error"}`);
@@ -127,149 +133,170 @@ export default function ModalEnviarEncuesta({ plantillaId, expedienteId, entidad
       onSent?.();
       onClose();
     } else {
-      setResult({
-        ok: false,
-        msg: `${okCount} enviada${okCount === 1 ? "" : "s"}, ${errores.length} con error: ${errores.join("; ")}`,
-      });
+      setResult({ ok: false, msg: `${okCount} enviada${okCount === 1 ? "" : "s"}, ${errores.length} con error: ${errores.join("; ")}` });
       if (okCount > 0) onSent?.();
     }
   };
 
   return (
-    <div
-      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 1400, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
-    >
-      <div
-        style={{ width: "min(520px,100%)", maxHeight: "88vh", overflow: "auto", background: "#fff", borderRadius: 12, boxShadow: "0 20px 40px rgba(0,0,0,0.16)", display: "flex", flexDirection: "column" }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.9rem 1rem", borderBottom: "1px solid #e2e8f0" }}>
-          <h3 style={{ margin: 0, fontSize: "1rem", color: "#0f172a" }}>Enviar encuesta</h3>
-          <button onClick={onClose} style={{ border: "none", background: "transparent", color: "#64748b", fontSize: "1.3rem", cursor: "pointer" }}>×</button>
+    <div className={styles.modalOverlay}>
+      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.modalHeader}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <span className={styles.modalTitle}>Enviar encuesta</span>
+            <div className={styles.stepIndicator}>
+              {!skipStep1 && (
+                <>
+                  <span className={step === 1 ? styles.stepActive : styles.stepDone}>1. Encuesta</span>
+                  <span style={{ color: "#cbd5e1", fontSize: "0.7rem" }}>→</span>
+                </>
+              )}
+              <span className={step === 2 ? styles.stepActive : step > 2 ? styles.stepDone : styles.stepPending}>2. Destinatarios</span>
+              <span style={{ color: "#cbd5e1", fontSize: "0.7rem" }}>→</span>
+              <span className={step === 3 ? styles.stepActive : styles.stepPending}>3. Mensaje</span>
+            </div>
+          </div>
+          <button className={styles.modalClose} onClick={onClose}><X size={16} /></button>
         </div>
 
-        <div style={{ padding: "1rem", display: "grid", gap: "1rem" }}>
-          {!plantillaId && (
-            <div style={{ display: "grid", gap: 6 }}>
-              <label style={{ fontSize: "0.78rem", fontWeight: 600, color: "#334155" }}>Encuesta *</label>
+        {step === 1 && (
+          <div className={styles.modalBody}>
+            <div className={styles.field}>
+              <label className={styles.label}>Encuesta</label>
               <select
+                className={styles.select}
                 value={selectedPlantillaId}
                 onChange={(e) => setSelectedPlantillaId(e.target.value)}
-                style={{ border: "1px solid #cbd5e1", borderRadius: 6, padding: "0.45rem 0.7rem", fontSize: "0.85rem", color: "#0f172a", outline: "none" }}
+                disabled={loadingPlantillas}
               >
                 <option value="">Selecciona una encuesta...</option>
                 {plantillas.map((p) => (
                   <option key={p.id} value={p.id}>{p.nombre}</option>
                 ))}
               </select>
-              {plantillas.length === 0 && (
-                <span style={{ fontSize: "0.72rem", color: "#94a3b8" }}>No hay encuestas activas. Crea una en Fidelización &gt; Encuestas.</span>
+              {!loadingPlantillas && plantillas.length === 0 && (
+                <span className={styles.hint}>No hay encuestas activas todavía.</span>
               )}
             </div>
-          )}
-
-          <div style={{ display: "grid", gap: 6, position: "relative" }}>
-            <label style={{ fontSize: "0.78rem", fontWeight: 600, color: "#334155" }}>Buscar cliente</label>
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar y añadir clientes..."
-              style={{ border: "1px solid #cbd5e1", borderRadius: 6, padding: "0.45rem 0.7rem", fontSize: "0.85rem", color: "#0f172a", outline: "none" }}
-            />
-            {resultados.length > 0 && (
-              <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 10, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, boxShadow: "0 8px 20px rgba(0,0,0,0.1)", maxHeight: 220, overflow: "auto", marginTop: 2 }}>
-                {resultados.map((r) => {
-                  const yaAnadido = destinatarios.some((d) => d.entidadId === r.id);
-                  return (
-                    <button
-                      key={r.id}
-                      onClick={() => addDestinatario(r)}
-                      disabled={yaAnadido}
-                      style={{ display: "block", width: "100%", textAlign: "left", padding: "0.5rem 0.7rem", border: "none", background: "#fff", cursor: yaAnadido ? "default" : "pointer", fontSize: "0.82rem", color: yaAnadido ? "#cbd5e1" : "#0f172a" }}
-                    >
-                      {r.nombre}
-                      {r.localidad && <span style={{ color: "#94a3b8" }}> — {r.localidad}</span>}
-                      {yaAnadido && <span style={{ color: "#94a3b8" }}> (añadido)</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+            <button type="button" className={styles.btnLink} style={{ alignSelf: "flex-start" }} onClick={() => setShowNuevaEncuesta(true)}>
+              <Plus size={13} style={{ marginRight: 4, verticalAlign: -2 }} />
+              Crear nueva encuesta
+            </button>
           </div>
+        )}
 
-          <div style={{ display: "grid", gap: 6 }}>
-            <label style={{ fontSize: "0.78rem", fontWeight: 600, color: "#334155" }}>O introduce emails a mano (separados por comas)</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              <input
-                type="text"
-                value={emailsManual}
-                onChange={(e) => setEmailsManual(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addEmailsManual(); } }}
-                placeholder="ana@email.com, luis@email.com"
-                style={{ flex: 1, border: "1px solid #cbd5e1", borderRadius: 6, padding: "0.45rem 0.7rem", fontSize: "0.85rem", color: "#0f172a", outline: "none" }}
-              />
-              <button
-                onClick={addEmailsManual}
-                disabled={!emailsManual.trim()}
-                style={{ border: "1px solid #cbd5e1", background: "#fff", color: "#334155", borderRadius: 6, padding: "0.45rem 0.8rem", fontSize: "0.82rem", cursor: emailsManual.trim() ? "pointer" : "default", opacity: emailsManual.trim() ? 1 : 0.5 }}
-              >
-                Añadir
-              </button>
-            </div>
-          </div>
-
-          {destinatarios.length > 0 && (
-            <div style={{ display: "grid", gap: 6 }}>
-              {destinatarios.map((d) => {
-                const key = d.entidadId || d.email;
-                return (
-                  <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.5rem 0.6rem" }}>
-                    <div style={{ minWidth: 0, flexShrink: 0, maxWidth: 140, fontSize: "0.82rem", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {d.entidadId ? d.nombre : <span style={{ fontWeight: 400, color: "#94a3b8" }}>Sin cliente</span>}
-                    </div>
-                    <input
-                      type="email"
-                      value={d.email}
-                      onChange={(e) => updateEmail(key, e.target.value)}
-                      placeholder="email@cliente.com"
-                      style={{ flex: 1, border: "1px solid #cbd5e1", borderRadius: 6, padding: "0.35rem 0.6rem", fontSize: "0.82rem", color: d.email.includes("@") ? "#0f172a" : "#dc2626", outline: "none" }}
-                    />
-                    <button
-                      onClick={() => removeDestinatario(key)}
-                      style={{ border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", padding: 2, display: "inline-flex" }}
-                      title="Quitar"
-                    >
-                      <X size={15} />
-                    </button>
+        {step === 2 && (
+          <div className={styles.modalBody}>
+            <div className={styles.field}>
+              <label className={styles.label}>Destinatarios</label>
+              <div className={styles.field}>
+                <label className={styles.label}>O introduce emails a mano (separados por comas)</label>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    className={styles.input}
+                    style={{ flex: 1 }}
+                    value={emailsManual}
+                    onChange={(e) => setEmailsManual(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addEmailsManual(); } }}
+                    placeholder="ana@email.com, luis@email.com"
+                  />
+                  <button type="button" className={styles.btnSecondary} onClick={addEmailsManual} disabled={!emailsManual.trim()}>
+                    Añadir
+                  </button>
+                </div>
+                {manualEntidades.length > 0 && (
+                  <div className={styles.destinatariosChips}>
+                    {manualEntidades.map((ent) => (
+                      <span key={ent.entidad_id} className={styles.destinatarioChip}>{ent.nombre}</span>
+                    ))}
                   </div>
-                );
-              })}
-              <span style={{ fontSize: "0.72rem", color: "#64748b" }}>
-                {destinatarios.length} destinatario{destinatarios.length === 1 ? "" : "s"}
-              </span>
-            </div>
-          )}
+                )}
+              </div>
 
-          {result && (
-            <div style={{ padding: "0.6rem 0.8rem", borderRadius: 6, background: result.ok ? "#dcfce7" : "#fee2e2", color: result.ok ? "#15803d" : "#dc2626", fontSize: "0.82rem" }}>
-              {result.msg}
+              <SelectorDestinatarios
+                arbol={expedienteId ? ARBOL_EXPEDIENTE : ARBOL_GENERAL}
+                expedienteId={expedienteId}
+                entidades={entidades}
+                onEntidadesChange={setEntidades}
+                selectedEmails={selectedEmails}
+                onToggleEmail={toggleEmail}
+                loading={loadingDest}
+                onLoadingChange={setLoadingDest}
+                emailKey={emailKey}
+              />
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "0.9rem 1rem", borderTop: "1px solid #e2e8f0", marginTop: "auto" }}>
-          <button onClick={onClose} style={{ border: "1px solid #cbd5e1", background: "#fff", color: "#334155", borderRadius: 6, padding: "0.45rem 0.8rem", cursor: "pointer", fontSize: "0.85rem" }}>
-            Cancelar
-          </button>
-          <button
-            onClick={handleSend}
-            disabled={sending || !puedeEnviar || !!result?.ok}
-            style={{ border: "none", background: "var(--primary-color,#475569)", color: "#fff", borderRadius: 6, padding: "0.45rem 0.9rem", cursor: sending || !puedeEnviar || !!result?.ok ? "default" : "pointer", opacity: sending || !puedeEnviar ? 0.6 : 1, fontSize: "0.85rem", fontWeight: 600 }}
-          >
-            {sending ? "Enviando..." : destinatarios.length > 1 ? `Enviar a ${destinatarios.length}` : "Enviar encuesta"}
-          </button>
+        {step === 3 && (
+          <div className={styles.modalBody}>
+            <div className={styles.field}>
+              <label className={styles.label}>Destinatarios ({emailsSeleccionados.length})</label>
+              <div className={styles.destinatariosChips}>
+                {emailsSeleccionados.slice(0, 5).map((d) => (
+                  <span key={d.email} className={styles.destinatarioChip}>{d.email}</span>
+                ))}
+                {emailsSeleccionados.length > 5 && (
+                  <span className={styles.destinatarioChipMas}>+{emailsSeleccionados.length - 5}</span>
+                )}
+              </div>
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.label}>Asunto</label>
+              <input className={styles.input} value={asunto} onChange={(e) => setAsunto(e.target.value)} placeholder="Asunto del mensaje" />
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.label}>Mensaje</label>
+              <textarea className={styles.textarea} value={mensaje} onChange={(e) => setMensaje(e.target.value)} placeholder="Escribe el mensaje introductorio..." />
+              <span className={styles.hint}>El email incluirá automáticamente el botón "Responder encuesta" con el enlace.</span>
+            </div>
+
+            {result && !result.ok && <span className={styles.errorText}>{result.msg}</span>}
+          </div>
+        )}
+
+        <div className={styles.modalFooter}>
+          {step === 1 && (
+            <>
+              <button className={styles.btnSecondary} onClick={onClose}>Cancelar</button>
+              <button className={styles.btnPrimary} onClick={() => setStep(2)} disabled={!step1Valid}>Siguiente</button>
+            </>
+          )}
+          {step === 2 && (
+            <>
+              <button className={styles.btnSecondary} onClick={skipStep1 ? onClose : () => setStep(1)}>
+                {skipStep1 ? "Cancelar" : "Atrás"}
+              </button>
+              <button className={styles.btnPrimary} onClick={() => setStep(3)} disabled={!step2Valid}>Siguiente</button>
+            </>
+          )}
+          {step === 3 && (
+            <>
+              <button className={styles.btnSecondary} onClick={() => setStep(2)}>Atrás</button>
+              <button className={styles.btnPrimary} onClick={handleSend} disabled={!puedeEnviar}>
+                <Send size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
+                {sending ? "Enviando..." : `Enviar a ${emailsSeleccionados.length}`}
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {showNuevaEncuesta && (
+        <ModalNuevaEncuesta
+          onClose={() => setShowNuevaEncuesta(false)}
+          onCreated={() => {
+            getPlantillas().then((data) => {
+              const activas = (data as any[]).filter((p) => p.activa);
+              setPlantillas(activas);
+              const nueva = activas[0];
+              if (nueva) setSelectedPlantillaId(nueva.id);
+            });
+          }}
+        />
+      )}
     </div>
   );
 }

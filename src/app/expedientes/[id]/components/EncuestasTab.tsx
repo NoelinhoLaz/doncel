@@ -248,7 +248,6 @@ export default function EncuestasTab({ expedienteId, entidad }: Props) {
       {showEnviar && (
         <ModalEnviarEncuesta
           expedienteId={expedienteId}
-          entidadPreseleccionada={entidad ? { id: entidad.id, nombre: entidad.nombre, email: entidad.email } : undefined}
           onClose={() => setShowEnviar(false)}
           onSent={load}
         />

@@ -1035,7 +1035,7 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
     {/* Modal crear difusión, con la campaña actual preseleccionada */}
     {showDifusionModal && (
       <NuevaDifusionModal
-        initialCampanaId={campanaId}
+        campanaId={campanaId}
         onClose={() => setShowDifusionModal(false)}
         onCreated={() => setShowDifusionModal(false)}
       />

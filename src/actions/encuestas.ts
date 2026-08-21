@@ -203,6 +203,56 @@ export async function eliminarPlantilla(id: string) {
   return { success: true };
 }
 
+// Entidades de los pasajeros (viajeros) de un expediente, no anulados
+export async function getEntidadesViajerosExpediente(expedienteId: string): Promise<string[]> {
+  const agencyDb = await getAgencyDbClient();
+
+  const { data, error } = await agencyDb
+    .from("operativa_viajeros_expedientes")
+    .select("entidad_id")
+    .eq("expediente_id", expedienteId)
+    .neq("estado", "anulado");
+
+  if (error || !data) return [];
+
+  const ids = new Set<string>();
+  for (const row of data as any[]) {
+    if (row.entidad_id) ids.add(row.entidad_id);
+  }
+  return [...ids];
+}
+
+// Entidad titular (contratante) de un expediente, sin pagadores — uso: resolver sus contactos CRM
+export async function getEntidadTitularExpediente(expedienteId: string): Promise<string | null> {
+  const agencyDb = await getAgencyDbClient();
+
+  const { data, error } = await agencyDb
+    .from("operativa_expedientes")
+    .select("entidad_id")
+    .eq("id", expedienteId)
+    .single();
+
+  if (error || !data || !(data as any).entidad_id) return null;
+  return (data as any).entidad_id;
+}
+
+// Entidades "cliente" de un expediente: titular (contratante) + pagador(es)
+export async function getEntidadesClienteExpediente(expedienteId: string): Promise<string[]> {
+  const agencyDb = await getAgencyDbClient();
+
+  const [{ data: expediente }, { data: viajeros }] = await Promise.all([
+    agencyDb.from("operativa_expedientes").select("entidad_id").eq("id", expedienteId).single(),
+    agencyDb.from("operativa_viajeros_expedientes").select("pagador_id").eq("expediente_id", expedienteId).neq("estado", "anulado"),
+  ]);
+
+  const ids = new Set<string>();
+  if ((expediente as any)?.entidad_id) ids.add((expediente as any).entidad_id);
+  for (const row of (viajeros ?? []) as any[]) {
+    if (row.pagador_id) ids.add(row.pagador_id);
+  }
+  return [...ids];
+}
+
 // Crea un envío y manda el email con el enlace de la encuesta
 export async function enviarEncuesta({
   plantillaId,
@@ -210,12 +260,16 @@ export async function enviarEncuesta({
   expedienteId,
   emailDestino,
   appBaseUrl,
+  asunto,
+  mensaje,
 }: {
   plantillaId: string;
   entidadId?: string;
   expedienteId?: string;
   emailDestino: string;
   appBaseUrl: string;
+  asunto?: string;
+  mensaje?: string;
 }) {
   const agencyDb = await getAgencyDbClient();
   const usuario = await getCurrentUsuario();
@@ -266,8 +320,8 @@ export async function enviarEncuesta({
     await transporter.sendMail({
       from: config.email_address,
       to: emailDestino,
-      subject: "Nos encantaría conocer tu opinión",
-      html: buildEmailHtml(url),
+      subject: asunto?.trim() || "Nos encantaría conocer tu opinión",
+      html: buildEmailHtml(url, mensaje?.trim() || "Tenemos una breve encuesta para ti. Solo te llevará un minuto y nos ayuda a mejorar."),
     });
 
     return { success: true, token: (envio as any).token };
@@ -417,7 +471,21 @@ export async function getEnviosDePlantilla(plantillaId: string) {
     for (const e of (entidades ?? []) as any[]) nombreById[e.id] = e.nombre;
   }
 
-  return (envios as any[]).map((e) => ({ ...e, entidad_nombre: e.entidad_id ? (nombreById[e.entidad_id] ?? "—") : e.email_destino }));
+  const expedienteIds = [...new Set((envios as any[]).map((e) => e.expediente_id).filter(Boolean))];
+  const expedienteById: Record<string, { referencia: string | null; numero: string | null }> = {};
+  if (expedienteIds.length > 0) {
+    const { data: expedientes } = await agencyDb
+      .from("operativa_expedientes")
+      .select("id, referencia, numero")
+      .in("id", expedienteIds);
+    for (const ex of (expedientes ?? []) as any[]) expedienteById[ex.id] = { referencia: ex.referencia, numero: ex.numero };
+  }
+
+  return (envios as any[]).map((e) => ({
+    ...e,
+    entidad_nombre: e.entidad_id ? (nombreById[e.entidad_id] ?? "—") : e.email_destino,
+    expediente_nombre: e.expediente_id ? (expedienteById[e.expediente_id]?.referencia || expedienteById[e.expediente_id]?.numero || "—") : null,
+  }));
 }
 
 // Constancia: listado de envíos de encuesta hechos desde un expediente concreto
@@ -528,7 +596,16 @@ export async function generarResumenValoracion(envioId: string) {
   }
 }
 
-function buildEmailHtml(url: string): string {
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function buildEmailHtml(url: string, mensaje: string): string {
+  const mensajeHtml = escapeHtml(mensaje).replace(/\n/g, "<br>");
   return `<!DOCTYPE html>
 <html lang="es">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -539,7 +616,7 @@ function buildEmailHtml(url: string): string {
     </div>
     <div style="padding:32px 40px">
       <p style="margin:0 0 24px;color:#475569;font-size:0.9rem;line-height:1.6">
-        Tenemos una breve encuesta para ti. Solo te llevará un minuto y nos ayuda a mejorar.
+        ${mensajeHtml}
       </p>
       <a href="${url}" style="display:inline-block;background:#475569;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:0.9rem;font-weight:600">
         Responder encuesta

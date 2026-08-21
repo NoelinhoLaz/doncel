@@ -1,0 +1,199 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.chipsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.6rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.chip:hover { background: #f8fafc; }
+
+.chipActive {
+  border-color: var(--primary-color, #475569);
+  background: color-mix(in srgb, var(--primary-color, #475569), transparent 90%);
+  color: var(--primary-color, #475569);
+}
+
+.chipCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--primary-color, #475569);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  position: relative;
+}
+
+.label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+.input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: #1e293b;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input:focus { border-color: var(--primary-color, #475569); }
+
+.searchResults {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 2px;
+}
+
+.searchResultItem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.7rem;
+  border: none;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: #1e293b;
+}
+
+.searchResultItem:hover { background: #f8fafc; }
+
+.selectAllRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.countLabel {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.selectAllBtn {
+  padding: 0.25rem 0.6rem;
+  background: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--primary-color, #475569);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.selectAllBtn:hover { background: #f8fafc; }
+
+.hint {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.entidadesGrid {
+  display: flex;
+  flex-direction: column;
+  padding: 2px;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.destinatarioRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
+}
+
+.destinatarioRow:last-child { border-bottom: none; }
+.destinatarioRow:hover { background: #f8fafc; }
+
+.destinatarioRow input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  accent-color: var(--primary-color, #475569);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.destinatarioLinea {
+  font-size: 0.72rem;
+  color: #1e293b;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tipoTag {
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.tipoTag_Cliente { background: #eff6ff; color: #2563eb; }
+.tipoTag_Viajero { background: #f0fdf4; color: #16a34a; }
+.tipoTag_Contacto { background: #fdf4ff; color: #a21caf; }
+.tipoTag_Institucional { background: #fff7ed; color: #c2410c; }
+.tipoTag_Responsable { background: #fefce8; color: #a16207; }
+.tipoTag_Manual { background: #f1f5f9; color: #64748b; }

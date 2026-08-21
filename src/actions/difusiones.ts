@@ -41,7 +41,7 @@ async function getCurrentAgente() {
 
 type EntidadBase = { id: string; nombre: string; email: string | null; otros_emails?: string[] | null };
 
-async function buildEmailsPorEntidad(entidades: EntidadBase[]): Promise<EntidadDestinatarios[]> {
+export async function buildEmailsPorEntidad(entidades: EntidadBase[]): Promise<EntidadDestinatarios[]> {
   const agencyDb = await getAgencyDbClient();
   const ids = entidades.map((e) => e.id);
 
@@ -188,10 +188,34 @@ export async function getDestinatariosClientesAgente(): Promise<EntidadDestinata
   return buildEmailsPorEntidad((data ?? []) as any[]);
 }
 
+export async function getClientesPersona(): Promise<EntidadDestinatarios[]> {
+  const agenteId = await getCurrentAgente();
+  const agencyDb = await getAgencyDbClient();
+  const { data, error } = await agencyDb
+    .from("contabilidad_entidades")
+    .select("id, nombre, email, otros_emails")
+    .eq("agente_id", agenteId)
+    .eq("tipo_entidad", "persona");
+  if (error) throw error;
+  return buildEmailsPorEntidad((data ?? []) as any[]);
+}
+
+export async function getGruposEmpresa(): Promise<EntidadDestinatarios[]> {
+  const agenteId = await getCurrentAgente();
+  const agencyDb = await getAgencyDbClient();
+  const { data, error } = await agencyDb
+    .from("contabilidad_entidades")
+    .select("id, nombre, email, otros_emails")
+    .eq("agente_id", agenteId)
+    .in("tipo_entidad", ["organizacion", "empresa"]);
+  if (error) throw error;
+  return buildEmailsPorEntidad((data ?? []) as any[]);
+}
+
 export async function crearDifusion(payload: {
   asunto: string;
   cuerpo: string;
-  origen: "campana" | "etiqueta" | "clientes_agente";
+  origen: "campana" | "etiqueta" | "clientes_agente" | "selector";
   campanaId?: string | null;
   etiquetaId?: string | null;
   destinatarios: Destinatario[];
