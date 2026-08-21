@@ -15,11 +15,16 @@ export default function EncuestaPage({ params }: { params: Promise<{ token: stri
   const [error, setError] = useState("");
 
   useEffect(() => {
-    getEncuestaByToken(token).then((data) => {
-      if (!data) setNotFound(true);
-      else setEncuesta(data);
-      setLoading(false);
-    });
+    getEncuestaByToken(token)
+      .then((data) => {
+        if (!data) setNotFound(true);
+        else setEncuesta(data);
+      })
+      .catch((err) => {
+        console.error("Error cargando encuesta:", err);
+        setNotFound(true);
+      })
+      .finally(() => setLoading(false));
   }, [token]);
 
   const preguntas: PreguntaEncuesta[] = encuesta?.preguntas || [];
@@ -33,10 +38,16 @@ export default function EncuestaPage({ params }: { params: Promise<{ token: stri
     if (payload.length === 0) return;
     setSubmitting(true);
     setError("");
-    const res = await guardarRespuestas(token, payload);
-    if (res.success) setDone(true);
-    else setError(res.error || "Error al enviar las respuestas.");
-    setSubmitting(false);
+    try {
+      const res = await guardarRespuestas(token, payload);
+      if (res.success) setDone(true);
+      else setError(res.error || "Error al enviar las respuestas.");
+    } catch (err) {
+      console.error("Error al enviar respuestas:", err);
+      setError("Error al enviar las respuestas. Comprueba tu conexión e inténtalo de nuevo.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) return (

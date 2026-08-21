@@ -12,11 +12,16 @@ export default function EncuestaPreviewPage({ params }: { params: Promise<{ plan
   const [respuestas, setRespuestas] = useState<Record<string, string | number | string[]>>({});
 
   useEffect(() => {
-    getPlantillaPreview(plantillaId).then((data) => {
-      if (!data) setNotFound(true);
-      else setEncuesta(data);
-      setLoading(false);
-    });
+    getPlantillaPreview(plantillaId)
+      .then((data) => {
+        if (!data) setNotFound(true);
+        else setEncuesta(data);
+      })
+      .catch((err) => {
+        console.error("Error cargando preview:", err);
+        setNotFound(true);
+      })
+      .finally(() => setLoading(false));
   }, [plantillaId]);
 
   if (loading) return (
