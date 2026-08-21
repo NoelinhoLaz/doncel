@@ -192,7 +192,7 @@ export default function EncuestasTab({ expedienteId, entidad }: Props) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
             <thead>
               <tr>
-                {["Encuesta", "Envíos", "Respondidas", ""].map((h) => (
+                {["Encuesta", "Envíos", "Respondidas", "Valoración", ""].map((h) => (
                   <th
                     key={h}
                     style={{ padding: "0.75rem 1rem", background: "#f8fafc", color: "#64748b", fontWeight: 600, fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e2e8f0", textAlign: "left", whiteSpace: "nowrap" }}
@@ -205,6 +205,12 @@ export default function EncuestasTab({ expedienteId, entidad }: Props) {
             <tbody>
               {grupos.map((g) => {
                 const respondidas = g.envios.filter((e) => e.completado_at).length;
+                const valoraciones = g.envios
+                  .map((e) => e.valoracion_promedio)
+                  .filter((v): v is number => v !== null && v !== undefined);
+                const valoracionMedia = valoraciones.length
+                  ? Math.round((valoraciones.reduce((a, b) => a + b, 0) / valoraciones.length) * 100) / 100
+                  : null;
                 return (
                   <tr
                     key={g.plantillaId}
@@ -224,6 +230,9 @@ export default function EncuestasTab({ expedienteId, entidad }: Props) {
                       >
                         {respondidas} / {g.envios.length}
                       </span>
+                    </td>
+                    <td style={{ padding: "0.7rem 1rem" }}>
+                      <ValoracionBadge valor={valoracionMedia} />
                     </td>
                     <td style={{ padding: "0.7rem 1rem", textAlign: "center", color: "#94a3b8" }}>
                       <ChevronRight size={16} />

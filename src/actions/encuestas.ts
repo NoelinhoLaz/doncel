@@ -1,7 +1,7 @@
 "use server";
 
 import nodemailer from "nodemailer";
-import { getAgencyDbClient } from "@/lib/agencyDb";
+import { getAgencyDbClient, getAgencyDbClientByDomain, getDominioActualPublico } from "@/lib/agencyDb";
 import { getAnthropicClient } from "@/lib/anthropic";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { getCurrentUsuario, getCurrentUserEmailConfig } from "./usuarios";
@@ -46,7 +46,7 @@ export async function getPlantillas() {
 
   const { data: envios } = await agencyDb
     .from("encuestas_envios")
-    .select("id, plantilla_id")
+    .select("id, plantilla_id, valoracion_promedio")
     .in("plantilla_id", ids);
 
   const countBy = (rows: any[] | null, key: string) => {
@@ -58,10 +58,21 @@ export async function getPlantillas() {
   const preguntasCount = countBy(preguntas, "plantilla_id");
   const enviosCount = countBy(envios, "plantilla_id");
 
+  const valoracionSumById: Record<string, number> = {};
+  const valoracionCountById: Record<string, number> = {};
+  for (const e of (envios ?? []) as any[]) {
+    if (e.valoracion_promedio === null || e.valoracion_promedio === undefined) continue;
+    valoracionSumById[e.plantilla_id] = (valoracionSumById[e.plantilla_id] ?? 0) + Number(e.valoracion_promedio);
+    valoracionCountById[e.plantilla_id] = (valoracionCountById[e.plantilla_id] ?? 0) + 1;
+  }
+
   return (plantillas as any[]).map((p) => ({
     ...p,
     numPreguntas: preguntasCount[p.id] ?? 0,
     numEnvios: enviosCount[p.id] ?? 0,
+    valoracionPromedio: valoracionCountById[p.id]
+      ? Math.round((valoracionSumById[p.id] / valoracionCountById[p.id]) * 100) / 100
+      : null,
   }));
 }
 
@@ -277,9 +288,18 @@ export async function enviarEncuesta({
   }
 }
 
-// Lee la plantilla + preguntas para previsualización (sin envío real, uso interno del agente)
+// Lee la plantilla + preguntas para previsualización (interna, con sesión, o pública por dominio)
 export async function getPlantillaPreview(plantillaId: string) {
-  const agencyDb = await getAgencyDbClient();
+  let agencyDb;
+  try {
+    agencyDb = await getAgencyDbClient();
+  } catch {
+    const dominio = await getDominioActualPublico();
+    if (!dominio) return null;
+    const agency = await getAgencyDbClientByDomain(dominio);
+    if (!agency) return null;
+    agencyDb = agency.db;
+  }
 
   const { data: plantilla } = await agencyDb
     .from("encuestas_plantillas")
@@ -302,9 +322,14 @@ export async function getPlantillaPreview(plantillaId: string) {
   };
 }
 
-// Lee el envío + plantilla + preguntas por token (página pública)
+// Lee el envío + plantilla + preguntas por token (página pública, sin sesión)
 export async function getEncuestaByToken(token: string) {
-  const agencyDb = await getAgencyDbClient();
+  const dominio = await getDominioActualPublico();
+  if (!dominio) return null;
+
+  const agency = await getAgencyDbClientByDomain(dominio);
+  if (!agency) return null;
+  const agencyDb = agency.db;
 
   const { data: envio, error } = await agencyDb
     .from("encuestas_envios")
@@ -337,12 +362,17 @@ export async function getEncuestaByToken(token: string) {
   };
 }
 
-// Guarda las respuestas del cliente (página pública)
+// Guarda las respuestas del cliente (página pública, sin sesión)
 export async function guardarRespuestas(
   token: string,
   respuestas: Array<{ pregunta_id: string; tipo: TipoPregunta; valor: string | number | string[] }>
 ) {
-  const agencyDb = await getAgencyDbClient();
+  const dominio = await getDominioActualPublico();
+  if (!dominio) return { success: false, error: "No se pudo identificar la agencia." };
+
+  const agency = await getAgencyDbClientByDomain(dominio);
+  if (!agency) return { success: false, error: "No se pudo identificar la agencia." };
+  const agencyDb = agency.db;
 
   const { data: envio, error: envioErr } = await agencyDb
     .from("encuestas_envios")

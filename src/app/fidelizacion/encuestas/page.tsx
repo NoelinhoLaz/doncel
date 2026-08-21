@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getPlantillas } from "@/actions/encuestas";
 import ModalNuevaEncuesta from "@/components/modals/ModalNuevaEncuesta";
+import ValoracionBadge from "@/components/ValoracionBadge";
 
 type Plantilla = {
   id: string;
@@ -15,6 +16,7 @@ type Plantilla = {
   created_at: string;
   numPreguntas: number;
   numEnvios: number;
+  valoracionPromedio: number | null;
 };
 
 function formatFecha(iso: string) {
@@ -66,6 +68,7 @@ export default function EncuestasPage() {
                 <th className={styles.th}>Preguntas</th>
                 <th className={styles.th}>Envíos</th>
                 <th className={styles.th}>Estado</th>
+                <th className={styles.th}>Valoración</th>
                 <th className={styles.th}>Creada</th>
                 <th className={styles.th}></th>
               </tr>
@@ -85,6 +88,9 @@ export default function EncuestasPage() {
                     >
                       {p.activa ? "Activa" : "Inactiva"}
                     </span>
+                  </td>
+                  <td className={styles.td}>
+                    <ValoracionBadge valor={p.valoracionPromedio} />
                   </td>
                   <td className={styles.td}>{formatFecha(p.created_at)}</td>
                   <td className={styles.tdCenter}>
