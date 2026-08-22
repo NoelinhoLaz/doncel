@@ -36,12 +36,22 @@ function mapRawViajero(v: any, pvpViajero: number, fechaSalida?: string): any {
 
   const datosViaje = v.datos_viaje || {};
 
+  const pagadorIds: string[] = Array.isArray(v.operativa_viajero_pagadores) && v.operativa_viajero_pagadores.length > 0
+    ? [...v.operativa_viajero_pagadores]
+        .sort((a: any, b: any) => (a.orden ?? 0) - (b.orden ?? 0))
+        .map((p: any) => p.pagador_entidad_id)
+        .filter(Boolean)
+    : v.pagador_id
+      ? [v.pagador_id]
+      : [];
+
   return {
     id: v.id,
     estado: v.estado,
     tipo: datosViaje.tipo || "pasajero",
     entidad_id: v.entidad_id,
     pagador_id: v.pagador_id,
+    pagadorIds,
     name: entidad.nombre || "Sin nombre",
     tutor: tutor.nombre || "",
     email: entidad.email || "",
@@ -166,19 +176,29 @@ export function useViajeros(
 
   const viajerosConPagoStatus = useMemo(() => {
     return viajeros.map((v) => {
-      const pagador = pagadorMap.get(v.pagador_id);
-      const plazosList = pagador ? getPaymentPlazos(pagador as Pagador, plazos) : [];
-      const dots = plazosList.map((_: any, i: number) =>
-        pagador ? getPlazoDetail(pagador as Pagador, plazos, i) : { color: "gray", tooltip: "" }
-      );
+      const pagadoresViajero: Pagador[] = (v.pagadorIds || [])
+        .map((id: string) => pagadorMap.get(id))
+        .filter(Boolean);
+
+      const pagadoresDetalle = pagadoresViajero.map((pagador) => {
+        const plazosList = getPaymentPlazos(pagador, plazos);
+        const dots = plazosList.map((_: any, i: number) => getPlazoDetail(pagador, plazos, i));
+        return { entidadId: pagador.entidad_id, nombre: pagador.contabilidad_entidades?.nombre || "", dots };
+      });
+
+      // Estado agregado: se compara la suma de importe_abonado / importe_total de todos los pagadores.
+      const importeTotalAgregado = pagadoresViajero.reduce((s, p) => s + Number(p.importe_total || 0), 0);
+      const importeAbonadoAgregado = pagadoresViajero.reduce((s, p) => s + Number(p.importe_abonado || 0), 0);
+
       const pagoStatus = v.status === "ANULADO"
         ? "ANULADO"
-        : dots.length > 0 && dots.every((d) => d.color === "green")
+        : importeTotalAgregado > 0 && importeAbonadoAgregado >= importeTotalAgregado
           ? "PAGADO"
-          : dots.some((d) => d.color === "green" || d.color === "orange")
+          : importeAbonadoAgregado > 0
             ? "PARCIAL"
             : "PENDIENTE";
-      return { ...v, pagoStatus };
+
+      return { ...v, pagoStatus, pagadoresDetalle };
     });
   }, [viajeros, pagadorMap, plazos]);
 
@@ -199,11 +219,9 @@ export function useViajeros(
       ) return false;
 
       for (const [pIdxStr, statuses] of Object.entries(plazoFiltersGrouped)) {
-        const pagador = pagadorMap.get(v.pagador_id);
-        const color = pagador
-          ? getPlazoDetail(pagador as Pagador, plazos, Number(pIdxStr)).color
-          : "gray";
-        if (!statuses.includes(color)) return false;
+        const plazoIndex = Number(pIdxStr);
+        const algunoCoincide = (v.pagadoresDetalle || []).some((pd: any) => statuses.includes(pd.dots[plazoIndex]?.color ?? "gray"));
+        if (!algunoCoincide) return false;
       }
 
       if (activeExtraFilters.length > 0 && !(v.extras || []).some((e: any) => activeExtraFilters.includes(e.descripcion))) return false;
@@ -234,10 +252,8 @@ export function useViajeros(
         case "contrato": va = a.contrato; vb = b.contrato; break;
         case "importe": va = Number(a.importe || 0); vb = Number(b.importe || 0); break;
         case "plazos": {
-          const pa = pagadorMap.get(a.pagador_id);
-          const pb = pagadorMap.get(b.pagador_id);
-          va = pa ? getPaymentPlazos(pa as Pagador, plazos).length : 0;
-          vb = pb ? getPaymentPlazos(pb as Pagador, plazos).length : 0;
+          va = Math.max(0, ...(a.pagadoresDetalle || []).map((pd: any) => pd.dots.length));
+          vb = Math.max(0, ...(b.pagadoresDetalle || []).map((pd: any) => pd.dots.length));
           break;
         }
       }

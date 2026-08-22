@@ -263,6 +263,30 @@
   background: #fef2f2;
 }
 
+.actionBtnDark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.actionBtnDark:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.actionBtnDark:disabled {
+  cursor: not-allowed;
+}
+
 /* ── Empty state ── */
 .empty {
   display: flex;

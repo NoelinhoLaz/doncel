@@ -11,12 +11,34 @@ interface PagadorOption {
   nombre: string;
 }
 
+interface PagadorFormModal {
+  modo: "existente" | "nuevo";
+  entidadId: string;
+  nombre: string;
+  apellidos: string;
+  dni: string;
+  email: string;
+  telefono: string;
+}
+
+function pagadorVacio(pagadoresDisponibles: PagadorOption[]): PagadorFormModal {
+  return {
+    modo: pagadoresDisponibles.length > 0 ? "existente" : "nuevo",
+    entidadId: "",
+    nombre: "",
+    apellidos: "",
+    dni: "",
+    email: "",
+    telefono: "",
+  };
+}
+
 interface AnadirViajeroModalProps {
   isOpen: boolean;
   onClose: () => void;
   expedienteId: string;
   pvpViajero?: number | null;
-  pagadores: PagadorOption[];
+  pagadoresDisponibles: PagadorOption[];
   onSuccess: () => void;
 }
 
@@ -46,7 +68,7 @@ function calcularEdad(fechaNacimiento: string): number | null {
   return edad;
 }
 
-export default function AnadirViajeroModal({ isOpen, onClose, expedienteId, pvpViajero, pagadores, onSuccess }: AnadirViajeroModalProps) {
+export default function AnadirViajeroModal({ isOpen, onClose, expedienteId, pvpViajero, pagadoresDisponibles, onSuccess }: AnadirViajeroModalProps) {
   const [step, setStep] = useState<Step>("tipo");
   const [tipo, setTipo] = useState<TipoViajero | null>(null);
   const [saving, setSaving] = useState(false);
@@ -69,14 +91,20 @@ export default function AnadirViajeroModal({ isOpen, onClose, expedienteId, pvpV
     return edad !== null && edad < 18;
   }, [fechaNacimiento]);
 
-  // Pagador
-  const [pagadorModo, setPagadorModo] = useState<"existente" | "nuevo">(pagadores.length > 0 ? "existente" : "nuevo");
-  const [pagadorEntidadId, setPagadorEntidadId] = useState("");
-  const [pagadorNombre, setPagadorNombre] = useState("");
-  const [pagadorApellidos, setPagadorApellidos] = useState("");
-  const [pagadorDni, setPagadorDni] = useState("");
-  const [pagadorEmail, setPagadorEmail] = useState("");
-  const [pagadorTelefono, setPagadorTelefono] = useState("");
+  // Pagadores (1 o más, reparto a partes iguales)
+  const [pagadores, setPagadores] = useState<PagadorFormModal[]>([pagadorVacio(pagadoresDisponibles)]);
+
+  function actualizarPagador(index: number, cambios: Partial<PagadorFormModal>) {
+    setPagadores((prev) => prev.map((p, i) => (i === index ? { ...p, ...cambios } : p)));
+  }
+
+  function agregarPagador() {
+    setPagadores((prev) => [...prev, pagadorVacio(pagadoresDisponibles)]);
+  }
+
+  function eliminarPagador(index: number) {
+    setPagadores((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
+  }
 
   // Extras
   const [extrasDisponibles, setExtrasDisponibles] = useState<{ id: string; nombre: string; pvp: number }[]>([]);
@@ -92,8 +120,7 @@ export default function AnadirViajeroModal({ isOpen, onClose, expedienteId, pvpV
       setError(null);
       setNombre(""); setApellidos(""); setDni(""); setFechaNacimiento(""); setSexo(""); setEmail(""); setTelefono("");
       setTutorNombre(""); setTutorTelefono(""); setTutorEmail("");
-      setPagadorModo(pagadores.length > 0 ? "existente" : "nuevo");
-      setPagadorEntidadId(""); setPagadorNombre(""); setPagadorApellidos(""); setPagadorDni(""); setPagadorEmail(""); setPagadorTelefono("");
+      setPagadores([pagadorVacio(pagadoresDisponibles)]);
       setExtrasSeleccionados(new Set());
       setMedioPago("banco");
     } else {
@@ -122,7 +149,10 @@ export default function AnadirViajeroModal({ isOpen, onClose, expedienteId, pvpV
   };
 
   const datosValidos = nombre.trim() && apellidos.trim() && dni.trim() && (!esMenor || tutorNombre.trim());
-  const pagadorValido = tipo !== "pasajero" || (pagadorModo === "existente" ? !!pagadorEntidadId : (pagadorNombre.trim() && pagadorApellidos.trim() && pagadorDni.trim()));
+  const pagadoresValidos =
+    tipo !== "pasajero" ||
+    pagadores.every((p) => (p.modo === "existente" ? !!p.entidadId : p.nombre.trim() && p.apellidos.trim() && p.dni.trim()));
+  const importePorPagador = tipo === "pasajero" && pagadores.length > 0 ? importeTotal / pagadores.length : 0;
 
   const handleSiguienteDesdeDatos = () => {
     if (!datosValidos) { setError("Completa nombre, apellidos, documento y tutor (si es menor de edad)."); return; }
@@ -131,7 +161,7 @@ export default function AnadirViajeroModal({ isOpen, onClose, expedienteId, pvpV
   };
 
   const handleSiguienteDesdePagador = () => {
-    if (!pagadorValido) { setError("Selecciona un pagador existente o completa los datos del nuevo pagador."); return; }
+    if (!pagadoresValidos) { setError("Selecciona un pagador existente o completa los datos de cada nuevo pagador."); return; }
     setError(null);
     setStep("extras");
   };
@@ -159,10 +189,14 @@ export default function AnadirViajeroModal({ isOpen, onClose, expedienteId, pvpV
           extras: extrasPayload,
           tutor: esMenor && tutorNombre.trim() ? { nombre: tutorNombre.trim(), telefono: tutorTelefono.trim(), email: tutorEmail.trim() } : null,
         },
-        pagadorEntidadId: tipo === "pasajero" && pagadorModo === "existente" ? pagadorEntidadId : null,
-        pagadorNuevo: tipo === "pasajero" && pagadorModo === "nuevo"
-          ? { nombre: pagadorNombre.trim(), apellidos: pagadorApellidos.trim(), dni: pagadorDni.trim(), email: pagadorEmail.trim() || null, telefono: pagadorTelefono.trim() || null }
-          : null,
+        pagadores: tipo === "pasajero"
+          ? pagadores.map((p) => ({
+              entidadId: p.modo === "existente" ? p.entidadId : undefined,
+              nuevo: p.modo === "nuevo"
+                ? { nombre: p.nombre.trim(), apellidos: p.apellidos.trim(), dni: p.dni.trim(), email: p.email.trim() || null, telefono: p.telefono.trim() || null }
+                : undefined,
+            }))
+          : undefined,
         importeTotal: tipo === "pasajero" ? (pvpViajero || 0) : undefined,
         medioPago: tipo === "pasajero" ? medioPago : undefined,
       });
@@ -311,63 +345,100 @@ export default function AnadirViajeroModal({ isOpen, onClose, expedienteId, pvpV
         {step === "pagador" && (
           <>
             <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f172a", margin: "0 0 0.25rem 0" }}>Cliente pagador</h3>
-            <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "0 0 1rem 0" }}>Selecciona quién paga este viaje.</p>
+            <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "0 0 1rem 0" }}>
+              Selecciona quién paga este viaje. Si añades más de un pagador, el importe se reparte a partes iguales.
+            </p>
 
-            <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-              {pagadores.length > 0 && (
-                <button
-                  onClick={() => setPagadorModo("existente")}
-                  style={{ flex: 1, padding: "0.5rem", borderRadius: "0.5rem", border: pagadorModo === "existente" ? "2px solid var(--primary-color, #475569)" : "1px solid #e2e8f0", background: "#fff", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600, color: "#0f172a" }}
-                >
-                  Pagador existente
-                </button>
-              )}
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              {pagadores.map((p, index) => (
+                <div key={index} style={{ border: "1px solid #e2e8f0", borderRadius: "0.6rem", padding: "0.85rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
+                    <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#334155" }}>Pagador {index + 1}</span>
+                    {pagadores.length > 1 && (
+                      <button
+                        onClick={() => eliminarPagador(index)}
+                        style={{ border: "none", background: "none", color: "#dc2626", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", padding: 0 }}
+                      >
+                        Eliminar
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
+                    {pagadoresDisponibles.length > 0 && (
+                      <button
+                        onClick={() => actualizarPagador(index, { modo: "existente" })}
+                        style={{ flex: 1, padding: "0.5rem", borderRadius: "0.5rem", border: p.modo === "existente" ? "2px solid var(--primary-color, #475569)" : "1px solid #e2e8f0", background: "#fff", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600, color: "#0f172a" }}
+                      >
+                        Pagador existente
+                      </button>
+                    )}
+                    <button
+                      onClick={() => actualizarPagador(index, { modo: "nuevo" })}
+                      style={{ flex: 1, padding: "0.5rem", borderRadius: "0.5rem", border: p.modo === "nuevo" ? "2px solid var(--primary-color, #475569)" : "1px solid #e2e8f0", background: "#fff", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600, color: "#0f172a" }}
+                    >
+                      Nuevo pagador
+                    </button>
+                  </div>
+
+                  {p.modo === "existente" ? (
+                    <div>
+                      <label style={labelStyle}>Pagador</label>
+                      <select
+                        style={{ ...inputStyle, background: "#fff" }}
+                        value={p.entidadId}
+                        onChange={(e) => actualizarPagador(index, { entidadId: e.target.value })}
+                      >
+                        <option value="">Selecciona un pagador...</option>
+                        {pagadoresDisponibles.map((op) => (
+                          <option key={op.entidad_id} value={op.entidad_id}>{op.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem" }}>
+                      <div style={{ display: "flex", gap: "0.7rem" }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={labelStyle}>Nombre</label>
+                          <input style={inputStyle} value={p.nombre} onChange={(e) => actualizarPagador(index, { nombre: e.target.value })} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <label style={labelStyle}>Apellidos</label>
+                          <input style={inputStyle} value={p.apellidos} onChange={(e) => actualizarPagador(index, { apellidos: e.target.value })} />
+                        </div>
+                      </div>
+                      <div>
+                        <label style={labelStyle}>DNI / CIF</label>
+                        <input style={inputStyle} value={p.dni} onChange={(e) => actualizarPagador(index, { dni: e.target.value })} />
+                      </div>
+                      <div style={{ display: "flex", gap: "0.7rem" }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={labelStyle}>Email</label>
+                          <input type="email" style={inputStyle} value={p.email} onChange={(e) => actualizarPagador(index, { email: e.target.value })} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <label style={labelStyle}>Teléfono</label>
+                          <input style={inputStyle} value={p.telefono} onChange={(e) => actualizarPagador(index, { telefono: e.target.value })} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
               <button
-                onClick={() => setPagadorModo("nuevo")}
-                style={{ flex: 1, padding: "0.5rem", borderRadius: "0.5rem", border: pagadorModo === "nuevo" ? "2px solid var(--primary-color, #475569)" : "1px solid #e2e8f0", background: "#fff", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600, color: "#0f172a" }}
+                onClick={agregarPagador}
+                style={{ alignSelf: "flex-start", border: "1px dashed #cbd5e1", background: "none", color: "var(--primary-color, #475569)", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer", padding: "0.5rem 0.9rem", borderRadius: "0.5rem" }}
               >
-                Nuevo pagador
+                + Añadir otro pagador
               </button>
-            </div>
 
-            {pagadorModo === "existente" ? (
-              <div>
-                <label style={labelStyle}>Pagador</label>
-                <select style={{ ...inputStyle, background: "#fff" }} value={pagadorEntidadId} onChange={(e) => setPagadorEntidadId(e.target.value)}>
-                  <option value="">Selecciona un pagador...</option>
-                  {pagadores.map((p) => (
-                    <option key={p.entidad_id} value={p.entidad_id}>{p.nombre}</option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem" }}>
-                <div style={{ display: "flex", gap: "0.7rem" }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={labelStyle}>Nombre</label>
-                    <input style={inputStyle} value={pagadorNombre} onChange={(e) => setPagadorNombre(e.target.value)} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={labelStyle}>Apellidos</label>
-                    <input style={inputStyle} value={pagadorApellidos} onChange={(e) => setPagadorApellidos(e.target.value)} />
-                  </div>
-                </div>
-                <div>
-                  <label style={labelStyle}>DNI / CIF</label>
-                  <input style={inputStyle} value={pagadorDni} onChange={(e) => setPagadorDni(e.target.value)} />
-                </div>
-                <div style={{ display: "flex", gap: "0.7rem" }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={labelStyle}>Email</label>
-                    <input type="email" style={inputStyle} value={pagadorEmail} onChange={(e) => setPagadorEmail(e.target.value)} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={labelStyle}>Teléfono</label>
-                    <input style={inputStyle} value={pagadorTelefono} onChange={(e) => setPagadorTelefono(e.target.value)} />
-                  </div>
-                </div>
-              </div>
-            )}
+              {pagadores.length > 1 && (
+                <p style={{ fontSize: "0.78rem", color: "#64748b", margin: 0 }}>
+                  Cada pagador abonará aproximadamente {importePorPagador.toLocaleString("es-ES", { minimumFractionDigits: 2 })} €.
+                </p>
+              )}
+            </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.25rem", paddingTop: "0.75rem", borderTop: "1px solid #e2e8f0" }}>
               <button
@@ -456,9 +527,11 @@ export default function AnadirViajeroModal({ isOpen, onClose, expedienteId, pvpV
               {tipo === "pasajero" && (
                 <>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem" }}>
-                    <span style={{ color: "#64748b" }}>Pagador</span>
+                    <span style={{ color: "#64748b" }}>{pagadores.length > 1 ? "Pagadores" : "Pagador"}</span>
                     <span style={{ fontWeight: 600, color: "#0f172a" }}>
-                      {pagadorModo === "existente" ? (pagadores.find((p) => p.entidad_id === pagadorEntidadId)?.nombre || "—") : `${pagadorNombre} ${pagadorApellidos}`}
+                      {pagadores
+                        .map((p) => (p.modo === "existente" ? (pagadoresDisponibles.find((op) => op.entidad_id === p.entidadId)?.nombre || "—") : `${p.nombre} ${p.apellidos}`))
+                        .join(", ")}
                     </span>
                   </div>
                   {extrasSeleccionados.size > 0 && (

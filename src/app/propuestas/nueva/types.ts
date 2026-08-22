@@ -162,13 +162,19 @@ export interface Seccion {
   estiloPvp?: TextoEstilo;
   estiloCondiciones?: TextoEstilo;
   estiloOtrasConsideraciones?: TextoEstilo;
+  colorFondoCard?: string;
+  colorFondoCardPrecio?: string;
   formularioCampos?: { uid: string; key: string; label: string; lineas: number; activo: boolean }[];
   formularioTitulo?: string;
   formularioSubtitulo?: string;
   formularioEmail?: string;
   formularioBoton?: string;
+  formularioAvatar?: MediaItem;
+  formularioAvatarForma?: "redondo" | "cuadrado";
+  formularioNota?: string;
   estiloFormularioTitulo?: TextoEstilo;
   estiloFormularioSubtitulo?: TextoEstilo;
+  estiloFormularioNota?: TextoEstilo;
   cards?: CardItem[];
   galeria?: GaleriaItem[];
   listadoFormatoId?: string | null;
@@ -181,6 +187,9 @@ export interface Seccion {
   extrasFilas?: ExtraFila[];
   estiloExtraTexto?: TextoEstilo;
   estiloExtraImporte?: TextoEstilo;
+  faqs?: { uid: string; pregunta?: string; respuesta?: string }[];
+  estiloFaqPregunta?: TextoEstilo;
+  estiloFaqRespuesta?: TextoEstilo;
 }
 
 export interface ExtraFila {

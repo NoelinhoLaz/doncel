@@ -4,14 +4,19 @@ import { getPaymentPlazos, getPlazoDetail } from "@/lib/utils/cobrosUtils";
 import type { Pagador } from "@/lib/types/cobros";
 
 interface Props {
-  pagador: Pagador;
-  globalPlazos: any[];
+  pagador?: Pagador;
+  globalPlazos?: any[];
+  /** Si se pasa, se usan directamente estos puntos ya calculados en vez de derivarlos de pagador/globalPlazos. */
+  dots?: { color: string; tooltip: string }[];
 }
 
-export default function PlazoDots({ pagador, globalPlazos }: Props) {
-  const plazos = getPaymentPlazos(pagador, globalPlazos);
-  const n = plazos.length || 3;
-  const dots = Array.from({ length: n }, (_, i) => getPlazoDetail(pagador, globalPlazos, i));
+export default function PlazoDots({ pagador, globalPlazos, dots: dotsProp }: Props) {
+  const dots = dotsProp ?? (() => {
+    if (!pagador) return [];
+    const plazos = getPaymentPlazos(pagador, globalPlazos ?? []);
+    const n = plazos.length || 3;
+    return Array.from({ length: n }, (_, i) => getPlazoDetail(pagador, globalPlazos ?? [], i));
+  })();
 
   return (
     <div style={{ display: "flex", gap: "3px", justifyContent: "flex-end", alignItems: "center" }}>

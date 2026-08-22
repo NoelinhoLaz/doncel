@@ -122,7 +122,7 @@ export default function ViajerosTab({ expedienteId, fechaSalida, pvpViajero, pag
         onClose={() => setIsAddOpen(false)}
         expedienteId={expedienteId}
         pvpViajero={pvpViajero}
-        pagadores={pagadorOptions}
+        pagadoresDisponibles={pagadorOptions}
         onSuccess={v.reload}
       />
 

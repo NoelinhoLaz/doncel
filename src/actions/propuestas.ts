@@ -3,6 +3,7 @@
 import { getAgencyDbClient, getAgencyDbClientByDomain } from "@/lib/agencyDb";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { revalidatePath } from "next/cache";
+import { slugify, slugUnicoEnTabla } from "@/lib/utils/slug";
 
 const ROLES_ADMIN = ["Admin", "SuperAdmin", "Owner"];
 
@@ -40,7 +41,7 @@ export async function getPropuestas() {
     const { data, error } = await agencyDb
       .from("operativa_propuestas")
       .select(`
-        id, title, destination, created_at, contacto_id, cotizacion_id, agente_id,
+        id, title, destination, fecha_salida, fecha_regreso, created_at, contacto_id, cotizacion_id, agente_id,
         contabilidad_entidades!contacto_id(id, nombre),
         landings(id, is_active, version_number, design_tokens, editor_content)
       `)
@@ -174,6 +175,77 @@ export async function linkCotizacionToPropuesta(cotizacionId: string, propuestaI
       .eq("id", propuestaId);
     revalidatePath("/propuestas");
     return { success: !error, error: error?.message };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Desvincula una propuesta de su cotización (cotizacion_id = NULL). La propuesta
+ * y la cotización siguen existiendo independientemente; solo se rompe el vínculo.
+ */
+export async function unlinkCotizacionFromPropuesta(propuestaId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { error } = await agencyDb
+      .from("operativa_propuestas")
+      .update({ cotizacion_id: null, quote_id: null })
+      .eq("id", propuestaId);
+    revalidatePath("/propuestas");
+    return { success: !error, error: error?.message };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Actualiza metadatos de cabecera de una propuesta (título, contacto, destino y fechas),
+ * análogo a updateCotizacionMeta en src/actions/cotizaciones.ts.
+ */
+export async function updatePropuestaMeta(propuestaId: string, payload: {
+  title?: string;
+  destination?: string | null;
+  contacto_id?: string | null;
+  fecha_salida?: string | null;
+  fecha_regreso?: string | null;
+}) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { error } = await agencyDb
+      .from("operativa_propuestas")
+      .update(payload)
+      .eq("id", propuestaId);
+    if (error) throw error;
+    revalidatePath("/propuestas");
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Actualiza el slug público de una propuesta. Normaliza el texto recibido con
+ * slugify y garantiza unicidad en operativa_propuestas (excluyendo la propia fila),
+ * añadiendo un sufijo numérico si hace falta. Si se pasa vacío/null, libera el slug.
+ */
+export async function updatePropuestaSlug(propuestaId: string, slugDeseado: string | null) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+
+    if (!slugDeseado || !slugDeseado.trim()) {
+      const { error } = await agencyDb.from("operativa_propuestas").update({ slug: null }).eq("id", propuestaId);
+      if (error) throw error;
+      revalidatePath("/propuestas");
+      return { success: true, slug: null };
+    }
+
+    const base = slugify(slugDeseado);
+    const slugFinal = await slugUnicoEnTabla(agencyDb, "operativa_propuestas", base, propuestaId);
+
+    const { error } = await agencyDb.from("operativa_propuestas").update({ slug: slugFinal }).eq("id", propuestaId);
+    if (error) throw error;
+    revalidatePath("/propuestas");
+    return { success: true, slug: slugFinal };
   } catch (err: any) {
     return { success: false, error: err.message };
   }
@@ -477,8 +549,8 @@ export async function crearPropuestaDesdeCotizacion(cotizacionId: string) {
       .single();
     if (cotError || !cot) throw cotError ?? new Error("Cotización no encontrada");
 
-    const destinoPrincipal = Array.isArray(cot.destinos) && cot.destinos.length > 0
-      ? (cot.destinos[0]?.nombre ?? null)
+    const destinosTexto = Array.isArray(cot.destinos) && cot.destinos.length > 0
+      ? cot.destinos.map((d: any) => d?.nombre).filter(Boolean).join(", ")
       : null;
 
     let currentUserId: string | null = null;
@@ -492,7 +564,9 @@ export async function crearPropuestaDesdeCotizacion(cotizacionId: string) {
       .from("operativa_propuestas")
       .insert({
         title: cot.titulo || "Nueva propuesta",
-        destination: destinoPrincipal,
+        destination: destinosTexto,
+        fecha_salida: cot.fecha_salida || null,
+        fecha_regreso: cot.fecha_regreso || null,
         cotizacion_id: cotizacionId,
         contacto_id: cot.contacto || null,
         agente_id: currentUserId ?? cot.agente_id ?? null,
@@ -582,7 +656,7 @@ export async function getPropuesta(id: string) {
     const agencyDb = await getAgencyDbClient();
     const { data, error } = await agencyDb
       .from("operativa_propuestas")
-      .select(`id, title, destination, created_at, contacto_id, cotizacion_id, agente_id, contabilidad_entidades!contacto_id(id, nombre), landings(id, is_active, design_tokens, editor_content)`)
+      .select(`id, title, destination, slug, fecha_salida, fecha_regreso, created_at, contacto_id, cotizacion_id, agente_id, contabilidad_entidades!contacto_id(id, nombre), landings(id, is_active, design_tokens, editor_content)`)
       .eq("id", id)
       .single();
     if (error) throw error;
@@ -633,7 +707,7 @@ export async function getPropuestaPublica(id: string, dominio: string) {
 
     const { data, error } = await agencyDb
       .from("operativa_propuestas")
-      .select(`id, title, destination, created_at, contacto_id, cotizacion_id, agente_id, contabilidad_entidades!contacto_id(id, nombre), landings(id, is_active, design_tokens, editor_content)`)
+      .select(`id, title, destination, slug, fecha_salida, fecha_regreso, created_at, contacto_id, cotizacion_id, agente_id, contabilidad_entidades!contacto_id(id, nombre), landings(id, is_active, design_tokens, editor_content)`)
       .eq("id", id)
       .single();
     if (error) throw error;
@@ -667,6 +741,30 @@ export async function getPropuestaPublica(id: string, dominio: string) {
     return { ...data, landing, landings: undefined, agente };
   } catch (e: any) {
     console.error("getPropuestaPublica:", e?.message);
+    return null;
+  }
+}
+
+/**
+ * Resuelve el id de una propuesta a partir de su slug público, dentro de la agencia
+ * del dominio dado. Usado por la ruta pública /propuestas/p/[slug].
+ */
+export async function getPropuestaIdPorSlug(slug: string, dominio: string): Promise<string | null> {
+  try {
+    const dominioEfectivo = process.env.NEXT_PUBLIC_AGENCY_DOMAIN_OVERRIDE || dominio;
+    const resolved = await getAgencyDbClientByDomain(dominioEfectivo);
+    if (!resolved) return null;
+    const { db: agencyDb } = resolved;
+
+    const { data, error } = await agencyDb
+      .from("operativa_propuestas")
+      .select("id")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (error) throw error;
+    return data?.id ?? null;
+  } catch (e: any) {
+    console.error("getPropuestaIdPorSlug:", e?.message);
     return null;
   }
 }
@@ -748,12 +846,20 @@ export async function guardarPropuesta({
   designTokens,
   cotizacionId,
   contactoId,
+  title: titleOverride,
+  destination,
+  fechaSalida,
+  fechaRegreso,
 }: {
   propuestaId?: string;
   editorContent: any[];
   designTokens: any[];
   cotizacionId?: string | null;
   contactoId?: string | null;
+  title?: string;
+  destination?: string | null;
+  fechaSalida?: string | null;
+  fechaRegreso?: string | null;
 }) {
   try {
     const agencyDb = await getAgencyDbClient();
@@ -771,15 +877,21 @@ export async function guardarPropuesta({
         .eq("proposal_id", propuestaId)
         .eq("is_active", true);
       if (error) throw error;
-      // Sincroniza el título y contacto en operativa_propuestas
+      // Sincroniza título/contacto/destino/fechas en operativa_propuestas. El título del
+      // header (titleOverride) manda sobre el de la sección portada si ambos vienen.
       const portada = editorContent.find((s: any) => s.tipo === "portada");
       const updates: any = {};
-      if (portada?.titulo) {
+      if (titleOverride !== undefined) {
+        updates.title = titleOverride;
+      } else if (portada?.titulo) {
         updates.title = portada.titulo;
       }
       if (contactoId !== undefined) {
         updates.contacto_id = contactoId;
       }
+      if (destination !== undefined) updates.destination = destination;
+      if (fechaSalida !== undefined) updates.fecha_salida = fechaSalida;
+      if (fechaRegreso !== undefined) updates.fecha_regreso = fechaRegreso;
       if (Object.keys(updates).length > 0) {
         await agencyDb.from("operativa_propuestas").update(updates).eq("id", propuestaId);
       }
@@ -787,13 +899,16 @@ export async function guardarPropuesta({
       return { ok: true, id: propuestaId };
     }
 
-    // Título de la portada o fallback
+    // Título del header si se indicó; si no, el de la portada o fallback
     const portada = editorContent.find((s: any) => s.tipo === "portada");
-    const title = portada?.titulo ?? "Nueva propuesta";
+    const title = titleOverride || portada?.titulo || "Nueva propuesta";
 
     const propInsert: any = { title, proposal_data: {}, agente_id: currentUserId };
     if (cotizacionId) propInsert.cotizacion_id = cotizacionId;
     if (contactoId) propInsert.contacto_id = contactoId;
+    if (destination) propInsert.destination = destination;
+    if (fechaSalida) propInsert.fecha_salida = fechaSalida;
+    if (fechaRegreso) propInsert.fecha_regreso = fechaRegreso;
 
     const { data: prop, error: propErr } = await agencyDb
       .from("operativa_propuestas")

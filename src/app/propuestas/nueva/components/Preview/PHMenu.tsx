@@ -22,8 +22,10 @@ export default function PHMenu({ mobile, seccion, secciones }: { mobile?: boolea
     if (typeof document === "undefined") return;
     const el = document.getElementById(uid);
     if (!el) return;
-    const offset = fijo ? (menuRef.current?.offsetHeight ?? 0) : 0;
-    const top = el.getBoundingClientRect().top + window.scrollY - offset;
+    const menuOffset = fijo ? (menuRef.current?.offsetHeight ?? 0) : 0;
+    const rect = el.getBoundingClientRect();
+    const top = rect.top + window.scrollY - menuOffset
+      - (window.innerHeight - menuOffset - rect.height) / 2;
     window.scrollTo({ top, behavior: "smooth" });
   };
 

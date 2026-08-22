@@ -458,7 +458,7 @@ export async function submitRegistro(payload: {
     extras: { id: string; nombre: string; pvp: number; cantidad: number }[];
     tutor?: { nombre: string; telefono: string; email: string } | null;
   }[];
-  pagador: {
+  pagadores: {
     nombre: string;
     apellidos: string;
     dni: string;
@@ -467,7 +467,7 @@ export async function submitRegistro(payload: {
     lng?: number | null;
     email?: string;
     telefono?: string;
-  };
+  }[];
   metodoPago: string;
   plazosCalculados: { descripcion: string; fecha: string; importeCalculado: number }[];
 }) {
@@ -563,20 +563,25 @@ export async function submitRegistro(payload: {
       }
     }
 
-    // ── 1. Upsert pagador ─────────────────────────────────────────────────────
-    const pagadorEntidadId = await upsertEntidad({
-      nombre: `${payload.pagador.nombre} ${payload.pagador.apellidos}`,
-      documento: payload.pagador.dni,
-      email: payload.pagador.email || null,
-      telefono: payload.pagador.telefono || null,
-      direccion: payload.pagador.direccion || null,
-      lat: payload.pagador.lat ?? null,
-      lng: payload.pagador.lng ?? null,
-      rolNuevo: "cliente",
-    });
-
-    if (!pagadorEntidadId) return { error: "Error al crear el pagador" };
-    await asignarEtiquetaSiCorresponde(pagadorEntidadId);
+    // ── 1. Upsert pagadores ────────────────────────────────────────────────────
+    if (payload.pagadores.length === 0) return { error: "Falta al menos un pagador" };
+    const pagadorEntidadIds: string[] = [];
+    for (const pag of payload.pagadores) {
+      const id = await upsertEntidad({
+        nombre: `${pag.nombre} ${pag.apellidos}`,
+        documento: pag.dni,
+        email: pag.email || null,
+        telefono: pag.telefono || null,
+        direccion: pag.direccion || null,
+        lat: pag.lat ?? null,
+        lng: pag.lng ?? null,
+        rolNuevo: "cliente",
+      });
+      if (!id) return { error: "Error al crear el pagador" };
+      pagadorEntidadIds.push(id);
+      await asignarEtiquetaSiCorresponde(id);
+    }
+    const pagadorEntidadId = pagadorEntidadIds[0];
 
     // ── 2. Procesar cada viajero ──────────────────────────────────────────────
     const viajeroEntidadIds: string[] = [];
@@ -611,31 +616,32 @@ export async function submitRegistro(payload: {
       await asignarEtiquetaSiCorresponde(entidadId);
 
       // ── 2a. Resolver tutor (si menor) ──────────────────────────────────────
-      // Si el tutor es la misma persona que el pagador (mismo nombre o email),
-      // reutilizamos pagadorEntidadId y añadimos rol tutor en lugar de crear entidad duplicada
+      // Si el tutor es la misma persona que alguno de los pagadores (mismo nombre o email),
+      // reutilizamos esa entidad y añadimos rol tutor en lugar de crear entidad duplicada
       let tutorEntidadId: string | null = null;
       if (v.tutor?.nombre) {
         const tutorNombreNorm = v.tutor.nombre.trim().toLowerCase();
-        const pagadorNombreNorm = `${payload.pagador.nombre} ${payload.pagador.apellidos}`.trim().toLowerCase();
         const tutorEmailNorm = v.tutor.email?.trim().toLowerCase();
-        const pagadorEmailNorm = payload.pagador.email?.trim().toLowerCase();
 
-        const esMismaPersQueElPagador =
-          tutorNombreNorm === pagadorNombreNorm ||
-          (tutorEmailNorm && pagadorEmailNorm && tutorEmailNorm === pagadorEmailNorm);
+        const pagadorCoincidenteIdx = payload.pagadores.findIndex((pag) => {
+          const pagadorNombreNorm = `${pag.nombre} ${pag.apellidos}`.trim().toLowerCase();
+          const pagadorEmailNorm = pag.email?.trim().toLowerCase();
+          return tutorNombreNorm === pagadorNombreNorm || (tutorEmailNorm && pagadorEmailNorm && tutorEmailNorm === pagadorEmailNorm);
+        });
+        const pagadorCoincidenteId = pagadorCoincidenteIdx >= 0 ? pagadorEntidadIds[pagadorCoincidenteIdx] : null;
 
-        if (esMismaPersQueElPagador && pagadorEntidadId) {
-          // El tutor ES el pagador — añadir rol tutor a la entidad ya creada
+        if (pagadorCoincidenteId) {
+          // El tutor ES uno de los pagadores — añadir rol tutor a la entidad ya creada
           const { data: pagEnt } = await agencyDb
             .from("contabilidad_entidades")
             .select("roles")
-            .eq("id", pagadorEntidadId)
+            .eq("id", pagadorCoincidenteId)
             .single();
           await agencyDb
             .from("contabilidad_entidades")
             .update({ roles: { ...(pagEnt?.roles || {}), cliente: true, tutor: true } })
-            .eq("id", pagadorEntidadId);
-          tutorEntidadId = pagadorEntidadId;
+            .eq("id", pagadorCoincidenteId);
+          tutorEntidadId = pagadorCoincidenteId;
         } else {
           // Tutor distinto del pagador — upsert por email (único identificador disponible)
           const tutorDoc = v.tutor.email?.trim().toUpperCase() ||
@@ -715,6 +721,20 @@ export async function submitRegistro(payload: {
           await agencyDb.from("operativa_viajero_servicios").insert(serviciosRows);
         }
       }
+
+      // ── 2e. operativa_viajero_pagadores (relación N:M viajero ↔ pagadores) ──
+      if (viajeroExpId) {
+        await agencyDb.from("operativa_viajero_pagadores").delete().eq("viajero_expediente_id", viajeroExpId);
+        const puenteRows = pagadorEntidadIds.map((id, i) => ({
+          viajero_expediente_id: viajeroExpId,
+          pagador_entidad_id: id,
+          es_principal: i === 0,
+          orden: i,
+        }));
+        if (puenteRows.length > 0) {
+          await agencyDb.from("operativa_viajero_pagadores").insert(puenteRows);
+        }
+      }
     }
 
     // ── 3. operativa_pagadores_expedientes ────────────────────────────────────
@@ -723,38 +743,51 @@ export async function submitRegistro(payload: {
       return s + pvpViajero + extrasV.reduce((se, e) => se + e.pvp * e.cantidad, 0);
     }, 0);
 
-    const plazosJsonb = payload.plazosCalculados.map(p => ({
-      descripcion: p.descripcion,
-      fecha: p.fecha,
-      importe: p.importeCalculado,
-    }));
+    const n = pagadorEntidadIds.length;
+    const partePlazoImporte = (importeCalculado: number) => Math.round((importeCalculado / n) * 100) / 100;
+    const parteTotal = Math.round((importeTotal / n) * 100) / 100;
 
-    const { data: existingPag } = await agencyDb
-      .from("operativa_pagadores_expedientes")
-      .select("id")
-      .eq("expediente_id", exp.id)
-      .eq("entidad_id", pagadorEntidadId)
-      .maybeSingle();
+    for (let i = 0; i < n; i++) {
+      const pagId = pagadorEntidadIds[i];
+      const esUltimo = i === n - 1;
+      const parteImporteTotal = esUltimo ? importeTotal - parteTotal * (n - 1) : parteTotal;
 
-    if (existingPag) {
-      await agencyDb
+      const plazosJsonbPagador = payload.plazosCalculados.map((p) => {
+        const parte = partePlazoImporte(p.importeCalculado);
+        return {
+          descripcion: p.descripcion,
+          fecha: p.fecha,
+          importe: esUltimo ? p.importeCalculado - parte * (n - 1) : parte,
+        };
+      });
+
+      const { data: existingPag } = await agencyDb
         .from("operativa_pagadores_expedientes")
-        .update({
-          importe_total: importeTotal,
-          plazos: plazosJsonb,
-          estado: "pendiente",
-        })
-        .eq("id", existingPag.id);
-    } else {
-      await agencyDb
-        .from("operativa_pagadores_expedientes")
-        .insert({
-          expediente_id: exp.id,
-          entidad_id: pagadorEntidadId,
-          importe_total: importeTotal,
-          plazos: plazosJsonb,
-          estado: "pendiente",
-        });
+        .select("id")
+        .eq("expediente_id", exp.id)
+        .eq("entidad_id", pagId)
+        .maybeSingle();
+
+      if (existingPag) {
+        await agencyDb
+          .from("operativa_pagadores_expedientes")
+          .update({
+            importe_total: parteImporteTotal,
+            plazos: plazosJsonbPagador,
+            estado: "pendiente",
+          })
+          .eq("id", existingPag.id);
+      } else {
+        await agencyDb
+          .from("operativa_pagadores_expedientes")
+          .insert({
+            expediente_id: exp.id,
+            entidad_id: pagId,
+            importe_total: parteImporteTotal,
+            plazos: plazosJsonbPagador,
+            estado: "pendiente",
+          });
+      }
     }
 
     return { success: true };

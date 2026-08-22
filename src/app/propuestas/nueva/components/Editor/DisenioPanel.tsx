@@ -106,6 +106,72 @@ export default function DisenioPanel({
           />
         </>
       )}
+      {seccion.tipo === "faqs" && (
+        <>
+          <div className={styles.editorSection}>
+            <label className={styles.editorFieldLabel}>Layout</label>
+            <div className={styles.layoutPicker}>
+              {[
+                { id: "clasico", label: "Clásico", preview: (
+                  <div className={styles.layoutPreview} style={{ background: "#f8fafc", borderRadius: 3, flexDirection: "column", gap: 3, padding: "5px 6px", justifyContent: "center" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div className={styles.lpLine} style={{ width: "55%" }} />
+                      <span style={{ fontSize: 7, color: "#94a3b8" }}>▾</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div className={styles.lpLine} style={{ width: "65%", background: "#6366f1" }} />
+                      <span style={{ fontSize: 7, color: "#6366f1", transform: "rotate(180deg)" }}>▾</span>
+                    </div>
+                    <div className={styles.lpLine} style={{ width: "80%", height: 3 }} />
+                  </div>
+                )},
+                { id: "2-cols", label: "Dos columnas", preview: (
+                  <div className={styles.layoutPreview} style={{ background: "#f8fafc", borderRadius: 3, gap: 4, padding: "5px 6px" }}>
+                    <div style={{ flex: "0 0 45%", display: "flex", flexDirection: "column", gap: 3, justifyContent: "center" }}>
+                      <div className={styles.lpLine} style={{ width: "90%" }} />
+                      <div className={styles.lpLine} style={{ width: "90%", background: "#6366f1" }} />
+                    </div>
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3, justifyContent: "center", background: "#e2e8f0", borderRadius: 2, padding: "0 4px" }}>
+                      <div className={styles.lpLine} style={{ width: "80%", height: 3 }} />
+                      <div className={styles.lpLine} style={{ width: "60%", height: 3 }} />
+                    </div>
+                  </div>
+                )},
+              ].map(({ id, label, preview }) => (
+                <button
+                  key={id}
+                  className={`${styles.layoutOption} ${(seccion.layout ?? "clasico") === id ? styles.layoutOptionActive : ""}`}
+                  onClick={() => onUpdate(seccion.uid, { layout: id })}
+                >
+                  {preview}
+                  <span className={styles.layoutLabel}>{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <SeccionDisenioRow seccion={seccion} onUpdate={onUpdate} anchoDefault="900px" />
+          <TextoEstiloEditor
+            label="Título de la sección"
+            value={seccion.estiloTitulo}
+            onChange={v => onUpdate(seccion.uid, { estiloTitulo: v })}
+          />
+          <TextoEstiloEditor
+            label="Subtítulo de la sección"
+            value={seccion.estiloSubtitulo}
+            onChange={v => onUpdate(seccion.uid, { estiloSubtitulo: v })}
+          />
+          <TextoEstiloEditor
+            label="Pregunta"
+            value={seccion.estiloFaqPregunta}
+            onChange={v => onUpdate(seccion.uid, { estiloFaqPregunta: v })}
+          />
+          <TextoEstiloEditor
+            label="Respuesta"
+            value={seccion.estiloFaqRespuesta}
+            onChange={v => onUpdate(seccion.uid, { estiloFaqRespuesta: v })}
+          />
+        </>
+      )}
       {(seccion.tipo === "ofertas" || seccion.tipo === "cards") && (
         <>
           {seccion.tipo === "ofertas" && (
@@ -606,6 +672,36 @@ export default function DisenioPanel({
             </div>
           </div>
           <SeccionDisenioRow seccion={seccion} onUpdate={onUpdate} anchoDefault="1200px" />
+          <div className={styles.editorSection}>
+            <label className={styles.editorFieldLabel}>Color de fondo de la card</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <label style={{ width: 34, height: 34, borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: seccion.colorFondoCard ?? "#ffffff", flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
+                <input type="color" value={seccion.colorFondoCard ?? "#ffffff"} onChange={e => onUpdate(seccion.uid, { colorFondoCard: e.target.value })} style={{ opacity: 0, position: "absolute" }} />
+              </label>
+              <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondoCard ?? "#ffffff"}</span>
+              {seccion.colorFondoCard && (
+                <button onClick={() => onUpdate(seccion.uid, { colorFondoCard: undefined })}
+                  style={{ fontSize: "0.73rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                  Restablecer
+                </button>
+              )}
+            </div>
+          </div>
+          <div className={styles.editorSection}>
+            <label className={styles.editorFieldLabel}>Color de fondo de la card del precio</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <label style={{ width: 34, height: 34, borderRadius: "0.5rem", border: "1px solid #e2e8f0", background: seccion.colorFondoCardPrecio ?? "#1e1b4b", flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
+                <input type="color" value={seccion.colorFondoCardPrecio ?? "#1e1b4b"} onChange={e => onUpdate(seccion.uid, { colorFondoCardPrecio: e.target.value })} style={{ opacity: 0, position: "absolute" }} />
+              </label>
+              <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontFamily: "monospace" }}>{seccion.colorFondoCardPrecio ?? "Por defecto"}</span>
+              {seccion.colorFondoCardPrecio && (
+                <button onClick={() => onUpdate(seccion.uid, { colorFondoCardPrecio: undefined })}
+                  style={{ fontSize: "0.73rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                  Restablecer
+                </button>
+              )}
+            </div>
+          </div>
           <TextoEstiloEditor
             label="Estilo Título"
             value={seccion.estiloTitulo}
@@ -736,12 +832,42 @@ export default function DisenioPanel({
             value={seccion.estiloFormularioSubtitulo}
             onChange={v => onUpdate(seccion.uid, { estiloFormularioSubtitulo: v })}
           />
+          <TextoEstiloEditor
+            label="Dirección / aclaraciones"
+            value={seccion.estiloFormularioNota}
+            onChange={v => onUpdate(seccion.uid, { estiloFormularioNota: v })}
+          />
+          <div className={styles.editorSection}>
+            <label className={styles.editorFieldLabel}>Forma del avatar</label>
+            <div className={styles.layoutPicker}>
+              <button
+                className={`${styles.layoutOption} ${(seccion.formularioAvatarForma ?? "redondo") === "redondo" ? styles.layoutOptionActive : ""}`}
+                onClick={() => onUpdate(seccion.uid, { formularioAvatarForma: "redondo" })}
+                title="Redondo"
+              >
+                <div className={styles.layoutPreview} style={{ alignItems: "center", justifyContent: "center", padding: 6 }}>
+                  <div style={{ width: 24, height: 24, background: "#6366f1", borderRadius: "50%" }} />
+                </div>
+                <span className={styles.layoutLabel}>Redondo</span>
+              </button>
+              <button
+                className={`${styles.layoutOption} ${seccion.formularioAvatarForma === "cuadrado" ? styles.layoutOptionActive : ""}`}
+                onClick={() => onUpdate(seccion.uid, { formularioAvatarForma: "cuadrado" })}
+                title="Cuadrado"
+              >
+                <div className={styles.layoutPreview} style={{ alignItems: "center", justifyContent: "center", padding: 6 }}>
+                  <div style={{ width: 24, height: 24, background: "#6366f1", borderRadius: 4 }} />
+                </div>
+                <span className={styles.layoutLabel}>Cuadrado</span>
+              </button>
+            </div>
+          </div>
         </>
       )}
       {(seccion.tipo === "nego-planet-programas" || seccion.tipo === "nego-planet-destinos") && (
         <FondoSeccionEditor seccion={seccion} onUpdate={onUpdate} />
       )}
-      {seccion.tipo !== "texto-imagenes" && seccion.tipo !== "portada" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "itinerario" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && seccion.tipo !== "precio" && seccion.tipo !== "extras" && seccion.tipo !== "formulario" && seccion.tipo !== "ofertas" && seccion.tipo !== "cards" && seccion.tipo !== "galeria" && seccion.tipo !== "nego-planet-programas" && seccion.tipo !== "nego-planet-destinos" && (
+      {seccion.tipo !== "texto-imagenes" && seccion.tipo !== "portada" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "faqs" && seccion.tipo !== "itinerario" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && seccion.tipo !== "precio" && seccion.tipo !== "extras" && seccion.tipo !== "formulario" && seccion.tipo !== "ofertas" && seccion.tipo !== "cards" && seccion.tipo !== "galeria" && seccion.tipo !== "nego-planet-programas" && seccion.tipo !== "nego-planet-destinos" && (
         <p className={styles.editorEmpty}>Opciones de diseño próximamente.</p>
       )}
     </>

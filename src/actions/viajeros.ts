@@ -9,7 +9,7 @@ export async function getViajerosByExpediente(expedienteId: string) {
     const agencyDb = await getAgencyDbClient();
     const { data, error } = await agencyDb
       .from("operativa_viajeros_expedientes")
-      .select("id, estado, datos_viaje, extras, importe_extras, alergias, entidad_id, tutor_id, pagador_id, contabilidad_entidades!operativa_viajeros_expedientes_entidad_id_fkey(id, nombre, documento, documento_caducidad, email, telefono, metadatos), tutores:contabilidad_entidades!operativa_viajeros_expedientes_tutor_id_fkey(id, nombre, documento, email, telefono)")
+      .select("id, estado, datos_viaje, extras, importe_extras, alergias, entidad_id, tutor_id, pagador_id, contabilidad_entidades!operativa_viajeros_expedientes_entidad_id_fkey(id, nombre, documento, documento_caducidad, email, telefono, metadatos), tutores:contabilidad_entidades!operativa_viajeros_expedientes_tutor_id_fkey(id, nombre, documento, email, telefono), operativa_viajero_pagadores(pagador_entidad_id, es_principal, orden)")
       .eq("expediente_id", expedienteId);
 
     if (error) {
@@ -82,20 +82,23 @@ export async function crearViajeroCompleto(payload: {
     extras?: { id: string; nombre: string; pvp: number; cantidad: number }[];
     tutor?: { nombre: string; telefono: string; email: string } | null;
   };
-  // Pagador: obligatorio solo para tipo "pasajero". Si se pasa pagadorEntidadId,
-  // se reutiliza un pagador ya existente en el expediente; si no, se crea uno
-  // nuevo con los datos de "pagadorNuevo".
-  pagadorEntidadId?: string | null;
-  pagadorNuevo?: {
-    nombre: string;
-    apellidos: string;
-    dni: string;
-    direccion?: string | null;
-    lat?: number | null;
-    lng?: number | null;
-    email?: string | null;
-    telefono?: string | null;
-  } | null;
+  // Pagadores: obligatorio al menos uno para tipo "pasajero". Cada elemento reutiliza
+  // un pagador existente (entidadId) o crea uno nuevo (nuevo). El importe total del
+  // viajero se reparte a partes iguales entre todos los pagadores (el último absorbe
+  // el resto del redondeo).
+  pagadores?: Array<{
+    entidadId?: string | null;
+    nuevo?: {
+      nombre: string;
+      apellidos: string;
+      dni: string;
+      direccion?: string | null;
+      lat?: number | null;
+      lng?: number | null;
+      email?: string | null;
+      telefono?: string | null;
+    } | null;
+  }>;
   importeTotal?: number;
   medioPago?: string;
 }) {
@@ -164,26 +167,29 @@ export async function crearViajeroCompleto(payload: {
       }
     }
 
-    // ── 1. Pagador (solo para pasajeros) ──────────────────────────────────────
-    let pagadorEntidadId: string | null = null;
+    // ── 1. Pagadores (solo para pasajeros) ─────────────────────────────────────
+    const pagadorEntidadIds: string[] = [];
     if (tipo === "pasajero") {
-      if (payload.pagadorEntidadId) {
-        pagadorEntidadId = payload.pagadorEntidadId;
-      } else if (payload.pagadorNuevo) {
-        const p = payload.pagadorNuevo;
-        pagadorEntidadId = await upsertEntidad({
-          nombre: `${p.nombre} ${p.apellidos}`,
-          documento: p.dni,
-          email: p.email || null,
-          telefono: p.telefono || null,
-          direccion: p.direccion || null,
-          lat: p.lat ?? null,
-          lng: p.lng ?? null,
-          rolNuevo: "cliente",
-        });
-        if (!pagadorEntidadId) return { success: false, error: "Error al crear el pagador" };
-      } else {
-        return { success: false, error: "Falta el pagador para este viajero" };
+      for (const p of payload.pagadores ?? []) {
+        if (p.entidadId) {
+          pagadorEntidadIds.push(p.entidadId);
+        } else if (p.nuevo) {
+          const nuevoId = await upsertEntidad({
+            nombre: `${p.nuevo.nombre} ${p.nuevo.apellidos}`,
+            documento: p.nuevo.dni,
+            email: p.nuevo.email || null,
+            telefono: p.nuevo.telefono || null,
+            direccion: p.nuevo.direccion || null,
+            lat: p.nuevo.lat ?? null,
+            lng: p.nuevo.lng ?? null,
+            rolNuevo: "cliente",
+          });
+          if (!nuevoId) return { success: false, error: "Error al crear el pagador" };
+          pagadorEntidadIds.push(nuevoId);
+        }
+      }
+      if (pagadorEntidadIds.length === 0) {
+        return { success: false, error: "Falta al menos un pagador para este viajero" };
       }
     }
 
@@ -249,7 +255,7 @@ export async function crearViajeroCompleto(payload: {
       extras: extrasJsonb,
       importe_extras: importeExtrasViajero,
       alergias: encryptAllergies(v.alergias ?? []),
-      pagador_id: pagadorEntidadId,
+      pagador_id: pagadorEntidadIds[0] ?? null,
       tutor_id: tutorEntidadId,
       datos_viaje: { tipo, medio_pago: payload.medioPago || null },
     };
@@ -283,29 +289,51 @@ export async function crearViajeroCompleto(payload: {
       }
     }
 
+    // ── 2e. operativa_viajero_pagadores (relación N:M viajero ↔ pagadores) ─────
+    if (viajeroExpId && tipo === "pasajero") {
+      await agencyDb.from("operativa_viajero_pagadores").delete().eq("viajero_expediente_id", viajeroExpId);
+      const puenteRows = pagadorEntidadIds.map((id, i) => ({
+        viajero_expediente_id: viajeroExpId,
+        pagador_entidad_id: id,
+        es_principal: i === 0,
+        orden: i,
+      }));
+      if (puenteRows.length > 0) {
+        await agencyDb.from("operativa_viajero_pagadores").insert(puenteRows);
+      }
+    }
+
     // ── 3. operativa_pagadores_expedientes (solo pasajeros) ────────────────────
-    if (tipo === "pasajero" && pagadorEntidadId) {
+    if (tipo === "pasajero" && pagadorEntidadIds.length > 0) {
       const importeTotalViajero = (payload.importeTotal ?? 0) + importeExtrasViajero;
+      const n = pagadorEntidadIds.length;
+      const partePagador = Math.round((importeTotalViajero / n) * 100) / 100;
 
-      const { data: existingPag } = await agencyDb
-        .from("operativa_pagadores_expedientes")
-        .select("id, importe_total")
-        .eq("expediente_id", expedienteId)
-        .eq("entidad_id", pagadorEntidadId)
-        .maybeSingle();
+      for (let i = 0; i < n; i++) {
+        const pagadorId = pagadorEntidadIds[i];
+        const esUltimo = i === n - 1;
+        const parteImporte = esUltimo ? importeTotalViajero - partePagador * (n - 1) : partePagador;
 
-      if (existingPag) {
-        await agencyDb
+        const { data: existingPag } = await agencyDb
           .from("operativa_pagadores_expedientes")
-          .update({ importe_total: Number(existingPag.importe_total || 0) + importeTotalViajero })
-          .eq("id", existingPag.id);
-      } else {
-        await agencyDb.from("operativa_pagadores_expedientes").insert({
-          expediente_id: expedienteId,
-          entidad_id: pagadorEntidadId,
-          importe_total: importeTotalViajero,
-          estado: "pendiente",
-        });
+          .select("id, importe_total")
+          .eq("expediente_id", expedienteId)
+          .eq("entidad_id", pagadorId)
+          .maybeSingle();
+
+        if (existingPag) {
+          await agencyDb
+            .from("operativa_pagadores_expedientes")
+            .update({ importe_total: Number(existingPag.importe_total || 0) + parteImporte })
+            .eq("id", existingPag.id);
+        } else {
+          await agencyDb.from("operativa_pagadores_expedientes").insert({
+            expediente_id: expedienteId,
+            entidad_id: pagadorId,
+            importe_total: parteImporte,
+            estado: "pendiente",
+          });
+        }
       }
     }
 

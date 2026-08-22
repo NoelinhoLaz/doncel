@@ -43,9 +43,10 @@ function LayoutContentInner({ children }: { children: React.ReactNode }) {
   const isPreview = pathname.endsWith("/preview");
   const isPaginaWebPublica = pathname.startsWith("/web/o/") || pathname.startsWith("/web/nego/") || pathname === "/public";
   const isMovimientosApp = pathname.startsWith("/movimientos-app");
+  const isPropuestaPublica = pathname.startsWith("/propuestas/p/");
 
-  // Portal, auth, registro, preview, published web pages and movimientos-app don't use the main layout
-  if (isLoginPage || isAdministracionPage || isPortal || isRegistro || isPreview || isPaginaWebPublica || isMovimientosApp) {
+  // Portal, auth, registro, preview, published web pages, propuestas públicas by slug and movimientos-app don't use the main layout
+  if (isLoginPage || isAdministracionPage || isPortal || isRegistro || isPreview || isPaginaWebPublica || isMovimientosApp || isPropuestaPublica) {
     return <>{children}</>;
   }
 

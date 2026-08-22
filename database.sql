@@ -892,6 +892,22 @@ CREATE INDEX IF NOT EXISTS idx_pagadores_entidad          ON operativa_pagadores
 CREATE INDEX IF NOT EXISTS idx_pagadores_estado           ON operativa_pagadores_expedientes(estado);
 CREATE INDEX IF NOT EXISTS idx_pagadores_metadatos        ON operativa_pagadores_expedientes USING gin(metadatos_match);
 
+-- Relación N:M viajero <-> pagadores: permite que un viajero reparta su importe entre varios
+-- pagadores (cada uno con su propia fila en operativa_pagadores_expedientes). pagador_id en
+-- operativa_viajeros_expedientes se mantiene como "pagador principal" por compatibilidad.
+CREATE TABLE IF NOT EXISTS operativa_viajero_pagadores (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    viajero_expediente_id   UUID NOT NULL REFERENCES operativa_viajeros_expedientes(id) ON DELETE CASCADE,
+    pagador_entidad_id      UUID NOT NULL REFERENCES contabilidad_entidades(id) ON DELETE CASCADE,
+    es_principal            BOOLEAN NOT NULL DEFAULT false,
+    orden                   INTEGER NOT NULL DEFAULT 0,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (viajero_expediente_id, pagador_entidad_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_viajero_pagadores_viajero ON operativa_viajero_pagadores(viajero_expediente_id);
+CREATE INDEX IF NOT EXISTS idx_viajero_pagadores_pagador  ON operativa_viajero_pagadores(pagador_entidad_id);
+
 
 CREATE TABLE IF NOT EXISTS operativa_expedientes_servicios (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1971,6 +1987,14 @@ CREATE INDEX IF NOT EXISTS idx_propuestas_contacto_id ON public.operativa_propue
 -- Supabase Auth, que vive en un proyecto/BD separado, no un id de tabla local.
 ALTER TABLE public.operativa_propuestas ADD COLUMN IF NOT EXISTS agente_id UUID;
 CREATE INDEX IF NOT EXISTS idx_propuestas_agente_id ON public.operativa_propuestas(agente_id);
+
+ALTER TABLE public.operativa_propuestas ADD COLUMN IF NOT EXISTS fecha_salida DATE;
+ALTER TABLE public.operativa_propuestas ADD COLUMN IF NOT EXISTS fecha_regreso DATE;
+
+-- Slug editable para la URL pública de la propuesta (/propuestas/p/[slug]). Nullable
+-- para no romper propuestas existentes; índice único parcial para permitir varios NULL.
+ALTER TABLE public.operativa_propuestas ADD COLUMN IF NOT EXISTS slug text;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_operativa_propuestas_slug ON public.operativa_propuestas(slug) WHERE slug IS NOT NULL;
 
 -- ─── Landings (1:N con propuestas) ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.landings (

@@ -98,6 +98,7 @@ type ChatWidget =
   | { type: "quien_paga"; viajeros: ViajeroForm[]; tutores?: { nombre: string; apellidos: string; email: string; telefono: string }[] }
   | { type: "seleccionar_viajero_pagador"; viajeros: ViajeroForm[] }
   | { type: "datos_pagador" }
+  | { type: "mas_pagadores"; numPagadores: number }
   | { type: "direccion"; viajerosConDireccion: { nombre: string; direccion: string }[] }
   | { type: "sexo" }
   | { type: "numero_soporte" }
@@ -105,8 +106,8 @@ type ChatWidget =
   | { type: "extras"; viaje: ViajeInfo; numViajeros: number }
   | { type: "mas_viajeros" }
   | { type: "inicio_viajero" }
-  | { type: "forma_pago"; viaje: ViajeInfo; viajeros: ViajeroForm[]; pagador: PagadorForm; extras: ExtraSeleccionado[]; total: number }
-  | { type: "resumen"; viaje: ViajeInfo; viajeros: ViajeroForm[]; pagador: PagadorForm; extras: ExtraSeleccionado[]; total: number; metodoPago: string };
+  | { type: "forma_pago"; viaje: ViajeInfo; viajeros: ViajeroForm[]; pagadores: PagadorForm[]; extras: ExtraSeleccionado[]; total: number }
+  | { type: "resumen"; viaje: ViajeInfo; viajeros: ViajeroForm[]; pagadores: PagadorForm[]; extras: ExtraSeleccionado[]; total: number; metodoPago: string };
 
 interface Props {
   viaje: ViajeInfo;
@@ -184,6 +185,7 @@ function ChatRegistro({
   const [viajero, setViajero] = useState<ViajeroForm>({ ...VIAJERO_VACIO });
   const [tutor, setTutor] = useState({ nombre: "", telefono: "", email: "" });
   const [pagador, setPagador] = useState<PagadorForm>({ ...PAGADOR_VACIO });
+  const [pagadores, setPagadores] = useState<PagadorForm[]>([]);
   const [extras, setExtras] = useState<ExtraSeleccionado[]>([]);
   const [metodoPago, setMetodoPago] = useState("");
   const [esMenor, setEsMenor] = useState(false);
@@ -595,27 +597,43 @@ function ChatRegistro({
   async function handleDatosPagador(p: PagadorForm) {
     collapseLastWidget(`${p.nombre} ${p.apellidos}`);
     pushPaso("Datos de facturación");
-    setPagador(p);
-    const viajerosActuales = viajeros.length > 0 ? viajeros : [viajero];
-    const totalFinal = viajerosActuales.reduce((s, v) => {
-      const extrasV = v.extras ?? [];
-      return s + viaje.pvp_por_viajero + extrasV.reduce((se, e) => se + e.pvp * e.cantidad, 0);
-    }, 0);
-    const nombresViajeros = viajerosActuales.map((v) => v.nombre).join(", ");
-    await addBotMessage(<>Perfecto. Aquí tienes el resumen con los datos de <strong>{nombresViajeros}</strong>. Revísalo antes de continuar:</>);
-    await addWidget({ type: "resumen", viaje, viajeros: viajerosActuales, pagador: p, extras: [], total: totalFinal, metodoPago: "" });
+    const pagadoresActuales = [...pagadores, p];
+    setPagadores(pagadoresActuales);
+    setPagador({ ...PAGADOR_VACIO });
+    await addBotMessage("¿El pago se reparte con algún otro pagador más?");
+    await addWidget({ type: "mas_pagadores", numPagadores: pagadoresActuales.length });
+  }
+
+  async function handleMasPagadores(añadir: boolean) {
+    if (añadir) {
+      collapseLastWidget("Sí, añadir otro pagador");
+      pushPaso(`Pagador ${pagadores.length + 1}`);
+      await addBotMessage("Indica los datos fiscales del siguiente pagador:");
+      await addWidget({ type: "datos_pagador" });
+    } else {
+      collapseLastWidget("No, continuar");
+      pushPaso("Resumen de pago");
+      const viajerosActuales = viajeros.length > 0 ? viajeros : [viajero];
+      const totalFinal = viajerosActuales.reduce((s, v) => {
+        const extrasV = v.extras ?? [];
+        return s + viaje.pvp_por_viajero + extrasV.reduce((se, e) => se + e.pvp * e.cantidad, 0);
+      }, 0);
+      const nombresViajeros = viajerosActuales.map((v) => v.nombre).join(", ");
+      await addBotMessage(<>Perfecto. Aquí tienes el resumen con los datos de <strong>{nombresViajeros}</strong>. Revísalo antes de continuar:</>);
+      await addWidget({ type: "resumen", viaje, viajeros: viajerosActuales, pagadores, extras: [], total: totalFinal, metodoPago: "" });
+    }
   }
 
 
 
 
-  async function irAlResumen(metodo: string, viajerosData: ViajeroForm[], pagadorData: PagadorForm, total: number) {
+  async function irAlResumen(metodo: string, viajerosData: ViajeroForm[], pagadoresData: PagadorForm[], total: number) {
     const nombresViajeros = viajerosData.map((v) => v.nombre).join(", ");
     await addBotMessage(<>¡Hemos terminado! Aquí tienes el resumen con los datos de <strong>{nombresViajeros}</strong>. Por favor, revísalo antes de confirmar.</>);
-    await addWidget({ type: "resumen", viaje, viajeros: viajerosData, pagador: pagadorData, extras: [], total, metodoPago: metodo });
+    await addWidget({ type: "resumen", viaje, viajeros: viajerosData, pagadores: pagadoresData, extras: [], total, metodoPago: metodo });
   }
 
-  async function handleIrFormaPago(viajerosData: ViajeroForm[], pagadorData: PagadorForm, _extras: ExtraSeleccionado[], total: number) {
+  async function handleIrFormaPago(viajerosData: ViajeroForm[], pagadoresData: PagadorForm[], _extras: ExtraSeleccionado[], total: number) {
     collapseLastWidget("Revisado");
     pushPaso("Resumen");
     const numViajeros = viajerosData.length || 1;
@@ -633,14 +651,14 @@ function ChatRegistro({
       mensajePlazos = <>El importe total a abonar es <strong>{formatEuros(imp)}</strong>. ¿Cómo quieres realizar el pago?</>;
     }
     await addBotMessage(mensajePlazos);
-    await addWidget({ type: "forma_pago", viaje, viajeros: viajerosData, pagador: pagadorData, extras: [], total });
+    await addWidget({ type: "forma_pago", viaje, viajeros: viajerosData, pagadores: pagadoresData, extras: [], total });
   }
 
-  async function handleFormaPago(metodo: string, viajerosData: ViajeroForm[], pagadorData: PagadorForm, _extras: ExtraSeleccionado[], total: number) {
+  async function handleFormaPago(metodo: string, viajerosData: ViajeroForm[], pagadoresData: PagadorForm[], _extras: ExtraSeleccionado[], total: number) {
     setMetodoPago(metodo);
     const label = viaje.metodo_pago.find((m) => m.id === metodo)?.nombre ?? metodo;
     collapseLastWidget(label);
-    await irAlResumen(metodo, viajerosData, pagadorData, total);
+    await irAlResumen(metodo, viajerosData, pagadoresData, total);
   }
 
   async function handleConfirmar() {
@@ -688,7 +706,7 @@ function ChatRegistro({
         })),
         tutor: v.tutor ?? null,
       })),
-      pagador,
+      pagadores,
       metodoPago,
       plazosCalculados,
     });
@@ -740,6 +758,8 @@ function ChatRegistro({
         return <WidgetSeleccionarViajeroPagador viajeros={widget.viajeros} onSelect={handleSeleccionarViajeroPagador} />;
       case "datos_pagador":
         return <WidgetDatosPagador prefill={pagador} onSubmit={handleDatosPagador} />;
+      case "mas_pagadores":
+        return <WidgetMasPagadores numPagadores={widget.numPagadores} onSelect={handleMasPagadores} />;
       case "direccion":
         return <WidgetDireccion viajerosConDireccion={widget.viajerosConDireccion} onSubmit={handleDireccion} />;
       case "mas_viajeros":
@@ -765,7 +785,7 @@ function ChatRegistro({
           <WidgetFormaPago
             viaje={widget.viaje}
             viajeros={widget.viajeros}
-            pagador={widget.pagador}
+            pagadores={widget.pagadores}
             extras={widget.extras}
             total={widget.total}
             onSubmit={handleFormaPago}
@@ -776,7 +796,7 @@ function ChatRegistro({
           <WidgetResumen
             viaje={widget.viaje}
             viajeros={widget.viajeros}
-            pagador={widget.pagador}
+            pagadores={widget.pagadores}
             extras={widget.extras}
             total={widget.total}
             metodoPago={widget.metodoPago}
@@ -1797,6 +1817,24 @@ function WidgetMasViajeros({ numViajeros, onSelect }: { numViajeros: number; onS
   );
 }
 
+function WidgetMasPagadores({ numPagadores, onSelect }: { numPagadores: number; onSelect: (añadir: boolean) => void }) {
+  return (
+    <div className={chatStyles.formWidget}>
+      <p className={chatStyles.inputHint} style={{ color: "#6b7280", textAlign: "center" }}>
+        {numPagadores} {numPagadores === 1 ? "pagador registrado" : "pagadores registrados"}
+      </p>
+      <div className={chatStyles.pillBtns} style={{ flexDirection: "column" }}>
+        <button className={chatStyles.pillBtn} onClick={() => onSelect(true)}>
+          <Plus size={14} /> Sí, añadir otro pagador
+        </button>
+        <button className={chatStyles.pillBtn} onClick={() => onSelect(false)}>
+          <Check size={14} /> No, continuar con el registro
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function WidgetInicioViajero({ onSelect }: { onSelect: (modo: "ocr" | "manual") => void }) {
   return (
     <div className={chatStyles.formWidget}>
@@ -1996,17 +2034,17 @@ function WidgetExtras({
 function WidgetFormaPago({
   viaje,
   viajeros,
-  pagador,
+  pagadores,
   extras,
   total,
   onSubmit,
 }: {
   viaje: ViajeInfo;
   viajeros: ViajeroForm[];
-  pagador: PagadorForm;
+  pagadores: PagadorForm[];
   extras: ExtraSeleccionado[];
   total: number;
-  onSubmit: (metodo: string, viajeros: ViajeroForm[], pagador: PagadorForm, extras: ExtraSeleccionado[], total: number) => void;
+  onSubmit: (metodo: string, viajeros: ViajeroForm[], pagadores: PagadorForm[], extras: ExtraSeleccionado[], total: number) => void;
 }) {
   const [seleccionado, setSeleccionado] = useState("");
 
@@ -2017,7 +2055,7 @@ function WidgetFormaPago({
           <button
             key={m.id}
             className={[chatStyles.quickBtn, seleccionado === m.id ? chatStyles.quickBtnSel : ""].join(" ")}
-            onClick={() => { setSeleccionado(m.id); onSubmit(m.id, viajeros, pagador, extras, total); }}
+            onClick={() => { setSeleccionado(m.id); onSubmit(m.id, viajeros, pagadores, extras, total); }}
             style={{ justifyContent: "flex-start" }}
           >
             {seleccionado === m.id ? <Check size={13} strokeWidth={3} /> : <CreditCard size={13} />}
@@ -2032,7 +2070,7 @@ function WidgetFormaPago({
 function WidgetResumen({
   viaje,
   viajeros,
-  pagador,
+  pagadores,
   extras,
   total,
   metodoPago,
@@ -2041,26 +2079,30 @@ function WidgetResumen({
 }: {
   viaje: ViajeInfo;
   viajeros: ViajeroForm[];
-  pagador: PagadorForm;
+  pagadores: PagadorForm[];
   extras: ExtraSeleccionado[];
   total: number;
   metodoPago: string;
-  onIrFormaPago: (viajeros: ViajeroForm[], pagador: PagadorForm, extras: ExtraSeleccionado[], total: number) => void;
+  onIrFormaPago: (viajeros: ViajeroForm[], pagadores: PagadorForm[], extras: ExtraSeleccionado[], total: number) => void;
   onConfirmar: () => void;
 }) {
   const labelPago = viaje.metodo_pago.find((m) => m.id === metodoPago)?.nombre ?? metodoPago;
+  const importePorPagador = pagadores.length > 0 ? total / pagadores.length : 0;
   return (
     <div className={chatStyles.resumenCard}>
-      {pagador.nombre && (
-        <div className={chatStyles.resumenSeccion}>
-          <p className={chatStyles.resumenLabel}><CreditCard size={10} /> Responsable del pago</p>
+      {pagadores.filter((p) => p.nombre).map((pagador, i) => (
+        <div key={i} className={chatStyles.resumenSeccion}>
+          <p className={chatStyles.resumenLabel}>
+            <CreditCard size={10} /> {pagadores.length > 1 ? `Pagador ${i + 1}` : "Responsable del pago"}
+          </p>
           <p className={chatStyles.resumenValor}>{pagador.nombre} {pagador.apellidos}</p>
           {pagador.dni && <p className={chatStyles.resumenMeta}>{pagador.dni}</p>}
           {pagador.email && <p className={chatStyles.resumenMeta}>{pagador.email}</p>}
           {pagador.telefono && <p className={chatStyles.resumenMeta}>{pagador.telefono}</p>}
           {pagador.direccion && <p className={chatStyles.resumenMeta}>{pagador.direccion}</p>}
+          {pagadores.length > 1 && <p className={chatStyles.resumenMeta}>Abona {formatEuros(importePorPagador)}</p>}
         </div>
-      )}
+      ))}
       {viajeros.map((v, i) => (
         <div key={i} className={chatStyles.resumenSeccion}>
           <p className={chatStyles.resumenLabel}><User size={10} /> {viajeros.length > 1 ? `Viajero ${i + 1}` : "Pasajero"}</p>
@@ -2110,7 +2152,7 @@ function WidgetResumen({
           <Lock size={15} /> Finalizar y Enviar Registro Oficial
         </button>
       ) : (
-        <button className={`${chatStyles.sendBtn} ${chatStyles.sendBtnActive}`} onClick={() => onIrFormaPago(viajeros, pagador, extras, total)}>
+        <button className={`${chatStyles.sendBtn} ${chatStyles.sendBtnActive}`} onClick={() => onIrFormaPago(viajeros, pagadores, extras, total)}>
           <ChevronRight size={14} /> Continuar a forma de pago
         </button>
       )}
@@ -2139,7 +2181,7 @@ function FormularioClasico({
   const [paso, setPaso] = useState<PasoRegistro>("viajeros");
   const [viajeros, setViajeros] = useState<ViajeroForm[]>([{ ...VIAJERO_VACIO }]);
   const [viajeroActivo, setViajeroActivo] = useState(0);
-  const [pagador, setPagador] = useState<PagadorForm>({ ...PAGADOR_VACIO });
+  const [pagadores, setPagadores] = useState<PagadorForm[]>([{ ...PAGADOR_VACIO }]);
   const [extras, setExtras] = useState<ExtraSeleccionado[]>([]);
   const [metodoPago, setMetodoPago] = useState<string>("");
   const [enviado, setEnviado] = useState(false);
@@ -2187,17 +2229,21 @@ function FormularioClasico({
     return Object.keys(nuevosErrores).length === 0;
   }
 
-  function copiarDatosViajeroAPagador(index: number) {
-    const v = viajeros[index];
-    setPagador({ nombre: v.nombre, apellidos: v.apellidos, dni: v.dni, direccion: v.direccion });
+  function copiarDatosViajeroAPagador(pagadorIndex: number, viajeroIndex: number) {
+    const v = viajeros[viajeroIndex];
+    setPagadores((prev) =>
+      prev.map((p, i) => (i === pagadorIndex ? { ...p, nombre: v.nombre, apellidos: v.apellidos, dni: v.dni, direccion: v.direccion } : p))
+    );
   }
 
-  function validarPagador(): boolean {
+  function validarPagadores(): boolean {
     const nuevosErrores: Record<string, string> = {};
-    if (!pagador.nombre.trim()) nuevosErrores["p_nombre"] = "Campo obligatorio";
-    if (!pagador.apellidos.trim()) nuevosErrores["p_apellidos"] = "Campo obligatorio";
-    if (!pagador.dni.trim()) nuevosErrores["p_dni"] = "Campo obligatorio";
-    if (!pagador.direccion.trim()) nuevosErrores["p_direccion"] = "Campo obligatorio";
+    pagadores.forEach((p, i) => {
+      if (!p.nombre.trim()) nuevosErrores[`p${i}_nombre`] = "Campo obligatorio";
+      if (!p.apellidos.trim()) nuevosErrores[`p${i}_apellidos`] = "Campo obligatorio";
+      if (!p.dni.trim()) nuevosErrores[`p${i}_dni`] = "Campo obligatorio";
+      if (!p.direccion.trim()) nuevosErrores[`p${i}_direccion`] = "Campo obligatorio";
+    });
     setErrores(nuevosErrores);
     return Object.keys(nuevosErrores).length === 0;
   }
@@ -2216,7 +2262,7 @@ function FormularioClasico({
 
   function irSiguientePaso() {
     if (paso === "viajeros" && !validarViajeros()) return;
-    if (paso === "pagador" && !validarPagador()) return;
+    if (paso === "pagador" && !validarPagadores()) return;
     const idx = PASOS.findIndex((p) => p.id === paso);
     if (idx < PASOS.length - 1) {
       setPaso(PASOS[idx + 1].id);
@@ -2277,7 +2323,7 @@ function FormularioClasico({
         })),
         tutor: v.tutor ?? null,
       })),
-      pagador,
+      pagadores,
       metodoPago,
       plazosCalculados,
     });
@@ -2348,13 +2394,13 @@ function FormularioClasico({
           <PasoViajeros viajeros={viajeros} viajeroActivo={viajeroActivo} setViajeroActivo={setViajeroActivo} actualizarViajero={actualizarViajero} actualizarViajeroDireccion={actualizarViajeroDireccion} agregarViajero={agregarViajero} eliminarViajero={eliminarViajero} errores={errores} />
         )}
         {paso === "pagador" && (
-          <PasoPagador pagador={pagador} setPagador={setPagador} viajeros={viajeros} copiarDatosViajero={copiarDatosViajeroAPagador} errores={errores} />
+          <PasoPagador pagadores={pagadores} setPagadores={setPagadores} viajeros={viajeros} copiarDatosViajero={copiarDatosViajeroAPagador} errores={errores} importeTotal={total} />
         )}
         {paso === "extras" && (
           <PasoExtras viaje={viaje} viajeros={viajeros} extras={extras} toggleExtra={toggleExtra} extraSeleccionado={(id) => extras.some((e) => e.id === id)} pvpTotal={subtotalViajeros} />
         )}
         {paso === "resumen" && (
-          <PasoResumen viaje={viaje} viajeros={viajeros} pagador={pagador} extras={extras} subtotalViajeros={subtotalViajeros} subtotalExtras={subtotalExtras} total={total} metodoPago={metodoPago} setMetodoPago={setMetodoPago} errores={errores} />
+          <PasoResumen viaje={viaje} viajeros={viajeros} pagadores={pagadores} extras={extras} subtotalViajeros={subtotalViajeros} subtotalExtras={subtotalExtras} total={total} metodoPago={metodoPago} setMetodoPago={setMetodoPago} errores={errores} />
         )}
       </div>
 
@@ -2436,39 +2482,75 @@ function PasoViajeros({ viajeros, viajeroActivo, setViajeroActivo, actualizarVia
   );
 }
 
-function PasoPagador({ pagador, setPagador, viajeros, copiarDatosViajero, errores }: {
-  pagador: PagadorForm; setPagador: (p: PagadorForm) => void;
-  viajeros: ViajeroForm[]; copiarDatosViajero: (i: number) => void; errores: Record<string, string>;
+function PasoPagador({ pagadores, setPagadores, viajeros, copiarDatosViajero, errores, importeTotal }: {
+  pagadores: PagadorForm[]; setPagadores: (p: PagadorForm[]) => void;
+  viajeros: ViajeroForm[]; copiarDatosViajero: (pagadorIndex: number, viajeroIndex: number) => void;
+  errores: Record<string, string>; importeTotal: number;
 }) {
+  function actualizarPagador(index: number, cambios: Partial<PagadorForm>) {
+    setPagadores(pagadores.map((p, i) => (i === index ? { ...p, ...cambios } : p)));
+  }
+
+  function agregarPagador() {
+    setPagadores([...pagadores, { ...PAGADOR_VACIO }]);
+  }
+
+  function eliminarPagador(index: number) {
+    if (pagadores.length <= 1) return;
+    setPagadores(pagadores.filter((_, i) => i !== index));
+  }
+
+  const importePorPagador = pagadores.length > 0 ? importeTotal / pagadores.length : 0;
+
   return (
     <section>
       <h2 className={styles.pasoTitulo}>Responsable de pago</h2>
-      <p className={styles.pasoDesc}>Persona que se hará cargo del pago del viaje.</p>
-      {viajeros.some((v) => v.nombre) && (
-        <div className={styles.copiarBloque}>
-          <p className={styles.copiarLabel}>Usar datos de un viajero:</p>
-          <div className={styles.copiarBotones}>
-            {viajeros.map((v, i) => v.nombre ? (
-              <button key={i} className={styles.btnCopiar} onClick={() => copiarDatosViajero(i)}>{v.nombre} {v.apellidos}</button>
-            ) : null)}
+      <p className={styles.pasoDesc}>
+        {pagadores.length > 1
+          ? "Personas que se harán cargo del pago del viaje. El importe se reparte a partes iguales."
+          : "Persona que se hará cargo del pago del viaje."}
+      </p>
+      {pagadores.map((pagador, index) => (
+        <div key={index} className={styles.copiarBloque} style={{ marginBottom: "1.5rem" }}>
+          {pagadores.length > 1 && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+              <strong>Pagador {index + 1}</strong>
+              <button type="button" className={styles.btnCopiar} onClick={() => eliminarPagador(index)}>Eliminar</button>
+            </div>
+          )}
+          {viajeros.some((v) => v.nombre) && (
+            <div className={styles.copiarBloque}>
+              <p className={styles.copiarLabel}>Usar datos de un viajero:</p>
+              <div className={styles.copiarBotones}>
+                {viajeros.map((v, i) => v.nombre ? (
+                  <button key={i} className={styles.btnCopiar} onClick={() => copiarDatosViajero(index, i)}>{v.nombre} {v.apellidos}</button>
+                ) : null)}
+              </div>
+            </div>
+          )}
+          <div className={styles.grid2}>
+            <Campo label="Nombre" obligatorio valor={pagador.nombre} onChange={(val) => actualizarPagador(index, { nombre: val })} error={errores[`p${index}_nombre`]} />
+            <Campo label="Apellidos" obligatorio valor={pagador.apellidos} onChange={(val) => actualizarPagador(index, { apellidos: val })} error={errores[`p${index}_apellidos`]} />
           </div>
+          <Campo label="DNI / NIF" obligatorio placeholder="12345678Z" valor={pagador.dni} onChange={(val) => actualizarPagador(index, { dni: val })} error={errores[`p${index}_dni`]} />
+          <CampoDireccionNominatim
+            label="Dirección completa"
+            obligatorio
+            valor={pagador.direccion}
+            lat={pagador.lat}
+            lng={pagador.lng}
+            onSeleccionar={(direccion, lat, lng) => actualizarPagador(index, { direccion, lat, lng })}
+            onLimpiar={() => actualizarPagador(index, { direccion: "", lat: null, lng: null })}
+            error={errores[`p${index}_direccion`]}
+          />
         </div>
+      ))}
+      <button type="button" className={styles.btnCopiar} onClick={agregarPagador}>+ Añadir otro pagador</button>
+      {pagadores.length > 1 && (
+        <p className={styles.pasoDesc} style={{ marginTop: "0.75rem" }}>
+          Cada pagador abonará aproximadamente {formatEuros(importePorPagador)}.
+        </p>
       )}
-      <div className={styles.grid2}>
-        <Campo label="Nombre" obligatorio valor={pagador.nombre} onChange={(val) => setPagador({ ...pagador, nombre: val })} error={errores["p_nombre"]} />
-        <Campo label="Apellidos" obligatorio valor={pagador.apellidos} onChange={(val) => setPagador({ ...pagador, apellidos: val })} error={errores["p_apellidos"]} />
-      </div>
-      <Campo label="DNI / NIF" obligatorio placeholder="12345678Z" valor={pagador.dni} onChange={(val) => setPagador({ ...pagador, dni: val })} error={errores["p_dni"]} />
-      <CampoDireccionNominatim
-        label="Dirección completa"
-        obligatorio
-        valor={pagador.direccion}
-        lat={pagador.lat}
-        lng={pagador.lng}
-        onSeleccionar={(direccion, lat, lng) => setPagador({ ...pagador, direccion, lat, lng })}
-        onLimpiar={() => setPagador({ ...pagador, direccion: "", lat: null, lng: null })}
-        error={errores["p_direccion"]}
-      />
     </section>
   );
 }
@@ -2525,8 +2607,8 @@ function PasoExtras({ viaje, viajeros, extras, toggleExtra, extraSeleccionado, p
   );
 }
 
-function PasoResumen({ viaje, viajeros, pagador, extras, subtotalViajeros, subtotalExtras, total, metodoPago, setMetodoPago, errores }: {
-  viaje: ViajeInfo; viajeros: ViajeroForm[]; pagador: PagadorForm; extras: ExtraSeleccionado[];
+function PasoResumen({ viaje, viajeros, pagadores, extras, subtotalViajeros, subtotalExtras, total, metodoPago, setMetodoPago, errores }: {
+  viaje: ViajeInfo; viajeros: ViajeroForm[]; pagadores: PagadorForm[]; extras: ExtraSeleccionado[];
   subtotalViajeros: number; subtotalExtras: number; total: number;
   metodoPago: string; setMetodoPago: (m: string) => void; errores: Record<string, string>;
 }) {
@@ -2543,12 +2625,19 @@ function PasoResumen({ viaje, viajeros, pagador, extras, subtotalViajeros, subto
         ))}
       </div>
       <div className={styles.resumenBloque}>
-        <h3 className={styles.resumenSubtitulo}>Responsable de pago</h3>
-        <div className={styles.resumenFila}>
-          <span>{pagador.nombre} {pagador.apellidos}</span>
-          <span className={styles.resumenMeta}>{pagador.dni}</span>
-        </div>
-        <p className={styles.resumenDireccion}>{pagador.direccion}</p>
+        <h3 className={styles.resumenSubtitulo}>{pagadores.length > 1 ? "Responsables de pago" : "Responsable de pago"}</h3>
+        {pagadores.map((pagador, i) => (
+          <div key={i}>
+            <div className={styles.resumenFila}>
+              <span>{pagador.nombre} {pagador.apellidos}</span>
+              <span className={styles.resumenMeta}>{pagador.dni}</span>
+            </div>
+            <p className={styles.resumenDireccion}>{pagador.direccion}</p>
+          </div>
+        ))}
+        {pagadores.length > 1 && (
+          <p className={styles.resumenMeta}>Cada uno abonará {formatEuros(total / pagadores.length)}.</p>
+        )}
       </div>
       <div className={styles.resumenBloque}>
         <h3 className={styles.resumenSubtitulo}>Precio</h3>

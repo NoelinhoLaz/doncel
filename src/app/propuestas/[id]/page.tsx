@@ -61,6 +61,8 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
       condiciones: s.condiciones,
       estiloPvp: d.estiloPvp,
       estiloCondiciones: d.estiloCondiciones,
+      colorFondoCard: d.colorFondoCard,
+      colorFondoCardPrecio: d.colorFondoCardPrecio,
       // Extras fields
       extrasFilas: s.extrasFilas,
       estiloExtraTexto: d.estiloExtraTexto,
@@ -71,6 +73,12 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
       formularioSubtitulo: s.formularioSubtitulo,
       formularioEmail: s.formularioEmail,
       formularioBoton: s.formularioBoton,
+      formularioAvatar: s.formularioAvatar,
+      formularioAvatarForma: s.formularioAvatarForma,
+      formularioNota: s.formularioNota,
+      estiloFormularioTitulo: d.estiloFormularioTitulo,
+      estiloFormularioSubtitulo: d.estiloFormularioSubtitulo,
+      estiloFormularioNota: d.estiloFormularioNota,
       cards: s.cards,
       galeria: s.galeria,
       listadoFormatoId: s.listadoFormatoId,
@@ -85,6 +93,11 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
       initialCotizacionId={(propuesta as any).cotizacion_id ?? null}
       initialContactoId={propuesta.contacto_id}
       initialContactoNombre={(propuesta as any).contabilidad_entidades?.nombre || null}
+      initialTitle={(propuesta as any).title ?? null}
+      initialDestination={(propuesta as any).destination ?? null}
+      initialFechaSalida={(propuesta as any).fecha_salida ?? null}
+      initialFechaRegreso={(propuesta as any).fecha_regreso ?? null}
+      initialSlug={(propuesta as any).slug ?? null}
       initialEstilosGlobales={initialEstilosGlobales}
       initialAgente={(propuesta as any).agente || null}
     />

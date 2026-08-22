@@ -329,9 +329,10 @@ export default function PHItinerario({ mobile, layout, colorFondo, fechaDesde, f
               const diaData: { dia?: number; titulo?: string; desc?: string; media?: MediaItem; medias?: MediaItem[] } = (dias ?? []).find(x => x.dia === d.dia) ?? {};
               const dayMedias = getDayMedias(diaData);
               const dateLabel = getDayDateLabel(d.dia);
+              const colorDiaBadge = estiloTituloDia?.color || "#6366f1";
               const header = (
                 <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "1rem", width: "100%" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "0.4rem 0.85rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.72rem", fontWeight: 700, color: "#6366f1", letterSpacing: "0.04em", textTransform: "uppercase", flexShrink: 0, whiteSpace: "nowrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "0.4rem 0.85rem", borderRadius: "0.5rem", background: colorDiaBadge, fontSize: "0.72rem", fontWeight: 700, color: "#ffffff", letterSpacing: "0.04em", textTransform: "uppercase", flexShrink: 0, whiteSpace: "nowrap" }}>
                     Día {d.dia}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1, minWidth: 0 }}>

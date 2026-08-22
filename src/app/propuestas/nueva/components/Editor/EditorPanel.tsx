@@ -9,6 +9,7 @@ import EditorPortada from "./EditorPortada";
 import EditorTextoImagenes from "./EditorTextoImagenes";
 import EditorItinerario from "./EditorItinerario";
 import EditorTextoColumnas from "./EditorTextoColumnas";
+import EditorFaqs from "./EditorFaqs";
 import EditorMapa from "./EditorMapa";
 import EditorRuta from "./EditorRuta";
 import EditorPrecio from "./EditorPrecio";
@@ -28,6 +29,7 @@ export function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onTog
   const [expandedDayIdx, setExpandedDayIdx] = useState<number | null>(null);
   const [expandedCardIdx, setExpandedCardIdx] = useState<string | null>(null);
   const [expandedColIdx, setExpandedColIdx] = useState<string | null>(null);
+  const [expandedFaqIdx, setExpandedFaqIdx] = useState<string | null>(null);
 
   useEffect(() => {
     setMediaAbierto(false);
@@ -194,6 +196,14 @@ export function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onTog
             setExpandedColIdx={setExpandedColIdx}
           />
         )}
+        {tab === "contenido" && seccion.tipo === "faqs" && (
+          <EditorFaqs
+            seccion={seccion}
+            onUpdate={onUpdate}
+            expandedFaqIdx={expandedFaqIdx}
+            setExpandedFaqIdx={setExpandedFaqIdx}
+          />
+        )}
         {tab === "contenido" && seccion.tipo === "mapa" && (
           <EditorMapa
             seccion={seccion}
@@ -253,7 +263,7 @@ export function EditorPanel({ seccion, onClose, onRename, onUpdate, isFav, onTog
         {tab === "contenido" && seccion.tipo === "nego-planet-destinos" && (
           <EditorNegoPlanetDestinos seccion={seccion} onUpdate={onUpdate} />
         )}
-        {tab === "contenido" && seccion.tipo !== "portada" && seccion.tipo !== "texto-imagenes" && seccion.tipo !== "itinerario" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && seccion.tipo !== "precio" && seccion.tipo !== "extras" && seccion.tipo !== "formulario" && seccion.tipo !== "ofertas" && seccion.tipo !== "cards" && seccion.tipo !== "galeria" && seccion.tipo !== "nego-planet-programas" && seccion.tipo !== "nego-planet-destinos" && (
+        {tab === "contenido" && seccion.tipo !== "portada" && seccion.tipo !== "texto-imagenes" && seccion.tipo !== "itinerario" && seccion.tipo !== "texto-columnas" && seccion.tipo !== "faqs" && seccion.tipo !== "mapa" && seccion.tipo !== "ruta" && seccion.tipo !== "menu" && seccion.tipo !== "precio" && seccion.tipo !== "extras" && seccion.tipo !== "formulario" && seccion.tipo !== "ofertas" && seccion.tipo !== "cards" && seccion.tipo !== "galeria" && seccion.tipo !== "nego-planet-programas" && seccion.tipo !== "nego-planet-destinos" && (
           <p className={styles.editorEmpty}>Opciones de contenido próximamente.</p>
         )}
         {tab === "diseño" && (

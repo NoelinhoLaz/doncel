@@ -4,8 +4,7 @@ import { AlertTriangle, Landmark, Trash2, Megaphone, RotateCcw } from "lucide-re
 import { Icons } from "@/lib/icons";
 import Pagination from "@/app/components/Pagination";
 import { formatBirthDate } from "@/lib/utils/date";
-import { getPaymentPlazos, getPlazoDetail } from "@/lib/utils/cobrosUtils";
-import type { Pagador } from "@/lib/types/cobros";
+import PlazoDotsMultiPagador from "@/app/components/cobros/PlazoDotsMultiPagador";
 import styles from "@/app/expedientes/[id]/page.module.css";
 import { useState, useRef } from "react";
 
@@ -365,12 +364,9 @@ export default function TablaViajeros({
             {loading ? (
               <tr><td colSpan={14} style={{ textAlign: "center", color: "#64748b", padding: "2rem" }}>Cargando viajeros...</td></tr>
             ) : paginatedData.map((v) => {
-              const pagador = pagadorMap.get(v.pagador_id);
-              const plazosList = pagador ? getPaymentPlazos(pagador as Pagador, globalPlazos) : [];
-              const dots = plazosList.map((_, i) =>
-                pagador ? getPlazoDetail(pagador as Pagador, globalPlazos, i) : { color: "gray", tooltip: "" }
-              );
-              if (dots.length === 0) for (let i = 0; i < 3; i++) dots.push({ color: "gray", tooltip: "" });
+              const pagadoresDetalle = (v.pagadoresDetalle && v.pagadoresDetalle.length > 0)
+                ? v.pagadoresDetalle
+                : [{ entidadId: v.pagador_id || "", nombre: "", dots: [{ color: "gray", tooltip: "" }, { color: "gray", tooltip: "" }, { color: "gray", tooltip: "" }] }];
 
               const pagoStatus = v.pagoStatus || "PENDIENTE";
 
@@ -448,10 +444,8 @@ export default function TablaViajeros({
                     </span>
                   </td>
                   <td>
-                    <div style={{ display: "flex", gap: "3px", justifyContent: "center", alignItems: "center" }}>
-                      {dots.map((d, i) => (
-                        <div key={i} title={d.tooltip} style={{ width: 10, height: 10, borderRadius: "50%", backgroundColor: d.color === "green" ? "#22c55e" : d.color === "orange" ? "#f97316" : "#d1d5db", cursor: "pointer" }} />
-                      ))}
+                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+                      <PlazoDotsMultiPagador pagadoresDetalle={pagadoresDetalle} />
                     </div>
                   </td>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>

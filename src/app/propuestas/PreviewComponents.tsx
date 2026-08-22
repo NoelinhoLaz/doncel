@@ -81,8 +81,12 @@ export interface Seccion {
   formularioSubtitulo?: string;
   formularioEmail?: string;
   formularioBoton?: string;
+  formularioAvatar?: MediaItem;
+  formularioAvatarForma?: "redondo" | "cuadrado";
+  formularioNota?: string;
   estiloFormularioTitulo?: TextoEstilo;
   estiloFormularioSubtitulo?: TextoEstilo;
+  estiloFormularioNota?: TextoEstilo;
   cards?: { uid: string; titulo?: string; subtitulo?: string; media?: MediaItem; enlaceTipo?: "externo" | "pagina"; enlaceHref?: string; enlacePaginaSlug?: string }[];
   galeria?: { uid: string; media?: MediaItem }[];
   listadoFormatoId?: string | null;
@@ -1353,9 +1357,10 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
               const diaData: { dia?: number; titulo?: string; desc?: string; media?: MediaItem; medias?: MediaItem[] } = (dias ?? []).find(x => x.dia === d.dia) ?? {};
               const dayMedias = getDayMedias(diaData);
               const dateLabel = getDayDateLabel(d.dia);
+              const colorDiaBadge = estiloTituloDia?.color || "#6366f1";
               const header = (
                 <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "1rem", width: "100%" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "0.4rem 0.85rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.72rem", fontWeight: 700, color: "#6366f1", letterSpacing: "0.04em", textTransform: "uppercase", flexShrink: 0, whiteSpace: "nowrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "0.4rem 0.85rem", borderRadius: "0.5rem", background: colorDiaBadge, fontSize: "0.72rem", fontWeight: 700, color: "#ffffff", letterSpacing: "0.04em", textTransform: "uppercase", flexShrink: 0, whiteSpace: "nowrap" }}>
                     Día {d.dia}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1, minWidth: 0 }}>
@@ -1696,7 +1701,7 @@ export function PHPrecio({
   const stylePvp = estiloTextoCSS(seccion.estiloPvp, "titulo");
   const styleCondiciones = estiloTextoCSS(seccion.estiloCondiciones, "parrafo");
 
-  const maxWidth = seccion.anchoMax === "900px" ? "900px" : seccion.anchoMax === "1200px" ? "1200px" : "100%";
+  const maxWidth = seccion.anchoMax === "900px" ? "min(900px, 46.875cqw)" : seccion.anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
   const containerStyle: React.CSSProperties = {
     maxWidth,
     margin: "0 auto",
@@ -1704,6 +1709,8 @@ export function PHPrecio({
     borderRadius: "1rem",
     width: "100%",
   };
+  const colorFondoCard = seccion.colorFondoCard || "#ffffff";
+  const colorFondoCardPrecio = seccion.colorFondoCardPrecio || null;
 
   const formattedPvp = renderConDestacado(pvp, seccion.estiloPvp?.colorDestacado, seccion.estiloPvp?.grosorDestacado, "titulo", seccion.estiloPvp);
   const formattedCondiciones = renderConDestacado(condiciones, seccion.estiloCondiciones?.colorDestacado, seccion.estiloCondiciones?.grosorDestacado, "parrafo", seccion.estiloCondiciones);
@@ -1724,9 +1731,9 @@ export function PHPrecio({
             display: "grid",
             gridTemplateColumns: mobile ? "1fr" : "1fr 1.5fr",
             gap: "2.5rem",
-            background: "#ffffff",
+            background: colorFondoCard,
             borderRadius: "1.25rem",
-            padding: "2.5rem",
+            padding: "1.5rem",
             boxShadow: "0 10px 30px rgba(0,0,0,0.04)",
             border: "1px solid #f1f5f9"
           }}>
@@ -1735,7 +1742,7 @@ export function PHPrecio({
               flexDirection: "column",
               justifyContent: "center",
               alignItems: "center",
-              background: "linear-gradient(135deg, #f5f3ff 0%, #edd8ff 100%)",
+              background: colorFondoCardPrecio ?? "linear-gradient(135deg, #f5f3ff 0%, #edd8ff 100%)",
               borderRadius: "1rem",
               padding: "2rem",
               textAlign: "center",
@@ -1775,7 +1782,7 @@ export function PHPrecio({
               flexDirection: mobile ? "column" : "row",
               justifyContent: "space-between",
               alignItems: mobile ? "stretch" : "center",
-              background: "#1e1b4b",
+              background: colorFondoCardPrecio ?? "#1e1b4b",
               borderRadius: "1rem",
               padding: "2rem",
               color: "#ffffff",
@@ -1797,7 +1804,7 @@ export function PHPrecio({
               </div>
             </div>
             {condiciones && (
-              <div style={{ background: "#ffffff", padding: "1.75rem", borderRadius: "1rem", border: "1px solid #f1f5f9", boxShadow: "0 4px 12px rgba(0,0,0,0.02)" }}>
+              <div style={{ background: colorFondoCard, padding: "1.25rem", borderRadius: "1rem", border: "1px solid #f1f5f9", boxShadow: "0 4px 12px rgba(0,0,0,0.02)" }}>
                 <h4 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.75rem" }}>Condiciones de Reserva</h4>
                 <div style={{ margin: 0, fontSize: "0.95rem", color: "#475569", whiteSpace: "pre-wrap", ...styleCondiciones }}>
                   {formattedCondiciones}
@@ -1821,7 +1828,8 @@ export function PHPrecio({
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            padding: "1rem"
+            padding: "1rem",
+            ...(colorFondoCardPrecio ? { background: colorFondoCardPrecio, borderRadius: "1rem", width: "100%" } : {}),
           }}>
             <span style={{ fontSize: "0.95rem", color: "#6366f1", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.5rem" }}>Valor Total de la Propuesta</span>
             <div style={{ margin: 0, fontSize: "3rem", fontWeight: 900, color: "#1e293b", ...stylePvp }}>
@@ -1830,7 +1838,7 @@ export function PHPrecio({
             <div style={{ width: "80px", height: "4px", background: "#8b5cf6", borderRadius: "2px", marginTop: "1.5rem" }} />
           </div>
           {condiciones && (
-            <div style={{ width: "100%", textAlign: "left", background: "#ffffff", padding: "2rem", borderRadius: "1rem", border: "1px solid #f1f5f9" }}>
+            <div style={{ width: "100%", textAlign: "left", background: colorFondoCard, padding: "1.25rem", borderRadius: "1rem", border: "1px solid #f1f5f9" }}>
               <h4 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.75rem", borderLeft: "4px solid #8b5cf6", paddingLeft: "0.75rem" }}>Condiciones de Reserva</h4>
               <div style={{ margin: 0, fontSize: "0.95rem", color: "#475569", whiteSpace: "pre-wrap", ...styleCondiciones }}>
                 {formattedCondiciones}
@@ -1969,68 +1977,83 @@ export function PHFormulario({
     width: "100%",
   };
 
-  const agentCard = (
-    <div style={{
-      background: "#ffffff",
-      padding: "2rem",
-      borderRadius: "1.25rem",
-      boxShadow: "0 10px 25px rgba(0,0,0,0.03)",
-      border: "1px solid #f1f5f9",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      textAlign: "center",
-      height: "fit-content",
-      gap: "1.25rem"
-    }}>
-      {agente?.avatar_url ? (
-        <img
-          src={agente.avatar_url}
-          alt={`${agente.nombre} ${agente.apellidos || ""}`}
-          style={{ width: "80px", height: "80px", borderRadius: "50%", objectFit: "cover", border: "3px solid #fbbf24" }}
-        />
-      ) : (
-        <div style={{
-          width: "80px",
-          height: "80px",
-          borderRadius: "50%",
-          background: "#1e1b4b",
-          color: "#ffffff",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "1.75rem",
-          fontWeight: 800,
-          border: "3px solid #fbbf24"
-        }}>
-          {((agente?.nombre?.[0] || "") + (agente?.apellidos?.[0] || "")).toUpperCase() || "A"}
+  const agentCard = (() => {
+    const avatarUrl = seccion?.formularioAvatar?.url || agente?.avatar_url;
+    const esCuadrado = (seccion?.formularioAvatarForma ?? "redondo") === "cuadrado";
+
+    const avatarNode = avatarUrl ? (
+      <img
+        src={avatarUrl}
+        alt={`${agente?.nombre || ""} ${agente?.apellidos || ""}`}
+        style={esCuadrado
+          ? { width: "100%", height: "auto", display: "block" }
+          : { width: "80px", height: "80px", borderRadius: "50%", border: "3px solid #fbbf24", objectFit: "cover" }}
+      />
+    ) : (
+      <div style={{
+        ...(esCuadrado
+          ? { width: "100%", aspectRatio: "1 / 1" }
+          : { width: "80px", height: "80px", borderRadius: "50%", border: "3px solid #fbbf24" }),
+        background: "#1e1b4b",
+        color: "#ffffff",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "1.75rem",
+        fontWeight: 800,
+      }}>
+        {((agente?.nombre?.[0] || "") + (agente?.apellidos?.[0] || "")).toUpperCase() || "A"}
+      </div>
+    );
+
+    const body = (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: "1.25rem", padding: esCuadrado ? "2rem" : "1.25rem 2rem 2rem" }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 700, color: "#1e293b" }}>
+            {agente?.nombre ? `${agente.nombre} ${agente.apellidos || ""}`.trim() : "Tu Asesor de Viajes"}
+          </h3>
+          {agente?.email && (
+            <a href={`mailto:${agente.email}`} style={{ display: "block", margin: "0.25rem 0 0 0", fontSize: "0.85rem", color: "#64748b", textDecoration: "none" }}>{agente.email}</a>
+          )}
         </div>
-      )}
-      <div>
-        <h3 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 700, color: "#1e293b" }}>
-          {agente?.nombre ? `${agente.nombre} ${agente.apellidos || ""}`.trim() : "Tu Asesor de Viajes"}
-        </h3>
-        <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.85rem", color: "#64748b" }}>Agente de Viajes</p>
-      </div>
 
-      <div style={{ width: "100%", height: "1px", background: "#e2e8f0" }} />
+        <div style={{ width: "100%", height: "1px", background: "#e2e8f0" }} />
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", textAlign: "left", fontSize: "0.88rem" }}>
-        {agente?.email && (
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 600 }}>Email</span>
-            <a href={`mailto:${agente.email}`} style={{ color: "#475569", fontWeight: 500, textDecoration: "none" }}>{agente.email}</a>
-          </div>
-        )}
-        {agente?.telefono && (
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 600 }}>Teléfono</span>
-            <a href={`tel:${agente.telefono}`} style={{ color: "#475569", fontWeight: 500, textDecoration: "none" }}>{agente.telefono}</a>
-          </div>
-        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", textAlign: "left", fontSize: "0.88rem" }}>
+          {seccion?.formularioNota && (
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <p style={{ margin: 0, whiteSpace: "pre-wrap", color: "#475569", fontWeight: 500, ...estiloTextoCSS(seccion.estiloFormularioNota, "parrafo") }}>
+                {renderConDestacado(seccion.formularioNota, seccion.estiloFormularioNota?.colorDestacado, seccion.estiloFormularioNota?.grosorDestacado, "parrafo", seccion.estiloFormularioNota)}
+              </p>
+            </div>
+          )}
+          {agente?.telefono && (
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 600 }}>Teléfono</span>
+              <a href={`tel:${agente.telefono}`} style={{ color: "#475569", fontWeight: 500, textDecoration: "none" }}>{agente.telefono}</a>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+
+    return (
+      <div style={{
+        background: "#ffffff",
+        borderRadius: "1.25rem",
+        boxShadow: "0 10px 25px rgba(0,0,0,0.03)",
+        border: "1px solid #f1f5f9",
+        overflow: "hidden",
+        height: "fit-content",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: esCuadrado ? "stretch" : "center",
+      }}>
+        <div style={{ padding: esCuadrado ? "1rem 1rem 0" : "2rem 2rem 0" }}>{avatarNode}</div>
+        {body}
+      </div>
+    );
+  })();
 
   const formView = enviado ? (
     <div style={{
@@ -2271,6 +2294,146 @@ export function PHTextoColumnas({
               </div>
             ))}
           </div>
+        </div>
+      </Ph>
+    </FondoWrapper>
+  );
+}
+
+
+export function PHFaqs({
+  mobile,
+  layout,
+  titulo,
+  subtitulo,
+  colorFondo,
+  imagenFondo,
+  imagenFondoOverlay,
+  altoSeccion,
+  canvasHeight,
+  estiloTitulo,
+  estiloSubtitulo,
+  estiloFaqPregunta,
+  estiloFaqRespuesta,
+  faqs,
+  anchoMax
+}: {
+  mobile?: boolean;
+  layout?: string;
+  titulo?: string;
+  subtitulo?: string;
+  colorFondo?: string;
+  imagenFondo?: MediaItem;
+  imagenFondoOverlay?: number;
+  altoSeccion?: "minimo" | "medio" | "completo";
+  canvasHeight?: string;
+  estiloTitulo?: TextoEstilo;
+  estiloSubtitulo?: TextoEstilo;
+  estiloFaqPregunta?: TextoEstilo;
+  estiloFaqRespuesta?: TextoEstilo;
+  faqs?: { uid: string; pregunta?: string; respuesta?: string }[];
+  anchoMax?: string;
+}) {
+  const [abierta, setAbierta] = useState<string | null>("");
+
+  const displayFaqs = (faqs ?? []).length > 0 ? faqs! : [
+    { uid: "placeholder-1", pregunta: "¿Cuál es la política de cancelación?", respuesta: ".- Elemento de ejemplo." },
+    { uid: "placeholder-2", pregunta: "¿Qué incluye el precio?", respuesta: ".- Elemento de ejemplo." },
+    { uid: "placeholder-3", pregunta: "¿Cómo puedo contactar con vosotros?", respuesta: ".- Elemento de ejemplo." },
+  ];
+
+  const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+
+  return (
+    <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
+      <Ph>
+        <div className={styles.phTextoColumnas} style={{ maxWidth: customMaxWidth }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            {titulo ? (
+              <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
+            ) : (
+              <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: 0 }} />
+            )}
+            {subtitulo ? (
+              <p style={{ fontSize: "0.95rem", color: "#475569", margin: 0, ...estiloTextoCSS(estiloSubtitulo, "subtitulo") }}>{renderConDestacado(subtitulo, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado, "subtitulo", estiloSubtitulo)}</p>
+            ) : (
+              <div style={{ width: "55%", height: "12px", borderRadius: "6px", background: "#e2e8f0", margin: 0 }} />
+            )}
+          </div>
+          {layout === "2-cols" ? (
+            <div style={{ display: "flex", flexDirection: mobile ? "column" : "row", gap: "1.5rem", alignItems: "flex-start" }}>
+              <div style={{ flex: mobile ? "1 1 auto" : "0 0 45%", display: "flex", flexDirection: "column", gap: "0.6rem", width: mobile ? "100%" : undefined }}>
+                {displayFaqs.map((f, i) => {
+                  const isOpen = abierta === f.uid;
+                  return (
+                    <button
+                      key={f.uid ?? i}
+                      type="button"
+                      onClick={() => setAbierta(isOpen ? "" : f.uid)}
+                      style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", padding: "14px 16px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "0.5rem", cursor: "pointer", textAlign: "left" }}
+                    >
+                      {f.pregunta ? (
+                        <span style={estiloTextoCSS(estiloFaqPregunta, "subtitulo")}>{renderConDestacado(f.pregunta, estiloFaqPregunta?.colorDestacado, estiloFaqPregunta?.grosorDestacado, "subtitulo", estiloFaqPregunta)}</span>
+                      ) : (
+                        <div style={{ width: "60%", height: "12px", borderRadius: "6px", background: "#cbd5e1" }} />
+                      )}
+                      <span style={{ flexShrink: 0, transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "#94a3b8" }}>▾</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ flex: "1 1 auto", padding: "16px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "0.5rem", minHeight: "80px", width: mobile ? "100%" : undefined }}>
+                {(() => {
+                  const activa = displayFaqs.find(f => f.uid === abierta);
+                  if (!activa) {
+                    return <p style={{ margin: 0, fontSize: "0.85rem", color: "#94a3b8" }}>Selecciona una pregunta para ver la respuesta.</p>;
+                  }
+                  return activa.respuesta ? (
+                    <p style={{ margin: 0, ...estiloTextoCSS(estiloFaqRespuesta, "parrafo") }}>{renderConDestacado(activa.respuesta, estiloFaqRespuesta?.colorDestacado, estiloFaqRespuesta?.grosorDestacado, "parrafo", estiloFaqRespuesta)}</p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      <div style={{ width: "90%", height: "8px", borderRadius: "4px", background: "#e2e8f0" }} />
+                      <div style={{ width: "70%", height: "8px", borderRadius: "4px", background: "#e2e8f0" }} />
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              {displayFaqs.map((f, i) => {
+                const isOpen = abierta === f.uid;
+                return (
+                  <div key={f.uid ?? i} style={{ border: "1px solid #e2e8f0", borderRadius: "0.5rem", overflow: "hidden" }}>
+                    <button
+                      type="button"
+                      onClick={() => setAbierta(isOpen ? "" : f.uid)}
+                      style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", padding: "14px 16px", background: "#ffffff", border: "none", cursor: "pointer", textAlign: "left" }}
+                    >
+                      {f.pregunta ? (
+                        <span style={estiloTextoCSS(estiloFaqPregunta, "subtitulo")}>{renderConDestacado(f.pregunta, estiloFaqPregunta?.colorDestacado, estiloFaqPregunta?.grosorDestacado, "subtitulo", estiloFaqPregunta)}</span>
+                      ) : (
+                        <div style={{ width: "60%", height: "12px", borderRadius: "6px", background: "#cbd5e1" }} />
+                      )}
+                      <span style={{ flexShrink: 0, transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "#94a3b8" }}>▾</span>
+                    </button>
+                    {isOpen && (
+                      <div style={{ padding: "0 16px 14px 16px", background: "#ffffff" }}>
+                        {f.respuesta ? (
+                          <p style={{ margin: 0, ...estiloTextoCSS(estiloFaqRespuesta, "parrafo") }}>{renderConDestacado(f.respuesta, estiloFaqRespuesta?.colorDestacado, estiloFaqRespuesta?.grosorDestacado, "parrafo", estiloFaqRespuesta)}</p>
+                        ) : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                            <div style={{ width: "90%", height: "8px", borderRadius: "4px", background: "#e2e8f0" }} />
+                            <div style={{ width: "70%", height: "8px", borderRadius: "4px", background: "#e2e8f0" }} />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </Ph>
     </FondoWrapper>
@@ -2864,6 +3027,7 @@ export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dis
     case "portada":        return <PHPortada key={s.uid} height={canvasHeight} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} medias={s.medias} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} colorFondo={s.colorFondo} />;
     case "texto-imagenes": return <PHTextoImagenes key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} textoLibre={s.textoLibre} medias={s.medias} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} estiloTextoLibre={s.estiloTextoLibre} anchoMax={s.anchoMax} />;
     case "texto-columnas": return <PHTextoColumnas key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} columnas={s.columnas} anchoMax={s.anchoMax} />;
+    case "faqs": return <PHFaqs key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} estiloFaqPregunta={s.estiloFaqPregunta} estiloFaqRespuesta={s.estiloFaqRespuesta} faqs={s.faqs} anchoMax={s.anchoMax} />;
     case "itinerario":     return <PHItinerario key={s.uid} mobile={mobile} layout={s.layout} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} fechaDesde={s.fechaDesde} fechaHasta={s.fechaHasta} dias={s.dias} titulo={s.titulo} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} anchoMax={s.anchoMax} />;
     case "mapa":           return <PHMapa key={s.uid} titulo={s.titulo} mapas={s.mapas} layout={s.layout} anchoMax={s.anchoMax} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} />;
     case "ruta":           return <PHRuta key={s.uid} titulo={s.titulo} rutas={s.rutas} layout={s.layout} anchoMax={s.anchoMax} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} />;

@@ -2,7 +2,7 @@ import React from "react";
 import {
   Monitor, Tablet, Smartphone,
   LayoutTemplate, Type, Map as MapPinIcon, Route, DollarSign, Calendar, PanelBottom, Image, Menu, Columns,
-  AlignLeft, AlignCenter, AlignRight, AlignJustify, Tag, Globe2, Plane, LayoutGrid, GalleryHorizontal, ListPlus,
+  AlignLeft, AlignCenter, AlignRight, AlignJustify, Tag, Globe2, Plane, LayoutGrid, GalleryHorizontal, ListPlus, HelpCircle,
 } from "lucide-react";
 import type { Dispositivo } from "./types";
 
@@ -22,6 +22,7 @@ export const OPCIONES_SECCION = [
   { id: "ruta",           label: "Ruta",             Icon: Route },
   { id: "precio",         label: "Precio",           Icon: DollarSign },
   { id: "extras",         label: "Extras",           Icon: ListPlus },
+  { id: "faqs",           label: "FAQs",             Icon: HelpCircle },
   { id: "formulario",     label: "Formulario",       Icon: Type },
   { id: "cards",          label: "Cards",            Icon: LayoutGrid },
   { id: "galeria",        label: "Galería",          Icon: GalleryHorizontal },

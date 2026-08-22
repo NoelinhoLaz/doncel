@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getPropuestas, deletePropuesta, duplicarPropuesta, tienePropuestaCotizacionVinculada } from "@/actions/propuestas";
-import { Plus, Search, Eye, Pencil, Trash2, Copy, FileText, Calendar, LayoutTemplate, Share2, Check, Upload, SlidersHorizontal } from "lucide-react";
+import { getPropuestas, deletePropuesta, duplicarPropuesta, tienePropuestaCotizacionVinculada, unlinkCotizacionFromPropuesta } from "@/actions/propuestas";
+import { Plus, Search, Eye, Pencil, Trash2, Copy, FileText, Calendar, LayoutTemplate, Share2, Check, Upload, SlidersHorizontal, Unlink, MoreVertical } from "lucide-react";
 import styles from "./page.module.css";
 import ImportarPropuestaPdfModal from "@/components/modals/ImportarPropuestaPdfModal";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
@@ -12,8 +12,11 @@ interface Propuesta {
   id: string;
   title: string;
   destination: string | null;
+  fecha_salida?: string | null;
+  fecha_regreso?: string | null;
   created_at: string;
   contacto_id?: string | null;
+  cotizacion_id?: string | null;
   contabilidad_entidades?: {
     id: string;
     nombre: string;
@@ -41,6 +44,10 @@ export default function PropuestasPage() {
   const [busqueda, setBusqueda] = useState("");
   const [confirmarBorrar, setConfirmarBorrar] = useState<string | null>(null);
   const [duplicarModal, setDuplicarModal] = useState<string | null>(null);
+  const [confirmarDesvincular, setConfirmarDesvincular] = useState<string | null>(null);
+  const [menuAbierto, setMenuAbierto] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [desvinculando, setDesvinculando] = useState(false);
   const [currentAuthUserId, setCurrentAuthUserId] = useState<string | null>(null);
   const [currentRol, setCurrentRol] = useState<string | null>(null);
   const [authLoaded, setAuthLoaded] = useState(false);
@@ -77,6 +84,17 @@ export default function PropuestasPage() {
   useEffect(() => {
     cargar();
   }, []);
+
+  useEffect(() => {
+    if (!menuAbierto) return;
+    function handler(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuAbierto(null);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuAbierto]);
 
   useEffect(() => {
     if (agenteFilterInicializado) return;
@@ -125,6 +143,17 @@ export default function PropuestasPage() {
     setDuplicarModal(null);
     const r = await duplicarPropuesta(id, vincular);
     if (r.ok) cargar();
+  }
+
+  async function desvincular(id: string) {
+    setDesvinculando(true);
+    const result = await unlinkCotizacionFromPropuesta(id);
+    if (!result.success) {
+      alert(result.error ?? "No se pudo desvincular la propuesta de la cotización");
+    }
+    setDesvinculando(false);
+    setConfirmarDesvincular(null);
+    cargar();
   }
 
   const isAdminRol = currentRol ? ["Admin", "SuperAdmin", "Owner"].includes(currentRol) : false;
@@ -195,13 +224,20 @@ export default function PropuestasPage() {
     return Array.isArray(content) ? content.length : 0;
   };
 
-  const diasNoches = (p: Propuesta): { dias: number; noches: number } | null => {
+  const fechasViaje = (p: Propuesta): { desde: string; hasta: string } | null => {
+    if (p.fecha_salida && p.fecha_regreso) return { desde: p.fecha_salida, hasta: p.fecha_regreso };
     const content = p.landing?.editor_content;
     if (!Array.isArray(content)) return null;
     const itinerario = content.find((s: any) => s.tipo === "itinerario");
     if (!itinerario?.fechaDesde || !itinerario?.fechaHasta) return null;
-    const start = new Date(itinerario.fechaDesde);
-    const end = new Date(itinerario.fechaHasta);
+    return { desde: itinerario.fechaDesde, hasta: itinerario.fechaHasta };
+  };
+
+  const diasNoches = (p: Propuesta): { dias: number; noches: number } | null => {
+    const fechas = fechasViaje(p);
+    if (!fechas) return null;
+    const start = new Date(fechas.desde);
+    const end = new Date(fechas.hasta);
     if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
     const diffDays = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     if (diffDays <= 0) return null;
@@ -214,7 +250,7 @@ export default function PropuestasPage() {
       <div className={styles.header}>
         <div className={styles.headerRow}>
           <div>
-            <h1 className={styles.title}>Propuestas</h1>
+            <h1 className={styles.title}>Propuestas Visuales</h1>
           </div>
         </div>
       </div>
@@ -362,6 +398,7 @@ export default function PropuestasPage() {
                 <th>Título</th>
                 <th>Destino</th>
                 <th>Secciones</th>
+                <th>Fechas viaje</th>
                 <th>D/N</th>
                 <th>Fecha</th>
                 <th></th>
@@ -402,7 +439,7 @@ export default function PropuestasPage() {
                       )}
                       <div>
                         {p.contabilidad_entidades?.nombre && (
-                          <div style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.1rem" }}>
+                          <div style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.1rem", textTransform: "uppercase" }}>
                             {p.contabilidad_entidades.nombre}
                           </div>
                         )}
@@ -434,6 +471,19 @@ export default function PropuestasPage() {
                   </td>
                   <td className={styles.cellMuted}>
                     {(() => {
+                      const fechas = fechasViaje(p);
+                      if (!fechas) return "—";
+                      const fmt = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.3 }}>
+                          <span>{fmt(fechas.desde)}</span>
+                          <span>{fmt(fechas.hasta)}</span>
+                        </div>
+                      );
+                    })()}
+                  </td>
+                  <td className={styles.cellMuted}>
+                    {(() => {
                       const dn = diasNoches(p);
                       return dn ? `${dn.dias}D/${dn.noches}N` : "—";
                     })()}
@@ -444,41 +494,85 @@ export default function PropuestasPage() {
                       {new Date(p.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}
                     </span>
                   </td>
-                  <td onClick={e => e.stopPropagation()}>
-                    <div className={styles.actions}>
-                      <button
-                        className={styles.actionBtn}
-                        title={editable ? "Editar" : "Solo el creador o un administrador puede editar"}
-                        disabled={!editable}
-                        style={!editable ? { color: "#cbd5e1", cursor: "not-allowed" } : undefined}
-                        onClick={() => editable && router.push(`/propuestas/${p.id}`)}
+                  <td onClick={e => e.stopPropagation()} style={{ position: "relative" }}>
+                    <button
+                      className={styles.actionBtn}
+                      title="Más acciones"
+                      onClick={() => setMenuAbierto(menuAbierto === p.id ? null : p.id)}
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+
+                    {menuAbierto === p.id && (
+                      <div
+                        ref={menuRef}
+                        style={{
+                          position: "absolute",
+                          top: "50%",
+                          right: "calc(100% + 0.4rem)",
+                          transform: "translateY(-50%)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.25rem",
+                          background: "#1e293b",
+                          borderRadius: "999px",
+                          padding: "0.3rem",
+                          boxShadow: "0 8px 20px rgba(15,23,42,0.25)",
+                          zIndex: 20,
+                          whiteSpace: "nowrap",
+                        }}
                       >
-                        <Pencil size={14} />
-                      </button>
-                      <button className={styles.actionBtn} title="Previsualizar" onClick={() => window.open(`/propuestas/${p.id}/preview`, "_blank")}>
-                        <Eye size={14} />
-                      </button>
-                      <button
-                        className={styles.actionBtn}
-                        title={enlaceCopiado === p.id ? "¡Enlace copiado!" : "Copiar enlace público para compartir"}
-                        onClick={() => copiarEnlacePublico(p.id)}
-                        style={enlaceCopiado === p.id ? { color: "#16a34a" } : undefined}
-                      >
-                        {enlaceCopiado === p.id ? <Check size={14} /> : <Share2 size={14} />}
-                      </button>
-                      <button className={styles.actionBtn} title="Duplicar" onClick={() => iniciarDuplicar(p.id)}>
-                        <Copy size={14} />
-                      </button>
-                      <button
-                        className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
-                        title={editable ? "Eliminar" : "Solo el creador o un administrador puede eliminar"}
-                        disabled={!editable}
-                        style={!editable ? { color: "#cbd5e1", cursor: "not-allowed" } : undefined}
-                        onClick={() => editable && setConfirmarBorrar(p.id)}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
+                        <button
+                          className={styles.actionBtnDark}
+                          title={editable ? "Editar" : "Solo el creador o un administrador puede editar"}
+                          disabled={!editable}
+                          style={!editable ? { color: "#64748b", cursor: "not-allowed" } : undefined}
+                          onClick={() => { if (editable) { setMenuAbierto(null); router.push(`/propuestas/${p.id}`); } }}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          className={styles.actionBtnDark}
+                          title="Previsualizar"
+                          onClick={() => { setMenuAbierto(null); window.open(`/propuestas/${p.id}/preview`, "_blank"); }}
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          className={styles.actionBtnDark}
+                          title={enlaceCopiado === p.id ? "¡Enlace copiado!" : "Copiar enlace público para compartir"}
+                          onClick={() => copiarEnlacePublico(p.id)}
+                          style={enlaceCopiado === p.id ? { color: "#4ade80" } : undefined}
+                        >
+                          {enlaceCopiado === p.id ? <Check size={14} /> : <Share2 size={14} />}
+                        </button>
+                        <button
+                          className={styles.actionBtnDark}
+                          title="Duplicar"
+                          onClick={() => { setMenuAbierto(null); iniciarDuplicar(p.id); }}
+                        >
+                          <Copy size={14} />
+                        </button>
+                        {p.cotizacion_id && (
+                          <button
+                            className={styles.actionBtnDark}
+                            title="Desvincular cotización"
+                            onClick={() => { setMenuAbierto(null); setConfirmarDesvincular(p.id); }}
+                          >
+                            <Unlink size={14} />
+                          </button>
+                        )}
+                        <button
+                          className={styles.actionBtnDark}
+                          title={editable ? "Eliminar" : "Solo el creador o un administrador puede eliminar"}
+                          disabled={!editable}
+                          style={!editable ? { color: "#64748b", cursor: "not-allowed" } : { color: "#f87171" }}
+                          onClick={() => { if (editable) { setMenuAbierto(null); setConfirmarBorrar(p.id); } }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               );})}
@@ -513,6 +607,24 @@ export default function PropuestasPage() {
               <button className={styles.modalCancel} onClick={() => setDuplicarModal(null)}>Cancelar</button>
               <button className={styles.modalCancel} onClick={() => confirmarDuplicar(false)}>Solo propuesta</button>
               <button className={styles.modalConfirm} onClick={() => confirmarDuplicar(true)}>Duplicar ambas</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal confirmar desvincular cotización */}
+      {confirmarDesvincular && (
+        <div className={styles.modalOverlay} onClick={() => !desvinculando && setConfirmarDesvincular(null)}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <p className={styles.modalTitle}>¿Desvincular cotización?</p>
+            <p className={styles.modalText}>
+              La propuesta dejará de estar asociada a su cotización. La propuesta y la cotización seguirán existiendo por separado.
+            </p>
+            <div className={styles.modalActions}>
+              <button className={styles.modalCancel} disabled={desvinculando} onClick={() => setConfirmarDesvincular(null)}>Cancelar</button>
+              <button className={styles.modalConfirm} disabled={desvinculando} onClick={() => desvincular(confirmarDesvincular)}>
+                {desvinculando ? "Desvinculando..." : "Desvincular"}
+              </button>
             </div>
           </div>
         </div>

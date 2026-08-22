@@ -166,10 +166,13 @@ export async function registrarCobroOficina(payload: {
   tique?: string;
   fecha?: string;
   movimiento_banco_id?: string | null;
+  // Cuando un viajero (operativa_viajeros_expedientes.id) tiene varios pagadores, permite
+  // elegir explícitamente a cuál se imputa el cobro. Si no se indica, se usa el pagador principal.
+  pagadorPorViajero?: Record<string, string>;
 }) {
   try {
     const agencyDb = await getAgencyDbClient();
-    const { expediente_id, medio_pago, cuenta_bancaria_id, selectedViajerosIds, selectedClientesIds, importe, tique, movimiento_banco_id } = payload;
+    const { expediente_id, medio_pago, cuenta_bancaria_id, selectedViajerosIds, selectedClientesIds, importe, tique, movimiento_banco_id, pagadorPorViajero = {} } = payload;
 
     const { data: expediente, error: errExp } = await agencyDb
       .from("operativa_expedientes")
@@ -189,7 +192,7 @@ export async function registrarCobroOficina(payload: {
     if (errCb) throw errCb;
     const subcuentaBanco = cBancaria?.cuenta_contable || (medio_pago === "efectivo" ? "57000010000" : medio_pago === "tarjeta" ? "57250010000" : "57200010000");
 
-    const entitiesToInsert: Array<{ entityId: string; isTraveler: boolean }> = [];
+    const entitiesToInsert: Array<{ entityId: string; isTraveler: boolean; viajeroId?: string }> = [];
 
     if (selectedViajerosIds.length > 0) {
       const { data: travelers, error: errTr } = await agencyDb
@@ -198,7 +201,7 @@ export async function registrarCobroOficina(payload: {
         .in("id", selectedViajerosIds);
       if (errTr) throw errTr;
       (travelers || []).forEach((t: any) => {
-        if (t.entidad_id) entitiesToInsert.push({ entityId: t.entidad_id, isTraveler: true });
+        if (t.entidad_id) entitiesToInsert.push({ entityId: t.entidad_id, isTraveler: true, viajeroId: t.id });
       });
     }
 
@@ -212,7 +215,7 @@ export async function registrarCobroOficina(payload: {
     const results: string[] = [];
 
     for (let i = 0; i < N; i++) {
-      const { entityId, isTraveler } = entitiesToInsert[i];
+      const { entityId, isTraveler, viajeroId } = entitiesToInsert[i];
       const isLast = i === N - 1;
       const itemImporte = isLast ? parseFloat(remaining.toFixed(2)) : parseFloat((importe / N).toFixed(2));
       remaining -= itemImporte;
@@ -307,14 +310,17 @@ export async function registrarCobroOficina(payload: {
         }
       }
 
-      const { data: travelerObj } = await agencyDb
-        .from("operativa_viajeros_expedientes")
-        .select("pagador_id")
-        .eq("expediente_id", expediente_id)
-        .eq("entidad_id", entityId)
-        .maybeSingle();
-
-      const pagadorEntidadId = travelerObj?.pagador_id || entityId;
+      const pagadorElegido = viajeroId ? pagadorPorViajero[viajeroId] : undefined;
+      let pagadorEntidadId = pagadorElegido || entityId;
+      if (!pagadorElegido) {
+        const { data: travelerObj } = await agencyDb
+          .from("operativa_viajeros_expedientes")
+          .select("pagador_id")
+          .eq("expediente_id", expediente_id)
+          .eq("entidad_id", entityId)
+          .maybeSingle();
+        pagadorEntidadId = travelerObj?.pagador_id || entityId;
+      }
 
       const { data: pagadorRecord, error: errPag } = await agencyDb
         .from("operativa_pagadores_expedientes")

@@ -34,6 +34,7 @@ export default function ModalCobroOficina({ isOpen, onClose, expedienteId, pagad
   const [modalStep, setModalStep] = useState(1);
   const [selectedViajerosIds, setSelectedViajerosIds] = useState<string[]>([]);
   const [selectedClientesIds, setSelectedClientesIds] = useState<string[]>([]);
+  const [pagadorPorViajero, setPagadorPorViajero] = useState<Record<string, string>>({});
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [dropdownSearch, setDropdownSearch] = useState("");
   const [importeCobro, setImporteCobro] = useState("");
@@ -58,11 +59,17 @@ export default function ModalCobroOficina({ isOpen, onClose, expedienteId, pagad
 
   const listViajeros = useMemo(() => {
     return viajeros.map((v) => {
-      const pagador = pagadores.find((p) => p.entidad_id === v.pagador_id);
+      const pagadorIdsViajero: string[] = Array.isArray(v.operativa_viajero_pagadores) && v.operativa_viajero_pagadores.length > 0
+        ? [...v.operativa_viajero_pagadores].sort((a: any, b: any) => (a.orden ?? 0) - (b.orden ?? 0)).map((p: any) => p.pagador_entidad_id).filter(Boolean)
+        : v.pagador_id ? [v.pagador_id] : [];
+      const pagadoresViajero = pagadorIdsViajero
+        .map((id) => pagadores.find((p) => p.entidad_id === id))
+        .filter(Boolean) as PagadorSimple[];
       return {
         id: v.id,
         nombre: v.contabilidad_entidades?.nombre || v.tutores?.nombre || "Viajero sin nombre",
-        pagadorNombre: pagador?.contabilidad_entidades?.nombre || "Sin pagador",
+        pagadorNombre: pagadoresViajero.map((p) => p.contabilidad_entidades?.nombre).filter(Boolean).join(", ") || "Sin pagador",
+        pagadoresViajero,
       };
     });
   }, [viajeros, pagadores]);
@@ -130,6 +137,7 @@ export default function ModalCobroOficina({ isOpen, onClose, expedienteId, pagad
     setSelectedAccountId("");
     setSelectedViajerosIds([]);
     setSelectedClientesIds([]);
+    setPagadorPorViajero({});
     setIsDropdownOpen(false);
     setDropdownSearch("");
     setImporteCobro("");
@@ -158,6 +166,7 @@ export default function ModalCobroOficina({ isOpen, onClose, expedienteId, pagad
         tique: metodoCobro === "tarjeta" ? tiqueTPV : undefined,
         fecha: fechaCobro,
         movimiento_banco_id: metodoCobro === "transferencia" ? (movimientoBancoIdElegido ?? null) : undefined,
+        pagadorPorViajero,
       });
       if (res.success) {
         handleClose();
@@ -329,6 +338,27 @@ export default function ModalCobroOficina({ isOpen, onClose, expedienteId, pagad
                   </>
                 )}
               </div>
+
+              {selectedViajerosIds
+                .map((vid) => listViajeros.find((x) => x.id === vid))
+                .filter((v) => v && v.pagadoresViajero.length > 1)
+                .map((v) => (
+                  <div key={v!.id} style={{ marginTop: "0.5rem", fontSize: "0.8rem" }}>
+                    <label style={{ display: "block", marginBottom: "0.25rem", color: "#475569" }}>
+                      ¿A cuál de los pagadores de {v!.nombre} se imputa este cobro?
+                    </label>
+                    <select
+                      value={pagadorPorViajero[v!.id] || ""}
+                      onChange={(e) => setPagadorPorViajero((prev) => ({ ...prev, [v!.id]: e.target.value }))}
+                      style={{ width: "100%", padding: "0.4rem", borderRadius: "0.375rem", border: "1px solid #cbd5e1" }}
+                    >
+                      <option value="">Pagador principal (por defecto)</option>
+                      {v!.pagadoresViajero.map((p) => (
+                        <option key={p.entidad_id} value={p.entidad_id}>{p.contabilidad_entidades?.nombre || "Sin nombre"}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
 
               {isDropdownOpen && (
                 <>

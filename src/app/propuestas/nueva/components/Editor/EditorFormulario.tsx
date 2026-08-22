@@ -4,6 +4,7 @@ import React from "react";
 import styles from "../../page.module.css";
 import type { Seccion } from "../../types";
 import InlineRichInput from "./InlineRichInput";
+import MediaSelector from "./MediaSelector";
 
 export default function EditorFormulario({
   seccion,
@@ -44,6 +45,17 @@ export default function EditorFormulario({
       </div>
 
       <div className={styles.editorSection}>
+        <label className={styles.editorFieldLabel}>Imagen del asesor</label>
+        <p style={{ fontSize: "0.7rem", color: "#94a3b8", margin: "0 0 0.5rem 0" }}>
+          Si no se indica, se usará la foto o iniciales del agente que envía la propuesta.
+        </p>
+        <MediaSelector
+          value={seccion.formularioAvatar}
+          onChange={m => onUpdate(seccion.uid, { formularioAvatar: m })}
+        />
+      </div>
+
+      <div className={styles.editorSection}>
         <label className={styles.editorFieldLabel}>Email de envío (Agente)</label>
         <input
           type="email"
@@ -55,6 +67,18 @@ export default function EditorFormulario({
         />
         <p style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: "0.25rem" }}>
           Las respuestas del formulario se enviarán a esta dirección.
+        </p>
+      </div>
+
+      <div className={styles.editorSection}>
+        <label className={styles.editorFieldLabel}>Dirección / aclaraciones</label>
+        <InlineRichInput
+          value={seccion.formularioNota ?? ""}
+          onChange={html => onUpdate(seccion.uid, { formularioNota: html })}
+          placeholder="Ej: Oficina en Calle Mayor 1, horario de 9h a 18h..."
+        />
+        <p style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: "0.25rem" }}>
+          Se muestra debajo del email del agente en la tarjeta de contacto.
         </p>
       </div>
 

@@ -6,8 +6,9 @@ import { getPropuestaPublica } from "@/actions/propuestas";
 import { renderSeccion } from "@/app/propuestas/PreviewComponents";
 import { getStyleVars } from "@/app/propuestas/nueva/utils/style-utils";
 
-export default function PreviewIdPage() {
-  const { id } = useParams() as { id: string };
+export default function PreviewIdPage({ forcedId }: { forcedId?: string } = {}) {
+  const params = useParams() as { id: string };
+  const id = forcedId ?? params.id;
   const [secciones, setSecciones] = useState<any[]>([]);
   const [estilosGlobales, setEstilosGlobales] = useState<any>(null);
   const [agente, setAgente] = useState<any>(null);

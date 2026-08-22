@@ -27,6 +27,8 @@ export default function MediaSelector({ value, onChange }: { value?: Seccion["me
   const [misImagenes, setMisImagenes] = useState<MiImagen[]>([]);
   const [loadingMisImagenes, setLoadingMisImagenes] = useState(false);
   const [misImagenesCargadas, setMisImagenesCargadas] = useState(false);
+  const MIS_IMAGENES_PAGE_SIZE = 20;
+  const [misImagenesVisibles, setMisImagenesVisibles] = useState(MIS_IMAGENES_PAGE_SIZE);
 
   const buscar = async (q: string) => {
     if (!q.trim()) return;
@@ -66,6 +68,7 @@ export default function MediaSelector({ value, onChange }: { value?: Seccion["me
       const res = await fetch("/api/propuestas/list-images");
       const data = await res.json();
       setMisImagenes(data.images ?? []);
+      setMisImagenesVisibles(MIS_IMAGENES_PAGE_SIZE);
       setMisImagenesCargadas(true);
     } catch (err) {
       console.error("list-images failed:", err);
@@ -205,18 +208,29 @@ export default function MediaSelector({ value, onChange }: { value?: Seccion["me
             <p className={styles.mediaHint}>Todavía no has subido ninguna imagen.</p>
           )}
           {!loadingMisImagenes && misImagenes.length > 0 && (
-            <div className={styles.unsplashGrid}>
-              {misImagenes.map(img => (
+            <>
+              <div className={styles.unsplashGrid}>
+                {misImagenes.slice(0, misImagenesVisibles).map(img => (
+                  <button
+                    key={img.url}
+                    className={`${styles.unsplashThumb} ${value?.url === img.url ? styles.unsplashThumbActive : ""}`}
+                    onClick={() => apply("misimagenes", img.url)}
+                    title={img.name}
+                  >
+                    <img src={img.url} alt={img.name} loading="lazy" />
+                  </button>
+                ))}
+              </div>
+              {misImagenesVisibles < misImagenes.length && (
                 <button
-                  key={img.url}
-                  className={`${styles.unsplashThumb} ${value?.url === img.url ? styles.unsplashThumbActive : ""}`}
-                  onClick={() => apply("misimagenes", img.url)}
-                  title={img.name}
+                  type="button"
+                  onClick={() => setMisImagenesVisibles(v => v + MIS_IMAGENES_PAGE_SIZE)}
+                  style={{ width: "100%", marginTop: "0.5rem", padding: "0.45rem", fontSize: "0.78rem", fontWeight: 600, color: "#475569", background: "#f1f5f9", border: "none", borderRadius: "0.375rem", cursor: "pointer" }}
                 >
-                  <img src={img.url} alt={img.name} loading="lazy" />
+                  Mostrar más
                 </button>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       )}

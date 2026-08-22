@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
-  GripVertical, Eye, EyeOff, Trash2, ChevronRight, Heart, ExternalLink, Palette, X,
+  GripVertical, Eye, EyeOff, Trash2, ChevronRight, Heart, ExternalLink, Palette, X, MapPin, Calendar,
 } from "lucide-react";
 import styles from "./page.module.css";
 import type { Seccion, SeccionFavorita, Dispositivo } from "./types";
@@ -12,7 +12,7 @@ import { EditorPanel } from "./components/Editor/EditorPanel";
 import TextoColorBoton from "./components/Editor/TextoColorBoton";
 import { renderSeccion } from "./utils/section-render";
 import { getStyleVars } from "./utils/style-utils";
-import { guardarPropuesta, getDatosRealesPropuesta } from "@/actions/propuestas";
+import { guardarPropuesta, getDatosRealesPropuesta, updatePropuestaMeta, updatePropuestaSlug } from "@/actions/propuestas";
 import { buscarEntidades } from "@/actions/entidades";
 import { getPaginasWebPorFormato } from "@/actions/paginaWeb";
 import ExpedienteActionsToolbar from "@/app/components/ExpedienteActionsToolbar";
@@ -23,6 +23,11 @@ export function PropuestaEditor({
   initialCotizacionId,
   initialContactoId,
   initialContactoNombre,
+  initialTitle,
+  initialDestination,
+  initialFechaSalida,
+  initialFechaRegreso,
+  initialSlug,
   initialEstilosGlobales,
   initialAgente,
 }: {
@@ -31,6 +36,11 @@ export function PropuestaEditor({
   initialCotizacionId?: string | null;
   initialContactoId?: string | null;
   initialContactoNombre?: string | null;
+  initialTitle?: string | null;
+  initialDestination?: string | null;
+  initialFechaSalida?: string | null;
+  initialFechaRegreso?: string | null;
+  initialSlug?: string | null;
   initialEstilosGlobales?: any;
   initialAgente?: any;
 } = {}) {
@@ -66,57 +76,29 @@ export function PropuestaEditor({
   const [cotizacionId] = useState<string | null>(initialCotizacionId ?? null);
   const [contactoId, setContactoId] = useState<string | null>(initialContactoId ?? null);
   const [contactoNombre, setContactoNombre] = useState<string | null>(initialContactoNombre ?? null);
-  const [contactos, setContactos] = useState<{ id: string; nombre: string }[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [buscando, setBuscando] = useState(false);
+  const [title, setTitle] = useState(initialTitle ?? "Nueva propuesta");
+  const [destination, setDestination] = useState(initialDestination ?? "");
+  const [fechaSalida, setFechaSalida] = useState(initialFechaSalida ?? "");
+  const [fechaRegreso, setFechaRegreso] = useState(initialFechaRegreso ?? "");
+  const [slug, setSlug] = useState(initialSlug ?? "");
+  const [guardandoSlug, setGuardandoSlug] = useState(false);
+  const [slugError, setSlugError] = useState<string | null>(null);
+  const [isContactoModalOpen, setIsContactoModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"contenido" | "diseño">("contenido");
   const [estilosGlobales, setEstilosGlobales] = useState<any>(initialEstilosGlobales ?? {
     titulo: { fuente: "Raleway", grosor: "800", tamano: "32px", color: "#1e293b", colorDestacado: "#6366f1" },
     subtitulo: { fuente: "Montserrat", grosor: "400", tamano: "16px", color: "#64748b", colorDestacado: "#6366f1" },
     parrafo: { fuente: "Montserrat", grosor: "400", tamano: "14px", color: "#334155", colorDestacado: "#6366f1" },
   });
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const { favs, toggleFav, isFav, deleteFav } = useFavoritos();
   const [colorPickerAbierto, setColorPickerAbierto] = useState<string | null>(null);
   const esAdmin = ["Admin", "SuperAdmin", "Owner"].includes(agente?.rol ?? "");
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       (window as any).momoGlobalStyles = estilosGlobales;
     }
   }, [estilosGlobales]);
-
-  useEffect(() => {
-    if (searchQuery.trim().length < 3) {
-      setContactos([]);
-      return;
-    }
-
-    const delayDebounceFn = setTimeout(async () => {
-      setBuscando(true);
-      try {
-        const results = await buscarEntidades(searchQuery);
-        setContactos(results.map((r: any) => ({ id: r.id, nombre: r.nombre || "Sin nombre" })));
-      } catch (err) {
-        console.error("Error buscando contactos:", err);
-      } finally {
-        setBuscando(false);
-      }
-    }, 400);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery]);
 
   useEffect(() => {
     async function updateRealVariables() {
@@ -153,6 +135,7 @@ export function PropuestaEditor({
       fechaHasta: s.fechaHasta,
       dias: s.dias,
       columnas: s.columnas,
+      faqs: s.faqs,
       mapas: s.mapas,
       rutas: s.rutas,
       // Campos de sección menú
@@ -174,6 +157,9 @@ export function PropuestaEditor({
       formularioSubtitulo: s.formularioSubtitulo,
       formularioEmail: s.formularioEmail,
       formularioBoton: s.formularioBoton,
+      formularioAvatar: s.formularioAvatar,
+      formularioAvatarForma: s.formularioAvatarForma,
+      formularioNota: s.formularioNota,
       // Ofertas fields
       cards: s.cards,
       galeria: s.galeria,
@@ -205,12 +191,18 @@ export function PropuestaEditor({
         estiloPvp: s.estiloPvp,
         estiloCondiciones: s.estiloCondiciones,
         estiloOtrasConsideraciones: s.estiloOtrasConsideraciones,
+        colorFondoCard: s.colorFondoCard,
+        colorFondoCardPrecio: s.colorFondoCardPrecio,
         // Extras styling
         estiloExtraTexto: s.estiloExtraTexto,
         estiloExtraImporte: s.estiloExtraImporte,
+        // FAQs styling
+        estiloFaqPregunta: s.estiloFaqPregunta,
+        estiloFaqRespuesta: s.estiloFaqRespuesta,
         // Formulario styling
         estiloFormularioTitulo: s.estiloFormularioTitulo,
         estiloFormularioSubtitulo: s.estiloFormularioSubtitulo,
+        estiloFormularioNota: s.estiloFormularioNota,
         // Listado styling
         listadoEstiloTarjeta: s.listadoEstiloTarjeta,
       }))
@@ -223,6 +215,10 @@ export function PropuestaEditor({
         designTokens,
         cotizacionId: propuestaId ? undefined : (cotizacionId ?? undefined),
         contactoId: contactoId,
+        title,
+        destination: destination || null,
+        fechaSalida: fechaSalida || null,
+        fechaRegreso: fechaRegreso || null,
       });
       if (!result.ok) throw new Error(result.error);
       if (!propuestaId && result.id) setPropuestaId(result.id);
@@ -233,7 +229,31 @@ export function PropuestaEditor({
     } finally {
       setGuardando(false);
     }
-  }, [secciones, propuestaId, contactoId, estilosGlobales]);
+  }, [secciones, propuestaId, contactoId, estilosGlobales, title, destination, fechaSalida, fechaRegreso]);
+
+  function guardarMeta(cambios: { title?: string; destination?: string | null; contacto_id?: string | null; fecha_salida?: string | null; fecha_regreso?: string | null }) {
+    if (!propuestaId) return;
+    updatePropuestaMeta(propuestaId, cambios).catch((e) => console.error("Error guardando datos de la propuesta:", e));
+  }
+
+  async function guardarSlug() {
+    if (!propuestaId) return;
+    setGuardandoSlug(true);
+    setSlugError(null);
+    try {
+      const res = await updatePropuestaSlug(propuestaId, slug || null);
+      if (res.success) {
+        setSlug(res.slug ?? "");
+      } else {
+        setSlugError(res.error ?? "No se pudo guardar el slug");
+      }
+    } catch (e: any) {
+      setSlugError(e?.message ?? "No se pudo guardar el slug");
+    } finally {
+      setGuardandoSlug(false);
+    }
+  }
+
   const menuRef = useRef<HTMLDivElement>(null);
 
   const toggleOcultar = (uid: string) => {
@@ -263,7 +283,8 @@ export function PropuestaEditor({
     const el = seccionRefs.current[uid];
     const container = canvasContentRef.current;
     if (!el || !container) return;
-    container.scrollTo({ top: el.offsetTop, behavior: "smooth" });
+    const offset = el.offsetTop - (container.clientHeight - el.clientHeight) / 2;
+    container.scrollTo({ top: offset, behavior: "smooth" });
   };
 
     const añadirSeccion = (tipo: string, label: string) => {
@@ -289,8 +310,23 @@ export function PropuestaEditor({
       ];
       base.estiloTitulo = { fuente: "Raleway", grosor: "800", tamano: "22px", color: "#1e293b" };
     }
+    if (tipo === "faqs") {
+      base.anchoMax = "900px";
+      base.titulo = "Preguntas frecuentes";
+      base.subtitulo = "Resolvemos tus dudas antes de reservar.";
+      base.faqs = [
+        { uid: `faq-${Date.now()}-1`, pregunta: "¿Cuál es la política de cancelación?", respuesta: "Puedes cancelar hasta 30 días antes de la salida sin coste alguno." },
+        { uid: `faq-${Date.now()}-2`, pregunta: "¿Qué incluye el precio?", respuesta: "El precio incluye alojamiento, traslados y guía durante todo el itinerario." },
+        { uid: `faq-${Date.now()}-3`, pregunta: "¿Cómo puedo contactar con vosotros?", respuesta: "Puedes escribirnos a través del formulario de contacto o llamarnos directamente." },
+      ];
+      base.estiloTitulo = { fuente: "Raleway", grosor: "800", tamano: "22px", color: "#1e293b" };
+      base.estiloSubtitulo = { fuente: "Montserrat", grosor: "400", tamano: "15px", color: "#475569" };
+      base.estiloFaqPregunta = { fuente: "Raleway", grosor: "700", tamano: "16px", color: "#1e293b" };
+      base.estiloFaqRespuesta = { fuente: "Montserrat", grosor: "400", tamano: "14px", color: "#475569" };
+    }
     if (tipo === "precio") {
       base.layout = "destacado-grande";
+      base.anchoMax = "1200px";
       base.pvp = "1.600 € / persona";
       base.condiciones = "- Pago del 30% al confirmar la reserva.\n- Pago del 70% restante 30 días antes de la salida.";
       base.estiloPvp = { fuente: "Raleway", grosor: "800", tamano: "48px", color: "#1e293b" };
@@ -385,10 +421,79 @@ export function PropuestaEditor({
           <a href="/propuestas" className={styles.backIconButton} title="Volver a propuestas">
             <ChevronRight size={24} style={{ transform: "rotate(180deg)" }} />
           </a>
-          <h1 className={styles.title} style={{ margin: 0 }}>{contactoNombre || "Creador de propuestas"}</h1>
+
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <button
+              onClick={() => setIsContactoModalOpen(true)}
+              className={styles.title}
+              style={{
+                border: "none",
+                background: "transparent",
+                outline: "none",
+                padding: 0,
+                cursor: "pointer",
+                textAlign: "left",
+                color: contactoNombre ? "inherit" : "#94a3b8",
+                fontWeight: contactoNombre ? undefined : 400,
+              }}
+            >
+              {contactoNombre || "Sin contacto"}
+            </button>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.15rem" }}>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onBlur={() => guardarMeta({ title })}
+                aria-label="Nombre de la propuesta"
+                placeholder="Nombre de la propuesta"
+                style={{ border: "none", background: "transparent", outline: "none", padding: 0, width: "320px", maxWidth: "40vw", fontSize: "0.85rem", color: "#334155" }}
+              />
+              <input
+                value={destination}
+                onChange={(e) => setDestination(e.target.value)}
+                onBlur={() => guardarMeta({ destination: destination || null })}
+                aria-label="Destino"
+                placeholder="Destino"
+                style={{
+                  padding: "0.25rem 0.75rem", fontSize: "0.75rem", background: "#f8fafc", color: destination ? "#475569" : "#94a3b8",
+                  borderRadius: "999px", border: "1px solid #cbd5e1", outline: "none", width: "140px",
+                }}
+              />
+              <DateChipPropuesta
+                label="Salida"
+                value={fechaSalida}
+                onChange={(v) => { setFechaSalida(v); guardarMeta({ fecha_salida: v || null }); }}
+              />
+              <DateChipPropuesta
+                label="Regreso"
+                value={fechaRegreso}
+                onChange={(v) => { setFechaRegreso(v); guardarMeta({ fecha_regreso: v || null }); }}
+              />
+            </div>
+          </div>
         </div>
         {propuestaId && <ExpedienteActionsToolbar propuestaId={propuestaId} />}
       </div>
+
+      {isContactoModalOpen && (
+        <ContactoModalPropuesta
+          contactoId={contactoId}
+          onClose={() => setIsContactoModalOpen(false)}
+          onSelect={(id, nombre) => {
+            setContactoId(id);
+            setContactoNombre(nombre);
+            guardarMeta({ contacto_id: id });
+            setIsContactoModalOpen(false);
+          }}
+          onClear={() => {
+            setContactoId(null);
+            setContactoNombre(null);
+            guardarMeta({ contacto_id: null });
+            setIsContactoModalOpen(false);
+          }}
+        />
+      )}
 
       <div className={styles.columns}>
         {/* Columna izquierda */}
@@ -639,6 +744,26 @@ export function PropuestaEditor({
         {/* Columna derecha — Canvas */}
         <div className={styles.canvasColumn}>
           <div className={styles.deviceBar}>
+            {propuestaId && (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, minWidth: 0, padding: "0 10px", height: 32, background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "0.4rem", fontSize: "0.78rem" }}>
+                  <span style={{ color: "#94a3b8", flexShrink: 0, whiteSpace: "nowrap" }}>
+                    /propuestas/p/
+                  </span>
+                  <input
+                    type="text"
+                    value={slug}
+                    onChange={e => setSlug(e.target.value)}
+                    onBlur={guardarSlug}
+                    placeholder="url-de-la-propuesta"
+                    style={{ flex: 1, minWidth: 0, border: "none", background: "transparent", outline: "none", fontSize: "0.78rem", color: "#1e293b", fontWeight: 600 }}
+                  />
+                  {guardandoSlug && <span className={styles.saveBtnSpinner} style={{ flexShrink: 0 }} />}
+                  {slugError && <span style={{ color: "#ef4444", fontSize: "0.68rem", flexShrink: 0 }}>{slugError}</span>}
+                </div>
+                <div className={styles.deviceBarSep} />
+              </>
+            )}
             {DISPOSITIVOS.map(d => (
               <button
                 key={d.id}
@@ -657,7 +782,11 @@ export function PropuestaEditor({
                 localStorage.setItem("momo_preview_secciones", JSON.stringify(secciones));
                 localStorage.setItem("momo_preview_estilos_globales", JSON.stringify(estilosGlobales));
                 localStorage.setItem("momo_preview_propuesta_id", propuestaId || "nueva");
-                window.open(`/propuestas/${propuestaId || "nueva"}/preview`, "_blank");
+                if (slug) {
+                  window.open(`/propuestas/p/${slug}`, "_blank");
+                } else {
+                  window.open(`/propuestas/${propuestaId || "nueva"}/preview`, "_blank");
+                }
               }}
             >
               <ExternalLink size={15} />
@@ -710,6 +839,112 @@ export function PropuestaEditor({
 
 
       {/* Modal confirmación borrar */}
+    </div>
+  );
+}
+
+function DateChipPropuesta({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const formatted = value ? new Date(value + "T00:00:00").toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" }) : null;
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={() => inputRef.current?.showPicker?.()}
+        style={{
+          padding: "0.25rem 0.75rem", fontSize: "0.75rem", background: "#f8fafc",
+          color: value ? "#475569" : "#94a3b8", borderRadius: "999px",
+          border: "1px solid #cbd5e1", cursor: "pointer", fontWeight: value ? 600 : 400,
+          display: "flex", alignItems: "center", gap: "0.35rem", whiteSpace: "nowrap",
+        }}
+      >
+        <Calendar size={12} />
+        {formatted ? `${label}: ${formatted}` : label}
+      </button>
+      <input
+        ref={inputRef}
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ position: "absolute", opacity: 0, pointerEvents: "none", width: 0, height: 0, top: 0, left: 0 }}
+      />
+    </div>
+  );
+}
+
+function ContactoModalPropuesta({ contactoId, onClose, onSelect, onClear }: {
+  contactoId: string | null;
+  onClose: () => void;
+  onSelect: (id: string, nombre: string) => void;
+  onClear: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [resultados, setResultados] = useState<{ id: string; nombre: string }[]>([]);
+  const [buscando, setBuscando] = useState(false);
+
+  useEffect(() => {
+    if (query.trim().length < 2) { setResultados([]); return; }
+    const timeout = setTimeout(async () => {
+      setBuscando(true);
+      try {
+        const results = await buscarEntidades(query);
+        setResultados(results.map((r: any) => ({ id: r.id, nombre: r.nombre || "Sin nombre" })));
+      } catch (err) {
+        console.error("Error buscando contactos:", err);
+      } finally {
+        setBuscando(false);
+      }
+    }, 350);
+    return () => clearTimeout(timeout);
+  }, [query]);
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)", zIndex: 1400, display: "flex", alignItems: "center", justifyContent: "center" }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: "#fff", borderRadius: "0.9rem", width: "420px", maxWidth: "92vw", maxHeight: "70vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(15,23,42,0.18)" }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1rem 1.25rem", borderBottom: "1px solid #f1f5f9" }}>
+          <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "#1e293b" }}>Contacto principal</span>
+          <button onClick={onClose} style={{ border: "none", background: "#f1f5f9", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: "#64748b" }}>
+            <X size={14} />
+          </button>
+        </div>
+        <div style={{ padding: "1rem 1.25rem", display: "flex", flexDirection: "column", gap: "0.75rem", overflowY: "auto" }}>
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar cliente por nombre..."
+            style={{ padding: "0.55rem 0.75rem", border: "1px solid #e2e8f0", borderRadius: "0.6rem", fontSize: "0.85rem", outline: "none" }}
+          />
+          {contactoId && (
+            <button
+              onClick={onClear}
+              style={{ alignSelf: "flex-start", border: "none", background: "none", color: "#dc2626", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer", padding: 0 }}
+            >
+              Quitar contacto actual
+            </button>
+          )}
+          {buscando && <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>Buscando...</span>}
+          {!buscando && query.trim().length >= 2 && resultados.length === 0 && (
+            <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>Sin resultados</span>
+          )}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {resultados.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => onSelect(r.id, r.nombre)}
+                style={{ textAlign: "left", padding: "0.55rem 0.4rem", border: "none", background: "none", borderBottom: "1px solid #f8fafc", cursor: "pointer", fontSize: "0.85rem", color: "#1e293b" }}
+              >
+                {r.nombre}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
