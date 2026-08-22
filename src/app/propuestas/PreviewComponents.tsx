@@ -71,11 +71,17 @@ export interface Seccion {
   menuFijo?: boolean;
   menuHamburguesa?: boolean;
   pvp?: string;
+  pvpVinculado?: boolean;
   condiciones?: string;
   otrasConsideraciones?: string;
   estiloPvp?: TextoEstilo;
   estiloCondiciones?: TextoEstilo;
   estiloOtrasConsideraciones?: TextoEstilo;
+  colorFondoCard?: string;
+  colorFondoCardPrecio?: string;
+  faqs?: { uid: string; pregunta?: string; respuesta?: string }[];
+  estiloFaqPregunta?: TextoEstilo;
+  estiloFaqRespuesta?: TextoEstilo;
   formularioCampos?: { uid: string; key: string; label: string; lineas: number; activo: boolean }[];
   formularioTitulo?: string;
   formularioSubtitulo?: string;
