@@ -5,6 +5,21 @@ import { useParams } from "next/navigation";
 import { getPropuestaPublica } from "@/actions/propuestas";
 import { renderSeccion } from "@/app/propuestas/PreviewComponents";
 import { getStyleVars } from "@/app/propuestas/nueva/utils/style-utils";
+import type { Dispositivo } from "@/app/propuestas/nueva/types";
+
+function useDispositivoReal(): Dispositivo {
+  const [dispositivo, setDispositivo] = useState<Dispositivo>("desktop");
+  useEffect(() => {
+    const calcular = () => {
+      const w = window.innerWidth;
+      setDispositivo(w < 640 ? "mobile" : w < 1024 ? "tablet" : "desktop");
+    };
+    calcular();
+    window.addEventListener("resize", calcular);
+    return () => window.removeEventListener("resize", calcular);
+  }, []);
+  return dispositivo;
+}
 
 export default function PreviewIdPage({ forcedId }: { forcedId?: string } = {}) {
   const params = useParams() as { id: string };
@@ -15,6 +30,7 @@ export default function PreviewIdPage({ forcedId }: { forcedId?: string } = {}) 
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [notFoundError, setNotFoundError] = useState(false);
+  const dispositivo = useDispositivoReal();
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -115,12 +131,12 @@ export default function PreviewIdPage({ forcedId }: { forcedId?: string } = {}) 
     <div style={{ background: "#ffffff", minHeight: "100vh", containerType: "inline-size", ...getStyleVars(estilosGlobales) }}>
       {menuFijo && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 1000 }}>
-          {renderSeccion(menuFijo, "100vh", "desktop", secciones, agente)}
+          {renderSeccion(menuFijo, "100vh", dispositivo, secciones, agente)}
         </div>
       )}
       {seccionesVisibles.map(s => (
         <div key={s.uid} id={s.uid} style={s.tipo === "menu" && s.menuFijo ? { display: "none" } : undefined}>
-          {renderSeccion(s, "100vh", "desktop", secciones, agente)}
+          {renderSeccion(s, "100vh", dispositivo, secciones, agente)}
         </div>
       ))}
     </div>

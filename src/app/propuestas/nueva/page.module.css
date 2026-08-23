@@ -1266,6 +1266,16 @@
   border-bottom: 1px solid #f1f5f9;
 }
 
+/* En mobile, el padding lateral de cada sección lo aplica el propio contenido interno
+   (MOBILE_SECTION_PADDING en PreviewComponents.tsx) para que sea consistente entre
+   todas las secciones; aquí se anula el lateral fijo de 2rem para no sumarse a él. */
+@container (max-width: 480px) {
+  .ph {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
 .phBar {
   height: 8px;
   background: #e2e8f0;

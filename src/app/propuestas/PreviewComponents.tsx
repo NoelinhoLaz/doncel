@@ -315,15 +315,27 @@ const FUENTE_FAMILY: Record<string, string> = {
   "Pacifico":      "var(--font-pacifico), cursive",
 };
 
-export function estiloTextoCSS(e?: TextoEstilo, defaultTipo?: "titulo" | "subtitulo" | "parrafo" | "negrita"): React.CSSProperties {
+// Tamaños fijos para mobile: en mobile ignoramos el "tamano" que el agente eligió por
+// sección (y el escalado por cqw) y usamos un único tamaño legible por tipo de texto,
+// consistente en toda la propuesta, independientemente del diseño elegido para desktop.
+const MOBILE_FONT_SIZES: Record<"titulo" | "subtitulo" | "parrafo" | "negrita", string> = {
+  titulo: "22px",
+  subtitulo: "17px",
+  parrafo: "15px",
+  negrita: "15px",
+};
+
+export function estiloTextoCSS(e?: TextoEstilo, defaultTipo?: "titulo" | "subtitulo" | "parrafo" | "negrita", mobile?: boolean): React.CSSProperties {
   if (!defaultTipo && !e) return {};
 
   const fuente = e?.fuente
     ? (FUENTE_FAMILY[e.fuente] ?? e.fuente)
     : defaultTipo ? `var(--momo-font-${defaultTipo})` : undefined;
-  const tamano = e?.tamano
-    ? getResponsiveSize(e.tamano)
-    : defaultTipo ? `var(--momo-size-${defaultTipo})` : undefined;
+  const tamano = mobile
+    ? MOBILE_FONT_SIZES[defaultTipo ?? "parrafo"]
+    : e?.tamano
+      ? getResponsiveSize(e.tamano)
+      : defaultTipo ? `var(--momo-size-${defaultTipo})` : undefined;
   const grosor = e?.grosor ?? (defaultTipo ? `var(--momo-weight-${defaultTipo})` : undefined);
   const color = e?.color ?? (defaultTipo ? `var(--momo-color-${defaultTipo})` : undefined);
   const alineacionH = e?.alineacionH;
@@ -341,10 +353,34 @@ export function getResponsiveSize(size?: string) {
   if (!size) return undefined;
   const num = parseInt(size);
   if (size.endsWith("px") && num > 0) {
-    return `min(${size}, calc(${num / 1920} * 100cqw))`;
+    // El término cqw escala el texto proporcionalmente a un lienzo de referencia de
+    // 1920px (desktop). En contenedores estrechos (canvas mobile del editor a 314px,
+    // o el viewport real de un móvil) ese término colapsa a un tamaño ilegible, así
+    // que se fija un piso del 55% del tamaño nominal con clamp() para que el texto
+    // nunca baje de ahí, conservando el escalado proporcional como valor preferido.
+    return `clamp(${num * 0.55}px, calc(${num / 1920} * 100cqw), ${size})`;
   }
   return size;
 }
+
+// Mismo problema que getResponsiveSize pero para el ancho de contenido de sección: el
+// término cqw (calibrado contra 1920px) deja el contenido angosto con márgenes grandes
+// en contenedores estrechos (mobile). Se usa un piso del 92% del contenedor para que el
+// contenido aproveche casi todo el ancho disponible en pantallas pequeñas, conservando
+// el tope nominal (900/1200/1920px) en contenedores anchos.
+// En mobile ignoramos por completo el anchoMax elegido por el agente: todas las
+// secciones usan ancho completo del contenedor (el padding lateral común lo aplica
+// cada sección con MOBILE_SECTION_PADDING).
+export function getResponsiveMaxWidth(anchoMax?: string, mobile?: boolean) {
+  if (mobile) return "100%";
+  const px = anchoMax === "900px" ? 900 : anchoMax === "1200px" ? 1200 : 1920;
+  return `min(${px}px, max(calc(${px / 1920} * 100cqw), 92cqw))`;
+}
+
+// Padding lateral común para el contenido de todas las secciones en mobile, aplicado
+// tras el ancho completo de getResponsiveMaxWidth(..., true) para que ninguna sección
+// quede pegada al borde de la pantalla.
+export const MOBILE_SECTION_PADDING = "1.25rem";
 
 export const DEFAULT_ESTILOS_GLOBALES = {
   titulo: { fuente: "Raleway", grosor: "800", tamano: "32px", color: "#1e293b", colorDestacado: "#6366f1" },
@@ -455,20 +491,29 @@ export function Bloque({ h, dashed }: { h?: string; dashed?: boolean }) {
   return <div className={styles.phBloque} style={{ height: h ?? "60px", borderStyle: dashed ? "dashed" : "solid" }} />;
 }
 
-export function PortadaTexto({ titulo, subtitulo, estiloTitulo, estiloSubtitulo, wrapStyle }: {
+export function PortadaTexto({ titulo, subtitulo, estiloTitulo, estiloSubtitulo, wrapStyle, mobile }: {
   titulo?: string; subtitulo?: string;
   estiloTitulo?: TextoEstilo; estiloSubtitulo?: TextoEstilo;
   wrapStyle?: React.CSSProperties;
+  mobile?: boolean;
 }) {
+  const styleTitulo = estiloTextoCSS(estiloTitulo, "titulo", mobile);
+  const styleSubtitulo = estiloTextoCSS(estiloSubtitulo, "subtitulo", mobile);
+  // La cabecera/portada es la pieza más destacada de la propuesta: en mobile usa un
+  // tamaño propio mayor al genérico de título/subtítulo (22px/17px) del resto de secciones.
+  if (mobile) {
+    styleTitulo.fontSize = "30px";
+    styleSubtitulo.fontSize = "18px";
+  }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", ...wrapStyle }}>
       {titulo
-        ? <div className={styles.phPortadaTitulo} style={{ whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloTitulo, "titulo") }}>
+        ? <div className={styles.phPortadaTitulo} style={{ whiteSpace: "pre-wrap", ...styleTitulo }}>
             {renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}
           </div>
         : <Title w="55%" />}
       {subtitulo
-        ? <div className={styles.phPortadaSubtitulo} style={{ whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloSubtitulo, "subtitulo") }}>
+        ? <div className={styles.phPortadaSubtitulo} style={{ whiteSpace: "pre-wrap", ...styleSubtitulo }}>
             {renderConDestacado(subtitulo, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado, "subtitulo", estiloSubtitulo)}
           </div>
         : <><Bar w="40%" /><Bar w="30%" /></>}
@@ -607,7 +652,7 @@ export function PolaroidPortada({ height, colorFondo, cards, titulo, subtitulo, 
   );
 }
 
-export function PHPortada({ height, layout, titulo, subtitulo, medias, estiloTitulo, estiloSubtitulo, colorFondo }: { height: string; layout?: string; titulo?: string; subtitulo?: string; medias?: MediaItem[]; estiloTitulo?: TextoEstilo; estiloSubtitulo?: TextoEstilo; colorFondo?: string }) {
+export function PHPortada({ height, layout, titulo, subtitulo, medias, estiloTitulo, estiloSubtitulo, colorFondo, mobile }: { height: string; layout?: string; titulo?: string; subtitulo?: string; medias?: MediaItem[]; estiloTitulo?: TextoEstilo; estiloSubtitulo?: TextoEstilo; colorFondo?: string; mobile?: boolean }) {
   const allImgs = medias ?? [];
 
   const [idx, setIdx] = useState(0);
@@ -757,7 +802,7 @@ export function PHPortada({ height, layout, titulo, subtitulo, medias, estiloTit
       ))}
       <div className={styles.phSlideArrowL}>‹</div>
       <div className={styles.phPortadaOverlay}>
-        <PortadaTexto titulo={titulo} subtitulo={subtitulo} estiloTitulo={estiloTitulo} estiloSubtitulo={estiloSubtitulo} />
+        <PortadaTexto titulo={titulo} subtitulo={subtitulo} estiloTitulo={estiloTitulo} estiloSubtitulo={estiloSubtitulo} mobile={mobile} />
       </div>
       <div className={styles.phSlideArrowR}>›</div>
       <div className={styles.phSlideMouse}>
@@ -841,7 +886,7 @@ export function PHMenu({ mobile, seccion, secciones, landingHref }: { mobile?: b
               </div>
             : <div className={styles.phNavBtn} style={{ background: colorBoton }} />
           }
-          {hamburguesa && (
+          {(hamburguesa || mobile) && (
             <button
               type="button"
               onClick={() => setMenuAbierto(v => !v)}
@@ -852,7 +897,7 @@ export function PHMenu({ mobile, seccion, secciones, landingHref }: { mobile?: b
           )}
         </div>
       </div>
-      {hamburguesa && menuAbierto && (
+      {(hamburguesa || mobile) && menuAbierto && (
         <div style={{ display: "flex", flexDirection: "column", background: bg, borderTop: "1px solid rgba(0,0,0,0.08)", padding: "0.5rem 0" }}>
           {items.length > 0
             ? items.map(item => (
@@ -926,12 +971,12 @@ export function PHTextoImagenes({
   const texto = (
     <div className={styles.phTexto} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       {subtituloCorto && (
-        <div style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloSubtitulo, "subtitulo") }}>
+        <div style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloSubtitulo, "subtitulo", mobile) }}>
           {renderConDestacado(subtituloCorto, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado, "subtitulo", estiloSubtitulo)}
         </div>
       )}
       {cuerpoTexto ? (
-        <div className={styles.phPortadaSubtitulo} style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloTextoLibre, "parrafo") }}>
+        <div className={styles.phPortadaSubtitulo} style={{ margin: 0, whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloTextoLibre, "parrafo", mobile) }}>
           {renderConDestacado(cuerpoTexto, estiloTextoLibre?.colorDestacado, estiloTextoLibre?.grosorDestacado, "parrafo", estiloTextoLibre)}
         </div>
       ) : (
@@ -970,13 +1015,13 @@ export function PHTextoImagenes({
     </div>
   );
 
-  const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const customMaxWidth = getResponsiveMaxWidth(anchoMax, mobile);
   return (
     <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
-        <div style={{ maxWidth: customMaxWidth, margin: "0 auto", width: "100%" }}>
+        <div style={{ maxWidth: customMaxWidth, margin: "0 auto", width: "100%", padding: mobile ? `0 ${MOBILE_SECTION_PADDING}` : undefined }}>
           {titulo ? (
-            <div className={styles.phPortadaTitulo} style={{ margin: "0 0 1rem 0", whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloTitulo, "titulo") }}>
+            <div className={styles.phPortadaTitulo} style={{ margin: "0 0 1rem 0", whiteSpace: "pre-wrap", textShadow: "none", ...estiloTextoCSS(estiloTitulo, "titulo", mobile) }}>
               {renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}
             </div>
           ) : (
@@ -1155,6 +1200,7 @@ export function renderTextWithBold(text?: string, estilo?: TextoEstilo, defaultT
 
 export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFondoOverlay, altoSeccion, canvasHeight, fechaDesde, fechaHasta, dias, titulo, estiloTitulo, estiloTituloDia, estiloDescDia, anchoMax }: { mobile?: boolean; layout?: string; colorFondo?: string; imagenFondo?: MediaItem; imagenFondoOverlay?: number; altoSeccion?: "minimo" | "medio" | "completo"; canvasHeight?: string; fechaDesde?: string; fechaHasta?: string; dias?: { dia: number; titulo?: string; desc?: string; media?: MediaItem; medias?: MediaItem[] }[]; titulo?: string; estiloTitulo?: TextoEstilo; estiloTituloDia?: TextoEstilo; estiloDescDia?: TextoEstilo; anchoMax?: string }) {
   const [activeIdx, setActiveIdx] = useState(0);
+  const [openDayIdx, setOpenDayIdx] = useState<number | null>(null);
   const esAcordeon = layout === "acordeon";
   const esMenuDias = layout === "menu-dias";
 
@@ -1195,16 +1241,16 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
     return `${dd}/${mm}/${yy}`;
   };
 
-  const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const customMaxWidth = getResponsiveMaxWidth(anchoMax, mobile);
   const imgAspectRatio = altoSeccion === "completo" ? "3/4" : altoSeccion === "medio" ? "1/1" : "4/3";
 
   if (esAcordeon && !mobile) {
     return (
       <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
         <Ph>
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%", maxWidth: customMaxWidth, margin: "0 auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%", maxWidth: customMaxWidth, margin: "0 auto", padding: mobile ? `0 ${MOBILE_SECTION_PADDING}` : undefined }}>
             {titulo ? (
-              <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
+              <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo", mobile) }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
             ) : (
               <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
             )}
@@ -1236,7 +1282,7 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
                         </div>
                         {diaData.titulo ? (
                           <div style={{ display: "flex", flexDirection: "row", alignItems: "flex-end", gap: "6px", marginTop: "auto" }}>
-                            <span className={styles.phAcordeonTitleV} style={{ fontSize: "1.1rem", color: "#ffffff", whiteSpace: "nowrap", ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{stripHtmlPlano(diaData.titulo)}</span>
+                            <span className={styles.phAcordeonTitleV} style={{ fontSize: "1.1rem", color: "#ffffff", whiteSpace: "nowrap", ...estiloTextoCSS(estiloTituloDia, "subtitulo", mobile) }}>{stripHtmlPlano(diaData.titulo)}</span>
                             {getDayDateLabel(d.dia) && (
                               <span className={styles.phAcordeonTitleV} style={{ fontSize: "0.68rem", fontWeight: 600, color: "rgba(255,255,255,0.75)", whiteSpace: "nowrap" }}>{getDayDateLabel(d.dia)}</span>
                             )}
@@ -1258,13 +1304,13 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
 
                         <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
                           {diaData.titulo ? (
-                            <h4 style={{ fontSize: "1.15rem", fontWeight: 800, color: "#ffffff", margin: 0, textShadow: "0 2px 4px rgba(0,0,0,0.4)", ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{renderConDestacado(diaData.titulo, estiloTituloDia?.colorDestacado, estiloTituloDia?.grosorDestacado, "subtitulo", estiloTituloDia)}</h4>
+                            <h4 style={{ fontSize: "1.15rem", fontWeight: 800, color: "#ffffff", margin: 0, textShadow: "0 2px 4px rgba(0,0,0,0.4)", ...estiloTextoCSS(estiloTituloDia, "subtitulo", mobile) }}>{renderConDestacado(diaData.titulo, estiloTituloDia?.colorDestacado, estiloTituloDia?.grosorDestacado, "subtitulo", estiloTituloDia)}</h4>
                           ) : (
                             <div style={{ width: "50%", height: "14px", borderRadius: "7px", background: "#ffffff", marginTop: "4px" }} />
                           )}
                           <div className={styles.phAcordeonScroll} style={{ overflowY: "auto", maxHeight: "300px", paddingRight: "4px" }}>
                             {diaData.desc ? (
-                              <p style={{ fontSize: "0.82rem", color: "rgba(255, 255, 255, 0.95)", margin: 0, textShadow: "0 1px 2px rgba(0,0,0,0.4)", lineHeight: 1.4, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{renderConDestacado(diaData.desc, estiloDescDia?.colorDestacado, estiloDescDia?.grosorDestacado, "parrafo", estiloDescDia)}</p>
+                              <p style={{ fontSize: "0.82rem", color: "rgba(255, 255, 255, 0.95)", margin: 0, textShadow: "0 1px 2px rgba(0,0,0,0.4)", lineHeight: 1.4, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo", mobile) }}>{renderConDestacado(diaData.desc, estiloDescDia?.colorDestacado, estiloDescDia?.grosorDestacado, "parrafo", estiloDescDia)}</p>
                             ) : (
                               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                                 <div style={{ width: "85%", height: "8px", borderRadius: "4px", background: "rgba(255, 255, 255, 0.7)" }} />
@@ -1293,9 +1339,9 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
     return (
       <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
         <Ph>
-          <div className={styles.phItinerarioMenu} style={{ maxWidth: customMaxWidth, margin: "0 auto" }}>
+          <div className={styles.phItinerarioMenu} style={{ maxWidth: customMaxWidth, margin: "0 auto", padding: mobile ? `0 ${MOBILE_SECTION_PADDING}` : undefined }}>
             {titulo ? (
-              <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
+              <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo", mobile) }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
             ) : (
               <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
             )}
@@ -1326,12 +1372,12 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
               </div>
               <div className={styles.phMenuDiaTexto}>
                 {diaData.titulo ? (
-                  <h4 style={{ fontSize: "1.15rem", fontWeight: 700, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{renderConDestacado(diaData.titulo, estiloTituloDia?.colorDestacado, estiloTituloDia?.grosorDestacado, "subtitulo", estiloTituloDia)}</h4>
+                  <h4 style={{ fontSize: "1.15rem", fontWeight: 700, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTituloDia, "subtitulo", mobile) }}>{renderConDestacado(diaData.titulo, estiloTituloDia?.colorDestacado, estiloTituloDia?.grosorDestacado, "subtitulo", estiloTituloDia)}</h4>
                 ) : (
                   <Title w="60%" />
                 )}
                 {diaData.desc ? (
-                  <p style={{ fontSize: "0.88rem", color: "#64748b", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{renderConDestacado(diaData.desc, estiloDescDia?.colorDestacado, estiloDescDia?.grosorDestacado, "parrafo", estiloDescDia)}</p>
+                  <p style={{ fontSize: "0.88rem", color: "#64748b", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo", mobile), ...(mobile ? { color: "#64748b" } : {}) }}>{renderConDestacado(diaData.desc, estiloDescDia?.colorDestacado, estiloDescDia?.grosorDestacado, "parrafo", estiloDescDia)}</p>
                 ) : (
                   <>
                     <Bar w="95%" />
@@ -1351,9 +1397,9 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
   return (
     <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", maxWidth: customMaxWidth, margin: "0 auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", maxWidth: customMaxWidth, margin: "0 auto", padding: mobile ? `0 ${MOBILE_SECTION_PADDING}` : undefined }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo", mobile) }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
@@ -1364,14 +1410,18 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
               const dayMedias = getDayMedias(diaData);
               const dateLabel = getDayDateLabel(d.dia);
               const colorDiaBadge = estiloTituloDia?.color || "#6366f1";
+              const isOpen = mobile ? openDayIdx === i : true;
               const header = (
-                <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "1rem", width: "100%" }}>
+                <div
+                  style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "1rem", width: "100%", cursor: mobile ? "pointer" : undefined }}
+                  {...(mobile ? { onClick: () => setOpenDayIdx(isOpen ? null : i) } : {})}
+                >
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "0.4rem 0.85rem", borderRadius: "0.5rem", background: colorDiaBadge, fontSize: "0.72rem", fontWeight: 700, color: "#ffffff", letterSpacing: "0.04em", textTransform: "uppercase", flexShrink: 0, whiteSpace: "nowrap" }}>
                     Día {d.dia}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1, minWidth: 0 }}>
                     {diaData.titulo ? (
-                      <h4 style={{ fontSize: "1.3rem", fontWeight: 700, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{renderConDestacado(diaData.titulo, estiloTituloDia?.colorDestacado, estiloTituloDia?.grosorDestacado, "subtitulo", estiloTituloDia)}</h4>
+                      <h4 style={{ fontSize: "1.3rem", fontWeight: 700, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTituloDia, "subtitulo", mobile), ...(mobile ? { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } : {}) }}>{renderConDestacado(diaData.titulo, estiloTituloDia?.colorDestacado, estiloTituloDia?.grosorDestacado, "subtitulo", estiloTituloDia)}</h4>
                     ) : (
                       <Title w="35%" />
                     )}
@@ -1381,12 +1431,15 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
                       <div style={{ width: "60px", height: "8px", borderRadius: "4px", background: "#e2e8f0" }} />
                     )}
                   </div>
+                  {mobile && (
+                    <ChevronRight size={18} style={{ flexShrink: 0, color: "#94a3b8", transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s ease" }} />
+                  )}
                 </div>
               );
               const texto = (
                 <div className={styles.phItinerarioTexto} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   {diaData.desc ? (
-                    <p style={{ fontSize: "0.82rem", color: "#64748b", lineHeight: 1.5, margin: 0, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{renderConDestacado(diaData.desc, estiloDescDia?.colorDestacado, estiloDescDia?.grosorDestacado, "parrafo", estiloDescDia)}</p>
+                    <p style={{ fontSize: "0.82rem", color: "#64748b", lineHeight: 1.5, margin: 0, whiteSpace: "pre-wrap", ...estiloTextoCSS(estiloDescDia, "parrafo", mobile), ...(mobile ? { color: "#64748b" } : {}) }}>{renderConDestacado(diaData.desc, estiloDescDia?.colorDestacado, estiloDescDia?.grosorDestacado, "parrafo", estiloDescDia)}</p>
                   ) : (
                     <>
                       <Bar w="95%" />
@@ -1408,10 +1461,14 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
               return (
                 <div key={d.dia} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                   {header}
-                  <div style={{ height: "1px", background: "#e2e8f0", width: "100%" }} />
-                  <div className={`${styles.phItinerarioRow} ${mobile ? styles.phCol1 : ""}`} style={{ gap: "1.5rem" }}>
-                    {mobile ? <>{img}{texto}</> : par ? <>{texto}{img}</> : <>{img}{texto}</>}
-                  </div>
+                  {isOpen && (
+                    <>
+                      <div style={{ height: "1px", background: "#e2e8f0", width: "100%" }} />
+                      <div className={`${styles.phItinerarioRow} ${mobile ? styles.phCol1 : ""}`} style={{ gap: "1.5rem" }}>
+                        {mobile ? <>{img}{texto}</> : par ? <>{texto}{img}</> : <>{img}{texto}</>}
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             })}
@@ -1422,7 +1479,8 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
   );
 }
 
-export function PHMapa({ titulo, mapas, layout, anchoMax, colorFondo, imagenFondo, imagenFondoOverlay, altoSeccion, canvasHeight }: {
+export function PHMapa({ mobile, titulo, mapas, layout, anchoMax, colorFondo, imagenFondo, imagenFondoOverlay, altoSeccion, canvasHeight }: {
+  mobile?: boolean;
   titulo?: string;
   mapas?: Seccion["mapas"];
   layout?: string;
@@ -1433,7 +1491,7 @@ export function PHMapa({ titulo, mapas, layout, anchoMax, colorFondo, imagenFond
   altoSeccion?: "minimo" | "medio" | "completo";
   canvasHeight?: string;
 }) {
-  const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const customMaxWidth = getResponsiveMaxWidth(anchoMax, mobile);
   const mapasList = mapas ?? [];
   const allUbicaciones = mapasList.flatMap(m => m.ubicaciones ?? []);
   const [activeMapaIdx, setActiveMapaIdx] = useState<number>(-1);
@@ -1523,7 +1581,7 @@ export function PHMapa({ titulo, mapas, layout, anchoMax, colorFondo, imagenFond
   return (
     <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
-        <div style={{ maxWidth: customMaxWidth, margin: "0 auto", padding: "1.5rem" }}>
+        <div style={{ maxWidth: customMaxWidth, margin: "0 auto", padding: mobile ? `1.5rem ${MOBILE_SECTION_PADDING}` : "1.5rem" }}>
           {titulo ? (
             <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 12px 0" }}>{renderConDestacado(titulo, undefined, undefined, "titulo")}</h3>
           ) : null}
@@ -1569,7 +1627,8 @@ export function PHMapa({ titulo, mapas, layout, anchoMax, colorFondo, imagenFond
   );
 }
 
-export function PHRuta({ titulo, rutas, layout, anchoMax, colorFondo, imagenFondo, imagenFondoOverlay, altoSeccion, canvasHeight }: {
+export function PHRuta({ mobile, titulo, rutas, layout, anchoMax, colorFondo, imagenFondo, imagenFondoOverlay, altoSeccion, canvasHeight }: {
+  mobile?: boolean;
   titulo?: string;
   rutas?: Seccion["rutas"];
   layout?: string;
@@ -1580,7 +1639,7 @@ export function PHRuta({ titulo, rutas, layout, anchoMax, colorFondo, imagenFond
   altoSeccion?: "minimo" | "medio" | "completo";
   canvasHeight?: string;
 }) {
-  const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const customMaxWidth = getResponsiveMaxWidth(anchoMax, mobile);
   const rutasList = rutas ?? [];
   const allUbicaciones = rutasList.flatMap(r => r.ubicaciones ?? []);
   const [activeRutaIdx, setActiveRutaIdx] = useState<number>(-1);
@@ -1650,7 +1709,7 @@ export function PHRuta({ titulo, rutas, layout, anchoMax, colorFondo, imagenFond
   return (
     <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
-        <div style={{ maxWidth: customMaxWidth, margin: "0 auto", padding: "1.5rem" }}>
+        <div style={{ maxWidth: customMaxWidth, margin: "0 auto", padding: mobile ? `1.5rem ${MOBILE_SECTION_PADDING}` : "1.5rem" }}>
           {titulo ? (
             <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 12px 0" }}>{renderConDestacado(titulo, undefined, undefined, "titulo")}</h3>
           ) : null}
@@ -1704,14 +1763,14 @@ export function PHPrecio({
   const pvp = seccion.pvp || "";
   const condiciones = seccion.condiciones || "";
 
-  const stylePvp = estiloTextoCSS(seccion.estiloPvp, "titulo");
-  const styleCondiciones = estiloTextoCSS(seccion.estiloCondiciones, "parrafo");
+  const stylePvp = estiloTextoCSS(seccion.estiloPvp, "titulo", mobile);
+  const styleCondiciones = estiloTextoCSS(seccion.estiloCondiciones, "parrafo", mobile);
 
-  const maxWidth = seccion.anchoMax === "900px" ? "min(900px, 46.875cqw)" : seccion.anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const maxWidth = getResponsiveMaxWidth(seccion.anchoMax, mobile);
   const containerStyle: React.CSSProperties = {
     maxWidth,
     margin: "0 auto",
-    padding: "3rem 1.5rem",
+    padding: mobile ? `2rem ${MOBILE_SECTION_PADDING}` : "3rem 1.5rem",
     borderRadius: "1rem",
     width: "100%",
   };
@@ -1722,7 +1781,7 @@ export function PHPrecio({
   const formattedCondiciones = renderConDestacado(condiciones, seccion.estiloCondiciones?.colorDestacado, seccion.estiloCondiciones?.grosorDestacado, "parrafo", seccion.estiloCondiciones);
 
   const tituloSeccion = seccion.titulo ? (
-    <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 1.5rem 0", textAlign: mobile ? "left" : "center", ...estiloTextoCSS(seccion.estiloTitulo, "titulo") }}>
+    <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 1.5rem 0", textAlign: mobile ? "left" : "center", ...estiloTextoCSS(seccion.estiloTitulo, "titulo", mobile) }}>
       {renderConDestacado(seccion.titulo, seccion.estiloTitulo?.colorDestacado, seccion.estiloTitulo?.grosorDestacado, "titulo", seccion.estiloTitulo)}
     </h3>
   ) : null;
@@ -1736,10 +1795,10 @@ export function PHPrecio({
           <div style={{
             display: "grid",
             gridTemplateColumns: mobile ? "1fr" : "1fr 1.5fr",
-            gap: "2.5rem",
+            gap: mobile ? "1.25rem" : "2.5rem",
             background: colorFondoCard,
             borderRadius: "1.25rem",
-            padding: "1.5rem",
+            padding: mobile ? "1rem" : "1.5rem",
             boxShadow: "0 10px 30px rgba(0,0,0,0.04)",
             border: "1px solid #f1f5f9"
           }}>
@@ -1790,7 +1849,7 @@ export function PHPrecio({
               alignItems: mobile ? "stretch" : "center",
               background: colorFondoCardPrecio ?? "#1e1b4b",
               borderRadius: "1rem",
-              padding: "2rem",
+              padding: mobile ? "1.25rem" : "2rem",
               color: "#ffffff",
               boxShadow: "0 10px 25px rgba(30, 27, 75, 0.15)"
             }}>
@@ -1810,7 +1869,7 @@ export function PHPrecio({
               </div>
             </div>
             {condiciones && (
-              <div style={{ background: colorFondoCard, padding: "1.25rem", borderRadius: "1rem", border: "1px solid #f1f5f9", boxShadow: "0 4px 12px rgba(0,0,0,0.02)" }}>
+              <div style={{ background: colorFondoCard, padding: mobile ? "1rem" : "1.25rem", borderRadius: "1rem", border: "1px solid #f1f5f9", boxShadow: "0 4px 12px rgba(0,0,0,0.02)" }}>
                 <h4 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.75rem" }}>Condiciones de Reserva</h4>
                 <div style={{ margin: 0, fontSize: "0.95rem", color: "#475569", whiteSpace: "pre-wrap", ...styleCondiciones }}>
                   {formattedCondiciones}
@@ -1844,7 +1903,7 @@ export function PHPrecio({
             <div style={{ width: "80px", height: "4px", background: "#8b5cf6", borderRadius: "2px", marginTop: "1.5rem" }} />
           </div>
           {condiciones && (
-            <div style={{ width: "100%", textAlign: "left", background: colorFondoCard, padding: "1.25rem", borderRadius: "1rem", border: "1px solid #f1f5f9" }}>
+            <div style={{ width: "100%", textAlign: "left", background: colorFondoCard, padding: mobile ? "1rem" : "1.25rem", borderRadius: "1rem", border: "1px solid #f1f5f9" }}>
               <h4 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.75rem", borderLeft: "4px solid #8b5cf6", paddingLeft: "0.75rem" }}>Condiciones de Reserva</h4>
               <div style={{ margin: 0, fontSize: "0.95rem", color: "#475569", whiteSpace: "pre-wrap", ...styleCondiciones }}>
                 {formattedCondiciones}
@@ -1871,14 +1930,14 @@ export function PHExtras({
 
   const layout = seccion.layout ?? "lista-simple";
   const filas = (seccion.extrasFilas ?? []).filter(f => !f.oculta);
-  const styleExtraTexto = estiloTextoCSS(seccion.estiloExtraTexto, "parrafo");
-  const styleExtraImporte = estiloTextoCSS(seccion.estiloExtraImporte, "parrafo");
+  const styleExtraTexto = estiloTextoCSS(seccion.estiloExtraTexto, "parrafo", mobile);
+  const styleExtraImporte = estiloTextoCSS(seccion.estiloExtraImporte, "parrafo", mobile);
 
-  const maxWidth = seccion.anchoMax === "900px" ? "min(900px, 46.875cqw)" : seccion.anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const maxWidth = getResponsiveMaxWidth(seccion.anchoMax, mobile);
   const containerStyle: React.CSSProperties = {
     maxWidth,
     margin: "0 auto",
-    padding: "3rem 1.5rem",
+    padding: mobile ? `2rem ${MOBILE_SECTION_PADDING}` : "3rem 1.5rem",
     width: "100%",
   };
 
@@ -1887,7 +1946,7 @@ export function PHExtras({
       <Ph>
         <div style={containerStyle}>
           {seccion.titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 1.5rem 0", ...estiloTextoCSS(seccion.estiloTitulo, "titulo") }}>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 1.5rem 0", ...estiloTextoCSS(seccion.estiloTitulo, "titulo", mobile) }}>
               {renderConDestacado(seccion.titulo, seccion.estiloTitulo?.colorDestacado, seccion.estiloTitulo?.grosorDestacado, "titulo", seccion.estiloTitulo)}
             </h3>
           ) : (
@@ -1974,11 +2033,11 @@ export function PHFormulario({
     setEnviado(true);
   };
 
-  const maxWidth = seccion.anchoMax === "900px" ? "900px" : seccion.anchoMax === "1200px" ? "1200px" : "800px";
+  const maxWidth = getResponsiveMaxWidth(seccion.anchoMax === "1200px" ? "1200px" : "900px", mobile);
   const containerStyle: React.CSSProperties = {
     maxWidth,
     margin: "0 auto",
-    padding: "3rem 1.5rem",
+    padding: mobile ? `2rem ${MOBILE_SECTION_PADDING}` : "3rem 1.5rem",
     borderRadius: "1rem",
     width: "100%",
   };
@@ -2013,7 +2072,7 @@ export function PHFormulario({
     );
 
     const body = (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: "1.25rem", padding: esCuadrado ? "2rem" : "1.25rem 2rem 2rem" }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: "1.25rem", padding: mobile ? (esCuadrado ? "1.25rem" : "1rem 1.25rem 1.25rem") : (esCuadrado ? "2rem" : "1.25rem 2rem 2rem") }}>
         <div>
           <h3 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 700, color: "#1e293b" }}>
             {agente?.nombre ? `${agente.nombre} ${agente.apellidos || ""}`.trim() : "Tu Asesor de Viajes"}
@@ -2028,7 +2087,7 @@ export function PHFormulario({
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", textAlign: "left", fontSize: "0.88rem" }}>
           {seccion?.formularioNota && (
             <div style={{ display: "flex", flexDirection: "column" }}>
-              <p style={{ margin: 0, whiteSpace: "pre-wrap", color: "#475569", fontWeight: 500, ...estiloTextoCSS(seccion.estiloFormularioNota, "parrafo") }}>
+              <p style={{ margin: 0, whiteSpace: "pre-wrap", color: "#475569", fontWeight: 500, ...estiloTextoCSS(seccion.estiloFormularioNota, "parrafo", mobile) }}>
                 {renderConDestacado(seccion.formularioNota, seccion.estiloFormularioNota?.colorDestacado, seccion.estiloFormularioNota?.grosorDestacado, "parrafo", seccion.estiloFormularioNota)}
               </p>
             </div>
@@ -2055,7 +2114,7 @@ export function PHFormulario({
         flexDirection: "column",
         alignItems: esCuadrado ? "stretch" : "center",
       }}>
-        <div style={{ padding: esCuadrado ? "1rem 1rem 0" : "2rem 2rem 0" }}>{avatarNode}</div>
+        <div style={{ padding: mobile ? (esCuadrado ? "0.75rem 0.75rem 0" : "1.25rem 1.25rem 0") : (esCuadrado ? "1rem 1rem 0" : "2rem 2rem 0") }}>{avatarNode}</div>
         {body}
       </div>
     );
@@ -2064,7 +2123,7 @@ export function PHFormulario({
   const formView = enviado ? (
     <div style={{
       background: "#ffffff",
-      padding: "3rem 2rem",
+      padding: mobile ? "2rem 1.25rem" : "3rem 2rem",
       borderRadius: "1.25rem",
       boxShadow: "0 10px 25px rgba(0,0,0,0.03)",
       border: "1px solid #f1f5f9",
@@ -2094,7 +2153,7 @@ export function PHFormulario({
   ) : (
     <form onSubmit={handleSubmit} style={{
       background: "#ffffff",
-      padding: "2.5rem",
+      padding: mobile ? "1.25rem" : "2.5rem",
       borderRadius: "1.25rem",
       boxShadow: "0 10px 25px rgba(0,0,0,0.03)",
       border: "1px solid #f1f5f9",
@@ -2176,10 +2235,10 @@ export function PHFormulario({
       <Ph>
         <div style={containerStyle}>
           <div style={{ marginBottom: "1.5rem" }}>
-            <h3 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800, color: "#1e293b", ...estiloTextoCSS(seccion.estiloFormularioTitulo, "titulo") }}>
+            <h3 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800, color: "#1e293b", ...estiloTextoCSS(seccion.estiloFormularioTitulo, "titulo", mobile) }}>
               {renderConDestacado(seccion.formularioTitulo || "¿Tienes alguna duda o quieres confirmar?", seccion.estiloFormularioTitulo?.colorDestacado, seccion.estiloFormularioTitulo?.grosorDestacado, "titulo", seccion.estiloFormularioTitulo)}
             </h3>
-            <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.88rem", color: "#64748b", ...estiloTextoCSS(seccion.estiloFormularioSubtitulo, "parrafo") }}>
+            <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.88rem", color: "#64748b", ...estiloTextoCSS(seccion.estiloFormularioSubtitulo, "parrafo", mobile) }}>
               {renderConDestacado(seccion.formularioSubtitulo || "Rellena el formulario y te responderemos de inmediato.", seccion.estiloFormularioSubtitulo?.colorDestacado, seccion.estiloFormularioSubtitulo?.grosorDestacado, "parrafo", seccion.estiloFormularioSubtitulo)}
             </p>
           </div>
@@ -2187,13 +2246,13 @@ export function PHFormulario({
             <div style={{
               display: "grid",
               gridTemplateColumns: mobile ? "1fr" : "1fr 1.8fr",
-              gap: "2.5rem"
+              gap: mobile ? "1.25rem" : "2.5rem"
             }}>
               {agentCard}
               {formView}
             </div>
           ) : (
-            <div style={{ maxWidth: "600px", margin: "0 auto" }}>
+            <div style={{ maxWidth: mobile ? "100%" : "600px", margin: "0 auto" }}>
               {formView}
             </div>
           )}
@@ -2250,15 +2309,15 @@ export function PHTextoColumnas({
     { uid: "placeholder-3", titulo: "Columna 3", texto: ".- Elemento de ejemplo." },
   ];
 
-  const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const customMaxWidth = getResponsiveMaxWidth(anchoMax, mobile);
   const colsPorFila = layout === "2-cols" ? 2 : layout === "4-cols" ? 4 : layout === "5-cols" ? 5 : layout === "6-cols" ? 6 : 3;
 
   return (
     <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
-        <div className={styles.phTextoColumnas} style={{ maxWidth: customMaxWidth }}>
+        <div className={styles.phTextoColumnas} style={{ maxWidth: customMaxWidth, padding: mobile ? `0 ${MOBILE_SECTION_PADDING}` : undefined }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo", mobile) }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
@@ -2284,12 +2343,12 @@ export function PHTextoColumnas({
                   </div>
                 )}
                 {c.titulo ? (
-                  <h4 className={styles.phColumnaTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{renderConDestacado(c.titulo, estiloTituloDia?.colorDestacado, estiloTituloDia?.grosorDestacado, "subtitulo", estiloTituloDia)}</h4>
+                  <h4 className={styles.phColumnaTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo", mobile)}>{renderConDestacado(c.titulo, estiloTituloDia?.colorDestacado, estiloTituloDia?.grosorDestacado, "subtitulo", estiloTituloDia)}</h4>
                 ) : (
                   <div style={{ width: "60%", height: "12px", borderRadius: "6px", background: "#cbd5e1" }} />
                 )}
                 {c.texto ? (
-                  <p className={styles.phColumnaTexto} style={estiloTextoCSS(estiloDescDia, "parrafo")}>{renderConDestacado(c.texto, estiloDescDia?.colorDestacado, estiloDescDia?.grosorDestacado, "parrafo", estiloDescDia)}</p>
+                  <p className={styles.phColumnaTexto} style={estiloTextoCSS(estiloDescDia, "parrafo", mobile)}>{renderConDestacado(c.texto, estiloDescDia?.colorDestacado, estiloDescDia?.grosorDestacado, "parrafo", estiloDescDia)}</p>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     <div style={{ width: "90%", height: "8px", borderRadius: "4px", background: "#e2e8f0" }} />
@@ -2348,20 +2407,20 @@ export function PHFaqs({
     { uid: "placeholder-3", pregunta: "¿Cómo puedo contactar con vosotros?", respuesta: ".- Elemento de ejemplo." },
   ];
 
-  const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const customMaxWidth = getResponsiveMaxWidth(anchoMax, mobile);
 
   return (
     <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
-        <div className={styles.phTextoColumnas} style={{ maxWidth: customMaxWidth }}>
+        <div className={styles.phTextoColumnas} style={{ maxWidth: customMaxWidth, padding: mobile ? `0 ${MOBILE_SECTION_PADDING}` : undefined }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             {titulo ? (
-              <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
+              <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: 0, ...estiloTextoCSS(estiloTitulo, "titulo", mobile) }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
             ) : (
               <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: 0 }} />
             )}
             {subtitulo ? (
-              <p style={{ fontSize: "0.95rem", color: "#475569", margin: 0, ...estiloTextoCSS(estiloSubtitulo, "subtitulo") }}>{renderConDestacado(subtitulo, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado, "subtitulo", estiloSubtitulo)}</p>
+              <p style={{ fontSize: "0.95rem", color: "#475569", margin: 0, ...estiloTextoCSS(estiloSubtitulo, "subtitulo", mobile) }}>{renderConDestacado(subtitulo, estiloSubtitulo?.colorDestacado, estiloSubtitulo?.grosorDestacado, "subtitulo", estiloSubtitulo)}</p>
             ) : (
               <div style={{ width: "55%", height: "12px", borderRadius: "6px", background: "#e2e8f0", margin: 0 }} />
             )}
@@ -2379,7 +2438,7 @@ export function PHFaqs({
                       style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", padding: "14px 16px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "0.5rem", cursor: "pointer", textAlign: "left" }}
                     >
                       {f.pregunta ? (
-                        <span style={estiloTextoCSS(estiloFaqPregunta, "subtitulo")}>{renderConDestacado(f.pregunta, estiloFaqPregunta?.colorDestacado, estiloFaqPregunta?.grosorDestacado, "subtitulo", estiloFaqPregunta)}</span>
+                        <span style={estiloTextoCSS(estiloFaqPregunta, "subtitulo", mobile)}>{renderConDestacado(f.pregunta, estiloFaqPregunta?.colorDestacado, estiloFaqPregunta?.grosorDestacado, "subtitulo", estiloFaqPregunta)}</span>
                       ) : (
                         <div style={{ width: "60%", height: "12px", borderRadius: "6px", background: "#cbd5e1" }} />
                       )}
@@ -2395,7 +2454,7 @@ export function PHFaqs({
                     return <p style={{ margin: 0, fontSize: "0.85rem", color: "#94a3b8" }}>Selecciona una pregunta para ver la respuesta.</p>;
                   }
                   return activa.respuesta ? (
-                    <p style={{ margin: 0, ...estiloTextoCSS(estiloFaqRespuesta, "parrafo") }}>{renderConDestacado(activa.respuesta, estiloFaqRespuesta?.colorDestacado, estiloFaqRespuesta?.grosorDestacado, "parrafo", estiloFaqRespuesta)}</p>
+                    <p style={{ margin: 0, ...estiloTextoCSS(estiloFaqRespuesta, "parrafo", mobile) }}>{renderConDestacado(activa.respuesta, estiloFaqRespuesta?.colorDestacado, estiloFaqRespuesta?.grosorDestacado, "parrafo", estiloFaqRespuesta)}</p>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                       <div style={{ width: "90%", height: "8px", borderRadius: "4px", background: "#e2e8f0" }} />
@@ -2417,7 +2476,7 @@ export function PHFaqs({
                       style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", padding: "14px 16px", background: "#ffffff", border: "none", cursor: "pointer", textAlign: "left" }}
                     >
                       {f.pregunta ? (
-                        <span style={estiloTextoCSS(estiloFaqPregunta, "subtitulo")}>{renderConDestacado(f.pregunta, estiloFaqPregunta?.colorDestacado, estiloFaqPregunta?.grosorDestacado, "subtitulo", estiloFaqPregunta)}</span>
+                        <span style={estiloTextoCSS(estiloFaqPregunta, "subtitulo", mobile)}>{renderConDestacado(f.pregunta, estiloFaqPregunta?.colorDestacado, estiloFaqPregunta?.grosorDestacado, "subtitulo", estiloFaqPregunta)}</span>
                       ) : (
                         <div style={{ width: "60%", height: "12px", borderRadius: "6px", background: "#cbd5e1" }} />
                       )}
@@ -2426,7 +2485,7 @@ export function PHFaqs({
                     {isOpen && (
                       <div style={{ padding: "0 16px 14px 16px", background: "#ffffff" }}>
                         {f.respuesta ? (
-                          <p style={{ margin: 0, ...estiloTextoCSS(estiloFaqRespuesta, "parrafo") }}>{renderConDestacado(f.respuesta, estiloFaqRespuesta?.colorDestacado, estiloFaqRespuesta?.grosorDestacado, "parrafo", estiloFaqRespuesta)}</p>
+                          <p style={{ margin: 0, ...estiloTextoCSS(estiloFaqRespuesta, "parrafo", mobile) }}>{renderConDestacado(f.respuesta, estiloFaqRespuesta?.colorDestacado, estiloFaqRespuesta?.grosorDestacado, "parrafo", estiloFaqRespuesta)}</p>
                         ) : (
                           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                             <div style={{ width: "90%", height: "8px", borderRadius: "4px", background: "#e2e8f0" }} />
@@ -2475,16 +2534,16 @@ export function PHCards({
   cards?: { uid: string; titulo?: string; subtitulo?: string; media?: MediaItem; enlaceTipo?: "externo" | "pagina"; enlaceHref?: string; enlacePaginaSlug?: string }[];
 }) {
   const lista = cards ?? [];
-  const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const customMaxWidth = getResponsiveMaxWidth(anchoMax, mobile);
   const seccionMinHeight = altoSeccionMinHeight(altoSeccion, canvasHeight);
   const cardHeight = seccionMinHeight ? `calc(${seccionMinHeight} * 0.5)` : undefined;
 
   return (
     <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
-        <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
+        <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth, padding: mobile ? `0 ${MOBILE_SECTION_PADDING}` : undefined }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo", mobile) }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
@@ -2511,10 +2570,10 @@ export function PHCards({
                       <>
                         <div className={styles.phOfertaCardOverlay} style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(15,23,42,0) 40%, rgba(15,23,42,0.75) 100%)" }} />
                         <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 1, padding: mobile ? "0.75rem" : "1rem" }}>
-                          {card.titulo && <h4 style={{ fontSize: "0.95rem", fontWeight: 800, color: "#ffffff", margin: 0, textShadow: "0 1px 6px rgba(0,0,0,0.35)", ...estiloTextoCSS(estiloTituloDia, "subtitulo") }}>{card.titulo}</h4>}
+                          {card.titulo && <h4 style={{ fontSize: "0.95rem", fontWeight: 800, color: "#ffffff", margin: 0, textShadow: "0 1px 6px rgba(0,0,0,0.35)", ...estiloTextoCSS(estiloTituloDia, "subtitulo", mobile) }}>{card.titulo}</h4>}
                           {card.subtitulo && (
                             <div className={styles.phOfertaCardSubtituloWrap}>
-                              <p className={styles.phOfertaCardSubtitulo} style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.9)", margin: 0, textShadow: "0 1px 4px rgba(0,0,0,0.3)", ...estiloTextoCSS(estiloDescDia, "parrafo") }}>{card.subtitulo}</p>
+                              <p className={styles.phOfertaCardSubtitulo} style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.9)", margin: 0, textShadow: "0 1px 4px rgba(0,0,0,0.3)", ...estiloTextoCSS(estiloDescDia, "parrafo", mobile) }}>{card.subtitulo}</p>
                             </div>
                           )}
                         </div>
@@ -2557,16 +2616,16 @@ export function PHGaleria({
   galeria?: { uid: string; media?: MediaItem }[];
 }) {
   const lista = (galeria ?? []).filter(g => g.media?.url);
-  const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const customMaxWidth = getResponsiveMaxWidth(anchoMax, mobile);
   const columnasDeseadas = layout === "2-cols" ? 2 : layout === "4-cols" ? 4 : layout === "5-cols" ? 5 : 3;
   const columnas = mobile ? Math.min(2, columnasDeseadas) : columnasDeseadas;
 
   return (
     <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
-        <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
+        <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth, padding: mobile ? `0 ${MOBILE_SECTION_PADDING}` : undefined }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo", mobile) }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
@@ -2648,15 +2707,15 @@ export function PHListado({
     : styles.phCol3;
 
   const lista = items ?? [];
-  const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const customMaxWidth = getResponsiveMaxWidth(anchoMax, mobile);
   const esArticulo = estiloTarjeta === "articulo";
 
   return (
     <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
-        <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
+        <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth, padding: mobile ? `0 ${MOBILE_SECTION_PADDING}` : undefined }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo", mobile) }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
@@ -2696,7 +2755,7 @@ export function PHListado({
                             <span>{formatFechaListado(item.createdAt)}</span>
                           </div>
                         )}
-                        <h4 className={styles.phArticuloTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{item.titulo}</h4>
+                        <h4 className={styles.phArticuloTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo", mobile)}>{item.titulo}</h4>
                         {item.extracto && <p className={styles.phArticuloExtracto}>{item.extracto}</p>}
                       </div>
                     </div>
@@ -2704,7 +2763,7 @@ export function PHListado({
                     <div className={styles.phOfertaCard}>
                       <div className={styles.phOfertaThumb} style={item.media?.url ? { backgroundImage: `url('${item.media.url}')` } : undefined} />
                       <div className={styles.phOfertaBody}>
-                        <h4 className={styles.phOfertaTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{item.titulo}</h4>
+                        <h4 className={styles.phOfertaTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo", mobile)}>{item.titulo}</h4>
                         {item.createdAt && (
                           <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "0.75rem", color: "#94a3b8" }}>
                             <Clock size={12} />
@@ -2752,14 +2811,14 @@ export function PHNegoPlanet({
   items?: NegoPlanetItem[];
 }) {
   const lista = items ?? [];
-  const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const customMaxWidth = getResponsiveMaxWidth(anchoMax, mobile);
 
   return (
     <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
-        <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
+        <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth, padding: mobile ? `0 ${MOBILE_SECTION_PADDING}` : undefined }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo", mobile) }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
@@ -2777,7 +2836,7 @@ export function PHNegoPlanet({
                 >
                   <div className={styles.phOfertaThumb} style={item.imagen ? { backgroundImage: `url('${item.imagen}')` } : undefined} />
                   <div className={styles.phOfertaBody}>
-                    <h4 className={styles.phOfertaTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo")}>{item.titulo}</h4>
+                    <h4 className={styles.phOfertaTitulo} style={estiloTextoCSS(estiloTituloDia, "subtitulo", mobile)}>{item.titulo}</h4>
                     {item.descripcion && <p style={{ fontSize: "0.78rem", color: "#64748b", margin: "4px 0 0 0" }}>{item.descripcion}</p>}
                     {(item.precio || item.dias) && (
                       <div style={{ display: "flex", gap: "8px", fontSize: "0.75rem", color: "#94a3b8", marginTop: "4px" }}>
@@ -2836,7 +2895,7 @@ export function PHNegoPlanetDestinos({
   const [sub, setSub] = useState<string | null>(null);
 
   const lista = arbol ?? [];
-  const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
+  const customMaxWidth = getResponsiveMaxWidth(anchoMax, mobile);
 
   const categoriaActiva = activa ? lista.find(c => c.post_name === activa) ?? null : null;
   const subcategoriaActiva = categoriaActiva && sub ? (categoriaActiva.subcategorias ?? []).find(s => s.post_name === sub) ?? null : null;
@@ -2858,9 +2917,9 @@ export function PHNegoPlanetDestinos({
   return (
     <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>
       <Ph>
-        <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth }}>
+        <div className={styles.phOfertas} style={{ maxWidth: customMaxWidth, padding: mobile ? `0 ${MOBILE_SECTION_PADDING}` : undefined }}>
           {titulo ? (
-            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo") }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
+            <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e293b", margin: "0 0 4px 0", ...estiloTextoCSS(estiloTitulo, "titulo", mobile) }}>{renderConDestacado(titulo, estiloTitulo?.colorDestacado, estiloTitulo?.grosorDestacado, "titulo", estiloTitulo)}</h3>
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
@@ -3030,7 +3089,7 @@ export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dis
   const tablet = dispositivo === "tablet";
   switch (s.tipo) {
     case "menu":           return <PHMenu key={s.uid} mobile={mobile} seccion={s} secciones={allSecciones} landingHref={landingHref} />;
-    case "portada":        return <PHPortada key={s.uid} height={canvasHeight} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} medias={s.medias} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} colorFondo={s.colorFondo} />;
+    case "portada":        return <PHPortada key={s.uid} height={canvasHeight} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} medias={s.medias} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} colorFondo={s.colorFondo} mobile={mobile} />;
     case "texto-imagenes": return <PHTextoImagenes key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} textoLibre={s.textoLibre} medias={s.medias} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} estiloTextoLibre={s.estiloTextoLibre} anchoMax={s.anchoMax} />;
     case "texto-columnas": return <PHTextoColumnas key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} columnas={s.columnas} anchoMax={s.anchoMax} />;
     case "faqs": return <PHFaqs key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} estiloFaqPregunta={s.estiloFaqPregunta} estiloFaqRespuesta={s.estiloFaqRespuesta} faqs={s.faqs} anchoMax={s.anchoMax} />;

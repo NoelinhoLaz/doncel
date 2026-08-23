@@ -1,5 +1,6 @@
 "use client";
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
+import { Menu, X } from "lucide-react";
 import styles from "../../page.module.css";
 import type { Seccion } from "../../types";
 import { resolverItemsMenu } from "../../utils/menu-utils";
@@ -17,9 +18,11 @@ export default function PHMenu({ mobile, seccion, secciones }: { mobile?: boolea
   const boton = seccion?.menuBoton;
 
   const menuRef = useRef<HTMLDivElement>(null);
+  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
 
   const irASeccion = (uid: string) => {
     if (typeof document === "undefined") return;
+    setMenuMovilAbierto(false);
     const el = document.getElementById(uid);
     if (!el) return;
     const menuOffset = fijo ? (menuRef.current?.offsetHeight ?? 0) : 0;
@@ -67,7 +70,30 @@ export default function PHMenu({ mobile, seccion, secciones }: { mobile?: boolea
             </div>
           : <div className={styles.phNavBtn} style={{ background: colorBoton }} />
         }
+        {mobile && items.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setMenuMovilAbierto(o => !o)}
+            aria-label="Abrir menú"
+            style={{ background: "none", border: "none", cursor: "pointer", padding: "0.4rem", display: "flex", alignItems: "center", color: colorTexto }}
+          >
+            {menuMovilAbierto ? <X size={22} /> : <Menu size={22} />}
+          </button>
+        )}
       </div>
+      {mobile && menuMovilAbierto && items.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", padding: "0.5rem 1rem 1rem", gap: "0.25rem", background: bg }}>
+          {items.map(item => (
+            <span
+              key={item.uid}
+              onClick={() => irASeccion(item.uid)}
+              style={{ fontSize: "0.9rem", fontWeight: 600, color: colorTexto, padding: "0.6rem 0", cursor: "pointer", borderBottom: "1px solid rgba(0,0,0,0.06)" }}
+            >
+              {item.etiqueta}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

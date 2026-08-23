@@ -878,7 +878,7 @@ function ContactoModalPropuesta({ contactoId, onClose, onSelect, onClear }: {
   onClear: () => void;
 }) {
   const [query, setQuery] = useState("");
-  const [resultados, setResultados] = useState<{ id: string; nombre: string }[]>([]);
+  const [resultados, setResultados] = useState<{ id: string; nombre: string; localidad: string | null }[]>([]);
   const [buscando, setBuscando] = useState(false);
 
   useEffect(() => {
@@ -887,7 +887,7 @@ function ContactoModalPropuesta({ contactoId, onClose, onSelect, onClear }: {
       setBuscando(true);
       try {
         const results = await buscarEntidades(query);
-        setResultados(results.map((r: any) => ({ id: r.id, nombre: r.nombre || "Sin nombre" })));
+        setResultados(results.map((r: any) => ({ id: r.id, nombre: r.nombre || "Sin nombre", localidad: r.localidad || null })));
       } catch (err) {
         console.error("Error buscando contactos:", err);
       } finally {
@@ -937,9 +937,10 @@ function ContactoModalPropuesta({ contactoId, onClose, onSelect, onClear }: {
               <button
                 key={r.id}
                 onClick={() => onSelect(r.id, r.nombre)}
-                style={{ textAlign: "left", padding: "0.55rem 0.4rem", border: "none", background: "none", borderBottom: "1px solid #f8fafc", cursor: "pointer", fontSize: "0.85rem", color: "#1e293b" }}
+                style={{ display: "flex", flexDirection: "column", gap: "2px", textAlign: "left", padding: "0.55rem 0.4rem", border: "none", background: "none", borderBottom: "1px solid #f8fafc", cursor: "pointer", fontSize: "0.85rem", color: "#1e293b" }}
               >
-                {r.nombre}
+                <span>{r.nombre}</span>
+                {r.localidad && <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{r.localidad}</span>}
               </button>
             ))}
           </div>
