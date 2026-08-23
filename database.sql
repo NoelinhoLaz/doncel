@@ -1996,6 +1996,12 @@ ALTER TABLE public.operativa_propuestas ADD COLUMN IF NOT EXISTS fecha_regreso D
 ALTER TABLE public.operativa_propuestas ADD COLUMN IF NOT EXISTS slug text;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_operativa_propuestas_slug ON public.operativa_propuestas(slug) WHERE slug IS NOT NULL;
 
+-- Destinos multi-selección, mismo patrón que operativa_cotizaciones.destinos: array de
+-- {id, nombre} referenciando maestro_destinos, gestionado por addDestinoPropuesta/
+-- removeDestinoPropuesta (src/actions/propuestas.ts). Sustituye a la antigua columna
+-- `destination` (texto libre), que se conserva por compatibilidad con datos existentes.
+ALTER TABLE public.operativa_propuestas ADD COLUMN IF NOT EXISTS destinos JSONB DEFAULT '[]'::jsonb;
+
 -- ─── Landings (1:N con propuestas) ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.landings (
     id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),

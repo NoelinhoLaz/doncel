@@ -41,7 +41,7 @@ export async function getPropuestas() {
     const { data, error } = await agencyDb
       .from("operativa_propuestas")
       .select(`
-        id, title, destination, fecha_salida, fecha_regreso, created_at, contacto_id, cotizacion_id, agente_id,
+        id, title, destination, destinos, fecha_salida, fecha_regreso, created_at, contacto_id, cotizacion_id, agente_id,
         contabilidad_entidades!contacto_id(id, nombre),
         landings(id, is_active, version_number, design_tokens, editor_content)
       `)
@@ -248,6 +248,63 @@ export async function updatePropuestaSlug(propuestaId: string, slugDeseado: stri
     return { success: true, slug: slugFinal };
   } catch (err: any) {
     return { success: false, error: err.message };
+  }
+}
+
+/** Añade un destino a una propuesta. Mismo patrón que addDestinoCotizacion en cotizaciones.ts. */
+export async function addDestinoPropuesta(propuestaId: string, destino: { id: string; nombre: string }) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    await assertPuedeEditarPropuesta(agencyDb, propuestaId);
+    const { data: current, error: fetchError } = await agencyDb
+      .from("operativa_propuestas")
+      .select("destinos")
+      .eq("id", propuestaId)
+      .single();
+    if (fetchError) throw fetchError;
+
+    const existing: any[] = current?.destinos || [];
+    if (existing.some((d: any) => d.id === destino.id)) return { success: true, destinos: existing };
+
+    const updated = [...existing, destino];
+    const { error } = await agencyDb
+      .from("operativa_propuestas")
+      .update({ destinos: updated })
+      .eq("id", propuestaId);
+    if (error) throw error;
+
+    revalidatePath("/propuestas");
+    return { success: true, destinos: updated };
+  } catch (error: any) {
+    console.error("Failed to add destino to propuesta:", error.message);
+    throw new Error(error.message);
+  }
+}
+
+/** Elimina un destino de una propuesta. Mismo patrón que removeDestinoCotizacion en cotizaciones.ts. */
+export async function removeDestinoPropuesta(propuestaId: string, destinoId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    await assertPuedeEditarPropuesta(agencyDb, propuestaId);
+    const { data: current, error: fetchError } = await agencyDb
+      .from("operativa_propuestas")
+      .select("destinos")
+      .eq("id", propuestaId)
+      .single();
+    if (fetchError) throw fetchError;
+
+    const updated = (current?.destinos || []).filter((d: any) => d.id !== destinoId);
+    const { error } = await agencyDb
+      .from("operativa_propuestas")
+      .update({ destinos: updated })
+      .eq("id", propuestaId);
+    if (error) throw error;
+
+    revalidatePath("/propuestas");
+    return { success: true, destinos: updated };
+  } catch (error: any) {
+    console.error("Failed to remove destino from propuesta:", error.message);
+    throw new Error(error.message);
   }
 }
 
@@ -656,7 +713,7 @@ export async function getPropuesta(id: string) {
     const agencyDb = await getAgencyDbClient();
     const { data, error } = await agencyDb
       .from("operativa_propuestas")
-      .select(`id, title, destination, slug, fecha_salida, fecha_regreso, created_at, contacto_id, cotizacion_id, agente_id, contabilidad_entidades!contacto_id(id, nombre), landings(id, is_active, design_tokens, editor_content)`)
+      .select(`id, title, destination, destinos, slug, fecha_salida, fecha_regreso, created_at, contacto_id, cotizacion_id, agente_id, contabilidad_entidades!contacto_id(id, nombre), landings(id, is_active, design_tokens, editor_content)`)
       .eq("id", id)
       .single();
     if (error) throw error;
@@ -707,7 +764,7 @@ export async function getPropuestaPublica(id: string, dominio: string) {
 
     const { data, error } = await agencyDb
       .from("operativa_propuestas")
-      .select(`id, title, destination, slug, fecha_salida, fecha_regreso, created_at, contacto_id, cotizacion_id, agente_id, contabilidad_entidades!contacto_id(id, nombre), landings(id, is_active, design_tokens, editor_content)`)
+      .select(`id, title, destination, destinos, slug, fecha_salida, fecha_regreso, created_at, contacto_id, cotizacion_id, agente_id, contabilidad_entidades!contacto_id(id, nombre), landings(id, is_active, design_tokens, editor_content)`)
       .eq("id", id)
       .single();
     if (error) throw error;

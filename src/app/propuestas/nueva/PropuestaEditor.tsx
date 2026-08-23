@@ -12,10 +12,11 @@ import { EditorPanel } from "./components/Editor/EditorPanel";
 import TextoColorBoton from "./components/Editor/TextoColorBoton";
 import { renderSeccion } from "./utils/section-render";
 import { getStyleVars } from "./utils/style-utils";
-import { guardarPropuesta, getDatosRealesPropuesta, updatePropuestaMeta, updatePropuestaSlug } from "@/actions/propuestas";
+import { guardarPropuesta, getDatosRealesPropuesta, updatePropuestaMeta, updatePropuestaSlug, addDestinoPropuesta, removeDestinoPropuesta } from "@/actions/propuestas";
 import { buscarEntidades } from "@/actions/entidades";
 import { getPaginasWebPorFormato } from "@/actions/paginaWeb";
 import ExpedienteActionsToolbar from "@/app/components/ExpedienteActionsToolbar";
+import { DestinoPopover } from "@/components/modals/DestinoPopover";
 
 export function PropuestaEditor({
   initialPropuestaId,
@@ -25,6 +26,7 @@ export function PropuestaEditor({
   initialContactoNombre,
   initialTitle,
   initialDestination,
+  initialDestinos,
   initialFechaSalida,
   initialFechaRegreso,
   initialSlug,
@@ -38,6 +40,7 @@ export function PropuestaEditor({
   initialContactoNombre?: string | null;
   initialTitle?: string | null;
   initialDestination?: string | null;
+  initialDestinos?: { id: string; nombre: string }[];
   initialFechaSalida?: string | null;
   initialFechaRegreso?: string | null;
   initialSlug?: string | null;
@@ -78,6 +81,11 @@ export function PropuestaEditor({
   const [contactoNombre, setContactoNombre] = useState<string | null>(initialContactoNombre ?? null);
   const [title, setTitle] = useState(initialTitle ?? "Nueva propuesta");
   const [destination, setDestination] = useState(initialDestination ?? "");
+  const [destinos, setDestinos] = useState<{ id: string; nombre: string }[]>(initialDestinos ?? []);
+  const [isDestinoOpen, setIsDestinoOpen] = useState(false);
+  const [destinoPopoverPos, setDestinoPopoverPos] = useState({ top: 0, left: 0 });
+  const [isUpdatingDestino, setIsUpdatingDestino] = useState(false);
+  const destinoBtnRef = useRef<HTMLButtonElement>(null);
   const [fechaSalida, setFechaSalida] = useState(initialFechaSalida ?? "");
   const [fechaRegreso, setFechaRegreso] = useState(initialFechaRegreso ?? "");
   const [slug, setSlug] = useState(initialSlug ?? "");
@@ -253,6 +261,32 @@ export function PropuestaEditor({
       setGuardandoSlug(false);
     }
   }
+
+  const handleAddDestino = async (place: { id: string; nombre: string }) => {
+    if (!propuestaId) return;
+    setIsUpdatingDestino(true);
+    try {
+      const result = await addDestinoPropuesta(propuestaId, place);
+      setDestinos(result.destinos);
+    } catch (error) {
+      console.error("Error al guardar destino:", error);
+    } finally {
+      setIsUpdatingDestino(false);
+    }
+  };
+
+  const handleRemoveDestino = async (destinoId: string) => {
+    if (!propuestaId) return;
+    setIsUpdatingDestino(true);
+    try {
+      const result = await removeDestinoPropuesta(propuestaId, destinoId);
+      setDestinos(result.destinos);
+    } catch (error) {
+      console.error("Error al eliminar destino:", error);
+    } finally {
+      setIsUpdatingDestino(false);
+    }
+  };
 
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -449,17 +483,35 @@ export function PropuestaEditor({
                 placeholder="Nombre de la propuesta"
                 style={{ border: "none", background: "transparent", outline: "none", padding: 0, width: "320px", maxWidth: "40vw", fontSize: "0.85rem", color: "#334155" }}
               />
-              <input
-                value={destination}
-                onChange={(e) => setDestination(e.target.value)}
-                onBlur={() => guardarMeta({ destination: destination || null })}
-                aria-label="Destino"
-                placeholder="Destino"
-                style={{
-                  padding: "0.25rem 0.75rem", fontSize: "0.75rem", background: "#f8fafc", color: destination ? "#475569" : "#94a3b8",
-                  borderRadius: "999px", border: "1px solid #cbd5e1", outline: "none", width: "140px",
+              <button
+                ref={destinoBtnRef}
+                onClick={() => {
+                  if (!isDestinoOpen && destinoBtnRef.current) {
+                    const rect = destinoBtnRef.current.getBoundingClientRect();
+                    setDestinoPopoverPos({ top: rect.bottom + 4, left: rect.left });
+                  }
+                  setIsDestinoOpen(!isDestinoOpen);
                 }}
-              />
+                title="Añadir destinos"
+                style={{
+                  padding: "0.25rem 0.75rem", fontSize: "0.75rem", background: "#f8fafc", color: "#475569",
+                  borderRadius: "999px", border: "1px solid #cbd5e1", cursor: "pointer", fontWeight: 600,
+                  display: "flex", alignItems: "center", gap: "0.35rem",
+                }}
+              >
+                <MapPin size={12} />
+                {destinos.length > 0 ? destinos.map(d => d.nombre).join(", ") : "Sin destino"}
+              </button>
+              {isDestinoOpen && (
+                <DestinoPopover
+                  destinos={destinos}
+                  position={destinoPopoverPos}
+                  isUpdating={isUpdatingDestino}
+                  onAdd={handleAddDestino}
+                  onRemove={handleRemoveDestino}
+                  onClose={() => setIsDestinoOpen(false)}
+                />
+              )}
               <DateChipPropuesta
                 label="Salida"
                 value={fechaSalida}

@@ -12,6 +12,7 @@ interface Propuesta {
   id: string;
   title: string;
   destination: string | null;
+  destinos?: { id: string; nombre: string }[] | null;
   fecha_salida?: string | null;
   fecha_regreso?: string | null;
   created_at: string;
@@ -35,6 +36,13 @@ interface Propuesta {
     iniciales: string;
     avatar_url: string | null;
   } | null;
+}
+
+// Prioriza el campo destinos (array multi-destino); si está vacío, cae al antiguo
+// campo destination (texto libre separado por comas) para propuestas sin migrar.
+function getDestinosNombres(p: Propuesta): string[] {
+  if (p.destinos && p.destinos.length > 0) return p.destinos.map(d => d.nombre).filter(Boolean);
+  return (p.destination ?? "").split(",").map(d => d.trim()).filter(Boolean);
 }
 
 export default function PropuestasPage() {
@@ -173,7 +181,7 @@ export default function PropuestasPage() {
   const destinoOptions = useMemo(() => {
     const names: string[] = [];
     propuestas.forEach(p => {
-      (p.destination ?? "").split(",").map(d => d.trim()).filter(Boolean).forEach(d => names.push(d));
+      getDestinosNombres(p).forEach(d => names.push(d));
     });
     return Array.from(new Set(names)).sort();
   }, [propuestas]);
@@ -187,14 +195,14 @@ export default function PropuestasPage() {
   const filtradas = propuestas.filter(p => {
     const matchesSearch =
       (p.title ?? "").toLowerCase().includes(busqueda.toLowerCase()) ||
-      (p.destination ?? "").toLowerCase().includes(busqueda.toLowerCase()) ||
+      getDestinosNombres(p).join(", ").toLowerCase().includes(busqueda.toLowerCase()) ||
       (p.contabilidad_entidades?.nombre ?? "").toLowerCase().includes(busqueda.toLowerCase());
     if (!matchesSearch) return false;
 
     if (agenteFilter.length > 0 && (!p.agente?.nombre || !agenteFilter.includes(p.agente.nombre))) return false;
 
     if (destinoFilter.length > 0) {
-      const dests = (p.destination ?? "").split(",").map(d => d.trim()).filter(Boolean);
+      const dests = getDestinosNombres(p);
       if (!dests.some(d => destinoFilter.includes(d))) return false;
     }
 
@@ -449,7 +457,7 @@ export default function PropuestasPage() {
                   </td>
                   <td className={styles.cellMuted}>
                     {(() => {
-                      const dests = (p.destination ?? "").split(",").map(d => d.trim()).filter(Boolean);
+                      const dests = getDestinosNombres(p);
                       if (dests.length === 0) return "—";
                       return (
                         <span className={styles.destCell}>

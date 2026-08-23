@@ -95,6 +95,7 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
       initialContactoNombre={(propuesta as any).contabilidad_entidades?.nombre || null}
       initialTitle={(propuesta as any).title ?? null}
       initialDestination={(propuesta as any).destination ?? null}
+      initialDestinos={(propuesta as any).destinos ?? []}
       initialFechaSalida={(propuesta as any).fecha_salida ?? null}
       initialFechaRegreso={(propuesta as any).fecha_regreso ?? null}
       initialSlug={(propuesta as any).slug ?? null}
