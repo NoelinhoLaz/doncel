@@ -105,8 +105,8 @@ export function AnadirOportunidadModal({
   }
 
   return (
-    <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} style={{ width: 460 }} onClick={e => e.stopPropagation()}>
+    <div className={styles.overlay}>
+      <div className={styles.modal} style={{ width: 460 }}>
         <div className={styles.modalHeader}>
           <span className={styles.modalTitle}>Añadir oportunidad</span>
           <button className={styles.btnClose} onClick={onClose}><X size={15} /></button>
