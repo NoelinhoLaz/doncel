@@ -16,6 +16,8 @@ import { NuevoClientePanel, NuevoClienteResult } from "@/components/modals/Nuevo
 import { BuscarNegocioModal, LugarPlaces } from "@/components/modals/BuscarNegocioModal";
 import { AnadirOportunidadModal, EntidadEncontrada } from "./modals/AnadirOportunidadModal";
 import type { ClienteParaOportunidad } from "./modals/ConfirmarCampanaModal";
+import { ConfirmarAgenteClienteModal } from "./modals/ConfirmarAgenteClienteModal";
+import { reasignarAgenteMasivo } from "@/actions/entidades";
 
 export default function CampanaDetallePage() {
   const { id } = useParams<{ id: string }>();
@@ -39,6 +41,15 @@ export default function CampanaDetallePage() {
     estadoId: string;
   } | null>(null);
   const [savingClosure, setSavingClosure] = useState(false);
+
+  const [pendingAgenteCliente, setPendingAgenteCliente] = useState<{
+    entidadId: string;
+    clienteNombre: string;
+    agenteActualNombre: string;
+    agenteNuevoId: string;
+    agenteNuevoNombre: string;
+  } | null>(null);
+  const [savingAgenteCliente, setSavingAgenteCliente] = useState(false);
 
   const [presupuestoModal, setPresupuestoModal] = useState<{
     oportunidadId: string;
@@ -138,6 +149,50 @@ export default function CampanaDetallePage() {
     } catch (e) {
       console.error("Error al cambiar agente:", e);
       loadData();
+      return;
+    }
+
+    // Si el cliente vinculado a la oportunidad tiene otro agente distinto
+    // asignado, preguntamos si también se quiere actualizar ahí.
+    if (!agenteId || !ag) return;
+    const op = oportunidades.find(o => o.id === oportunidadId);
+    const entidad = op?.contabilidad_entidades;
+    if (!entidad || entidad.agente_id === agenteId) return;
+
+    const agenteActual = entidad.crm_agentes
+      ? `${entidad.crm_agentes.nombre} ${entidad.crm_agentes.apellidos ?? ""}`.trim()
+      : null;
+    if (!agenteActual) return; // cliente sin agente previo: no hace falta preguntar
+
+    setPendingAgenteCliente({
+      entidadId: entidad.id,
+      clienteNombre: entidad.nombre,
+      agenteActualNombre: agenteActual,
+      agenteNuevoId: agenteId,
+      agenteNuevoNombre: `${ag.nombre} ${ag.apellidos ?? ""}`.trim(),
+    });
+  }
+
+  async function handleConfirmarAgenteCliente(cambiar: boolean) {
+    if (!pendingAgenteCliente) return;
+    if (!cambiar) {
+      setPendingAgenteCliente(null);
+      return;
+    }
+    setSavingAgenteCliente(true);
+    try {
+      const res = await reasignarAgenteMasivo([pendingAgenteCliente.entidadId], pendingAgenteCliente.agenteNuevoId);
+      if (!res.success) throw new Error(res.error || "Error al actualizar el agente del cliente");
+      setOportunidades(prev => prev.map(o =>
+        o.contabilidad_entidades?.id === pendingAgenteCliente.entidadId && o.contabilidad_entidades
+          ? { ...o, contabilidad_entidades: { ...o.contabilidad_entidades, agente_id: pendingAgenteCliente.agenteNuevoId } }
+          : o
+      ));
+    } catch (e) {
+      console.error("Error al actualizar agente del cliente:", e);
+    } finally {
+      setSavingAgenteCliente(false);
+      setPendingAgenteCliente(null);
     }
   }
 
@@ -315,6 +370,7 @@ export default function CampanaDetallePage() {
                   },
                   lat: lugar.lat,
                   lng: lugar.lng,
+                  roles: { cliente: true },
                 }),
               });
               const json = await res.json();
@@ -338,6 +394,17 @@ export default function CampanaDetallePage() {
           presupuesto={presupuestoModal.presupuesto}
           onClose={() => setPresupuestoModal(null)}
           onCreated={() => setPresupuestoModal(null)}
+        />
+      )}
+
+      {pendingAgenteCliente && (
+        <ConfirmarAgenteClienteModal
+          clienteNombre={pendingAgenteCliente.clienteNombre}
+          agenteActualNombre={pendingAgenteCliente.agenteActualNombre}
+          agenteNuevoNombre={pendingAgenteCliente.agenteNuevoNombre}
+          saving={savingAgenteCliente}
+          onClose={() => setPendingAgenteCliente(null)}
+          onConfirmar={handleConfirmarAgenteCliente}
         />
       )}
 
