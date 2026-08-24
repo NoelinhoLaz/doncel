@@ -15,6 +15,7 @@ import { TablaOportunidades } from "./table/TablaOportunidades";
 import { NuevoClientePanel, NuevoClienteResult } from "@/components/modals/NuevoClientePanel";
 import { BuscarNegocioModal, LugarPlaces } from "@/components/modals/BuscarNegocioModal";
 import { AnadirOportunidadModal, EntidadEncontrada } from "./modals/AnadirOportunidadModal";
+import type { ClienteParaOportunidad } from "./modals/ConfirmarCampanaModal";
 
 export default function CampanaDetallePage() {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +26,7 @@ export default function CampanaDetallePage() {
   const [showAnadirOportunidad, setShowAnadirOportunidad] = useState(false);
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
   const [confirmarCampanaCliente, setConfirmarCampanaCliente] = useState<((NuevoClienteResult | EntidadEncontrada) & { esClienteNuevo?: boolean }) | null>(null);
+  const [clientesParaOportunidad, setClientesParaOportunidad] = useState<ClienteParaOportunidad[] | null>(null);
   const [showBuscarNegocio, setShowBuscarNegocio] = useState(false);
   const [creandoDesdeLugar, setCreandoDesdeLugar] = useState(false);
   const [monocromo, setMonocromo] = useState(false);
@@ -244,10 +246,11 @@ export default function CampanaDetallePage() {
 
       {showAnadirOportunidad && (
         <AnadirOportunidadModal
+          entidadesExcluidas={oportunidades.map((o) => o.contabilidad_entidades?.id).filter((id): id is string => !!id)}
           onClose={() => setShowAnadirOportunidad(false)}
-          onClienteExistente={(entidad) => {
+          onClientesSeleccionados={(entidades) => {
             setShowAnadirOportunidad(false);
-            setConfirmarCampanaCliente({ ...entidad, esClienteNuevo: false });
+            setClientesParaOportunidad(entidades.map((e) => ({ id: e.id, nombre: e.nombre })));
           }}
           onClienteNuevo={() => {
             setShowAnadirOportunidad(false);
@@ -274,9 +277,19 @@ export default function CampanaDetallePage() {
           esClienteNuevo={!!confirmarCampanaCliente.esClienteNuevo}
           isOwner={isOwner}
           currentAgenteId={currentAgenteId}
-          agentes={campana?.crm_campanas_agentes ?? []}
           onClose={() => setConfirmarCampanaCliente(null)}
           onCreated={() => { setConfirmarCampanaCliente(null); loadData(); }}
+        />
+      )}
+
+      {clientesParaOportunidad && (
+        <ConfirmarCampanaModal
+          clientes={clientesParaOportunidad}
+          defaultCampanaId={campana?.id}
+          isOwner={isOwner}
+          currentAgenteId={currentAgenteId}
+          onClose={() => setClientesParaOportunidad(null)}
+          onCreated={() => { setClientesParaOportunidad(null); loadData(); }}
         />
       )}
 

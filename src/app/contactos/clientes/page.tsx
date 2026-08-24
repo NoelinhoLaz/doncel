@@ -7,6 +7,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Pagination from "@/app/components/Pagination";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
 import SucursalAgenteFilter, { type AgenteOpcion } from "@/app/components/SucursalAgenteFilter";
+import { SIN_AGENTE_ID } from "@/lib/filtrosClientes";
 import { NuevoClientePanel } from "@/components/modals/NuevoClientePanel";
 import AsignarEtiquetaMasivaModal from "@/components/modals/AsignarEtiquetaMasivaModal";
 import ReasignarAgenteMasivoModal from "@/components/modals/ReasignarAgenteMasivoModal";
@@ -125,8 +126,12 @@ export default function ClientesPage() {
 
   const agenteOptions = useMemo(() => {
     const porId = new Map<string, AgenteOpcion>();
+    let haySinAgente = false;
     clientes.forEach((c) => {
-      if (!c.agente?.id) return;
+      if (!c.agente?.id) {
+        haySinAgente = true;
+        return;
+      }
       if (porId.has(c.agente.id)) return;
       porId.set(c.agente.id, {
         id: c.agente.id,
@@ -134,7 +139,11 @@ export default function ClientesPage() {
         sucursal: c.sucursal ?? null,
       });
     });
-    return Array.from(porId.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
+    const opciones = Array.from(porId.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
+    if (haySinAgente) {
+      opciones.push({ id: SIN_AGENTE_ID, nombre: "Sin agente asignado", sucursal: null });
+    }
+    return opciones;
   }, [clientes]);
 
   const tipoClienteOptions = useMemo(() => {
@@ -173,7 +182,11 @@ export default function ClientesPage() {
       c.documento?.toLowerCase().includes(q);
     if (!matchesSearch) return false;
     if (expedienteFilter.length > 0 && !c.expedientes.some((e) => expedienteFilter.includes(expedienteLabel(e)))) return false;
-    if (agenteFilter.length > 0 && !(c.agente?.id && agenteFilter.includes(c.agente.id))) return false;
+    if (agenteFilter.length > 0) {
+      const coincideSinAgente = agenteFilter.includes(SIN_AGENTE_ID) && !c.agente?.id;
+      const coincideConAgente = !!c.agente?.id && agenteFilter.includes(c.agente.id);
+      if (!coincideSinAgente && !coincideConAgente) return false;
+    }
     if (tipoFilter.length > 0 && !(c.tipo_cliente?.etiqueta && tipoFilter.includes(c.tipo_cliente.etiqueta))) return false;
     if (etiquetaFilter.length > 0 && !(c.etiquetas?.some((e) => etiquetaFilter.includes(e.nombre)))) return false;
     if (localidadFilter.length > 0 && !(c.ciudad && localidadFilter.includes(c.ciudad))) return false;
