@@ -1,0 +1,286 @@
+.container {
+  min-height: 100vh;
+  background: #f5f7fb;
+  padding: 1.5rem 1rem 4rem;
+}
+
+.header {
+  max-width: 720px;
+  margin: 0 auto 1.5rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.headerTitle {
+  font-size: 1.4rem;
+  color: #0f172a;
+  margin-bottom: 0.25rem;
+}
+
+.headerSubtitle {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.logoutLink {
+  font-size: 0.85rem;
+  color: #64748b;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.logoutLink:hover {
+  color: #0f172a;
+}
+
+.card {
+  max-width: 720px;
+  margin: 0 auto 1rem;
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  padding: 1.25rem;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.cardTitle {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.addButton {
+  padding: 0.5rem 0.9rem;
+  border: none;
+  border-radius: 0.6rem;
+  background: #2563eb;
+  color: white;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.addButton:hover {
+  background: #1d4ed8;
+}
+
+.viajeroRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #f1f5f9;
+  gap: 0.75rem;
+}
+
+.viajeroRow:last-child {
+  border-bottom: none;
+}
+
+.viajeroInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.viajeroNombre {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.viajeroMeta {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  text-transform: capitalize;
+}
+
+.rowActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.iconButton {
+  padding: 0.4rem 0.65rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: white;
+  color: #475569;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: #f8fafc;
+}
+
+.empty {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  text-align: center;
+  padding: 1.5rem 0;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  z-index: 100;
+  overflow-y: auto;
+}
+
+.modal {
+  width: 100%;
+  max-width: 480px;
+  background: white;
+  border-radius: 14px;
+  padding: 1.5rem;
+}
+
+.modalTitle {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 1rem;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 0.25rem;
+}
+
+.input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  font-size: 0.88rem;
+  color: #0f172a;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  border-color: #2563eb;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
+
+.cancelButton {
+  padding: 0.6rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.6rem;
+  background: white;
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.saveButton {
+  padding: 0.6rem 1.1rem;
+  border: none;
+  border-radius: 0.6rem;
+  background: #2563eb;
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.saveButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error {
+  background-color: #fef2f2;
+  color: #b91c1c;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  margin-bottom: 0.75rem;
+}
+
+.docList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.docRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.docLink {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.docLink:hover {
+  text-decoration: underline;
+}
+
+.uploadRow {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  align-items: center;
+}
+
+.select {
+  padding: 0.55rem 0.6rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  font-size: 0.82rem;
+  color: #0f172a;
+}

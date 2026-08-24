@@ -37,6 +37,7 @@ import type {
   ExtraSeleccionado,
 } from "@/types/registro";
 import { searchNominatim, type NominatimResult } from "@/actions/nominatim";
+import { validarDNI } from "@/lib/validaciones";
 import styles from "./registro.module.css";
 import chatStyles from "./chat.module.css";
 
@@ -117,14 +118,6 @@ interface Props {
 }
 
 // ── Validaciones ──────────────────────────────────────────────────────────────
-
-function validarDNI(dni: string): boolean {
-  const LETRAS = "TRWAGMYFPDXBNJZSQVHLCKE";
-  const cleaned = dni.trim().toUpperCase();
-  if (!/^\d{8}[A-Z]$/.test(cleaned)) return false;
-  const num = parseInt(cleaned.slice(0, 8), 10);
-  return cleaned[8] === LETRAS[num % 23];
-}
 
 function calcularEdad(fechaNacimiento: string): number {
   const hoy = new Date();

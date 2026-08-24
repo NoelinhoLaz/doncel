@@ -1,4 +1,5 @@
 import { getAgencyDbClient, getCurrentSchemaName, bucketNameForSchema } from '@/lib/agencyDb'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
  * Sube un PDF al bucket 'documentos-proveedor' y devuelve
@@ -67,6 +68,45 @@ export async function subirExtraccion(
     .from(bucket)
     .createSignedUrl(path, 60 * 60 * 24 * 365)
 
+  return data?.signedUrl ?? ''
+}
+
+/**
+ * Sube un documento de viajero (DNI/pasaporte) a un bucket privado
+ * namespaced por schema. No devuelve URL — solo el path guardado; la
+ * visualización se hace con signed URLs de vida corta generadas al vuelo.
+ */
+export async function subirDocumentoViajero(
+  db: SupabaseClient<any, any, any>,
+  schemaName: string,
+  buffer: Buffer,
+  contentType: string,
+  viajeroExpedienteId: string,
+  tipoDocumento: 'dni' | 'pasaporte' | 'otro',
+  extension: string
+): Promise<{ storage_path: string }> {
+  const bucket = bucketNameForSchema('documentos-viajero', schemaName)
+  const path = `${viajeroExpedienteId}/${tipoDocumento}-${Date.now()}.${extension}`
+
+  await db.storage.createBucket(bucket, { public: false, fileSizeLimit: 10 * 1024 * 1024 }).catch(() => {})
+
+  const { error } = await db.storage.from(bucket).upload(path, buffer, { contentType, upsert: true })
+  if (error) throw new Error(`STORAGE_ERROR: ${error.message}`)
+
+  return { storage_path: path }
+}
+
+/**
+ * Genera una signed URL de vida corta para un documento de viajero.
+ */
+export async function getUrlFirmadaDocumentoViajero(
+  db: SupabaseClient<any, any, any>,
+  schemaName: string,
+  storagePath: string,
+  ttlSeconds = 300
+): Promise<string> {
+  const bucket = bucketNameForSchema('documentos-viajero', schemaName)
+  const { data } = await db.storage.from(bucket).createSignedUrl(storagePath, ttlSeconds)
   return data?.signedUrl ?? ''
 }
 

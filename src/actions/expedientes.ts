@@ -5,6 +5,7 @@ import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabas
 import { revalidatePath } from "next/cache";
 import { google } from "googleapis";
 import { getCurrentUserDriveConfig, getCurrentUsuario } from "@/actions/usuarios";
+import crypto from "crypto";
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -588,6 +589,48 @@ export async function getExpedienteById(id: string) {
   } catch (error: any) {
     console.error("Failed to get expediente by id:", error.message);
     return null;
+  }
+}
+
+// Alfabeto base32 sin ambigüedad (sin 0/O/1/I) para códigos que un humano teclea a mano
+const CODIGO_ACCESO_ALFABETO = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+
+function generarCodigoAcceso(): string {
+  const bytes = crypto.randomBytes(12);
+  let raw = "";
+  for (let i = 0; i < 12; i++) {
+    raw += CODIGO_ACCESO_ALFABETO[bytes[i] % CODIGO_ACCESO_ALFABETO.length];
+  }
+  return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}`;
+}
+
+export async function generarCodigoAccesoResponsable(expedienteId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+
+    for (let intento = 0; intento < 5; intento++) {
+      const codigo = generarCodigoAcceso();
+      const { data, error } = await agencyDb
+        .from("operativa_expedientes")
+        .update({ codigo_acceso: codigo, codigo_acceso_generado_en: new Date().toISOString() })
+        .eq("id", expedienteId)
+        .select("codigo_acceso")
+        .single();
+
+      if (!error && data) {
+        revalidatePath(`/expedientes/${expedienteId}`);
+        return { success: true, codigo: data.codigo_acceso as string };
+      }
+      // Colisión de índice único: reintentar con otro código
+      if (error && !error.message?.includes("duplicate")) {
+        console.error("Error generando código de acceso:", error);
+        return { error: "Error al generar el código de acceso" };
+      }
+    }
+    return { error: "No se pudo generar un código único, inténtalo de nuevo" };
+  } catch (error: any) {
+    console.error("Failed to generate codigo_acceso:", error.message);
+    return { error: "Error al generar el código de acceso" };
   }
 }
 

@@ -137,11 +137,14 @@ export const getAgencyDbClientByDomain = cache(async (dominio: string) => {
 
   if (!serviceRoleKey) return null;
 
+  const schemaName = (agencia.schema_name as string | null) || "public";
+
   return {
     agenciaId: agencia.id as string,
+    schemaName,
     db: createClient(conexion.supabase_url, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-      db: { schema: (agencia.schema_name as string | null) || "public" },
+      db: { schema: schemaName },
     }),
   };
 });

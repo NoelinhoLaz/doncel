@@ -5,6 +5,7 @@ import { useAjustes } from "@/hooks/useAjustes";
 import InfoExpedienteSection from "@/app/components/ajustes/InfoExpedienteSection";
 import ServiciosPlazosSection from "@/app/components/ajustes/ServiciosPlazosSection";
 import ComunicacionesSection from "@/app/components/ajustes/ComunicacionesSection";
+import AccesoResponsableSection from "@/app/components/ajustes/AccesoResponsableSection";
 import styles from "../page.module.css";
 
 const DEFAULT_TYPES = [
@@ -80,6 +81,12 @@ export default function AjustesTab({ expedienteId, expediente }: AjustesTabProps
       <ComunicacionesSection
         comunicacionesList={a.comunicacionesList}
         setComunicacionesList={a.setComunicacionesList}
+      />
+
+      <AccesoResponsableSection
+        expedienteId={expedienteId}
+        codigoAcceso={expediente?.codigo_acceso}
+        emailResponsable={expediente?.contabilidad_entidades?.email}
       />
     </div>
   );
