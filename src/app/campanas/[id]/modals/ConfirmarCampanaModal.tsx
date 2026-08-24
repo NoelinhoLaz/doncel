@@ -52,6 +52,7 @@ export function ConfirmarCampanaModal({
   const [agenteId, setAgenteId] = useState(currentAgenteIdProp ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progreso, setProgreso] = useState(0);
 
   // Si el padre no pasa isOwner/agentes (p.ej. desde PanelEntidad, fuera del contexto de
   // una campaña concreta), se resuelven aquí mismo: rol del usuario actual + listado de
@@ -101,30 +102,54 @@ export function ConfirmarCampanaModal({
     if (!campanaId || !estadoId || clientes.length === 0) return;
     setSaving(true);
     setError(null);
-    try {
-      for (const cliente of clientes) {
-        await apiFetch("/api/crm/oportunidades", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            titulo: cliente.nombre,
-            campana_id: campanaId,
-            estado_id: estadoId,
-            entidad_id: cliente.id,
-            prioridad: prioridad ? Number(prioridad) : null,
-            valor_estimado: parseFloat(valorEstimado) || 0,
-            // Solo un admin puede elegir agente manualmente; para un agente normal el
-            // backend (createOportunidad) ignora este campo y asigna siempre al usuario actual.
-            agente_id: isOwner ? (agenteId || null) : undefined,
-          }),
-        });
-      }
-      onCreated();
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setSaving(false);
+    setProgreso(0);
+
+    const crearUno = (cliente: ClienteParaOportunidad) =>
+      apiFetch("/api/crm/oportunidades", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          titulo: cliente.nombre,
+          campana_id: campanaId,
+          estado_id: estadoId,
+          entidad_id: cliente.id,
+          prioridad: prioridad ? Number(prioridad) : null,
+          valor_estimado: parseFloat(valorEstimado) || 0,
+          // Solo un admin puede elegir agente manualmente; para un agente normal el
+          // backend (createOportunidad) ignora este campo y asigna siempre al usuario actual.
+          agente_id: isOwner ? (agenteId || null) : undefined,
+        }),
+      });
+
+    // Lotes en paralelo (no todo a la vez, para no saturar) — con 29+ clientes,
+    // hacerlo uno a uno secuencial podía tardar minutos sin ningún feedback.
+    const TAMANO_LOTE = 5;
+    const fallos: string[] = [];
+    for (let i = 0; i < clientes.length; i += TAMANO_LOTE) {
+      const lote = clientes.slice(i, i + TAMANO_LOTE);
+      const resultados = await Promise.allSettled(lote.map(crearUno));
+      resultados.forEach((r, idx) => {
+        if (r.status === "rejected") {
+          fallos.push(lote[idx].nombre);
+        }
+      });
+      setProgreso(Math.min(i + TAMANO_LOTE, clientes.length));
     }
+
+    setSaving(false);
+
+    if (fallos.length > 0) {
+      setError(
+        fallos.length === clientes.length
+          ? "No se pudo crear ninguna oportunidad. Inténtalo de nuevo."
+          : `No se pudieron crear ${fallos.length} de ${clientes.length}: ${fallos.join(", ")}`
+      );
+      // Aunque haya fallos parciales, refrescamos para reflejar las que sí se crearon
+      if (fallos.length < clientes.length) onCreated();
+      return;
+    }
+
+    onCreated();
   }
 
   if (step === "preguntar") {
@@ -216,7 +241,7 @@ export function ConfirmarCampanaModal({
           <button className={styles.btnSecondary} onClick={onClose} disabled={saving}>Cancelar</button>
           <button className={styles.btnPrimary} onClick={handleCrear} disabled={saving || !campanaId || !estadoId || clientes.length === 0}>
             {saving
-              ? "Guardando…"
+              ? (clientes.length > 1 ? `Guardando ${progreso}/${clientes.length}…` : "Guardando…")
               : clientes.length > 1
                 ? `Añadir ${clientes.length} oportunidades`
                 : "Añadir a campaña"}
