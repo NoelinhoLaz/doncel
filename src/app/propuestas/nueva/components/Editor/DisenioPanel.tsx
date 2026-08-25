@@ -69,23 +69,22 @@ export default function DisenioPanel({
           <div className={styles.editorSection}>
             <label className={styles.editorFieldLabel}>Columnas por fila</label>
             <div style={{ display: "flex", gap: 6 }}>
-              {[
-                { id: "2-cols", label: "2" },
-                { id: "3-cols", label: "3" },
-                { id: "4-cols", label: "4" },
-                { id: "5-cols", label: "5" },
-                { id: "6-cols", label: "6" },
-              ].map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  className={`${styles.previewBtn} ${(seccion.layout ?? "3-cols") === opt.id ? styles.saveBtn : ""}`}
-                  style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: (seccion.layout ?? "3-cols") === opt.id ? "#1e293b" : "#ffffff", color: (seccion.layout ?? "3-cols") === opt.id ? "#ffffff" : "#475569" }}
-                  onClick={() => onUpdate(seccion.uid, { layout: opt.id })}
-                >
-                  {opt.label}
-                </button>
-              ))}
+              {Array.from({ length: Math.max(seccion.columnas?.length ?? 1, 1) }).map((_, idx) => {
+                const n = idx + 1;
+                const id = `${n}-cols`;
+                const activo = (seccion.layout ?? `${seccion.columnas?.length || 3}-cols`) === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    className={`${styles.previewBtn} ${activo ? styles.saveBtn : ""}`}
+                    style={{ flex: 1, height: 32, padding: "0 8px", fontSize: "0.75rem", borderRadius: "0.4rem", background: activo ? "#1e293b" : "#ffffff", color: activo ? "#ffffff" : "#475569" }}
+                    onClick={() => onUpdate(seccion.uid, { layout: id })}
+                  >
+                    {n}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <SeccionDisenioRow seccion={seccion} onUpdate={onUpdate} anchoDefault="1200px" />

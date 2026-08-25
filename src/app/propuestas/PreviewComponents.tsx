@@ -2310,7 +2310,8 @@ export function PHTextoColumnas({
   ];
 
   const customMaxWidth = getResponsiveMaxWidth(anchoMax, mobile);
-  const colsPorFila = layout === "2-cols" ? 2 : layout === "4-cols" ? 4 : layout === "5-cols" ? 5 : layout === "6-cols" ? 6 : 3;
+  const colsPorFilaElegidas = layout === "1-cols" ? 1 : layout === "2-cols" ? 2 : layout === "3-cols" ? 3 : layout === "4-cols" ? 4 : layout === "5-cols" ? 5 : layout === "6-cols" ? 6 : displayCols.length;
+  const colsPorFila = Math.min(colsPorFilaElegidas, displayCols.length);
 
   return (
     <FondoWrapper colorFondo={colorFondo} imagenFondo={imagenFondo} imagenFondoOverlay={imagenFondoOverlay} altoSeccion={altoSeccion} canvasHeight={canvasHeight}>

@@ -30,25 +30,16 @@ export default function PHTextoColumnas({
   columnas?: { titulo?: string; texto?: string }[];
   anchoMax?: string;
 }) {
-  const colCount = layout === "2-cols" ? 2 : layout === "4-cols" ? 4 : 3;
-  const gridClass = mobile
-    ? styles.phCol1
-    : layout === "2-cols"
-    ? styles.phCol2
-    : layout === "4-cols"
-    ? styles.phCol4
-    : styles.phCol3;
-
   const defaultCols = [
     { titulo: "Columna 1", texto: ".- Elemento de ejemplo." },
     { titulo: "Columna 2", texto: ".- Elemento de ejemplo." },
-    { titulo: "Columna 3", texto: ".- Elemento de ejemplo." },
-    { titulo: "Columna 4", texto: ".- Elemento de ejemplo." }
+    { titulo: "Columna 3", texto: ".- Elemento de ejemplo." }
   ];
 
-  const displayCols = Array.from({ length: colCount }).map((_, idx) => {
-    return (columnas ?? [])[idx] || defaultCols[idx % defaultCols.length];
-  });
+  const displayCols = columnas && columnas.length > 0 ? columnas : defaultCols;
+  const colsPorFilaElegidas = layout === "1-cols" ? 1 : layout === "2-cols" ? 2 : layout === "3-cols" ? 3 : layout === "4-cols" ? 4 : layout === "5-cols" ? 5 : layout === "6-cols" ? 6 : displayCols.length;
+  const colCount = Math.min(colsPorFilaElegidas, displayCols.length);
+  const gridTemplateColumns = mobile ? "1fr" : `repeat(${colCount}, 1fr)`;
 
   const customMaxWidth = anchoMax === "900px" ? "min(900px, 46.875cqw)" : anchoMax === "1200px" ? "min(1200px, 62.5cqw)" : "min(1920px, 100cqw)";
 
@@ -61,7 +52,7 @@ export default function PHTextoColumnas({
           ) : (
             <div style={{ width: "35%", height: "18px", borderRadius: "9px", background: "#cbd5e1", margin: "0 0 4px 0" }} />
           )}
-          <div className={`${styles.phColumnasGrid} ${gridClass}`}>
+          <div className={styles.phColumnasGrid} style={{ gridTemplateColumns }}>
             {displayCols.map((c, i) => (
               <div key={i} className={styles.phColumnaCard}>
                 {c.titulo ? (
