@@ -471,14 +471,15 @@ export default function ClientesPage() {
         <AsignarEtiquetaMasivaModal
           entidadIds={filtered.map((c) => c.id)}
           onClose={() => setShowEtiquetaMasiva(false)}
-          onApplied={(etiqueta) => {
+          onApplied={(etiquetas) => {
             const idsFiltrados = new Set(filtered.map((c) => c.id));
             setClientes((prev) =>
-              prev.map((c) =>
-                idsFiltrados.has(c.id) && !c.etiquetas?.some((e) => e.id === etiqueta.id)
-                  ? { ...c, etiquetas: [...(c.etiquetas ?? []), etiqueta] }
-                  : c
-              )
+              prev.map((c) => {
+                if (!idsFiltrados.has(c.id)) return c;
+                const existentes = new Set((c.etiquetas ?? []).map((e) => e.id));
+                const nuevas = etiquetas.filter((e) => !existentes.has(e.id));
+                return nuevas.length > 0 ? { ...c, etiquetas: [...(c.etiquetas ?? []), ...nuevas] } : c;
+              })
             );
           }}
         />

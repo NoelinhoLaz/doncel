@@ -26,7 +26,7 @@ export default function AsignarEtiquetaMasivaModal({
 }: {
   entidadIds: string[];
   onClose: () => void;
-  onApplied: (etiqueta: Etiqueta) => void;
+  onApplied: (etiquetas: Etiqueta[]) => void;
 }) {
   const [scope, setScope] = useState<Scope>("agencia");
   const [disponibles, setDisponibles] = useState<Etiqueta[]>([]);
@@ -34,7 +34,8 @@ export default function AsignarEtiquetaMasivaModal({
   const [showNuevaEtiqueta, setShowNuevaEtiqueta] = useState(false);
   const [nuevoNombre, setNuevoNombre] = useState("");
   const [creando, setCreando] = useState(false);
-  const [aplicandoId, setAplicandoId] = useState<string | null>(null);
+  const [seleccionadas, setSeleccionadas] = useState<Etiqueta[]>([]);
+  const [aplicando, setAplicando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,21 +46,28 @@ export default function AsignarEtiquetaMasivaModal({
       .finally(() => setLoading(false));
   }, [scope]);
 
-  async function aplicarEtiqueta(etiqueta: Etiqueta) {
-    setAplicandoId(etiqueta.id);
+  function toggleSeleccion(etiqueta: Etiqueta) {
+    setSeleccionadas((prev) =>
+      prev.some((e) => e.id === etiqueta.id) ? prev.filter((e) => e.id !== etiqueta.id) : [...prev, etiqueta]
+    );
+  }
+
+  async function aplicarSeleccionadas() {
+    if (seleccionadas.length === 0) return;
+    setAplicando(true);
     setError(null);
     try {
-      await asignarEtiquetaMasiva(entidadIds, etiqueta.id);
-      onApplied(etiqueta);
+      await Promise.all(seleccionadas.map((e) => asignarEtiquetaMasiva(entidadIds, e.id)));
+      onApplied(seleccionadas);
       onClose();
     } catch (e: any) {
-      setError(e.message ?? "Error al asignar la etiqueta");
+      setError(e.message ?? "Error al asignar las etiquetas");
     } finally {
-      setAplicandoId(null);
+      setAplicando(false);
     }
   }
 
-  async function crearYAplicar() {
+  async function crearYSeleccionar() {
     if (!nuevoNombre.trim()) return;
     setCreando(true);
     setError(null);
@@ -71,9 +79,14 @@ export default function AsignarEtiquetaMasivaModal({
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Error al crear etiqueta");
-      await aplicarEtiqueta(json.data as Etiqueta);
+      const nueva = json.data as Etiqueta;
+      setDisponibles((prev) => [...prev, nueva]);
+      setSeleccionadas((prev) => [...prev, nueva]);
+      setNuevoNombre("");
+      setShowNuevaEtiqueta(false);
     } catch (e: any) {
       setError(e.message);
+    } finally {
       setCreando(false);
     }
   }
@@ -127,23 +140,24 @@ export default function AsignarEtiquetaMasivaModal({
                 <div style={{ padding: "0.5rem 0", color: "#94a3b8", fontStyle: "italic", fontSize: "0.82rem" }}>Sin etiquetas disponibles</div>
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: 220, overflowY: "auto" }}>
-                {disponibles.map((e) => (
-                  <button
-                    key={e.id}
-                    type="button"
-                    onClick={() => aplicarEtiqueta(e)}
-                    disabled={aplicandoId !== null}
-                    style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "0.5rem 0.6rem", border: "none", borderRadius: 8, background: "transparent", cursor: aplicandoId ? "default" : "pointer", textAlign: "left", color: "#1e293b", opacity: aplicandoId && aplicandoId !== e.id ? 0.5 : 1 }}
-                    onMouseEnter={(ev) => { if (!aplicandoId) ev.currentTarget.style.background = "#f8fafc"; }}
-                    onMouseLeave={(ev) => (ev.currentTarget.style.background = "transparent")}
-                  >
-                    <span style={{ width: 10, height: 10, borderRadius: "50%", background: e.color, flexShrink: 0 }} />
-                    <span style={{ flex: 1, fontSize: "0.85rem" }}>{e.nombre}</span>
-                    {aplicandoId === e.id && (
-                      <span style={{ fontSize: "0.72rem", color: "#94a3b8" }}>Aplicando…</span>
-                    )}
-                  </button>
-                ))}
+                {disponibles.map((e) => {
+                  const checked = seleccionadas.some((s) => s.id === e.id);
+                  return (
+                    <button
+                      key={e.id}
+                      type="button"
+                      onClick={() => toggleSeleccion(e)}
+                      disabled={aplicando}
+                      style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "0.5rem 0.6rem", border: "none", borderRadius: 8, background: checked ? "#f8fafc" : "transparent", cursor: aplicando ? "default" : "pointer", textAlign: "left", color: "#1e293b" }}
+                      onMouseEnter={(ev) => { if (!aplicando) ev.currentTarget.style.background = "#f8fafc"; }}
+                      onMouseLeave={(ev) => (ev.currentTarget.style.background = checked ? "#f8fafc" : "transparent")}
+                    >
+                      <input type="checkbox" checked={checked} readOnly style={{ margin: 0, cursor: "pointer" }} />
+                      <span style={{ width: 10, height: 10, borderRadius: "50%", background: e.color, flexShrink: 0 }} />
+                      <span style={{ flex: 1, fontSize: "0.85rem" }}>{e.nombre}</span>
+                    </button>
+                  );
+                })}
               </div>
 
               {!showNuevaEtiqueta ? (
@@ -164,9 +178,9 @@ export default function AsignarEtiquetaMasivaModal({
                     style={{ width: "100%", padding: "0.5rem 0.65rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.85rem", fontFamily: "inherit" }}
                   />
                   <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                    <button type="button" onClick={() => { setShowNuevaEtiqueta(false); setError(null); }} style={{ padding: "0.4rem 0.75rem", fontSize: "0.78rem", border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: "pointer", color: "#64748b" }}>Cancelar</button>
-                    <button type="button" onClick={crearYAplicar} disabled={creando || !nuevoNombre.trim()} style={{ padding: "0.4rem 0.75rem", fontSize: "0.78rem", border: "none", borderRadius: 8, background: "var(--primary-color, #475569)", color: "#fff", cursor: "pointer", opacity: creando || !nuevoNombre.trim() ? 0.6 : 1 }}>
-                      {creando ? "Creando…" : "Crear y aplicar"}
+                    <button type="button" onClick={() => { setShowNuevaEtiqueta(false); setNuevoNombre(""); setError(null); }} style={{ padding: "0.4rem 0.75rem", fontSize: "0.78rem", border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: "pointer", color: "#64748b" }}>Cancelar</button>
+                    <button type="button" onClick={crearYSeleccionar} disabled={creando || !nuevoNombre.trim()} style={{ padding: "0.4rem 0.75rem", fontSize: "0.78rem", border: "none", borderRadius: 8, background: "var(--primary-color, #475569)", color: "#fff", cursor: "pointer", opacity: creando || !nuevoNombre.trim() ? 0.6 : 1 }}>
+                      {creando ? "Creando…" : "Crear y seleccionar"}
                     </button>
                   </div>
                 </div>
@@ -175,6 +189,20 @@ export default function AsignarEtiquetaMasivaModal({
               {error && <p style={{ fontSize: "0.78rem", color: "#dc2626", margin: 0 }}>{error}</p>}
             </>
           )}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "0.85rem 1.5rem", borderTop: "1px solid #f1f5f9" }}>
+          <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
+            {seleccionadas.length === 0 ? "Ninguna etiqueta seleccionada" : `${seleccionadas.length} etiqueta${seleccionadas.length === 1 ? "" : "s"} seleccionada${seleccionadas.length === 1 ? "" : "s"}`}
+          </span>
+          <button
+            type="button"
+            onClick={aplicarSeleccionadas}
+            disabled={seleccionadas.length === 0 || aplicando}
+            style={{ padding: "0.5rem 1rem", fontSize: "0.82rem", fontWeight: 600, border: "none", borderRadius: 8, background: "var(--primary-color, #475569)", color: "#fff", cursor: seleccionadas.length === 0 || aplicando ? "default" : "pointer", opacity: seleccionadas.length === 0 || aplicando ? 0.5 : 1 }}
+          >
+            {aplicando ? "Aplicando…" : "Aplicar"}
+          </button>
         </div>
       </div>
     </div>
