@@ -4,33 +4,60 @@ import { getAgencyDbClient } from "@/lib/agencyDb";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const CLIENTE_SELECT = "id, nombre, email, telefono, direccion, agente_id, tipo_entidad, otros_tlfs, otros_emails, lat, lng, documento, fecha_nacimiento, created_at, tipo_cliente_id";
+const PAGE_SIZE = 1000;
+
+// Supabase/PostgREST limita cada respuesta a db.max_rows (por defecto 1000).
+// Con más entidades que ese límite, un simple .select() las trunca en
+// silencio (sin error), así que hay que paginar con .range() hasta agotar.
+async function fetchAllConRol(db: Awaited<ReturnType<typeof getAgencyDbClient>>) {
+  const all: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await db
+      .from("contabilidad_entidades")
+      .select(CLIENTE_SELECT)
+      .or("roles->>cliente.eq.true,roles->>organizacion.eq.true")
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    all.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return all;
+}
+
 export async function GET() {
   try {
     const db = await getAgencyDbClient();
 
     // Entidades con rol cliente/organizacion
-    const { data: conRol, error: e1 } = await db
-      .from("contabilidad_entidades")
-      .select("id, nombre, email, telefono, direccion, agente_id, tipo_entidad, otros_tlfs, otros_emails, lat, lng, documento, fecha_nacimiento, created_at, tipo_cliente_id")
-      .or("roles->cliente.eq.true,roles->organizacion.eq.true");
-
-    if (e1) throw e1;
+    const conRol = await fetchAllConRol(db);
 
     // Entidades que aparecen como entidad_id en oportunidades CRM (centros, colegios, etc.)
-    const { data: opRows, error: e2 } = await db
-      .from("crm_oportunidades")
-      .select("entidad_id")
-      .not("entidad_id", "is", null);
+    const opRows: any[] = [];
+    {
+      let from = 0;
+      while (true) {
+        const { data, error } = await db
+          .from("crm_oportunidades")
+          .select("entidad_id")
+          .not("entidad_id", "is", null)
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        opRows.push(...(data ?? []));
+        if (!data || data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+    }
 
-    if (e2) throw e2;
-
-    const crmIds = [...new Set((opRows ?? []).map((r: any) => r.entidad_id as string))];
+    const crmIds = [...new Set(opRows.map((r: any) => r.entidad_id as string))];
 
     let conCrm: any[] = [];
     if (crmIds.length > 0) {
       const { data, error: e3 } = await db
         .from("contabilidad_entidades")
-        .select("id, nombre, email, telefono, direccion, agente_id, tipo_entidad, otros_tlfs, otros_emails, lat, lng, documento, fecha_nacimiento, created_at, tipo_cliente_id")
+        .select(CLIENTE_SELECT)
         .in("id", crmIds);
       if (e3) throw e3;
       conCrm = data ?? [];
