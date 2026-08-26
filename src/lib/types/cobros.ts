@@ -5,6 +5,7 @@ export interface Pagador {
   importe_total: number;
   importe_abonado: number;
   estado: string;
+  justificante_path?: string | null;
   contabilidad_entidades?: { id: string; nombre: string; documento?: string } | null;
 }
 

@@ -3225,3 +3225,11 @@ CREATE TABLE IF NOT EXISTS agent_ai_tips (
 );
 
 CREATE INDEX IF NOT EXISTS idx_agent_ai_tips_agente_fecha ON agent_ai_tips(agente_id, fecha);
+
+-- ------------------------------------------------------------
+-- Justificante bancario del pagador (subido en el registro público
+-- cuando el método de pago es "Transferencia con justificante")
+-- ------------------------------------------------------------
+
+ALTER TABLE operativa_pagadores_expedientes
+  ADD COLUMN IF NOT EXISTS justificante_path TEXT;

@@ -79,6 +79,7 @@ async function getViajeBySlug(slug: string, domain: string | null): Promise<Viaj
     const formasPago: string[] = (data.formas_pago_aceptadas as string[]) ?? [];
     const LABELS: Record<string, string> = {
       Transferencia: "Transferencia bancaria",
+      "Transferencia con justificante": "Transferencia bancaria (con justificante)",
       "TPV virtual": "Tarjeta (TPV virtual)",
       "TPV fisico": "Tarjeta (TPV físico)",
       Efectivo: "Efectivo",
@@ -119,11 +120,25 @@ async function getAgencyBranding(domain: string | null): Promise<{ logoUrl: stri
   if (!domain) return { logoUrl: null, color: null };
   try {
     const supabase = createAdminServiceClient();
-    const { data } = await supabase
+
+    // Misma lógica de coincidencia que getAgencyDbClientByDomain (agencyDb.ts): dominio
+    // exacto, subdomain exacto, o subdominio implícito en el host (doncel.vercel.app -> doncel).
+    const parts = domain.split(".");
+    const potentialSubdomain = parts.length > 1 ? parts[0] : null;
+    const subdomainValues = [...new Set([domain, ...(potentialSubdomain ? [potentialSubdomain] : [])])];
+    const orFilter = [`dominio.eq.${domain}`, ...subdomainValues.map((v) => `subdomain.eq.${v}`)].join(",");
+
+    const { data: candidatos } = await supabase
       .from("agencias")
-      .select("logo_url, color_corporativo")
-      .eq("dominio", domain)
-      .single();
+      .select("logo_url, color_corporativo, subdomain, dominio")
+      .or(orFilter);
+
+    const data =
+      (candidatos ?? []).find((a: any) => a.dominio === domain) ??
+      (potentialSubdomain ? (candidatos ?? []).find((a: any) => a.subdomain === potentialSubdomain) : null) ??
+      (candidatos ?? []).find((a: any) => a.subdomain === domain) ??
+      null;
+
     return {
       logoUrl: data?.logo_url ?? null,
       color: data?.color_corporativo ?? null,

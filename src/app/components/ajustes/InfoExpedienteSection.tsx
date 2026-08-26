@@ -22,8 +22,9 @@ function DisplayValue({ value }: { value: any }) {
   return <span className={has ? s.displayVal : s.displayValEmpty}>{has ? value : "—"}</span>;
 }
 
-function MultiSelect({ label, options, selected, onChange }: {
+function MultiSelect({ label, options, selected, onChange, mutuallyExclusive }: {
   label: string; options: string[]; selected: string[]; onChange: (vals: string[]) => void;
+  mutuallyExclusive?: string[];
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -36,8 +37,17 @@ function MultiSelect({ label, options, selected, onChange }: {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const toggle = (val: string) =>
-    onChange(selected.includes(val) ? selected.filter(v => v !== val) : [...selected, val]);
+  const toggle = (val: string) => {
+    if (selected.includes(val)) {
+      onChange(selected.filter(v => v !== val));
+      return;
+    }
+    // Al marcar una opción del grupo excluyente, desmarca las demás del mismo grupo
+    const base = mutuallyExclusive?.includes(val)
+      ? selected.filter(v => !mutuallyExclusive.includes(v))
+      : selected;
+    onChange([...base, val]);
+  };
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
@@ -201,9 +211,10 @@ export default function InfoExpedienteSection({ form, setField, expediente, form
         <div style={{ gridColumn: "5 / span 2" }}>
           <MultiSelect
             label="Formas de pago aceptadas"
-            options={["Transferencia", "TPV virtual", "TPV fisico", "Efectivo", "Organizador"]}
+            options={["Transferencia", "Transferencia con justificante", "TPV virtual", "TPV fisico", "Efectivo", "Organizador"]}
             selected={formasPagoAceptadas}
             onChange={setFormasPagoAceptadas}
+            mutuallyExclusive={["Transferencia", "Transferencia con justificante"]}
           />
         </div>
 

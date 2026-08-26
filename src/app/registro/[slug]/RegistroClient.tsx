@@ -181,6 +181,7 @@ function ChatRegistro({
   const [pagadores, setPagadores] = useState<PagadorForm[]>([]);
   const [extras, setExtras] = useState<ExtraSeleccionado[]>([]);
   const [metodoPago, setMetodoPago] = useState("");
+  const [justificante, setJustificante] = useState<{ base64: string; mimeType: string; nombre: string } | null>(null);
   const [esMenor, setEsMenor] = useState(false);
   const [tipoDoc, setTipoDoc] = useState<"dni" | "pasaporte">("dni");
   const [viajeroOcr, setViajeroOcr] = useState(false);
@@ -655,6 +656,10 @@ function ChatRegistro({
   }
 
   async function handleConfirmar() {
+    if (metodoPago === "Transferencia con justificante" && !justificante) {
+      await addBotMessage("Necesito que adjuntes el justificante bancario para poder confirmar el registro.");
+      return;
+    }
     collapseLastWidget("Registro enviado");
 
     // Calcular plazos con importes reales
@@ -702,6 +707,7 @@ function ChatRegistro({
       pagadores,
       metodoPago,
       plazosCalculados,
+      justificante: justificante ? { base64: justificante.base64, mimeType: justificante.mimeType } : null,
     });
 
     if (result?.error) {
@@ -793,6 +799,8 @@ function ChatRegistro({
             extras={widget.extras}
             total={widget.total}
             metodoPago={widget.metodoPago}
+            justificante={justificante}
+            onJustificante={setJustificante}
             onIrFormaPago={handleIrFormaPago}
             onConfirmar={handleConfirmar}
           />
@@ -2060,6 +2068,20 @@ function WidgetFormaPago({
   );
 }
 
+const MIME_JUSTIFICANTE_PERMITIDOS = ["application/pdf", "image/jpeg", "image/png"];
+
+function leerArchivoComoBase64(file: File): Promise<{ base64: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve({ base64: result.split(",")[1] ?? "", mimeType: file.type });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function WidgetResumen({
   viaje,
   viajeros,
@@ -2067,6 +2089,8 @@ function WidgetResumen({
   extras,
   total,
   metodoPago,
+  justificante,
+  onJustificante,
   onIrFormaPago,
   onConfirmar,
 }: {
@@ -2076,9 +2100,38 @@ function WidgetResumen({
   extras: ExtraSeleccionado[];
   total: number;
   metodoPago: string;
+  justificante: { base64: string; mimeType: string; nombre: string } | null;
+  onJustificante: (j: { base64: string; mimeType: string; nombre: string } | null) => void;
   onIrFormaPago: (viajeros: ViajeroForm[], pagadores: PagadorForm[], extras: ExtraSeleccionado[], total: number) => void;
   onConfirmar: () => void;
 }) {
+  const [subiendoJustificante, setSubiendoJustificante] = useState(false);
+  const [errorJustificante, setErrorJustificante] = useState<string | null>(null);
+  const requiereJustificante = metodoPago === "Transferencia con justificante";
+
+  async function handleArchivoJustificante(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErrorJustificante(null);
+    if (!MIME_JUSTIFICANTE_PERMITIDOS.includes(file.type)) {
+      setErrorJustificante("Formato no permitido (solo PDF, JPG o PNG)");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorJustificante("El archivo supera el tamaño máximo (10MB)");
+      return;
+    }
+    setSubiendoJustificante(true);
+    try {
+      const { base64, mimeType } = await leerArchivoComoBase64(file);
+      onJustificante({ base64, mimeType, nombre: file.name });
+    } catch {
+      setErrorJustificante("Error al leer el archivo");
+    } finally {
+      setSubiendoJustificante(false);
+    }
+  }
+
   const labelPago = viaje.metodo_pago.find((m) => m.id === metodoPago)?.nombre ?? metodoPago;
   const importePorPagador = pagadores.length > 0 ? total / pagadores.length : 0;
   return (
@@ -2111,6 +2164,20 @@ function WidgetResumen({
           <p className={chatStyles.resumenValor}>{labelPago}</p>
         </div>
       )}
+      {requiereJustificante && (
+        <div className={chatStyles.resumenSeccion}>
+          <p className={chatStyles.resumenLabel}>Justificante bancario</p>
+          <input
+            type="file"
+            accept="application/pdf,image/jpeg,image/png"
+            onChange={handleArchivoJustificante}
+            disabled={subiendoJustificante}
+          />
+          {subiendoJustificante && <p className={chatStyles.resumenMeta}>Cargando…</p>}
+          {justificante && !subiendoJustificante && <p className={chatStyles.resumenMeta}>✓ {justificante.nombre}</p>}
+          {errorJustificante && <p className={chatStyles.resumenMeta} style={{ color: "#dc2626" }}>{errorJustificante}</p>}
+        </div>
+      )}
       <div className={chatStyles.resumenSeccion}>
         <p className={chatStyles.resumenLabel}><ShoppingBag size={10} /> Desglose económico</p>
         {viajeros.map((v, i) => {
@@ -2141,7 +2208,12 @@ function WidgetResumen({
         </div>
       </div>
       {metodoPago ? (
-        <button className={chatStyles.confirmarBtn} onClick={onConfirmar}>
+        <button
+          className={chatStyles.confirmarBtn}
+          onClick={onConfirmar}
+          disabled={requiereJustificante && !justificante}
+          style={requiereJustificante && !justificante ? { opacity: 0.5, cursor: "default" } : undefined}
+        >
           <Lock size={15} /> Finalizar y Enviar Registro Oficial
         </button>
       ) : (
@@ -2177,6 +2249,7 @@ function FormularioClasico({
   const [pagadores, setPagadores] = useState<PagadorForm[]>([{ ...PAGADOR_VACIO }]);
   const [extras, setExtras] = useState<ExtraSeleccionado[]>([]);
   const [metodoPago, setMetodoPago] = useState<string>("");
+  const [justificante, setJustificante] = useState<{ base64: string; mimeType: string; nombre: string } | null>(null);
   const [enviado, setEnviado] = useState(false);
   const [errores, setErrores] = useState<Record<string, string>>({});
 
@@ -2275,6 +2348,10 @@ function FormularioClasico({
 
   async function handleSubmit() {
     if (!metodoPago) { setErrores({ metodo_pago: "Selecciona un método de pago" }); return; }
+    if (metodoPago === "Transferencia con justificante" && !justificante) {
+      setErrores({ metodo_pago: "Sube el justificante bancario para continuar" });
+      return;
+    }
     const { submitRegistro } = await import("@/actions/portal");
     const numViajeros = viajeros.length || 1;
     const totalExtras = viajeros.reduce(
@@ -2319,6 +2396,7 @@ function FormularioClasico({
       pagadores,
       metodoPago,
       plazosCalculados,
+      justificante: justificante ? { base64: justificante.base64, mimeType: justificante.mimeType } : null,
     });
     setEnviado(true);
   }
@@ -2393,7 +2471,7 @@ function FormularioClasico({
           <PasoExtras viaje={viaje} viajeros={viajeros} extras={extras} toggleExtra={toggleExtra} extraSeleccionado={(id) => extras.some((e) => e.id === id)} pvpTotal={subtotalViajeros} />
         )}
         {paso === "resumen" && (
-          <PasoResumen viaje={viaje} viajeros={viajeros} pagadores={pagadores} extras={extras} subtotalViajeros={subtotalViajeros} subtotalExtras={subtotalExtras} total={total} metodoPago={metodoPago} setMetodoPago={setMetodoPago} errores={errores} />
+          <PasoResumen viaje={viaje} viajeros={viajeros} pagadores={pagadores} extras={extras} subtotalViajeros={subtotalViajeros} subtotalExtras={subtotalExtras} total={total} metodoPago={metodoPago} setMetodoPago={setMetodoPago} justificante={justificante} setJustificante={setJustificante} errores={errores} />
         )}
       </div>
 
@@ -2600,11 +2678,39 @@ function PasoExtras({ viaje, viajeros, extras, toggleExtra, extraSeleccionado, p
   );
 }
 
-function PasoResumen({ viaje, viajeros, pagadores, extras, subtotalViajeros, subtotalExtras, total, metodoPago, setMetodoPago, errores }: {
+function PasoResumen({ viaje, viajeros, pagadores, extras, subtotalViajeros, subtotalExtras, total, metodoPago, setMetodoPago, justificante, setJustificante, errores }: {
   viaje: ViajeInfo; viajeros: ViajeroForm[]; pagadores: PagadorForm[]; extras: ExtraSeleccionado[];
   subtotalViajeros: number; subtotalExtras: number; total: number;
-  metodoPago: string; setMetodoPago: (m: string) => void; errores: Record<string, string>;
+  metodoPago: string; setMetodoPago: (m: string) => void;
+  justificante: { base64: string; mimeType: string; nombre: string } | null;
+  setJustificante: (j: { base64: string; mimeType: string; nombre: string } | null) => void;
+  errores: Record<string, string>;
 }) {
+  const [subiendoJustificante, setSubiendoJustificante] = useState(false);
+  const [errorJustificante, setErrorJustificante] = useState<string | null>(null);
+
+  async function handleArchivoJustificante(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErrorJustificante(null);
+    if (!MIME_JUSTIFICANTE_PERMITIDOS.includes(file.type)) {
+      setErrorJustificante("Formato no permitido (solo PDF, JPG o PNG)");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorJustificante("El archivo supera el tamaño máximo (10MB)");
+      return;
+    }
+    setSubiendoJustificante(true);
+    try {
+      const { base64, mimeType } = await leerArchivoComoBase64(file);
+      setJustificante({ base64, mimeType, nombre: file.name });
+    } catch {
+      setErrorJustificante("Error al leer el archivo");
+    } finally {
+      setSubiendoJustificante(false);
+    }
+  }
   return (
     <section>
       <h2 className={styles.pasoTitulo}>Resumen y método de pago</h2>
@@ -2663,6 +2769,21 @@ function PasoResumen({ viaje, viajeros, pagadores, extras, subtotalViajeros, sub
             </button>
           ))}
         </div>
+        {metodoPago === "Transferencia con justificante" && (
+          <div style={{ marginTop: "1rem" }}>
+            <h3 className={styles.resumenSubtitulo}>Justificante bancario</h3>
+            <p className={styles.resumenMeta}>Adjunta el justificante de la transferencia para completar el registro.</p>
+            <input
+              type="file"
+              accept="application/pdf,image/jpeg,image/png"
+              onChange={handleArchivoJustificante}
+              disabled={subiendoJustificante}
+            />
+            {subiendoJustificante && <p className={styles.resumenMeta}>Cargando…</p>}
+            {justificante && !subiendoJustificante && <p className={styles.resumenMeta}>✓ {justificante.nombre}</p>}
+            {errorJustificante && <p className={styles.errorMsg}>{errorJustificante}</p>}
+          </div>
+        )}
       </div>
     </section>
   );

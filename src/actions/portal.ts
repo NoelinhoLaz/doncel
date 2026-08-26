@@ -8,6 +8,13 @@ import { upsertEntidad as upsertEntidadShared } from "@/lib/entidades/upsertEnti
 
 const COOKIE_NAME = "portal_session";
 
+const MIME_A_EXT_JUSTIFICANTE: Record<string, string> = {
+  "application/pdf": "pdf",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+};
+const MAX_JUSTIFICANTE_BYTES = 10 * 1024 * 1024;
+
 export async function validateEmailDni(email: string, dni: string) {
   const emailTrimmed = email.trim().toLowerCase();
   const dniTrimmed = dni.trim().toUpperCase();
@@ -471,11 +478,13 @@ export async function submitRegistro(payload: {
   }[];
   metodoPago: string;
   plazosCalculados: { descripcion: string; fecha: string; importeCalculado: number }[];
+  justificante?: { base64: string; mimeType: string } | null;
 }) {
   try {
     const agency = await (await import("@/lib/agencyDb")).getAgencyDbClientByDomain(payload.domain);
     if (!agency) return { error: "Agencia no encontrada" };
     const agencyDb = agency.db;
+    const schemaName = agency.schemaName;
 
     const { data: exp, error: expError } = await agencyDb
       .from("operativa_expedientes")
@@ -708,7 +717,29 @@ export async function submitRegistro(payload: {
         .eq("entidad_id", pagId)
         .maybeSingle();
 
+      // El justificante bancario (si aplica) se asocia solo al pagador principal
+      async function subirJustificanteSiCorresponde(pagadorExpedienteId: string) {
+        if (i !== 0 || !payload.justificante) return;
+        const extension = MIME_A_EXT_JUSTIFICANTE[payload.justificante.mimeType];
+        if (!extension) return;
+        const buffer = Buffer.from(payload.justificante!.base64, "base64");
+        if (buffer.byteLength > MAX_JUSTIFICANTE_BYTES) return;
+        try {
+          const { subirJustificantePago } = await import("@/lib/documentos/storage");
+          const { storage_path } = await subirJustificantePago(
+            agencyDb, schemaName, buffer, payload.justificante!.mimeType, pagadorExpedienteId, extension
+          );
+          await agencyDb
+            .from("operativa_pagadores_expedientes")
+            .update({ justificante_path: storage_path })
+            .eq("id", pagadorExpedienteId);
+        } catch (err) {
+          console.error("[submitRegistro] Error subiendo justificante:", err);
+        }
+      }
+
       if (existingPag) {
+        await subirJustificanteSiCorresponde(existingPag.id);
         await agencyDb
           .from("operativa_pagadores_expedientes")
           .update({
@@ -718,7 +749,7 @@ export async function submitRegistro(payload: {
           })
           .eq("id", existingPag.id);
       } else {
-        await agencyDb
+        const { data: insertedPag } = await agencyDb
           .from("operativa_pagadores_expedientes")
           .insert({
             expediente_id: exp.id,
@@ -726,7 +757,11 @@ export async function submitRegistro(payload: {
             importe_total: parteImporteTotal,
             plazos: plazosJsonbPagador,
             estado: "pendiente",
-          });
+          })
+          .select("id")
+          .single();
+
+        if (insertedPag?.id) await subirJustificanteSiCorresponde(insertedPag.id);
       }
     }
 

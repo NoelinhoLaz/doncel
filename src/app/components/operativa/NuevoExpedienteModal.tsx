@@ -109,7 +109,7 @@ export default function NuevoExpedienteModal({ isOpen, onClose, onSuccess, exped
           <div className={s.formasPagoSection}>
             <span className={s.fieldLabel}>Formas de Pago Aceptadas</span>
             <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", paddingTop: "0.25rem" }}>
-              {["Transferencia", "Tarjeta", "Efectivo"].map((method) => (
+              {["Transferencia", "Transferencia con justificante", "Tarjeta", "Efectivo"].map((method) => (
                 <label key={method} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "#334155", cursor: "pointer" }}>
                   <input type="checkbox" checked={h.formasPagoAceptadas.includes(method)} onChange={() => h.handleCheckboxChange(method)} style={{ width: "16px", height: "16px", accentColor: "var(--primary-color, #475569)" }} disabled={h.loading} />
                   <span>{method}</span>

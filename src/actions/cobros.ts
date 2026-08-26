@@ -353,3 +353,27 @@ export async function registrarCobroOficina(payload: {
     return { success: false, error: error.message };
   }
 }
+
+export async function getUrlJustificantePago(pagadorExpedienteId: string) {
+  try {
+    const { getAgencyContext } = await import("@/lib/agencyDb");
+    const { getUrlFirmadaJustificantePago } = await import("@/lib/documentos/storage");
+    const { schemaName } = await getAgencyContext();
+    const agencyDb = await getAgencyDbClient();
+
+    const { data: pagador, error } = await agencyDb
+      .from("operativa_pagadores_expedientes")
+      .select("justificante_path")
+      .eq("id", pagadorExpedienteId)
+      .single();
+    if (error) throw error;
+    if (!pagador?.justificante_path) return { error: "Este pagador no tiene justificante" };
+
+    const url = await getUrlFirmadaJustificantePago(agencyDb, schemaName, pagador.justificante_path);
+    if (!url) return { error: "No se pudo generar el enlace del justificante" };
+    return { url };
+  } catch (error: any) {
+    console.error("Failed to get justificante url:", error.message);
+    return { error: error.message || "Error al obtener el justificante" };
+  }
+}

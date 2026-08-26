@@ -153,8 +153,16 @@ export function useNuevoExpediente(
     } finally { setLoading(false); }
   };
 
+  const TRANSFERENCIA_EXCLUYENTE = ["Transferencia", "Transferencia con justificante"];
+
   const handleCheckboxChange = (method: string) => {
-    setFormasPagoAceptadas(prev => prev.includes(method) ? prev.filter(m => m !== method) : [...prev, method]);
+    setFormasPagoAceptadas(prev => {
+      if (prev.includes(method)) return prev.filter(m => m !== method);
+      const base = TRANSFERENCIA_EXCLUYENTE.includes(method)
+        ? prev.filter(m => !TRANSFERENCIA_EXCLUYENTE.includes(m))
+        : prev;
+      return [...base, method];
+    });
   };
 
   const handleSavePlazo = (e: React.FormEvent) => {

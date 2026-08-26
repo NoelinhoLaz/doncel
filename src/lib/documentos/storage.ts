@@ -110,3 +110,41 @@ export async function getUrlFirmadaDocumentoViajero(
   return data?.signedUrl ?? ''
 }
 
+/**
+ * Sube el justificante bancario de un pagador (registro público, "Transferencia
+ * con justificante") a un bucket privado namespaced por schema. Solo se guarda
+ * el path; la visualización se hace con signed URLs de vida corta.
+ */
+export async function subirJustificantePago(
+  db: SupabaseClient<any, any, any>,
+  schemaName: string,
+  buffer: Buffer,
+  contentType: string,
+  pagadorExpedienteId: string,
+  extension: string
+): Promise<{ storage_path: string }> {
+  const bucket = bucketNameForSchema('documentos-justificante', schemaName)
+  const path = `${pagadorExpedienteId}/justificante-${Date.now()}.${extension}`
+
+  await db.storage.createBucket(bucket, { public: false, fileSizeLimit: 10 * 1024 * 1024 }).catch(() => {})
+
+  const { error } = await db.storage.from(bucket).upload(path, buffer, { contentType, upsert: true })
+  if (error) throw new Error(`STORAGE_ERROR: ${error.message}`)
+
+  return { storage_path: path }
+}
+
+/**
+ * Genera una signed URL de vida corta para el justificante bancario de un pagador.
+ */
+export async function getUrlFirmadaJustificantePago(
+  db: SupabaseClient<any, any, any>,
+  schemaName: string,
+  storagePath: string,
+  ttlSeconds = 300
+): Promise<string> {
+  const bucket = bucketNameForSchema('documentos-justificante', schemaName)
+  const { data } = await db.storage.from(bucket).createSignedUrl(storagePath, ttlSeconds)
+  return data?.signedUrl ?? ''
+}
+

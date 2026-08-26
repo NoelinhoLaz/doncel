@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment } from "react";
-import { Landmark, Megaphone } from "lucide-react";
+import { Fragment, useState } from "react";
+import { createPortal } from "react-dom";
+import { Landmark, Megaphone, Paperclip } from "lucide-react";
 import { Icons } from "@/lib/icons";
 import Pagination from "@/app/components/Pagination";
 import PlazoDots from "./PlazoDots";
@@ -9,6 +10,65 @@ import { isValidSpanishNifCif } from "@/lib/utils/validation";
 import { formatEuro } from "@/lib/utils/currency";
 import type { Pagador, MovimientoCobro } from "@/lib/types/cobros";
 import styles from "@/app/expedientes/[id]/page.module.css";
+import { getUrlJustificantePago } from "@/actions/cobros";
+
+function JustificanteBadge({ pagadorId }: { pagadorId: string }) {
+  const [hover, setHover] = useState(false);
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const [cargando, setCargando] = useState(false);
+
+  async function abrirJustificante() {
+    setCargando(true);
+    try {
+      const res = await getUrlJustificantePago(pagadorId);
+      if (res.url) window.open(res.url, "_blank", "noopener,noreferrer");
+      else alert(res.error || "No se pudo abrir el justificante");
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  return (
+    <span style={{ position: "relative", display: "inline-block", marginLeft: "0.35rem" }}>
+      <span
+        onMouseEnter={(e) => {
+          setHover(true);
+          const rect = (e.target as HTMLElement).getBoundingClientRect();
+          setPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+        }}
+        onMouseLeave={() => setHover(false)}
+        style={{ display: "inline-flex", alignItems: "center", cursor: "pointer", color: "#2563eb" }}
+      >
+        <Paperclip size={14} />
+      </span>
+      {hover && pos && typeof document !== "undefined" && createPortal(
+        <div
+          style={{
+            position: "fixed", top: pos.top, right: pos.right, zIndex: 9500,
+            background: "#1e293b", color: "#f1f5f9", borderRadius: "0.5rem",
+            boxShadow: "0 10px 25px -5px rgba(0,0,0,0.25)", padding: "0.4rem",
+          }}
+          onMouseEnter={() => setHover(true)}
+          onMouseLeave={() => setHover(false)}
+        >
+          <button
+            type="button"
+            onClick={abrirJustificante}
+            disabled={cargando}
+            style={{
+              background: "transparent", border: "none", color: "#f1f5f9", fontSize: "0.72rem",
+              fontWeight: 600, cursor: cargando ? "default" : "pointer", padding: "0.3rem 0.5rem",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {cargando ? "Abriendo…" : "Mostrar justificante"}
+          </button>
+        </div>,
+        document.body
+      )}
+    </span>
+  );
+}
 
 interface Props {
   paginatedData: Pagador[];
@@ -721,6 +781,7 @@ export default function TablaPagadores({
                       <span className={`${styles.statusTag} ${item.estado === "completado" ? styles.statusSuccess : item.estado === "parcial" ? styles.statusParcial : styles.statusPending}`}>
                         {item.estado === "completado" ? "pagado" : item.estado}
                       </span>
+                      {item.justificante_path && <JustificanteBadge pagadorId={item.id} />}
                     </td>
                   </tr>
 
