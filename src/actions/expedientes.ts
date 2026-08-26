@@ -178,6 +178,24 @@ export async function updateExpediente(id: string, payload: {
     const { data: { user }, error: userError } = await adminSupabase.auth.getUser();
     if (userError || !user) throw new Error("No hay usuario autenticado.");
 
+    // operativa_expedientes.plazos es un único JSONB compartido por plazos de cobro
+    // (tipo "pago"/sin tipo) y plazos de cancelación (tipo "cancelacion"). Distintos
+    // formularios solo conocen/editan un subconjunto de tipos — para que ninguno pueda
+    // borrar por accidente los tipos que no gestiona, se fusiona aquí por tipo contra lo
+    // que ya hay en BD en lugar de confiar en que el caller mande el array completo.
+    let plazosFinal = payload.plazos;
+    if (Array.isArray(payload.plazos)) {
+      const { data: actual } = await agencyDb
+        .from("operativa_expedientes")
+        .select("plazos")
+        .eq("id", id)
+        .single();
+      const plazosActuales: any[] = actual?.plazos || [];
+      const tiposEnviados = new Set(payload.plazos.map((p: any) => p.tipo || "pago"));
+      const preservados = plazosActuales.filter((p: any) => !tiposEnviados.has(p.tipo || "pago"));
+      plazosFinal = [...payload.plazos, ...preservados];
+    }
+
     const updatePayload: any = {
       referencia: payload.referencia,
       slug: payload.slug || null,
@@ -188,7 +206,7 @@ export async function updateExpediente(id: string, payload: {
       tipo_expediente: payload.tipo_expediente,
       forma_pago: payload.forma_pago,
       formas_pago_aceptadas: payload.formas_pago_aceptadas,
-      plazos: payload.plazos,
+      plazos: plazosFinal,
       servicios_opcionales: payload.servicios_opcionales || null,
       genera_apunte: payload.genera_apunte,
       apuntes_desde: payload.apuntes_desde || null,
