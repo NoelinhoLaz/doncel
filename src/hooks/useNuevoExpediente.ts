@@ -73,7 +73,7 @@ export function useNuevoExpediente(
     setTipoExpediente(expedienteToEdit.tipo_expediente || "vacacional");
     setFormaPago(expedienteToEdit.forma_pago || "un_pagador");
     setFormasPagoAceptadas(expedienteToEdit.formas_pago_aceptadas || ["Transferencia"]);
-    setPlazos((expedienteToEdit.plazos || []).map((p: any) => ({ id: crypto.randomUUID(), fecha: p.fecha, importe: Number(p.importe || 0) })));
+    setPlazos((expedienteToEdit.plazos || []).filter((p: any) => !p.tipo || p.tipo === "pago").map((p: any) => ({ id: crypto.randomUUID(), fecha: p.fecha, importe: Number(p.importe || 0) })));
     setGeneraApunte(expedienteToEdit.genera_apunte ?? false);
     setContactoId(expedienteToEdit.entidad_id || "");
     setSearchContacto(""); setSearchDestino(""); setPlacesQuery(""); setPlacesSuggestions([]); setShowPlacesPanel(false);
@@ -192,12 +192,16 @@ export function useNuevoExpediente(
     if (!destinoPrincipal.trim()) { alert("Por favor, introduce un destino principal."); return; }
     setLoading(true);
     try {
+      // Este formulario solo gestiona plazos de pago simples (fecha/importe). Los plazos
+      // de cancelación y cualquier metadata adicional de pago (descripcion) se configuran
+      // desde el panel de Ajustes (useAjustes.ts) y deben preservarse aquí, no sobrescribirse.
+      const otrosPlazos = (expedienteToEdit?.plazos || []).filter((p: any) => p.tipo === "cancelacion");
       const payload: any = {
         referencia, destino_principal: destinoPrincipal, entidad_id: contactoId || null,
         fecha_inicio: fechaInicio || null, fecha_fin: fechaFin || null,
         tipo_expediente: tipoExpediente, forma_pago: formaPago,
         formas_pago_aceptadas: formasPagoAceptadas,
-        plazos: plazos.map(p => ({ fecha: p.fecha, importe: p.importe })),
+        plazos: [...plazos.map(p => ({ tipo: "pago", fecha: p.fecha, importe: p.importe })), ...otrosPlazos],
         genera_apunte: generaApunte,
       };
       if (numero.trim()) payload.numero = numero.trim();
