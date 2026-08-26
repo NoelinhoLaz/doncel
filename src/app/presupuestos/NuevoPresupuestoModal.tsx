@@ -314,6 +314,8 @@ interface Props {
   pageMode?: boolean;
 }
 
+const QUINCENA_OPTS = ["1Q Sept", "2Q Sept", "1Q Oct", "2Q Oct", "1Q Nov", "2Q Nov", "1Q Dic"];
+
 const ENFOQUE_OPTS = [
   { value: "cultural",      label: "Cultural",      icon: <Icons.Book size={14} /> },
   { value: "deportivo",     label: "Deportivo",     icon: <Icons.Flag size={14} /> },
@@ -431,6 +433,8 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
   const [noches, setNoches] = useState("");
   const [pvp, setPvp] = useState("");
   const [notasIniciales, setNotasIniciales] = useState("");
+  const [cuandoDeciden, setCuandoDeciden] = useState("");
+  const [cuandoCierran, setCuandoCierran] = useState("");
 
   // -- PASO 3: Preferencias ---------------------------------------------------
   const [enfoques, setEnfoques] = useState<string[]>([]);
@@ -533,6 +537,8 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
     setNotasIniciales(p.notas_iniciales || "");
     // Paso 3
     const pref = p.preferencias ?? {};
+    setCuandoDeciden(pref.cuando_deciden || "");
+    setCuandoCierran(pref.cuando_cierran || "");
     const ef = pref.enfoque_viaje;
     setEnfoques(Array.isArray(ef) ? ef : ef ? [ef] : []);
     const aloj = pref.alojamiento ?? {};
@@ -634,6 +640,8 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
       } : null;
 
       const preferencias = {
+        cuando_deciden: cuandoDeciden || null,
+        cuando_cierran: cuandoCierran || null,
         enfoque_viaje: enfoques.length > 0 ? enfoques : null,
         aconsejamos_destino: aconsejamosDestino,
         viajaron_ano_pasado: viajaronAnoPasado,
@@ -1323,6 +1331,28 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
                     <option value="1">+/- 1 dia</option>
                     <option value="2">+/- 2 dias</option>
                     <option value="5">+/- 5 dias</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Cuando deciden / Cuando cierran */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                <div>
+                  <FL text="Cuando deciden" />
+                  <select value={cuandoDeciden} onChange={e => setCuandoDeciden(e.target.value)} style={inp}>
+                    <option value="">- sin definir -</option>
+                    {QUINCENA_OPTS.map(q => (
+                      <option key={q} value={q}>{q}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <FL text="Cuando cierran" />
+                  <select value={cuandoCierran} onChange={e => setCuandoCierran(e.target.value)} style={inp}>
+                    <option value="">- sin definir -</option>
+                    {QUINCENA_OPTS.map(q => (
+                      <option key={q} value={q}>{q}</option>
+                    ))}
                   </select>
                 </div>
               </div>
