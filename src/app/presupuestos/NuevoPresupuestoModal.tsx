@@ -322,6 +322,8 @@ const ENFOQUE_OPTS = [
   { value: "naturaleza",    label: "Naturaleza",    icon: <Icons.Mountain size={14} /> },
   { value: "esqui",         label: "Esqui",         icon: <Icons.Mountain size={14} /> },
   { value: "intercambio",   label: "Intercambio",   icon: <Icons.Viajeros size={14} /> },
+  { value: "aventura",      label: "Aventura",      icon: <Icons.Mountain size={14} /> },
+  { value: "actividades",   label: "Actividades",   icon: <Icons.Flag size={14} /> },
 ];
 
 const REGIMEN_OPTS = [
