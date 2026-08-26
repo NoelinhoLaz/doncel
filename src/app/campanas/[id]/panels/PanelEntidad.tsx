@@ -851,6 +851,8 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                       ciudad: entidadLocal.direccion?.ciudad ?? entidadLocal.direccion?.localidad ?? "",
                       provincia: entidadLocal.direccion?.provincia ?? "",
                       cp: entidadLocal.direccion?.cp ?? entidadLocal.direccion?.codigo_postal ?? "",
+                      lat: entidadLocal.lat ?? null,
+                      lng: entidadLocal.lng ?? null,
                     });
                     setEditingEntidad(true);
                   }}
