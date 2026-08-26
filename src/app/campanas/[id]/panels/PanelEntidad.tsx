@@ -208,6 +208,8 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
     ciudad: typeof entidad?.direccion === "string" ? "" : (entidad?.direccion?.ciudad ?? ""),
     provincia: typeof entidad?.direccion === "string" ? "" : (entidad?.direccion?.provincia ?? ""),
     cp: typeof entidad?.direccion === "string" ? "" : (entidad?.direccion?.cp ?? ""),
+    lat: entidad?.lat ?? null as number | null,
+    lng: entidad?.lng ?? null as number | null,
   });
   const setEF = (k: keyof typeof entidadForm) => (e: React.ChangeEvent<HTMLInputElement>) => setEntidadForm(p => ({ ...p, [k]: e.target.value }));
 
@@ -260,6 +262,8 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
       ciudad: item.city || "",
       provincia: item.state || "",
       cp: item.postcode || p.cp,
+      lat: item.lat,
+      lng: item.lng,
     }));
     setDireccionQuery(display);
     setDireccionValidada(true);
@@ -267,7 +271,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
   }
 
   function limpiarDireccionEntidad() {
-    setEntidadForm(p => ({ ...p, direccion: "", ciudad: "", provincia: "" }));
+    setEntidadForm(p => ({ ...p, direccion: "", ciudad: "", provincia: "", lat: null, lng: null }));
     setDireccionValidada(false);
     setDireccionQuery("");
     setDireccionResultados([]);
@@ -406,6 +410,8 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
             provincia: entidadForm.provincia || null,
             cp: entidadForm.cp || null,
           },
+          lat: entidadForm.lat,
+          lng: entidadForm.lng,
         }),
       });
       const updated = {
@@ -416,6 +422,8 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
         email: entidadForm.email || null,
         otros_emails: entidadForm.otros_emails.filter(Boolean),
         direccion: { direccion: entidadForm.direccion || null, ciudad: entidadForm.ciudad || null, provincia: entidadForm.provincia || null, cp: entidadForm.cp || null },
+        lat: entidadForm.lat,
+        lng: entidadForm.lng,
       };
       setEntidadLocal(updated);
       onEntidadUpdated?.(updated);
