@@ -1,8 +1,19 @@
 "use server";
 
-import { getAgencyDbClient } from "@/lib/agencyDb";
+import { getAgencyDbClient, getAuthUserId } from "@/lib/agencyDb";
 import { getCurrentUsuario } from "@/actions/usuarios";
 import { SIN_AGENTE_ID } from "@/lib/filtrosClientes";
+
+async function getCurrentAgenteId(agencyDb: Awaited<ReturnType<typeof getAgencyDbClient>>) {
+  const authUserId = await getAuthUserId();
+  if (!authUserId) return null;
+  const { data } = await agencyDb
+    .from("crm_agentes")
+    .select("id")
+    .eq("auth_uid", authUserId)
+    .maybeSingle();
+  return data?.id ?? null;
+}
 
 export async function getEntidades() {
   try {
@@ -78,9 +89,10 @@ export async function createEntidad(nombre: string) {
     }
 
     const agencyDb = await getAgencyDbClient();
+    const agenteId = await getCurrentAgenteId(agencyDb);
     const { data, error } = await agencyDb
       .from("contabilidad_entidades")
-      .insert([{ nombre: nombre.trim() }])
+      .insert([{ nombre: nombre.trim(), agente_id: agenteId }])
       .select("id, nombre, documento, email")
       .single();
 
@@ -116,13 +128,15 @@ export async function createEntidadCompleta(payload: {
     }
 
     const agencyDb = await getAgencyDbClient();
+    const agenteId = await getCurrentAgenteId(agencyDb);
     const { data, error } = await agencyDb
       .from("contabilidad_entidades")
       .insert([{
         nombre: payload.nombre.trim(),
         email: payload.email?.trim() || null,
         direccion: payload.direccion || null,
-        roles: { contacto: true }
+        roles: { contacto: true },
+        agente_id: agenteId
       }])
       .select("id, nombre, documento, email")
       .single();
