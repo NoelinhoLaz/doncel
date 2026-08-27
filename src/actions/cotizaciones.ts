@@ -577,6 +577,23 @@ export async function updateCotizacionMeta(cotizacionId: string, payload: { titu
       .eq("id", cotizacionId);
     if (error) throw error;
 
+    // Propagar cambios de cabecera a las propuestas vinculadas
+    const { titulo, contacto, fecha_salida, fecha_regreso } = payload;
+    if (
+      titulo !== undefined ||
+      contacto !== undefined ||
+      fecha_salida !== undefined ||
+      fecha_regreso !== undefined
+    ) {
+      const { sincronizarCabeceraDesdeCotizacion } = await import("@/actions/propuestas");
+      await sincronizarCabeceraDesdeCotizacion(cotizacionId, {
+        titulo,
+        contacto,
+        fecha_salida,
+        fecha_regreso,
+      });
+    }
+
     if (payload.estado !== undefined) revalidatePath("/cotizaciones");
 
     // Si cambian plazas o fecha, recalcular métricas de todos los destinos de esta cotización
@@ -620,6 +637,9 @@ export async function addDestinoCotizacion(cotizacionId: string, destino: { id: 
       .eq("id", cotizacionId);
     if (error) throw error;
 
+    const { sincronizarCabeceraDesdeCotizacion } = await import("@/actions/propuestas");
+    await sincronizarCabeceraDesdeCotizacion(cotizacionId, { destinos: updated });
+
     return { success: true, destinos: updated };
   } catch (error: any) {
     console.error("Failed to add destino to cotizacion:", error.message);
@@ -644,6 +664,9 @@ export async function removeDestinoCotizacion(cotizacionId: string, destinoId: s
       .update({ destinos: updated })
       .eq("id", cotizacionId);
     if (error) throw error;
+
+    const { sincronizarCabeceraDesdeCotizacion } = await import("@/actions/propuestas");
+    await sincronizarCabeceraDesdeCotizacion(cotizacionId, { destinos: updated });
 
     return { success: true, destinos: updated };
   } catch (error: any) {

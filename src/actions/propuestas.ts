@@ -203,8 +203,51 @@ export async function unlinkCotizacionFromPropuesta(propuestaId: string) {
 }
 
 /**
+ * Propaga los cambios de cabecera de una cotización a todas sus propuestas
+ * vinculadas (título, contacto, fechas, destinos). Se llama desde
+ * updateCotizacionMeta / add/removeDestinoCotizacion en cotizaciones.ts.
+ * `cotFields` usa nombres de columna de operativa_cotizaciones.
+ */
+export async function sincronizarCabeceraDesdeCotizacion(
+  cotizacionId: string,
+  cotFields: {
+    titulo?: string;
+    contacto?: string | null;
+    fecha_salida?: string | null;
+    fecha_regreso?: string | null;
+    destinos?: { id: string; nombre: string }[];
+  }
+) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const propPayload: Record<string, any> = {};
+    if (cotFields.titulo !== undefined) propPayload.title = cotFields.titulo;
+    if (cotFields.contacto !== undefined) propPayload.contacto_id = cotFields.contacto;
+    if (cotFields.fecha_salida !== undefined) propPayload.fecha_salida = cotFields.fecha_salida;
+    if (cotFields.fecha_regreso !== undefined) propPayload.fecha_regreso = cotFields.fecha_regreso;
+    if (cotFields.destinos !== undefined) {
+      propPayload.destinos = cotFields.destinos;
+      propPayload.destination = cotFields.destinos.map((d) => d.nombre).join(", ");
+    }
+    if (Object.keys(propPayload).length === 0) return { success: true };
+
+    const { error } = await agencyDb
+      .from("operativa_propuestas")
+      .update(propPayload)
+      .eq("cotizacion_id", cotizacionId);
+    if (error) throw error;
+    revalidatePath("/propuestas");
+    return { success: true };
+  } catch (err: any) {
+    console.error("Failed to sync cabecera cotizacion -> propuestas:", err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
  * Actualiza metadatos de cabecera de una propuesta (título, contacto, destino y fechas),
  * análogo a updateCotizacionMeta en src/actions/cotizaciones.ts.
+ * Propaga los cambios equivalentes a la cotización vinculada (si la hay).
  */
 export async function updatePropuestaMeta(propuestaId: string, payload: {
   title?: string;
@@ -220,11 +263,56 @@ export async function updatePropuestaMeta(propuestaId: string, payload: {
       .update(payload)
       .eq("id", propuestaId);
     if (error) throw error;
+
+    await propagarCabeceraAPCotizacion(agencyDb, propuestaId, {
+      titulo: payload.title,
+      contacto: payload.contacto_id,
+      fecha_salida: payload.fecha_salida,
+      fecha_regreso: payload.fecha_regreso,
+    });
+
     revalidatePath("/propuestas");
+    revalidatePath("/cotizaciones");
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message };
   }
+}
+
+/**
+ * Escribe en la cotización vinculada a `propuestaId` los campos de cabecera
+ * equivalentes. Silencioso si la propuesta no tiene cotización.
+ */
+async function propagarCabeceraAPCotizacion(
+  agencyDb: any,
+  propuestaId: string,
+  cotFields: {
+    titulo?: string;
+    contacto?: string | null;
+    fecha_salida?: string | null;
+    fecha_regreso?: string | null;
+    destinos?: { id: string; nombre: string }[];
+  }
+) {
+  const payload: Record<string, any> = {};
+  if (cotFields.titulo !== undefined) payload.titulo = cotFields.titulo;
+  if (cotFields.contacto !== undefined) payload.contacto = cotFields.contacto;
+  if (cotFields.fecha_salida !== undefined) payload.fecha_salida = cotFields.fecha_salida;
+  if (cotFields.fecha_regreso !== undefined) payload.fecha_regreso = cotFields.fecha_regreso;
+  if (cotFields.destinos !== undefined) payload.destinos = cotFields.destinos;
+  if (Object.keys(payload).length === 0) return;
+
+  const { data: prop } = await agencyDb
+    .from("operativa_propuestas")
+    .select("cotizacion_id")
+    .eq("id", propuestaId)
+    .maybeSingle();
+  if (!prop?.cotizacion_id) return;
+
+  await agencyDb
+    .from("operativa_cotizaciones")
+    .update(payload)
+    .eq("id", prop.cotizacion_id);
 }
 
 /**
@@ -273,11 +361,14 @@ export async function addDestinoPropuesta(propuestaId: string, destino: { id: st
     const updated = [...existing, destino];
     const { error } = await agencyDb
       .from("operativa_propuestas")
-      .update({ destinos: updated })
+      .update({ destinos: updated, destination: updated.map((d: any) => d.nombre).join(", ") })
       .eq("id", propuestaId);
     if (error) throw error;
 
+    await propagarCabeceraAPCotizacion(agencyDb, propuestaId, { destinos: updated });
+
     revalidatePath("/propuestas");
+    revalidatePath("/cotizaciones");
     return { success: true, destinos: updated };
   } catch (error: any) {
     console.error("Failed to add destino to propuesta:", error.message);
@@ -300,11 +391,14 @@ export async function removeDestinoPropuesta(propuestaId: string, destinoId: str
     const updated = (current?.destinos || []).filter((d: any) => d.id !== destinoId);
     const { error } = await agencyDb
       .from("operativa_propuestas")
-      .update({ destinos: updated })
+      .update({ destinos: updated, destination: updated.map((d: any) => d.nombre).join(", ") })
       .eq("id", propuestaId);
     if (error) throw error;
 
+    await propagarCabeceraAPCotizacion(agencyDb, propuestaId, { destinos: updated });
+
     revalidatePath("/propuestas");
+    revalidatePath("/cotizaciones");
     return { success: true, destinos: updated };
   } catch (error: any) {
     console.error("Failed to remove destino from propuesta:", error.message);
@@ -955,8 +1049,15 @@ export async function guardarPropuesta({
       if (fechaRegreso !== undefined) updates.fecha_regreso = fechaRegreso;
       if (Object.keys(updates).length > 0) {
         await agencyDb.from("operativa_propuestas").update(updates).eq("id", propuestaId);
+        await propagarCabeceraAPCotizacion(agencyDb, propuestaId, {
+          titulo: updates.title,
+          contacto: updates.contacto_id,
+          fecha_salida: updates.fecha_salida,
+          fecha_regreso: updates.fecha_regreso,
+        });
       }
       revalidatePath("/propuestas");
+      revalidatePath("/cotizaciones");
       return { ok: true, id: propuestaId };
     }
 
