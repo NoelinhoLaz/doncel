@@ -861,6 +861,17 @@ export async function getEntityLinks(params: {
         .order("created_at", { ascending: true });
       linkedCotizaciones = cots || [];
 
+      // If we entered via a concrete cotizacion (e.g. from a propuesta or
+      // presupuesto), keep that one first so navigation targets it and not the
+      // oldest cotizacion of the expediente.
+      if (cotizacionId) {
+        const idx = linkedCotizaciones.findIndex((c) => c.id === cotizacionId);
+        if (idx > 0) {
+          const [target] = linkedCotizaciones.splice(idx, 1);
+          linkedCotizaciones.unshift(target);
+        }
+      }
+
       // Get propuestas linked through the cotizaciones of this expediente
       const cotIds = linkedCotizaciones.map((c) => c.id);
       if (cotIds.length > 0) {
@@ -873,9 +884,13 @@ export async function getEntityLinks(params: {
         }
       }
 
-      // Resolve presupuesto_id from cotizaciones if not already set
+      // Resolve presupuesto_id from cotizaciones if not already set.
+      // Prefer the presupuesto of the cotizacion we entered through.
       if (!presupuestoId) {
-        const cotWithPresup = linkedCotizaciones.find((c) => c.presupuesto_id);
+        const preferred = cotizacionId
+          ? linkedCotizaciones.find((c) => c.id === cotizacionId && c.presupuesto_id)
+          : null;
+        const cotWithPresup = preferred || linkedCotizaciones.find((c) => c.presupuesto_id);
         if (cotWithPresup) presupuestoId = cotWithPresup.presupuesto_id;
       }
     }

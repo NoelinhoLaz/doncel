@@ -679,7 +679,7 @@ export async function duplicateCotizacion(cotizacionId: string, vincularPropuest
 
     const { data: orig, error: e1 } = await agencyDb
       .from("operativa_cotizaciones")
-      .select("titulo, expediente_id, pvp_viajero, plazas, free, contacto, fecha_salida, fecha_regreso, destinos, suplementos, presupuesto_id, agente_id")
+      .select("titulo, pvp_viajero, plazas, free, contacto, fecha_salida, fecha_regreso, destinos, suplementos, agente_id")
       .eq("id", cotizacionId)
       .single();
     if (e1) throw e1;
@@ -690,7 +690,7 @@ export async function duplicateCotizacion(cotizacionId: string, vincularPropuest
       .from("operativa_cotizaciones")
       .insert([{
         titulo: `${orig.titulo || 'Cotización'} (copia)`,
-        expediente_id: orig.expediente_id || null,
+        expediente_id: null,
         pvp_viajero: orig.pvp_viajero,
         plazas: orig.plazas,
         free: orig.free,
@@ -699,7 +699,7 @@ export async function duplicateCotizacion(cotizacionId: string, vincularPropuest
         fecha_regreso: orig.fecha_regreso || null,
         destinos: orig.destinos || [],
         suplementos: orig.suplementos || null,
-        presupuesto_id: orig.presupuesto_id || null,
+        presupuesto_id: null,
         agente_id: agenteId,
       }])
       .select()

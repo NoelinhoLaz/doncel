@@ -131,6 +131,10 @@ export async function duplicarPropuesta(id: string, vincularCotizacion: boolean 
       const result = await duplicateCotizacion(prop.cotizacion_id, false);
       if (result.success && result.data) {
         newCotizacionId = result.data.id;
+      } else {
+        throw new Error(
+          `No se pudo duplicar la cotización vinculada: ${result.error || "error desconocido"}`
+        );
       }
     }
 
