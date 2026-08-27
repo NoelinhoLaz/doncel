@@ -63,10 +63,12 @@ export type CampanaHistorialRow = {
   valor_estimado: number;
   prioridad: number | null;
   agente_id: string | null;
+  estado_id: string | null;
   crm_campanas: {
     id: string; nombre: string; fecha_inicio: string | null; fecha_fin: string | null;
     crm_campanas_agentes?: { agente_id: string; crm_agentes: { id: string; nombre: string; apellidos: string; avatar_url: string | null } | null }[];
+    crm_campanas_estados?: { id: string; nombre: string; orden: number; color: string; es_ganado: boolean; es_final: boolean }[];
   } | null;
-  crm_campanas_estados: { nombre: string; color: string; es_ganado: boolean; es_final: boolean } | null;
+  crm_campanas_estados: { id: string; nombre: string; color: string; es_ganado: boolean; es_final: boolean } | null;
   crm_agentes: { id: string; nombre: string; apellidos: string; avatar_url?: string | null } | null;
 };

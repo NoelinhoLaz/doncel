@@ -919,8 +919,8 @@ export async function getEntidadHistorial(entidadId: string) {
   const { data, error } = await agencyDb
     .from("crm_oportunidades")
     .select(`
-      id, titulo, valor_estimado, prioridad, agente_id,
-      crm_campanas!campana_id(id, nombre, fecha_inicio, fecha_fin, crm_campanas_agentes(agente_id, crm_agentes!crm_campanas_agentes_agente_id_fkey(id, nombre, apellidos, avatar_url))),
+      id, titulo, valor_estimado, prioridad, agente_id, estado_id,
+      crm_campanas!campana_id(id, nombre, fecha_inicio, fecha_fin, crm_campanas_agentes(agente_id, crm_agentes!crm_campanas_agentes_agente_id_fkey(id, nombre, apellidos, avatar_url)), crm_campanas_estados(id, nombre, orden, color, es_ganado, es_final)),
       crm_campanas_estados!estado_id(id, nombre, color, es_ganado, es_final),
       crm_agentes!agente_id(id, nombre, apellidos, avatar_url)
     `)

@@ -11,6 +11,7 @@ import { apiFetch, initials } from "../utils";
 import styles from "../page.module.css";
 import { EtiquetasSelector } from "@/components/EtiquetasSelector";
 import { ConfirmarCampanaModal } from "../modals/ConfirmarCampanaModal";
+import { ModalCierreOportunidad } from "../modals/ModalCierreOportunidad";
 import { MiniPager, useMiniPager } from "@/components/panels/MiniPager";
 
 const EntidadMapaDynamic = dynamic(
@@ -159,6 +160,75 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
       console.error("Error al cambiar agente:", e);
       setHistorial(prev => prev.map(h => h.id !== row.id ? h : row));
     }
+  }
+
+  // Picker de estado en la fila de historial de campañas
+  const [estadoPickerRowId, setEstadoPickerRowId] = useState<string | null>(null);
+  const [estadoPickerPos, setEstadoPickerPos] = useState<{ top: number; left: number } | null>(null);
+  const estadoPickerRef = useRef<HTMLDivElement>(null);
+  const [pendingCierre, setPendingCierre] = useState<{ row: CampanaHistorialRow; estadoId: string } | null>(null);
+  const [savingCierre, setSavingCierre] = useState(false);
+
+  useEffect(() => {
+    if (!estadoPickerRowId) return;
+    function onDocClick(e: MouseEvent) {
+      if (estadoPickerRef.current && estadoPickerRef.current.contains(e.target as Node)) return;
+      setEstadoPickerRowId(null);
+      setEstadoPickerPos(null);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [estadoPickerRowId]);
+
+  async function aplicarEstadoHistorial(row: CampanaHistorialRow, estadoId: string, closureData?: any) {
+    const notas = closureData ? JSON.stringify(closureData) : undefined;
+    const nuevoEstado = row.crm_campanas?.crm_campanas_estados?.find(e => e.id === estadoId) ?? null;
+
+    if (closureData) {
+      try {
+        await apiFetch(`/api/crm/oportunidades/${row.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prioridad: closureData.prioridad ?? null,
+            valor_estimado: closureData.valorEstimado,
+          }),
+        });
+      } catch (e) { console.error(e); }
+    }
+
+    setHistorial(prev => prev.map(h => h.id !== row.id ? h : {
+      ...h,
+      estado_id: estadoId,
+      crm_campanas_estados: nuevoEstado
+        ? { id: nuevoEstado.id, nombre: nuevoEstado.nombre, color: nuevoEstado.color, es_ganado: nuevoEstado.es_ganado, es_final: nuevoEstado.es_final }
+        : h.crm_campanas_estados,
+      ...(closureData ? { prioridad: closureData.prioridad ?? null, valor_estimado: closureData.valorEstimado } : {}),
+    }));
+
+    try {
+      await apiFetch(`/api/crm/oportunidades/${row.id}/estado`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estado_id: estadoId, notas }),
+      });
+    } catch (e) {
+      console.error("Error al cambiar estado:", e);
+      if (entidad?.id) getEntidadHistorial(entidad.id).then(rows => setHistorial(rows as unknown as CampanaHistorialRow[])).catch(() => {});
+    }
+  }
+
+  async function handleHistorialEstadoChange(row: CampanaHistorialRow, estadoId: string) {
+    setEstadoPickerRowId(null);
+    setEstadoPickerPos(null);
+    if (estadoId === row.estado_id) return;
+    const targetEstado = row.crm_campanas?.crm_campanas_estados?.find(e => e.id === estadoId);
+    // Denegado / imposible cotizar → estado final no ganado: pedir motivo
+    if (targetEstado?.es_final && !targetEstado?.es_ganado) {
+      setPendingCierre({ row, estadoId });
+      return;
+    }
+    await aplicarEstadoHistorial(row, estadoId);
   }
 
   // Edición de entidad
@@ -1357,7 +1427,30 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                         </td>
                         <td style={td} title={h.crm_campanas?.nombre ?? ""}>{h.crm_campanas?.nombre ?? "—"}</td>
                         <td style={{ ...td, paddingLeft: "0.5rem" }}>
-                          {estado ? <span style={{ display: "inline-flex", alignItems: "center", height: 18, borderRadius: 99, background: estado.color, color: "#fff", fontSize: "0.62rem", fontWeight: 600, padding: "0 7px", whiteSpace: "nowrap" }}>{estado.nombre}</span> : "—"}
+                          {(h.crm_campanas?.crm_campanas_estados?.length ?? 0) > 0 ? (
+                            <span
+                              role="button"
+                              title="Cambiar estado"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (estadoPickerRowId === h.id) { setEstadoPickerRowId(null); setEstadoPickerPos(null); return; }
+                                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                setEstadoPickerPos({ top: rect.bottom + 6, left: rect.left });
+                                setEstadoPickerRowId(h.id);
+                              }}
+                              style={{
+                                display: "inline-flex", alignItems: "center", gap: 4, height: 18, borderRadius: 99,
+                                background: estado?.color ?? "#e2e8f0", color: estado ? "#fff" : "#64748b",
+                                fontSize: "0.62rem", fontWeight: 600, padding: "0 7px", whiteSpace: "nowrap", cursor: "pointer",
+                                outline: estadoPickerRowId === h.id ? "2px solid var(--primary-color, #475569)" : undefined, outlineOffset: 2,
+                              }}
+                            >
+                              {estado?.nombre ?? "Sin estado"}
+                              <ChevronDown size={10} />
+                            </span>
+                          ) : estado ? (
+                            <span style={{ display: "inline-flex", alignItems: "center", height: 18, borderRadius: 99, background: estado.color, color: "#fff", fontSize: "0.62rem", fontWeight: 600, padding: "0 7px", whiteSpace: "nowrap" }}>{estado.nombre}</span>
+                          ) : "—"}
                         </td>
                         <td style={{ ...td, textAlign: "center", paddingLeft: "0.5rem" }}>{h.prioridad ?? "—"}</td>
                         <td style={{ ...td, textAlign: "right", paddingLeft: "0.5rem" }}>{h.valor_estimado ? `${h.valor_estimado.toLocaleString("es-ES")} €` : "—"}</td>
@@ -1673,6 +1766,68 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
           </div>
         );
       })()}
+
+      {estadoPickerRowId && estadoPickerPos && (() => {
+        const row = historial.find(h => h.id === estadoPickerRowId);
+        if (!row) return null;
+        const estadosCampana = [...(row.crm_campanas?.crm_campanas_estados ?? [])].sort((a, b) => a.orden - b.orden);
+        if (estadosCampana.length === 0) return null;
+        return (
+          <div
+            ref={estadoPickerRef}
+            style={{
+              position: "fixed", top: estadoPickerPos.top, left: estadoPickerPos.left,
+              background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10,
+              boxShadow: "0 8px 32px rgba(15,23,42,0.14)", zIndex: 99999,
+              minWidth: 180, padding: "0.3rem 0", fontSize: "0.8rem", maxHeight: 320, overflowY: "auto",
+            }}
+          >
+            {estadosCampana.map(e => {
+              const isSelected = row.estado_id === e.id;
+              return (
+                <div
+                  key={e.id}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "0.4rem 0.85rem", cursor: "pointer",
+                    background: isSelected ? "color-mix(in srgb, var(--primary-color, #475569) 10%, white)" : undefined,
+                    fontWeight: isSelected ? 600 : 400, color: "#1e293b",
+                  }}
+                  onMouseEnter={ev => { if (!isSelected) (ev.currentTarget as HTMLDivElement).style.background = "#f8fafc"; }}
+                  onMouseLeave={ev => { if (!isSelected) (ev.currentTarget as HTMLDivElement).style.background = ""; }}
+                  onClick={() => handleHistorialEstadoChange(row, e.id)}
+                >
+                  <span style={{ width: 9, height: 9, borderRadius: 99, background: e.color, flexShrink: 0 }} />
+                  {e.nombre}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {pendingCierre && (
+        <ModalCierreOportunidad
+          onClose={() => setPendingCierre(null)}
+          saving={savingCierre}
+          oportunidad={{
+            nombre_centro: pendingCierre.row.titulo,
+            valor_estimado: pendingCierre.row.valor_estimado,
+            prioridad: pendingCierre.row.prioridad,
+          }}
+          onSave={async (data) => {
+            setSavingCierre(true);
+            try {
+              await aplicarEstadoHistorial(pendingCierre.row, pendingCierre.estadoId, data);
+            } catch (err) {
+              console.error(err);
+            } finally {
+              setSavingCierre(false);
+              setPendingCierre(null);
+            }
+          }}
+        />
+      )}
 
       {showConfirmDelete && (
         <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
