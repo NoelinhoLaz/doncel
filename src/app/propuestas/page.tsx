@@ -220,11 +220,7 @@ export default function PropuestasPage() {
   const stripHtml = (s: string) => s.replace(/<[^>]*>/g, "").replace(/\*\*/g, "").trim();
 
   const titulo = (p: Propuesta) => {
-    const content = p.landing?.editor_content;
-    if (!Array.isArray(content)) return p.title ?? "Sin título";
-    const portada = content.find((s: any) => s.tipo === "portada");
-    const raw = portada?.titulo ?? p.title ?? "Sin título";
-    return stripHtml(raw);
+    return stripHtml(p.title ?? "Sin título");
   };
 
   const secciones = (p: Propuesta) => {
