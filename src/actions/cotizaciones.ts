@@ -652,15 +652,38 @@ export async function removeDestinoCotizacion(cotizacionId: string, destinoId: s
   }
 }
 
-export async function deleteCotizacion(cotizacionId: string) {
+export async function deleteCotizacion(
+  cotizacionId: string,
+  eliminarPropuestas: boolean = false
+) {
   try {
     const agencyDb = await getAgencyDbClient();
     await assertPuedeEditarCotizacion(agencyDb, cotizacionId);
+
+    if (eliminarPropuestas) {
+      const { data: props } = await agencyDb
+        .from("operativa_propuestas")
+        .select("id")
+        .eq("cotizacion_id", cotizacionId);
+      const propIds = (props || []).map((p: any) => p.id);
+      if (propIds.length > 0) {
+        await agencyDb.from("landings").delete().in("proposal_id", propIds);
+        await agencyDb.from("operativa_propuestas").delete().in("id", propIds);
+      }
+    } else {
+      // Keep propuestas but detach them from this cotizacion
+      await agencyDb
+        .from("operativa_propuestas")
+        .update({ cotizacion_id: null })
+        .eq("cotizacion_id", cotizacionId);
+    }
+
     // Lines deleted by cascade if FK is set; delete explicitly to be safe
     await agencyDb.from("operativa_cotizacion_lineas").delete().eq("cotizacion_id", cotizacionId);
     const { error } = await agencyDb.from("operativa_cotizaciones").delete().eq("id", cotizacionId);
     if (error) throw error;
     revalidatePath("/cotizaciones");
+    revalidatePath("/propuestas");
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message || String(error) };

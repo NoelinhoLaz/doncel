@@ -33,7 +33,7 @@ export default function CotizacionesPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [duplicating, setDuplicating] = useState<string | null>(null);
   const [duplicarModal, setDuplicarModal] = useState<string | null>(null);
-  const [deleteModal, setDeleteModal] = useState<{ id: string; titulo: string } | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ id: string; titulo: string; tienePropuestas: boolean } | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [selectedLineIds, setSelectedLineIds] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
@@ -639,18 +639,19 @@ export default function CotizacionesPage() {
     }
   };
 
-  const handleDelete = (e: React.MouseEvent, id: string, titulo: string) => {
+  const handleDelete = async (e: React.MouseEvent, id: string, titulo: string) => {
     e.stopPropagation();
-    setDeleteModal({ id, titulo });
+    const check = await tieneCotizacionPropuestasVinculadas(id);
+    setDeleteModal({ id, titulo, tienePropuestas: !!check.tienePropuestas });
   };
 
-  const confirmarDelete = async () => {
+  const confirmarDelete = async (eliminarPropuestas: boolean = false) => {
     if (!deleteModal) return;
     const { id } = deleteModal;
     setDeleteModal(null);
     setDeleting(id);
     try {
-      const result = await deleteCotizacion(id);
+      const result = await deleteCotizacion(id, eliminarPropuestas);
       if (result.success) {
         setCotizaciones(prev => prev.filter(c => c.id !== id));
       } else {
@@ -731,10 +732,22 @@ export default function CotizacionesPage() {
               <p style={{ fontSize: "0.85rem", color: "#475569", margin: 0 }}>
                 ¿Eliminar la cotización <strong>"{deleteModal.titulo || 'Cotización'}"</strong> y todas sus líneas? Esta acción no se puede deshacer.
               </p>
+              {deleteModal.tienePropuestas && (
+                <p style={{ fontSize: "0.8rem", color: "#475569", marginTop: "0.6rem", marginBottom: 0 }}>
+                  Esta cotización tiene propuestas vinculadas. ¿Quieres eliminarlas también o conservarlas sin cotización asociada?
+                </p>
+              )}
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "0.75rem 1.25rem 1rem" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "0.75rem 1.25rem 1rem", flexWrap: "wrap" }}>
               <button onClick={() => setDeleteModal(null)} style={{ border: "1px solid #e2e8f0", background: "#fff", borderRadius: 6, padding: "0.4rem 0.85rem", cursor: "pointer", color: "#475569", fontSize: "0.8rem", fontWeight: 600 }}>Cancelar</button>
-              <button onClick={confirmarDelete} style={{ border: "none", background: "#dc2626", borderRadius: 6, padding: "0.4rem 0.85rem", cursor: "pointer", color: "#fff", fontSize: "0.8rem", fontWeight: 600 }}>Eliminar</button>
+              {deleteModal.tienePropuestas ? (
+                <>
+                  <button onClick={() => confirmarDelete(false)} style={{ border: "1px solid #e2e8f0", background: "#fff", borderRadius: 6, padding: "0.4rem 0.85rem", cursor: "pointer", color: "#475569", fontSize: "0.8rem", fontWeight: 600 }}>Conservar propuestas</button>
+                  <button onClick={() => confirmarDelete(true)} style={{ border: "none", background: "#dc2626", borderRadius: 6, padding: "0.4rem 0.85rem", cursor: "pointer", color: "#fff", fontSize: "0.8rem", fontWeight: 600 }}>Eliminar también propuestas</button>
+                </>
+              ) : (
+                <button onClick={() => confirmarDelete(false)} style={{ border: "none", background: "#dc2626", borderRadius: 6, padding: "0.4rem 0.85rem", cursor: "pointer", color: "#fff", fontSize: "0.8rem", fontWeight: 600 }}>Eliminar</button>
+              )}
             </div>
           </div>
         </div>
