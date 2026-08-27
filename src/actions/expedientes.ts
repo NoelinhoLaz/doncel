@@ -942,9 +942,64 @@ export async function linkCotizacionToPresupuesto(cotizacionId: string, presupue
   }
 }
 
+/**
+ * Comprueba si un expediente ya tiene una cotización o propuesta vinculada
+ * (distinta de las que se indiquen en `excepto`). Se usa para impedir vincular
+ * un expediente que ya está en uso.
+ */
+export async function expedienteTieneVinculos(
+  expedienteId: string,
+  excepto: { cotizacionId?: string; propuestaId?: string } = {}
+) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+
+    let cotQuery = agencyDb
+      .from("operativa_cotizaciones")
+      .select("id")
+      .eq("expediente_id", expedienteId);
+    if (excepto.cotizacionId) cotQuery = cotQuery.neq("id", excepto.cotizacionId);
+    const { data: cots } = await cotQuery;
+
+    const cotIds = (cots || []).map((c: any) => c.id);
+    let propIds: string[] = [];
+    if (cotIds.length > 0) {
+      let propQuery = agencyDb
+        .from("operativa_propuestas")
+        .select("id")
+        .in("cotizacion_id", cotIds);
+      if (excepto.propuestaId) propQuery = propQuery.neq("id", excepto.propuestaId);
+      const { data: props } = await propQuery;
+      propIds = (props || []).map((p: any) => p.id);
+    }
+
+    return {
+      success: true,
+      tieneVinculos: cotIds.length > 0 || propIds.length > 0,
+      cotizaciones: cotIds.length,
+      propuestas: propIds.length,
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
 export async function linkCotizacionToExpediente(cotizacionId: string, expedienteId: string | null) {
   try {
     const agencyDb = await getAgencyDbClient();
+
+    // No permitir vincular a un expediente que ya tiene otra cotización/propuesta
+    if (expedienteId) {
+      const check = await expedienteTieneVinculos(expedienteId, { cotizacionId });
+      if (check.success && check.tieneVinculos) {
+        return {
+          success: false,
+          error:
+            "Este expediente ya tiene una cotización o propuesta vinculada. Desvincúlala primero.",
+        };
+      }
+    }
+
     const { error } = await agencyDb
       .from("operativa_cotizaciones")
       .update({ expediente_id: expedienteId })
@@ -955,10 +1010,41 @@ export async function linkCotizacionToExpediente(cotizacionId: string, expedient
   }
 }
 
+/**
+ * Desvincula una cotización (y por tanto sus propuestas) de su expediente.
+ */
+export async function unlinkCotizacionFromExpediente(cotizacionId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { error } = await agencyDb
+      .from("operativa_cotizaciones")
+      .update({ expediente_id: null })
+      .eq("id", cotizacionId);
+    revalidatePath("/cotizaciones");
+    revalidatePath("/propuestas");
+    revalidatePath("/expedientes");
+    return { success: !error, error: error?.message };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
 export async function linkPropuestaToExpediente(propuestaId: string, expedienteId: string | null) {
   try {
     const agencyDb = await getAgencyDbClient();
-    
+
+    // No permitir vincular a un expediente que ya tiene otra cotización/propuesta
+    if (expedienteId) {
+      const check = await expedienteTieneVinculos(expedienteId, { propuestaId });
+      if (check.success && check.tieneVinculos) {
+        return {
+          success: false,
+          error:
+            "Este expediente ya tiene una cotización o propuesta vinculada. Desvincúlala primero.",
+        };
+      }
+    }
+
     // Get cotizacion_id of this proposal
     const { data: prop } = await agencyDb
       .from("operativa_propuestas")

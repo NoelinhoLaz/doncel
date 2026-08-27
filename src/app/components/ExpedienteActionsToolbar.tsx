@@ -7,6 +7,7 @@ import { LiaGoogleDrive } from "react-icons/lia";
 import {
   getEntityLinks,
   linkCotizacionToExpediente,
+  unlinkCotizacionFromExpediente,
   linkCotizacionToPresupuesto,
   linkPropuestaToExpediente,
   searchExpedientes,
@@ -160,18 +161,24 @@ export default function ExpedienteActionsToolbar({
         }
       } else if (showLinkModal === "expediente") {
         let cotVinculada: string | null = null;
+        let res: { success: boolean; error?: string } | undefined;
         if (initialCotizacionId) {
-          await linkCotizacionToExpediente(initialCotizacionId, targetId);
-          cotVinculada = initialCotizacionId;
+          res = await linkCotizacionToExpediente(initialCotizacionId, targetId);
+          if (res?.success) cotVinculada = initialCotizacionId;
         } else if (initialPropuestaId) {
-          await linkPropuestaToExpediente(initialPropuestaId, targetId);
+          res = await linkPropuestaToExpediente(initialPropuestaId, targetId);
         } else if (initialPresupuestoId) {
           // Link the cotizacion already tied to this presupuesto to the expediente
           const cotId = links.cotizaciones[0]?.id;
           if (cotId) {
-            await linkCotizacionToExpediente(cotId, targetId);
-            cotVinculada = cotId;
+            res = await linkCotizacionToExpediente(cotId, targetId);
+            if (res?.success) cotVinculada = cotId;
           }
+        }
+        if (res && !res.success) {
+          alert(res.error || "No se pudo vincular el expediente.");
+          setLinking(false);
+          return;
         }
         if (cotVinculada) setImportServiciosExpedienteId(targetId);
       }
@@ -180,9 +187,9 @@ export default function ExpedienteActionsToolbar({
       setShowLinkModal(null);
       setSearchQuery("");
       setSearchResults([]);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Linking error:", err);
-      alert("Error al vincular el elemento.");
+      alert(err?.message || "Error al vincular el elemento.");
     } finally {
       setLinking(false);
     }
@@ -302,6 +309,25 @@ export default function ExpedienteActionsToolbar({
     }
   };
 
+  const handleFolderUnlink = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    const expId = initialExpedienteId || links.expedienteId;
+    const cotId = initialCotizacionId || links.cotizaciones[0]?.id;
+    if (!expId || !cotId) return;
+    if (!confirm("¿Desvincular esta cotización y sus propuestas del expediente?")) return;
+    setLinking(true);
+    try {
+      const res = await unlinkCotizacionFromExpediente(cotId);
+      if (!res.success) {
+        alert(res.error || "No se pudo desvincular el expediente.");
+        return;
+      }
+      await loadLinks();
+    } finally {
+      setLinking(false);
+    }
+  };
+
   const handleMessagesClick = () => {
     const params = new URLSearchParams();
     if (initialExpedienteId || links.expedienteId) params.set("expediente_id", initialExpedienteId || links.expedienteId);
@@ -415,8 +441,9 @@ export default function ExpedienteActionsToolbar({
 
         {/* Expediente / Open Folder Button */}
         <button
-          title={hasFolder ? "Ver Expediente" : "Vincular a Expediente"}
+          title={hasFolder ? "Ver Expediente (clic derecho para desvincular)" : "Vincular a Expediente"}
           onClick={handleFolderClick}
+          onContextMenu={hasFolder ? handleFolderUnlink : undefined}
           style={{
             display: "flex",
             alignItems: "center",
