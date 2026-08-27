@@ -1,5 +1,18 @@
 import { NextResponse } from "next/server";
-import { getAgencyDbClient } from "@/lib/agencyDb";
+import { getAgencyDbClient, getAuthUserId } from "@/lib/agencyDb";
+
+async function getCurrentAgenteId(
+  agencyDb: Awaited<ReturnType<typeof getAgencyDbClient>>,
+): Promise<string | null> {
+  const authUserId = await getAuthUserId();
+  if (!authUserId) return null;
+  const { data } = await agencyDb
+    .from("crm_agentes")
+    .select("id")
+    .eq("auth_uid", authUserId)
+    .maybeSingle();
+  return data?.id ?? null;
+}
 
 export async function GET(req: Request) {
   try {
@@ -83,6 +96,14 @@ export async function POST(req: Request) {
     if (body.lat != null) insert.lat = body.lat;
     if (body.lng != null) insert.lng = body.lng;
     if (body.metadatos) insert.metadatos = body.metadatos;
+
+    // Asigna el agente creador como agente de referencia (salvo que venga
+    // explícito en el body, p. ej. desde campañas al elegir otro agente).
+    if (body.agente_id !== undefined) {
+      insert.agente_id = body.agente_id || null;
+    } else {
+      insert.agente_id = await getCurrentAgenteId(agencyDb);
+    }
 
     const { data, error } = await agencyDb
       .from("contabilidad_entidades")
