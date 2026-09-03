@@ -1,9 +1,10 @@
 "use client";
 
 import styles from "./page.module.css";
-import { Plus, Send, Mail, CheckCircle, Eye, AlertTriangle, TrendingUp, Search, User, Filter } from "lucide-react";
+import { Plus, Send, Mail, CheckCircle, Eye, AlertTriangle, TrendingUp, Search, User, Filter, Trash2 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
-import { getDifusiones, getMetricasDifusiones } from "@/actions/difusiones";
+import { getDifusiones, getMetricasDifusiones, eliminarDifusion } from "@/actions/difusiones";
+import { getCurrentUsuario } from "@/actions/usuarios";
 import NuevaDifusionModal from "@/components/modals/NuevaDifusionModal";
 import DetalleDifusionModal from "@/components/modals/DetalleDifusionModal";
 
@@ -71,6 +72,7 @@ export default function DifusionPage() {
   const [difusiones, setDifusiones] = useState<Difusion[]>([]);
   const [metricas, setMetricas] = useState<Metricas | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
   const [search, setSearch] = useState("");
   const [agenteFiltro, setAgenteFiltro] = useState<string>("todos");
   const [showModal, setShowModal] = useState(false);
@@ -89,7 +91,31 @@ export default function DifusionPage() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    getCurrentUsuario()
+      .then((u) => {
+        if (u?.rol === "owner" || u?.rol === "superadmin") {
+          setIsOwner(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  async function handleDelete(d: Difusion) {
+    const ok = window.confirm(`¿Estás seguro de que deseas eliminar la difusión "${d.asunto}"? Esta acción borrará su historial de envíos.`);
+    if (!ok) return;
+    try {
+      const res = await eliminarDifusion(d.id);
+      if (res.success) {
+        load();
+      } else {
+        alert(res.error || "Error al eliminar difusión.");
+      }
+    } catch (err: any) {
+      alert(err.message || "Error al eliminar difusión.");
+    }
+  }
 
   const agentesDisponibles = useMemo(() => {
     const s = new Set<string>();
@@ -327,6 +353,7 @@ export default function DifusionPage() {
                 <th className={styles.th}>Enviados</th>
                 <th className={styles.th}>Estado</th>
                 <th className={styles.th}>Fecha</th>
+                {isOwner && <th className={styles.th} style={{ width: 44, textAlign: "center" }}></th>}
               </tr>
             </thead>
             <tbody>
@@ -384,6 +411,35 @@ export default function DifusionPage() {
                       </span>
                     </td>
                     <td className={styles.td}>{formatFecha(d.created_at)}</td>
+                    {isOwner && (
+                      <td
+                        className={styles.tdCenter}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(d);
+                        }}
+                      >
+                        <button
+                          type="button"
+                          title="Eliminar difusión"
+                          style={{
+                            border: "none",
+                            background: "transparent",
+                            color: "#94a3b8",
+                            cursor: "pointer",
+                            padding: "4px 6px",
+                            borderRadius: 4,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.color = "#dc2626")}
+                          onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -397,6 +453,8 @@ export default function DifusionPage() {
       {selectedDifusionId && (
         <DetalleDifusionModal
           difusionId={selectedDifusionId}
+          isOwner={isOwner}
+          onDeleted={load}
           onClose={() => setSelectedDifusionId(null)}
         />
       )}

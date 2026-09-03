@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Mail, CheckCircle2, XCircle, Clock, Search, Send, User, Eye, EyeOff } from "lucide-react";
-import { getDifusionDetalle } from "@/actions/difusiones";
+import { X, Mail, CheckCircle2, XCircle, Clock, Search, Send, User, Eye, EyeOff, Trash2 } from "lucide-react";
+import { getDifusionDetalle, eliminarDifusion } from "@/actions/difusiones";
 import styles from "./nuevaDifusion.module.css";
 
 type Props = {
   difusionId: string;
+  isOwner?: boolean;
   onClose: () => void;
+  onDeleted?: () => void;
 };
 
 type Detalle = {
@@ -66,12 +68,33 @@ function formatHoraFechaCorta(iso: string) {
   return `${d.toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" })} ${d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
-export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
+export default function DetalleDifusionModal({ difusionId, isOwner, onDeleted, onClose }: Props) {
   const [data, setData] = useState<Detalle | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"mensaje" | "destinatarios">("mensaje");
   const [filtroDest, setFiltroDest] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<"todos" | "abierto" | "sin_abrir" | "error">("todos");
+  const [eliminando, setEliminando] = useState(false);
+
+  async function handleEliminar() {
+    if (!data) return;
+    const ok = window.confirm(`¿Estás seguro de que deseas eliminar la difusión "${data.asunto}"? Esta acción borrará su historial.`);
+    if (!ok) return;
+    setEliminando(true);
+    try {
+      const res = await eliminarDifusion(data.id);
+      if (res.success) {
+        onDeleted?.();
+        onClose();
+      } else {
+        alert(res.error || "Error al eliminar difusión.");
+      }
+    } catch (err: any) {
+      alert(err.message || "Error al eliminar difusión.");
+    } finally {
+      setEliminando(false);
+    }
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -502,7 +525,30 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
             </div>
 
             {/* Footer */}
-            <div className={styles.modalFooter} style={{ justifyContent: "flex-end" }}>
+            <div className={styles.modalFooter} style={{ justifyContent: isOwner ? "space-between" : "flex-end" }}>
+              {isOwner && (
+                <button
+                  type="button"
+                  disabled={eliminando}
+                  onClick={handleEliminar}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "0.45rem 0.85rem",
+                    borderRadius: 8,
+                    border: "1px solid #fee2e2",
+                    background: "#fff",
+                    color: "#dc2626",
+                    fontSize: "0.78rem",
+                    fontWeight: 600,
+                    cursor: eliminando ? "not-allowed" : "pointer",
+                    opacity: eliminando ? 0.6 : 1,
+                  }}
+                >
+                  <Trash2 size={13} /> {eliminando ? "Eliminando…" : "Eliminar difusión"}
+                </button>
+              )}
               <button className={styles.btnSecondary} onClick={onClose}>
                 Cerrar
               </button>

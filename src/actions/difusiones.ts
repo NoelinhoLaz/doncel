@@ -4,7 +4,7 @@ import nodemailer from "nodemailer";
 import { headers } from "next/headers";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { getAgencyDbClient } from "@/lib/agencyDb";
-import { getCurrentUserEmailConfig } from "./usuarios";
+import { getCurrentUserEmailConfig, getCurrentUsuario } from "./usuarios";
 import { verifyToken } from "@/lib/encryption";
 
 export async function getDifusiones() {
@@ -18,6 +18,25 @@ export async function getDifusiones() {
     throw error;
   }
   return data ?? [];
+}
+
+export async function eliminarDifusion(difusionId: string) {
+  const usuario = await getCurrentUsuario();
+  if (!usuario || (usuario.rol !== "owner" && usuario.rol !== "superadmin")) {
+    return { success: false, error: "Solo los usuarios con rol Owner pueden eliminar difusiones." };
+  }
+
+  const agencyDb = await getAgencyDbClient();
+  const { error } = await agencyDb
+    .from("fidelizacion_difusiones")
+    .delete()
+    .eq("id", difusionId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
 }
 
 export async function getDifusionDetalle(difusionId: string) {
