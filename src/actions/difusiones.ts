@@ -215,7 +215,7 @@ export async function getGruposEmpresa(): Promise<EntidadDestinatarios[]> {
 export async function crearDifusion(payload: {
   asunto: string;
   cuerpo: string;
-  origen: "campana" | "etiqueta" | "clientes_agente";
+  origen: "campana" | "etiqueta" | "clientes_agente" | "difusion";
   campanaId?: string | null;
   etiquetaId?: string | null;
   destinatarios: Destinatario[];

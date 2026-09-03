@@ -117,7 +117,7 @@ export default function NuevaDifusionModal({ onClose, onCreated, arbolDestinatar
       const res = await crearDifusion({
         asunto: asunto.trim(),
         cuerpo: cuerpo.trim(),
-        origen: campanaId ? "campana" : "clientes_agente",
+        origen: campanaId ? "campana" : "difusion",
         campanaId: campanaId ?? null,
         etiquetaId: null,
         destinatarios: seleccionados,

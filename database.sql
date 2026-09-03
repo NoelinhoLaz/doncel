@@ -2290,7 +2290,7 @@ CREATE TABLE IF NOT EXISTS fidelizacion_difusiones (
     asunto        VARCHAR(255) NOT NULL,
     cuerpo        TEXT NOT NULL,
     origen        VARCHAR(20) NOT NULL DEFAULT 'campana'
-                      CHECK (origen IN ('campana', 'etiqueta', 'clientes_agente')),
+                      CHECK (origen IN ('campana', 'etiqueta', 'clientes_agente', 'difusion')),
     campana_id    UUID REFERENCES crm_campanas(id) ON DELETE SET NULL,
     etiqueta_id   UUID REFERENCES crm_etiquetas(id) ON DELETE SET NULL,
     num_destinatarios INTEGER NOT NULL DEFAULT 0,
