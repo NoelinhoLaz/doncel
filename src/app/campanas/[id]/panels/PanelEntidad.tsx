@@ -14,6 +14,7 @@ import { EtiquetasSelector } from "@/components/EtiquetasSelector";
 import { ConfirmarCampanaModal } from "../modals/ConfirmarCampanaModal";
 import { ModalCierreOportunidad } from "../modals/ModalCierreOportunidad";
 import { MiniPager, useMiniPager } from "@/components/panels/MiniPager";
+import DetalleDifusionModal from "@/components/modals/DetalleDifusionModal";
 
 const EntidadMapaDynamic = dynamic(
   () => import("../EntidadMapa").then(m => m.EntidadMapa),
@@ -66,6 +67,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
   const [pagPropuestas, setPagPropuestas] = useState(0);
   const [pagExpedientes, setPagExpedientes] = useState(0);
   const [pagDifusiones, setPagDifusiones] = useState(0);
+  const [selectedDifusionId, setSelectedDifusionId] = useState<string | null>(null);
   const [contactos, setContactos] = useState(data.entidad?.crm_contactos ?? []);
   const [showAnadirCampana, setShowAnadirCampana] = useState(false);
   const [showNuevoContacto, setShowNuevoContacto] = useState(false);
@@ -1655,60 +1657,91 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
             <MiniPager page={pagerExpedientes.page} totalPages={pagerExpedientes.totalPages} onChange={setPagExpedientes} />
           </SeccionColapsable>
 
-          {/* Difusiones */}
+          {/* Comunicaciones */}
           <SeccionColapsable
             icon={<Send size={17} />}
-            titulo="Difusiones recibidas"
-            count={difusiones.length}
+            titulo="Comunicaciones"
+            count={!loading ? difusiones.length : undefined}
             isOpen={!!openSections.difusiones}
             onToggle={() => toggleSection("difusiones")}
           >
-            {loadingDifusiones ? (
-              <div style={{ padding: "0.75rem", textAlign: "center", color: "#94a3b8", fontSize: "0.82rem" }}>Cargando difusiones…</div>
+            {loading ? (
+              <div style={{ color: "#94a3b8", fontSize: "0.78rem" }}>Cargando...</div>
             ) : difusiones.length === 0 ? (
-              <div style={{ color: "#94a3b8", fontSize: "0.82rem", fontStyle: "italic", padding: "0.4rem 0" }}>No ha recibido difusiones</div>
+              <div style={{ color: "#94a3b8", fontSize: "0.78rem", fontStyle: "italic" }}>Sin comunicaciones</div>
             ) : (
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                 <thead>
-                  <tr>
+                  <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
                     <th style={th}>Asunto</th>
-                    <th style={th}>Destinatario</th>
-                    <th style={th}>Estado</th>
-                    <th style={th}>Fecha</th>
+                    <th style={th}>Destino</th>
+                    <th style={{ ...th, textAlign: "left" }}>Estado</th>
+                    <th style={{ ...th, textAlign: "right" }}>Fecha</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pagerDifusiones.paginated.map((d: any, i: number) => (
-                    <tr key={d.id || i} style={{ borderBottom: i < pagerDifusiones.paginated.length - 1 ? "1px solid #f1f5f9" : undefined }}>
-                      <td style={{ ...td, fontWeight: 600, color: "#1e293b" }}>
-                        {d.fidelizacion_difusiones?.asunto ?? "—"}
-                      </td>
-                      <td style={td}>
-                        <div style={{ display: "flex", flexDirection: "column" }}>
-                          <span>{d.nombre || "—"}</span>
-                          <span style={{ fontSize: "0.72rem", color: "#64748b" }}>{d.email}</span>
-                        </div>
-                      </td>
-                      <td style={td}>
-                        {d.abierto_at ? (
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.7rem", fontWeight: 600, color: "#2563eb", background: "#eff6ff", padding: "0.1rem 0.45rem", borderRadius: 4 }}>
-                            Abierto
-                          </span>
-                        ) : d.estado === "enviado" ? (
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.7rem", fontWeight: 600, color: "#16a34a", background: "#dcfce7", padding: "0.1rem 0.45rem", borderRadius: 4 }}>
-                            Entregado
-                          </span>
-                        ) : (
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.7rem", fontWeight: 600, color: "#dc2626", background: "#fee2e2", padding: "0.1rem 0.45rem", borderRadius: 4 }}>
-                            Error
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ ...td, whiteSpace: "nowrap", fontSize: "0.75rem" }}>
-                        {new Date(d.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" })}
-                      </td>
-                    </tr>
-                  ))}
+                  {pagerDifusiones.paginated.map((d: any, i: number) => {
+                    const difId = d.fidelizacion_difusiones?.id;
+                    return (
+                      <tr
+                        key={d.id || i}
+                        onClick={() => difId && setSelectedDifusionId(difId)}
+                        style={{
+                          borderBottom: i < pagerDifusiones.paginated.length - 1 ? "1px solid #f1f5f9" : undefined,
+                          cursor: difId ? "pointer" : "default",
+                        }}
+                        onMouseEnter={e => { if (difId) e.currentTarget.style.background = "#f8fafc"; }}
+                        onMouseLeave={e => { if (difId) e.currentTarget.style.background = ""; }}
+                      >
+                        <td
+                          style={{
+                            ...td,
+                            fontWeight: 600,
+                            color: difId ? "var(--primary-color, #475569)" : "#1e293b",
+                            maxWidth: 180,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                          title={d.fidelizacion_difusiones?.asunto ?? "—"}
+                        >
+                          {d.fidelizacion_difusiones?.asunto ?? "—"}
+                        </td>
+                        <td
+                          style={{
+                            ...td,
+                            color: "#64748b",
+                            fontSize: "0.72rem",
+                            maxWidth: 150,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                          title={d.nombre ? `${d.nombre} (${d.email})` : d.email}
+                        >
+                          {d.nombre ? `${d.nombre} (${d.email})` : d.email}
+                        </td>
+                        <td style={td}>
+                          {d.abierto_at ? (
+                            <span style={{ fontSize: "0.68rem", fontWeight: 600, color: "#2563eb" }}>
+                              Abierto
+                            </span>
+                          ) : d.estado === "enviado" ? (
+                            <span style={{ fontSize: "0.68rem", fontWeight: 600, color: "#16a34a" }}>
+                              Entregado
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: "0.68rem", fontWeight: 600, color: "#dc2626" }} title={d.error_detalle ?? ""}>
+                              Error
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ ...td, textAlign: "right", color: "#64748b", fontSize: "0.72rem", whiteSpace: "nowrap" }}>
+                          {new Date(d.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -1957,6 +1990,13 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
           entidadId={entidadLocal.id}
           onClose={() => setShowAnadirCampana(false)}
           onCreated={() => { setShowAnadirCampana(false); recargarHistorial(); }}
+        />
+      )}
+
+      {selectedDifusionId && (
+        <DetalleDifusionModal
+          difusionId={selectedDifusionId}
+          onClose={() => setSelectedDifusionId(null)}
         />
       )}
     </>
