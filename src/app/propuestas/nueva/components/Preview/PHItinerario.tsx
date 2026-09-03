@@ -120,7 +120,7 @@ function PHItinerarioMediaCarousel({ medias, showArrows, autoplay = true }: { me
   );
 }
 
-export default function PHItinerario({ mobile, layout, colorFondo, fechaDesde, fechaHasta, dias, titulo, estiloTitulo, estiloTituloDia, estiloDescDia, anchoMax }: { mobile?: boolean; layout?: string; colorFondo?: string; fechaDesde?: string; fechaHasta?: string; dias?: { dia: number; titulo?: string; desc?: string; media?: MediaItem; medias?: MediaItem[] }[]; titulo?: string; estiloTitulo?: TextoEstilo; estiloTituloDia?: TextoEstilo; estiloDescDia?: TextoEstilo; anchoMax?: string }) {
+export default function PHItinerario({ mobile, layout, colorFondo, fechaDesde, fechaHasta, dias, titulo, estiloTitulo, estiloTituloDia, estiloDescDia, anchoMax, menuDiaActivoFondo, menuDiaActivoTexto, menuDiaInactivoFondo, menuDiaInactivoTexto }: { mobile?: boolean; layout?: string; colorFondo?: string; fechaDesde?: string; fechaHasta?: string; dias?: { dia: number; titulo?: string; desc?: string; media?: MediaItem; medias?: MediaItem[] }[]; titulo?: string; estiloTitulo?: TextoEstilo; estiloTituloDia?: TextoEstilo; estiloDescDia?: TextoEstilo; anchoMax?: string; menuDiaActivoFondo?: string; menuDiaActivoTexto?: string; menuDiaInactivoFondo?: string; menuDiaInactivoTexto?: string }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const esAcordeon = layout === "acordeon";
   const esMenuDias = layout === "menu-dias";
@@ -269,15 +269,26 @@ export default function PHItinerario({ mobile, layout, colorFondo, fechaDesde, f
               {days.map((d, i) => {
                 const active = activeIdx === i;
                 const dateLabel = getDayDateLabel(d.dia);
+                const tabBg = active
+                  ? (menuDiaActivoFondo ?? "#1e293b")
+                  : (menuDiaInactivoFondo ?? "transparent");
+                const tabColor = active
+                  ? (menuDiaActivoTexto ?? "#ffffff")
+                  : (menuDiaInactivoTexto ?? "#64748b");
                 return (
                   <button
                     key={d.dia}
                     type="button"
                     className={`${styles.phMenuDiaTab} ${active ? styles.phMenuDiaTabActive : ""}`}
+                    style={{
+                      backgroundColor: tabBg,
+                      color: tabColor,
+                      ...(active && menuDiaActivoFondo ? { boxShadow: `0 4px 12px ${menuDiaActivoFondo}40` } : {}),
+                    }}
                     onClick={() => setActiveIdx(i)}
                   >
-                    <span className={styles.phMenuDiaTabNum}>Día {d.dia}</span>
-                    {dateLabel && <span className={styles.phMenuDiaTabDate}>{dateLabel}</span>}
+                    <span className={styles.phMenuDiaTabNum} style={{ color: tabColor }}>Día {d.dia}</span>
+                    {dateLabel && <span className={styles.phMenuDiaTabDate} style={{ color: tabColor, opacity: active ? 0.9 : 0.65 }}>{dateLabel}</span>}
                   </button>
                 );
               })}

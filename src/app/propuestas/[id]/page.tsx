@@ -55,6 +55,10 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
       menuColorTexto: d.menuColorTexto,
       menuColorBoton: d.menuColorBoton,
       menuFijo: d.menuFijo,
+      menuDiaActivoFondo: d.menuDiaActivoFondo,
+      menuDiaActivoTexto: d.menuDiaActivoTexto,
+      menuDiaInactivoFondo: d.menuDiaInactivoFondo,
+      menuDiaInactivoTexto: d.menuDiaInactivoTexto,
       // Precio fields
       pvp: s.pvp,
       pvpVinculado: s.pvpVinculado,

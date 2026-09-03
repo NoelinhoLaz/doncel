@@ -70,6 +70,11 @@ export interface Seccion {
   menuColorBoton?: string;
   menuFijo?: boolean;
   menuHamburguesa?: boolean;
+  // Estilo menú días en itinerario
+  menuDiaActivoFondo?: string;
+  menuDiaActivoTexto?: string;
+  menuDiaInactivoFondo?: string;
+  menuDiaInactivoTexto?: string;
   pvp?: string;
   pvpVinculado?: boolean;
   condiciones?: string;
@@ -1198,7 +1203,7 @@ export function renderTextWithBold(text?: string, estilo?: TextoEstilo, defaultT
   });
 }
 
-export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFondoOverlay, altoSeccion, canvasHeight, fechaDesde, fechaHasta, dias, titulo, estiloTitulo, estiloTituloDia, estiloDescDia, anchoMax }: { mobile?: boolean; layout?: string; colorFondo?: string; imagenFondo?: MediaItem; imagenFondoOverlay?: number; altoSeccion?: "minimo" | "medio" | "completo"; canvasHeight?: string; fechaDesde?: string; fechaHasta?: string; dias?: { dia: number; titulo?: string; desc?: string; media?: MediaItem; medias?: MediaItem[] }[]; titulo?: string; estiloTitulo?: TextoEstilo; estiloTituloDia?: TextoEstilo; estiloDescDia?: TextoEstilo; anchoMax?: string }) {
+export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFondoOverlay, altoSeccion, canvasHeight, fechaDesde, fechaHasta, dias, titulo, estiloTitulo, estiloTituloDia, estiloDescDia, anchoMax, menuDiaActivoFondo, menuDiaActivoTexto, menuDiaInactivoFondo, menuDiaInactivoTexto }: { mobile?: boolean; layout?: string; colorFondo?: string; imagenFondo?: MediaItem; imagenFondoOverlay?: number; altoSeccion?: "minimo" | "medio" | "completo"; canvasHeight?: string; fechaDesde?: string; fechaHasta?: string; dias?: { dia: number; titulo?: string; desc?: string; media?: MediaItem; medias?: MediaItem[] }[]; titulo?: string; estiloTitulo?: TextoEstilo; estiloTituloDia?: TextoEstilo; estiloDescDia?: TextoEstilo; anchoMax?: string; menuDiaActivoFondo?: string; menuDiaActivoTexto?: string; menuDiaInactivoFondo?: string; menuDiaInactivoTexto?: string }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const [openDayIdx, setOpenDayIdx] = useState<number | null>(null);
   const esAcordeon = layout === "acordeon";
@@ -1349,15 +1354,26 @@ export function PHItinerario({ mobile, layout, colorFondo, imagenFondo, imagenFo
               {days.map((d, i) => {
                 const active = activeIdx === i;
                 const dateLabel = getDayDateLabel(d.dia);
+                const tabBg = active
+                  ? (menuDiaActivoFondo ?? "#1e293b")
+                  : (menuDiaInactivoFondo ?? "transparent");
+                const tabColor = active
+                  ? (menuDiaActivoTexto ?? "#ffffff")
+                  : (menuDiaInactivoTexto ?? "#64748b");
                 return (
                   <button
                     key={d.dia}
                     type="button"
                     className={`${styles.phMenuDiaTab} ${active ? styles.phMenuDiaTabActive : ""}`}
+                    style={{
+                      backgroundColor: tabBg,
+                      color: tabColor,
+                      ...(active && menuDiaActivoFondo ? { boxShadow: `0 4px 12px ${menuDiaActivoFondo}40` } : {}),
+                    }}
                     onClick={() => setActiveIdx(i)}
                   >
-                    <span className={styles.phMenuDiaTabNum}>Día {d.dia}</span>
-                    {dateLabel && <span className={styles.phMenuDiaTabDate}>{dateLabel}</span>}
+                    <span className={styles.phMenuDiaTabNum} style={{ color: tabColor }}>Día {d.dia}</span>
+                    {dateLabel && <span className={styles.phMenuDiaTabDate} style={{ color: tabColor, opacity: active ? 0.9 : 0.65 }}>{dateLabel}</span>}
                   </button>
                 );
               })}
@@ -3094,7 +3110,7 @@ export function renderSeccion(s: Seccion, canvasHeight: string, dispositivo: Dis
     case "texto-imagenes": return <PHTextoImagenes key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} textoLibre={s.textoLibre} medias={s.medias} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} estiloTextoLibre={s.estiloTextoLibre} anchoMax={s.anchoMax} />;
     case "texto-columnas": return <PHTextoColumnas key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} columnas={s.columnas} anchoMax={s.anchoMax} />;
     case "faqs": return <PHFaqs key={s.uid} mobile={mobile} layout={s.layout} titulo={s.titulo} subtitulo={s.subtitulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloSubtitulo={s.estiloSubtitulo} estiloFaqPregunta={s.estiloFaqPregunta} estiloFaqRespuesta={s.estiloFaqRespuesta} faqs={s.faqs} anchoMax={s.anchoMax} />;
-    case "itinerario":     return <PHItinerario key={s.uid} mobile={mobile} layout={s.layout} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} fechaDesde={s.fechaDesde} fechaHasta={s.fechaHasta} dias={s.dias} titulo={s.titulo} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} anchoMax={s.anchoMax} />;
+    case "itinerario":     return <PHItinerario key={s.uid} mobile={mobile} layout={s.layout} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} fechaDesde={s.fechaDesde} fechaHasta={s.fechaHasta} dias={s.dias} titulo={s.titulo} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} anchoMax={s.anchoMax} menuDiaActivoFondo={s.menuDiaActivoFondo} menuDiaActivoTexto={s.menuDiaActivoTexto} menuDiaInactivoFondo={s.menuDiaInactivoFondo} menuDiaInactivoTexto={s.menuDiaInactivoTexto} />;
     case "mapa":           return <PHMapa key={s.uid} titulo={s.titulo} mapas={s.mapas} layout={s.layout} anchoMax={s.anchoMax} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} />;
     case "ruta":           return <PHRuta key={s.uid} titulo={s.titulo} rutas={s.rutas} layout={s.layout} anchoMax={s.anchoMax} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} />;
     case "cards":          return <PHCards key={s.uid} mobile={mobile} titulo={s.titulo} colorFondo={s.colorFondo} imagenFondo={s.imagenFondo} imagenFondoOverlay={s.imagenFondoOverlay} altoSeccion={s.altoSeccion} canvasHeight={canvasHeight} estiloTitulo={s.estiloTitulo} estiloTituloDia={s.estiloTituloDia} estiloDescDia={s.estiloDescDia} anchoMax={s.anchoMax} cards={s.cards} />;

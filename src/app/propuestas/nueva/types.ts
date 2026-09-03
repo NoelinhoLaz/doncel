@@ -154,6 +154,11 @@ export interface Seccion {
   menuColorBoton?: string;
   menuFijo?: boolean;
   menuHamburguesa?: boolean;
+  // Estilo menú días en itinerario
+  menuDiaActivoFondo?: string;
+  menuDiaActivoTexto?: string;
+  menuDiaInactivoFondo?: string;
+  menuDiaInactivoTexto?: string;
   pvp?: string;
   /** Si está activo, el pvp se sincroniza desde la cotización vinculada y no es editable a mano. */
   pvpVinculado?: boolean;

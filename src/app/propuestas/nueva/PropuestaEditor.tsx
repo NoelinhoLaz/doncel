@@ -195,6 +195,11 @@ export function PropuestaEditor({
         menuColorTexto: s.menuColorTexto,
         menuColorBoton: s.menuColorBoton,
         menuFijo: s.menuFijo,
+        // Estilo menú días en itinerario
+        menuDiaActivoFondo: s.menuDiaActivoFondo,
+        menuDiaActivoTexto: s.menuDiaActivoTexto,
+        menuDiaInactivoFondo: s.menuDiaInactivoFondo,
+        menuDiaInactivoTexto: s.menuDiaInactivoTexto,
         // Precio styling
         estiloPvp: s.estiloPvp,
         estiloCondiciones: s.estiloCondiciones,
