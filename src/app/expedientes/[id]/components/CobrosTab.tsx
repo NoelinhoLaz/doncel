@@ -101,6 +101,7 @@ export default function CobrosTab({
           onClose={() => setDifusionEntidades(null)}
           onCreated={() => setDifusionEntidades(null)}
           initialEntidades={difusionEntidades}
+          preseleccionar
         />
       )}
     </>

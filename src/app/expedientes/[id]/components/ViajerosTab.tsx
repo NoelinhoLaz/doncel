@@ -131,6 +131,7 @@ export default function ViajerosTab({ expedienteId, fechaSalida, pvpViajero, pag
           onClose={() => setDifusionEntidades(null)}
           onCreated={() => setDifusionEntidades(null)}
           initialEntidades={difusionEntidades}
+          preseleccionar
         />
       )}
     </>

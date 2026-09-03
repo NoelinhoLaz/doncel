@@ -26,9 +26,11 @@ type NuevaDifusionModalProps = {
   expedienteId?: string;
   /** Entidades ya resueltas por el llamador (p.ej. filas filtradas en una tabla) — se precargan en el paso 1, junto al selector. */
   initialEntidades?: EntidadDestinatarios[];
+  /** Si true, todos los emails de initialEntidades quedan marcados al abrir el modal. Por defecto false (el usuario elige). */
+  preseleccionar?: boolean;
 };
 
-export default function NuevaDifusionModal({ onClose, onCreated, arbolDestinatarios, campanaId, expedienteId, initialEntidades }: NuevaDifusionModalProps) {
+export default function NuevaDifusionModal({ onClose, onCreated, arbolDestinatarios, campanaId, expedienteId, initialEntidades, preseleccionar = false }: NuevaDifusionModalProps) {
   const [step, setStep] = useState<1 | 2>(1);
 
   const arbol = arbolDestinatarios ?? (campanaId ? ARBOL_CAMPANA : expedienteId ? ARBOL_EXPEDIENTE : ARBOL_GENERAL);
@@ -37,6 +39,7 @@ export default function NuevaDifusionModal({ onClose, onCreated, arbolDestinatar
   const [entidades, setEntidades] = useState<EntidadDestinatarios[]>(initialEntidades ?? []);
   const [loadingDest, setLoadingDest] = useState(false);
   const [selectedEmails, setSelectedEmails] = useState<Set<string>>(() => {
+    if (!preseleccionar) return new Set<string>();
     const preseleccion = new Set<string>();
     for (const ent of initialEntidades ?? []) {
       for (const em of ent.emails) preseleccion.add(`${ent.entidad_id}::${em.email}`);
