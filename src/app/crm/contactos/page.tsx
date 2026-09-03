@@ -9,6 +9,7 @@ import { PanelEntidad } from "@/app/campanas/[id]/panels/PanelEntidad";
 import NuevaDifusionModal from "@/components/modals/NuevaDifusionModal";
 import type { EntidadDestinatarios } from "@/actions/difusiones";
 import { SortableTh, sortToggle, compareValues, type SortState } from "@/app/components/SortableTh";
+import { getCurrentUsuario } from "@/actions/usuarios";
 
 type SortKey = "nombre" | "cargo" | "email" | "entidad_nombre" | "sucursal";
 
@@ -113,13 +114,26 @@ export default function ContactosCrmPage() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { cargarContactos(); }, []);
+  useEffect(() => {
+    cargarContactos();
+    getCurrentUsuario()
+      .then((u: any) => {
+        if (u) {
+          const nombreCompleto = `${u.nombre ?? ""} ${u.apellidos ?? ""}`.trim();
+          if (nombreCompleto) {
+            setAgenteFilter([nombreCompleto]);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const agenteOptions = useMemo(() => {
     const labels = new Set<string>();
     contactos.forEach((c) => { const n = agenteNombre(c.agente); if (n) labels.add(n); });
+    agenteFilter.forEach((af) => { if (af) labels.add(af); });
     return Array.from(labels).sort();
-  }, [contactos]);
+  }, [contactos, agenteFilter]);
 
   const sucursalOptions = useMemo(() => {
     const labels = new Set<string>();
