@@ -223,18 +223,55 @@ export default function SelectorDestinatarios({
   function filasDeCategoria(cat: CategoriaKey) {
     const prefijo = PREFIJO_POR_CATEGORIA[cat];
     const tipoRequerido =
-      cat === "grupos.responsable" || cat === "responsable" ? "contacto" : cat === "grupos.institucional" || cat === "institucional" ? "institucional" : null;
-    const porEmail = new Map<string, { entidadId: string; realId: string; nombre: string; email: string; etiqueta: string }>();
+      cat === "grupos.responsable" || cat === "responsable"
+        ? "contacto"
+        : cat === "grupos.institucional" || cat === "institucional"
+        ? "institucional"
+        : null;
+
+    const porEmail = new Map<
+      string,
+      {
+        entidadId: string;
+        realId: string;
+        nombre: string;
+        grupo?: string;
+        email: string;
+        etiqueta: string;
+      }
+    >();
+
     for (const ent of entidades) {
       if (!ent.entidad_id.startsWith(prefijo)) continue;
       const realId = ent.entidad_id.includes("::") ? ent.entidad_id.split("::")[1] : ent.entidad_id;
       for (const em of ent.emails) {
         if (tipoRequerido && em.tipo !== tipoRequerido) continue;
         const key = em.email.trim().toLowerCase();
-        const etiqueta = etiquetaDestinatario(ent.entidad_id, em.tipo);
+        const etiquetaBadge = etiquetaDestinatario(ent.entidad_id, em.tipo);
+
+        // Si es un contacto de organización/grupo:
+        // nombre = nombre de la persona (em.etiqueta, p.ej. "ANA ALMENDROS")
+        // grupo = nombre del grupo/organización (ent.nombre, p.ej. "IES PEDRO GUMIEL")
+        const esContactoOrg =
+          em.tipo === "contacto" &&
+          em.etiqueta &&
+          em.etiqueta !== "Grupo" &&
+          em.etiqueta !== "Otro email" &&
+          em.etiqueta !== ent.nombre;
+
+        const nombreMostrado = esContactoOrg ? em.etiqueta : ent.nombre;
+        const grupoMostrado = esContactoOrg ? ent.nombre : undefined;
+
         const existente = porEmail.get(key);
-        if (!existente || ORDEN_ETIQUETA.indexOf(etiqueta) < ORDEN_ETIQUETA.indexOf(existente.etiqueta)) {
-          porEmail.set(key, { entidadId: ent.entidad_id, realId, nombre: ent.nombre, email: em.email, etiqueta });
+        if (!existente || ORDEN_ETIQUETA.indexOf(etiquetaBadge) < ORDEN_ETIQUETA.indexOf(existente.etiqueta)) {
+          porEmail.set(key, {
+            entidadId: ent.entidad_id,
+            realId,
+            nombre: nombreMostrado,
+            grupo: grupoMostrado,
+            email: em.email,
+            etiqueta: etiquetaBadge,
+          });
         }
       }
     }
@@ -254,8 +291,12 @@ export default function SelectorDestinatarios({
         if (info && diasDesde(info.fecha) < 7) return false;
       }
       if (!busqueda.trim()) return true;
-      const q = busqueda.toLowerCase();
-      return f.nombre.toLowerCase().includes(q) || f.email.toLowerCase().includes(q);
+      const q = busqueda.toLowerCase().trim();
+      return (
+        f.nombre.toLowerCase().includes(q) ||
+        (f.grupo && f.grupo.toLowerCase().includes(q)) ||
+        f.email.toLowerCase().includes(q)
+      );
     });
   }, [filasVista, busqueda, excluirRecientes, ultimosEnvios]);
 
@@ -313,7 +354,7 @@ export default function SelectorDestinatarios({
             className={styles.input}
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar en esta lista..."
+            placeholder="Buscar por responsable, grupo o email..."
             style={{ flex: 1, minWidth: 200 }}
           />
           <button
@@ -387,7 +428,15 @@ export default function SelectorDestinatarios({
                   checked={selectedEmails.has(emailKey(fila.entidadId, fila.email))}
                   onChange={() => onToggleEmail(fila.entidadId, fila.email)}
                 />
-                <span className={styles.destinatarioLinea}>{fila.nombre} — {fila.email}</span>
+                <span className={styles.destinatarioLinea}>
+                  {fila.nombre}
+                  {fila.grupo && (
+                    <span style={{ color: "#64748b", fontWeight: 500, marginLeft: 4 }}>
+                      ({fila.grupo})
+                    </span>
+                  )}
+                  {" — "}{fila.email}
+                </span>
                 {fila.etiqueta && <span className={`${styles.tipoTag} ${styles["tipoTag_" + fila.etiqueta]}`}>{fila.etiqueta}</span>}
                 {esReciente && (
                   <span
