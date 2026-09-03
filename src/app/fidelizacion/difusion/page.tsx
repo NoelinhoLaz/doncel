@@ -95,7 +95,8 @@ export default function DifusionPage() {
     load();
     getCurrentUsuario()
       .then((u) => {
-        if (u?.rol === "owner" || u?.rol === "superadmin") {
+        const rol = (u?.rol ?? "").toLowerCase();
+        if (rol === "owner" || rol === "superadmin") {
           setIsOwner(true);
         }
       })
@@ -414,6 +415,7 @@ export default function DifusionPage() {
                     {isOwner && (
                       <td
                         className={styles.tdCenter}
+                        style={{ width: 44, padding: "0.4rem" }}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDelete(d);
@@ -421,22 +423,29 @@ export default function DifusionPage() {
                       >
                         <button
                           type="button"
-                          title="Eliminar difusión"
+                          title="Eliminar difusión permanentemente"
                           style={{
                             border: "none",
                             background: "transparent",
-                            color: "#94a3b8",
+                            color: "#dc2626",
                             cursor: "pointer",
-                            padding: "4px 6px",
-                            borderRadius: 4,
+                            padding: "5px 7px",
+                            borderRadius: 6,
                             display: "inline-flex",
                             alignItems: "center",
                             justifyContent: "center",
+                            transition: "all 0.15s ease",
                           }}
-                          onMouseEnter={(e) => (e.currentTarget.style.color = "#dc2626")}
-                          onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = "#fee2e2";
+                            e.currentTarget.style.color = "#991b1b";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "transparent";
+                            e.currentTarget.style.color = "#dc2626";
+                          }}
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={15} />
                         </button>
                       </td>
                     )}

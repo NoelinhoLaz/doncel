@@ -22,7 +22,8 @@ export async function getDifusiones() {
 
 export async function eliminarDifusion(difusionId: string) {
   const usuario = await getCurrentUsuario();
-  if (!usuario || (usuario.rol !== "owner" && usuario.rol !== "superadmin")) {
+  const rol = (usuario?.rol ?? "").toLowerCase();
+  if (!usuario || (rol !== "owner" && rol !== "superadmin")) {
     return { success: false, error: "Solo los usuarios con rol Owner pueden eliminar difusiones." };
   }
 

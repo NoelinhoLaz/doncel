@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X, Mail, CheckCircle2, XCircle, Clock, Search, Send, User, Eye, EyeOff, Trash2 } from "lucide-react";
 import { getDifusionDetalle, eliminarDifusion } from "@/actions/difusiones";
+import { getCurrentUsuario } from "@/actions/usuarios";
 import styles from "./nuevaDifusion.module.css";
 
 type Props = {
@@ -75,6 +76,20 @@ export default function DetalleDifusionModal({ difusionId, isOwner, onDeleted, o
   const [filtroDest, setFiltroDest] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<"todos" | "abierto" | "sin_abrir" | "error">("todos");
   const [eliminando, setEliminando] = useState(false);
+  const [internalIsOwner, setInternalIsOwner] = useState(false);
+
+  const effectiveIsOwner = isOwner ?? internalIsOwner;
+
+  useEffect(() => {
+    if (isOwner === undefined) {
+      getCurrentUsuario()
+        .then((u) => {
+          const rol = (u?.rol ?? "").toLowerCase();
+          if (rol === "owner" || rol === "superadmin") setInternalIsOwner(true);
+        })
+        .catch(() => {});
+    }
+  }, [isOwner]);
 
   async function handleEliminar() {
     if (!data) return;
@@ -525,8 +540,8 @@ export default function DetalleDifusionModal({ difusionId, isOwner, onDeleted, o
             </div>
 
             {/* Footer */}
-            <div className={styles.modalFooter} style={{ justifyContent: isOwner ? "space-between" : "flex-end" }}>
-              {isOwner && (
+            <div className={styles.modalFooter} style={{ justifyContent: effectiveIsOwner ? "space-between" : "flex-end" }}>
+              {effectiveIsOwner && (
                 <button
                   type="button"
                   disabled={eliminando}
