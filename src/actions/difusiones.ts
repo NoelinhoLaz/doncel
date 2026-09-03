@@ -292,14 +292,26 @@ export async function crearDifusion(payload: {
   let numErrores = 0;
   const destinatariosInsert: any[] = [];
 
+function personalizarTexto(texto: string, d: { nombre: string; email: string }) {
+  const nombre = d.nombre || "";
+  const email = d.email || "";
+  return texto
+    .replace(/\{\{\s*(nombre_responsable|nombre_contacto|nombre_cliente|nombre_destinatario|nombre)\s*\}\}/gi, nombre)
+    .replace(/\{\{\s*(email_destinatario|email)\s*\}\}/gi, email);
+}
+
   for (const d of destinatariosValidos) {
+    const subjectPersonalizado = personalizarTexto(asunto, d);
+    const textPersonalizado = personalizarTexto(cuerpo, d);
+    const htmlPersonalizado = personalizarTexto(htmlCuerpo, d);
+
     try {
       await transporter.sendMail({
         from: `"${config.email_address}" <${config.email_address}>`,
         to: d.email,
-        subject: asunto,
-        text: cuerpo,
-        html: htmlCuerpo,
+        subject: subjectPersonalizado,
+        text: textPersonalizado,
+        html: htmlPersonalizado,
         attachments,
       });
       numEnviados++;

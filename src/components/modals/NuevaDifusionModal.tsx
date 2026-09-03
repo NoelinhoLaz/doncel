@@ -114,7 +114,11 @@ export default function NuevaDifusionModal({ onClose, onCreated, arbolDestinatar
           if (vistosEnvio.has(emailNorm)) continue;
           vistosEnvio.add(emailNorm);
           const idReal = ent.entidad_id.includes("::") ? ent.entidad_id.split("::")[1] : ent.entidad_id;
-          seleccionados.push({ entidad_id: idReal, nombre: ent.nombre, email: em.email });
+          const nombreDestinatario =
+            em.tipo === "contacto" && em.etiqueta && em.etiqueta !== "Grupo" && em.etiqueta !== "Otro email"
+              ? em.etiqueta
+              : ent.nombre;
+          seleccionados.push({ entidad_id: idReal, nombre: nombreDestinatario, email: em.email });
         }
       }
       const res = await crearDifusion({
@@ -191,7 +195,12 @@ export default function NuevaDifusionModal({ onClose, onCreated, arbolDestinatar
             </div>
 
             <div className={styles.field}>
-              <label className={styles.label}>Mensaje</label>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+                <label className={styles.label} style={{ margin: 0 }}>Mensaje</label>
+                <span style={{ fontSize: "0.72rem", color: "#64748b" }}>
+                  Variables: <code style={{ background: "#f1f5f9", padding: "1px 4px", borderRadius: 4, color: "#0f172a" }}>{"{{nombre_responsable}}"}</code> o <code style={{ background: "#f1f5f9", padding: "1px 4px", borderRadius: 4, color: "#0f172a" }}>{"{{nombre}}"}</code>
+                </span>
+              </div>
               <EmailRichEditor
                 value={cuerpo}
                 onChange={setCuerpo}
