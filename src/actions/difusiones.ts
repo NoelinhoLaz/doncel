@@ -212,7 +212,7 @@ export async function getGruposEmpresa(): Promise<EntidadDestinatarios[]> {
   return buildEmailsPorEntidad((data ?? []) as any[]);
 }
 
-export function extraerNombrePila(nombreCompleto: string): string {
+function extraerNombrePila(nombreCompleto: string): string {
   const limpio = (nombreCompleto || "").trim();
   if (!limpio) return "";
 
