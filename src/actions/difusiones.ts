@@ -212,6 +212,65 @@ export async function getGruposEmpresa(): Promise<EntidadDestinatarios[]> {
   return buildEmailsPorEntidad((data ?? []) as any[]);
 }
 
+export function extraerNombrePila(nombreCompleto: string): string {
+  const limpio = (nombreCompleto || "").trim();
+  if (!limpio) return "";
+
+  const palabras = limpio.split(/\s+/);
+  if (palabras.length <= 1) return palabras[0] || "";
+
+  // Casos de María / Maria con "del", "de la", "de los", "de las"
+  const matchCompuestoDe = limpio.match(/^(mar[ií]a|mª|m\.)\s+(del?\s+(carmen|pilar|mar|rosario|valle|sol|consuelo|coro|camino|puerto|remedio|prado|monte|loreto|henar|almudena|roc[ií]o)|de\s+la\s+\w+|de\s+los\s+\w+|de\s+las\s+\w+)/i);
+  if (matchCompuestoDe) return matchCompuestoDe[0];
+
+  const PRIMEROS_COMPUESTOS = new Set([
+    "jose", "josé",
+    "juan",
+    "maria", "maría",
+    "ana",
+    "francisco",
+    "miguel",
+    "carlos",
+    "luis",
+    "victor", "víctor",
+    "angel", "ángel",
+    "pedro",
+    "jesus", "jesús",
+    "fco", "fco.",
+    "ma", "mª", "m."
+  ]);
+
+  const p0 = palabras[0].toLowerCase();
+
+  if (PRIMEROS_COMPUESTOS.has(p0) && palabras.length >= 2) {
+    const SEGUNDOS_NOMBRES = new Set([
+      "luis", "manuel", "antonio", "carlos", "miguel", "angel", "ángel", "javier", "alberto", "ramon", "ramón",
+      "fernando", "david", "pablo", "diego", "ignacio", "alejandro", "vicente", "adrian", "adrián", "andres", "andrés",
+      "maria", "maría", "jose", "josé", "jesus", "jesús", "teresa", "isabel", "luisa", "dolores", "carmen", "pilar",
+      "elena", "victoria", "belen", "belén", "rosa", "cristina", "lucia", "lucía", "marta", "patricia", "laura",
+      "borja", "guillermo", "enrique", "jaime", "alfonso", "eduardo", "rafael", "joaquin", "joaquín", "gabriel"
+    ]);
+
+    const p1 = palabras[1].toLowerCase();
+    if (SEGUNDOS_NOMBRES.has(p1)) {
+      return `${palabras[0]} ${palabras[1]}`;
+    }
+  }
+
+  return palabras[0];
+}
+
+function personalizarTexto(texto: string, d: { nombre: string; email: string }) {
+  const nombreCompleto = d.nombre || "";
+  const nombrePila = extraerNombrePila(nombreCompleto);
+  const email = d.email || "";
+
+  return texto
+    .replace(/\{\{\s*nombre_responsable\s*\}\}/gi, nombreCompleto)
+    .replace(/\{\{\s*nombre\s*\}\}/gi, nombrePila)
+    .replace(/\{\{\s*(email_destinatario|email)\s*\}\}/gi, email);
+}
+
 export async function crearDifusion(payload: {
   asunto: string;
   cuerpo: string;
@@ -291,65 +350,6 @@ export async function crearDifusion(payload: {
   let numEnviados = 0;
   let numErrores = 0;
   const destinatariosInsert: any[] = [];
-
-export function extraerNombrePila(nombreCompleto: string): string {
-  const limpio = (nombreCompleto || "").trim();
-  if (!limpio) return "";
-
-  const palabras = limpio.split(/\s+/);
-  if (palabras.length <= 1) return palabras[0] || "";
-
-  // Casos de María / Maria con "del", "de la", "de los", "de las"
-  const matchCompuestoDe = limpio.match(/^(mar[ií]a|mª|m\.)\s+(del?\s+(carmen|pilar|mar|rosario|valle|sol|consuelo|coro|camino|puerto|remedio|prado|monte|loreto|henar|almudena|roc[ií]o)|de\s+la\s+\w+|de\s+los\s+\w+|de\s+las\s+\w+)/i);
-  if (matchCompuestoDe) return matchCompuestoDe[0];
-
-  const PRIMEROS_COMPUESTOS = new Set([
-    "jose", "josé",
-    "juan",
-    "maria", "maría",
-    "ana",
-    "francisco",
-    "miguel",
-    "carlos",
-    "luis",
-    "victor", "víctor",
-    "angel", "ángel",
-    "pedro",
-    "jesus", "jesús",
-    "fco", "fco.",
-    "ma", "mª", "m."
-  ]);
-
-  const p0 = palabras[0].toLowerCase();
-
-  if (PRIMEROS_COMPUESTOS.has(p0) && palabras.length >= 2) {
-    const SEGUNDOS_NOMBRES = new Set([
-      "luis", "manuel", "antonio", "carlos", "miguel", "angel", "ángel", "javier", "alberto", "ramon", "ramón",
-      "fernando", "david", "pablo", "diego", "ignacio", "alejandro", "vicente", "adrian", "adrián", "andres", "andrés",
-      "maria", "maría", "jose", "josé", "jesus", "jesús", "teresa", "isabel", "luisa", "dolores", "carmen", "pilar",
-      "elena", "victoria", "belen", "belén", "rosa", "cristina", "lucia", "lucía", "marta", "patricia", "laura",
-      "borja", "guillermo", "enrique", "jaime", "alfonso", "eduardo", "rafael", "joaquin", "joaquín", "gabriel"
-    ]);
-
-    const p1 = palabras[1].toLowerCase();
-    if (SEGUNDOS_NOMBRES.has(p1)) {
-      return `${palabras[0]} ${palabras[1]}`;
-    }
-  }
-
-  return palabras[0];
-}
-
-function personalizarTexto(texto: string, d: { nombre: string; email: string }) {
-  const nombreCompleto = d.nombre || "";
-  const nombrePila = extraerNombrePila(nombreCompleto);
-  const email = d.email || "";
-
-  return texto
-    .replace(/\{\{\s*nombre_responsable\s*\}\}/gi, nombreCompleto)
-    .replace(/\{\{\s*nombre\s*\}\}/gi, nombrePila)
-    .replace(/\{\{\s*(email_destinatario|email)\s*\}\}/gi, email);
-}
 
   for (const d of destinatariosValidos) {
     const subjectPersonalizado = personalizarTexto(asunto, d);
