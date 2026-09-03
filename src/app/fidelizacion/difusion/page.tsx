@@ -1,9 +1,9 @@
 "use client";
 
 import styles from "./page.module.css";
-import { Plus, Send } from "lucide-react";
-import { useState, useEffect } from "react";
-import { getDifusiones } from "@/actions/difusiones";
+import { Plus, Send, Mail, CheckCircle, Eye, AlertTriangle, TrendingUp, Search, User, Filter } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { getDifusiones, getMetricasDifusiones } from "@/actions/difusiones";
 import NuevaDifusionModal from "@/components/modals/NuevaDifusionModal";
 import DetalleDifusionModal from "@/components/modals/DetalleDifusionModal";
 
@@ -21,6 +21,17 @@ type Difusion = {
   crm_agentes?: { id: string; nombre: string; apellidos?: string | null; avatar_url?: string | null } | null;
 };
 
+type Metricas = {
+  totalDifusiones: number;
+  totalDestinatarios: number;
+  totalEnviados: number;
+  totalErrores: number;
+  totalAbiertos: number;
+  tasaEntrega: number;
+  tasaApertura: number;
+  enviadosEsteMes: number;
+};
+
 const ORIGEN_LABELS: Record<Difusion["origen"], string> = {
   campana: "Campaña",
   etiqueta: "Etiqueta",
@@ -35,7 +46,13 @@ const ESTADO_COLORS: Record<Difusion["estado"], { bg: string; color: string }> =
 };
 
 function formatFecha(iso: string) {
-  return new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleDateString("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function origenNombre(d: Difusion) {
@@ -52,40 +69,252 @@ function emisorNombre(agente?: Difusion["crm_agentes"]) {
 
 export default function DifusionPage() {
   const [difusiones, setDifusiones] = useState<Difusion[]>([]);
+  const [metricas, setMetricas] = useState<Metricas | null>(null);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [agenteFiltro, setAgenteFiltro] = useState<string>("todos");
   const [showModal, setShowModal] = useState(false);
   const [selectedDifusionId, setSelectedDifusionId] = useState<string | null>(null);
 
   function load() {
     setLoading(true);
-    getDifusiones()
-      .then((data) => setDifusiones(data as any[]))
+    Promise.all([
+      getDifusiones(),
+      getMetricasDifusiones().catch(() => null),
+    ])
+      .then(([data, kpis]) => {
+        setDifusiones((data as any[]) ?? []);
+        if (kpis) setMetricas(kpis);
+      })
       .finally(() => setLoading(false));
   }
 
   useEffect(() => { load(); }, []);
 
+  const agentesDisponibles = useMemo(() => {
+    const s = new Set<string>();
+    difusiones.forEach((d) => {
+      const n = emisorNombre(d.crm_agentes);
+      if (n !== "—") s.add(n);
+    });
+    return Array.from(s).sort();
+  }, [difusiones]);
+
+  const filtradas = useMemo(() => {
+    return difusiones.filter((d) => {
+      const q = search.toLowerCase().trim();
+      const emisor = emisorNombre(d.crm_agentes);
+      if (agenteFiltro !== "todos" && emisor !== agenteFiltro) return false;
+      if (!q) return true;
+      return (
+        d.asunto.toLowerCase().includes(q) ||
+        emisor.toLowerCase().includes(q) ||
+        origenNombre(d).toLowerCase().includes(q)
+      );
+    });
+  }, [difusiones, search, agenteFiltro]);
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1 className={styles.title}>Difusión</h1>
+        <div>
+          <h1 className={styles.title}>Difusión</h1>
+          <p style={{ margin: "4px 0 0", fontSize: "0.85rem", color: "#64748b" }}>
+            Control de envíos masivos, tracking de aperturas y comunicaciones.
+          </p>
+        </div>
+        <button className={styles.addBtn} onClick={() => setShowModal(true)}>
+          <Plus size={15} />
+          Crear difusión
+        </button>
+      </div>
+
+      {/* KPI Cards Strip */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          gap: "1rem",
+        }}
+      >
+        <div
+          style={{
+            background: "#ffffff",
+            padding: "1rem 1.25rem",
+            borderRadius: "0.85rem",
+            border: "1px solid #f1f5f9",
+            boxShadow: "0 2px 6px rgba(15, 23, 42, 0.04)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: "0.74rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+              Total Difusiones
+            </span>
+            <span style={{ padding: 6, borderRadius: 8, background: "#f8fafc", color: "#6366f1" }}>
+              <Send size={15} />
+            </span>
+          </div>
+          <div style={{ fontSize: "1.65rem", fontWeight: 700, color: "#0f172a" }}>
+            {metricas ? metricas.totalDifusiones : "—"}
+          </div>
+          <span style={{ fontSize: "0.74rem", color: "#64748b" }}>
+            {metricas ? `${metricas.enviadosEsteMes} emails enviados este mes` : "Cargando…"}
+          </span>
+        </div>
+
+        <div
+          style={{
+            background: "#ffffff",
+            padding: "1rem 1.25rem",
+            borderRadius: "0.85rem",
+            border: "1px solid #f1f5f9",
+            boxShadow: "0 2px 6px rgba(15, 23, 42, 0.04)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: "0.74rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+              Tasa de Entrega
+            </span>
+            <span style={{ padding: 6, borderRadius: 8, background: "#f0fdf4", color: "#16a34a" }}>
+              <CheckCircle size={15} />
+            </span>
+          </div>
+          <div style={{ fontSize: "1.65rem", fontWeight: 700, color: "#16a34a" }}>
+            {metricas ? `${metricas.tasaEntrega}%` : "—"}
+          </div>
+          <span style={{ fontSize: "0.74rem", color: "#64748b" }}>
+            {metricas ? `${metricas.totalEnviados} entregados (${metricas.totalErrores} errores)` : "Cargando…"}
+          </span>
+        </div>
+
+        <div
+          style={{
+            background: "#ffffff",
+            padding: "1rem 1.25rem",
+            borderRadius: "0.85rem",
+            border: "1px solid #f1f5f9",
+            boxShadow: "0 2px 6px rgba(15, 23, 42, 0.04)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: "0.74rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+              Tasa de Apertura
+            </span>
+            <span style={{ padding: 6, borderRadius: 8, background: "#eff6ff", color: "#2563eb" }}>
+              <Eye size={15} />
+            </span>
+          </div>
+          <div style={{ fontSize: "1.65rem", fontWeight: 700, color: "#2563eb" }}>
+            {metricas ? `${metricas.tasaApertura}%` : "—"}
+          </div>
+          <span style={{ fontSize: "0.74rem", color: "#64748b" }}>
+            {metricas ? `${metricas.totalAbiertos} aperturas registradas` : "Tracking en tiempo real"}
+          </span>
+        </div>
+
+        <div
+          style={{
+            background: "#ffffff",
+            padding: "1rem 1.25rem",
+            borderRadius: "0.85rem",
+            border: "1px solid #f1f5f9",
+            boxShadow: "0 2px 6px rgba(15, 23, 42, 0.04)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: "0.74rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+              Destinatarios Totales
+            </span>
+            <span style={{ padding: 6, borderRadius: 8, background: "#fdf4ff", color: "#9333ea" }}>
+              <TrendingUp size={15} />
+            </span>
+          </div>
+          <div style={{ fontSize: "1.65rem", fontWeight: 700, color: "#0f172a" }}>
+            {metricas ? metricas.totalDestinatarios : "—"}
+          </div>
+          <span style={{ fontSize: "0.74rem", color: "#64748b" }}>
+            Contactos alcanzados por difusiones
+          </span>
+        </div>
       </div>
 
       <div className={styles.tableWrapper}>
-        <div className={styles.tableHeader}>
-          <span className={styles.tableTitle}>Comunicaciones enviadas</span>
-          <button className={styles.addBtn} onClick={() => setShowModal(true)}>
-            <Plus size={14} />
-            Crear difusión
-          </button>
+        <div className={styles.tableHeader} style={{ flexWrap: "wrap", gap: "0.75rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flex: 1, minWidth: 260 }}>
+            <span className={styles.tableTitle}>Historial de difusiones</span>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "0.3rem 0.6rem",
+                borderRadius: 6,
+                border: "1px solid #e2e8f0",
+                background: "#fff",
+                fontSize: "0.78rem",
+                flex: 1,
+                maxWidth: 320,
+              }}
+            >
+              <Search size={13} style={{ color: "#94a3b8" }} />
+              <input
+                type="text"
+                placeholder="Buscar por asunto, emisor u origen…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{ border: "none", outline: "none", fontSize: "0.78rem", width: "100%", color: "#1e293b" }}
+              />
+            </div>
+          </div>
+
+          {agentesDisponibles.length > 1 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Filter size={13} style={{ color: "#94a3b8" }} />
+              <select
+                value={agenteFiltro}
+                onChange={(e) => setAgenteFiltro(e.target.value)}
+                style={{
+                  padding: "0.3rem 0.6rem",
+                  borderRadius: 6,
+                  border: "1px solid #e2e8f0",
+                  background: "#fff",
+                  fontSize: "0.78rem",
+                  color: "#334155",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="todos">Todos los emisores</option>
+                {agentesDisponibles.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {loading ? (
           <div className={styles.emptyState}>Cargando…</div>
-        ) : difusiones.length === 0 ? (
+        ) : filtradas.length === 0 ? (
           <div className={styles.emptyState}>
             <Send size={24} style={{ opacity: 0.4, marginBottom: 8 }} />
-            <div>Todavía no se ha enviado ninguna difusión.</div>
+            <div>
+              {difusiones.length === 0
+                ? "Todavía no se ha enviado ninguna difusión."
+                : "No se encontraron difusiones que coincidan con la búsqueda."}
+            </div>
           </div>
         ) : (
           <table className={styles.table}>
@@ -101,7 +330,7 @@ export default function DifusionPage() {
               </tr>
             </thead>
             <tbody>
-              {difusiones.map((d) => {
+              {filtradas.map((d) => {
                 const estadoStyle = ESTADO_COLORS[d.estado];
                 const emisor = emisorNombre(d.crm_agentes);
                 return (
@@ -110,7 +339,7 @@ export default function DifusionPage() {
                     className={styles.tr}
                     onClick={() => setSelectedDifusionId(d.id)}
                     style={{ cursor: "pointer" }}
-                    title="Ver detalle de la difusión"
+                    title="Ver detalle y métricas de apertura"
                   >
                     <td className={styles.td}>
                       <span className={styles.nombre}>{d.asunto}</span>
@@ -141,7 +370,14 @@ export default function DifusionPage() {
                       {ORIGEN_LABELS[d.origen]} · {origenNombre(d)}
                     </td>
                     <td className={styles.tdCenter}>{d.num_destinatarios}</td>
-                    <td className={styles.tdCenter}>{d.num_enviados}{d.num_errores > 0 ? ` (${d.num_errores} error${d.num_errores === 1 ? "" : "es"})` : ""}</td>
+                    <td className={styles.tdCenter}>
+                      {d.num_enviados}
+                      {d.num_errores > 0 ? (
+                        <span style={{ color: "#dc2626", marginLeft: 4 }}>
+                          ({d.num_errores} error{d.num_errores === 1 ? "" : "es"})
+                        </span>
+                      ) : null}
+                    </td>
                     <td className={styles.td}>
                       <span className={styles.badge} style={{ background: estadoStyle.bg, color: estadoStyle.color }}>
                         {d.estado === "enviando" ? "Enviando" : d.estado === "enviado" ? "Enviado" : "Error"}

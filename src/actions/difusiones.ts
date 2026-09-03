@@ -1,6 +1,7 @@
 "use server";
 
 import nodemailer from "nodemailer";
+import { headers } from "next/headers";
 import { createAdminServerClient, createAdminServiceClient } from "@/lib/supabaseServer";
 import { getAgencyDbClient } from "@/lib/agencyDb";
 import { getCurrentUserEmailConfig } from "./usuarios";
@@ -31,7 +32,7 @@ export async function getDifusionDetalle(difusionId: string) {
 
   const { data: destinatarios, error: destError } = await agencyDb
     .from("fidelizacion_difusiones_destinatarios")
-    .select("id, entidad_id, nombre, email, estado, error_detalle, created_at")
+    .select("id, entidad_id, nombre, email, estado, error_detalle, token, abierto_at, num_aperturas, created_at")
     .eq("difusion_id", difusionId)
     .order("nombre", { ascending: true });
 
@@ -41,6 +42,116 @@ export async function getDifusionDetalle(difusionId: string) {
     ...difusion,
     destinatarios: destinatarios ?? [],
   };
+}
+
+export async function markDifusionEmailAbierto(token: string) {
+  const agencyDb = await getAgencyDbClient();
+  const { data: dest } = await agencyDb
+    .from("fidelizacion_difusiones_destinatarios")
+    .select("id, abierto_at, num_aperturas")
+    .eq("token", token)
+    .single();
+
+  if (!dest) return { success: false };
+
+  const updates: any = {
+    num_aperturas: (dest.num_aperturas || 0) + 1,
+  };
+  if (!dest.abierto_at) {
+    updates.abierto_at = new Date().toISOString();
+  }
+
+  const { error } = await agencyDb
+    .from("fidelizacion_difusiones_destinatarios")
+    .update(updates)
+    .eq("id", dest.id);
+
+  return { success: !error };
+}
+
+export async function getMetricasDifusiones() {
+  const agencyDb = await getAgencyDbClient();
+  const { data: difusiones, error: errD } = await agencyDb
+    .from("fidelizacion_difusiones")
+    .select("id, num_destinatarios, num_enviados, num_errores, estado, created_at, agente_id, crm_agentes(nombre, apellidos)");
+  if (errD && errD.code !== "42P01") throw errD;
+
+  const { data: dests, error: errDest } = await agencyDb
+    .from("fidelizacion_difusiones_destinatarios")
+    .select("id, difusion_id, estado, abierto_at, num_aperturas");
+  if (errDest && errDest.code !== "42P01") throw errDest;
+
+  const listaDif = difusiones ?? [];
+  const listaDest = dests ?? [];
+
+  const totalDifusiones = listaDif.length;
+  const totalDestinatarios = listaDif.reduce((acc, d) => acc + (d.num_destinatarios || 0), 0);
+  const totalEnviados = listaDif.reduce((acc, d) => acc + (d.num_enviados || 0), 0);
+  const totalErrores = listaDif.reduce((acc, d) => acc + (d.num_errores || 0), 0);
+
+  const totalAbiertos = listaDest.filter((d) => d.abierto_at !== null).length;
+  const tasaEntrega = totalDestinatarios > 0 ? Math.round((totalEnviados / totalDestinatarios) * 100) : 100;
+  const tasaApertura = totalEnviados > 0 ? Math.round((totalAbiertos / totalEnviados) * 100) : 0;
+
+  const ahora = new Date();
+  const primerDiaMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1).toISOString();
+  const enviadosEsteMes = listaDif
+    .filter((d) => d.created_at >= primerDiaMes)
+    .reduce((acc, d) => acc + (d.num_enviados || 0), 0);
+
+  return {
+    totalDifusiones,
+    totalDestinatarios,
+    totalEnviados,
+    totalErrores,
+    totalAbiertos,
+    tasaEntrega,
+    tasaApertura,
+    enviadosEsteMes,
+  };
+}
+
+export async function getUltimasDifusionesPorEntidad(entidadIds: string[]) {
+  if (!entidadIds || entidadIds.length === 0) return {};
+  const agencyDb = await getAgencyDbClient();
+  const { data, error } = await agencyDb
+    .from("fidelizacion_difusiones_destinatarios")
+    .select("entidad_id, created_at, difusion_id, fidelizacion_difusiones(asunto)")
+    .in("entidad_id", entidadIds)
+    .eq("estado", "enviado")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    if (error.code === "42P01") return {};
+    throw error;
+  }
+
+  const mapa: Record<string, { fecha: string; asunto: string }> = {};
+  for (const row of (data ?? []) as any[]) {
+    if (row.entidad_id && !mapa[row.entidad_id]) {
+      mapa[row.entidad_id] = {
+        fecha: row.created_at,
+        asunto: row.fidelizacion_difusiones?.asunto ?? "Difusión",
+      };
+    }
+  }
+  return mapa;
+}
+
+export async function getHistorialDifusionesEntidad(entidadId: string) {
+  if (!entidadId) return [];
+  const agencyDb = await getAgencyDbClient();
+  const { data, error } = await agencyDb
+    .from("fidelizacion_difusiones_destinatarios")
+    .select("id, nombre, email, estado, error_detalle, abierto_at, num_aperturas, created_at, fidelizacion_difusiones(id, asunto, origen, created_at, crm_agentes(nombre, apellidos))")
+    .eq("entidad_id", entidadId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    if (error.code === "42P01") return [];
+    throw error;
+  }
+  return data ?? [];
 }
 
 type Destinatario = { entidad_id: string; nombre: string; email: string };
@@ -373,12 +484,28 @@ export async function crearDifusion(payload: {
 
   let numEnviados = 0;
   let numErrores = 0;
+  let appBaseUrl = "";
+  try {
+    const h = await headers();
+    const proto = h.get("x-forwarded-proto") || "https";
+    const host = h.get("x-forwarded-host") || h.get("host") || "";
+    if (host) appBaseUrl = `${proto}://${host}`;
+  } catch {
+    // fallback
+  }
+
   const destinatariosInsert: any[] = [];
 
   for (const d of destinatariosValidos) {
+    const token = crypto.randomUUID();
     const subjectPersonalizado = personalizarTexto(asunto, d);
     const textPersonalizado = personalizarTexto(cuerpo, d);
-    const htmlPersonalizado = personalizarTexto(htmlCuerpo, d);
+
+    // Pixel de tracking individual
+    const trackingPixel = appBaseUrl
+      ? `<img src="${appBaseUrl}/api/track/${token}" width="1" height="1" style="display:none;" alt="" />`
+      : "";
+    const htmlPersonalizado = `${personalizarTexto(htmlCuerpo, d)}${trackingPixel}`;
 
     try {
       await transporter.sendMail({
@@ -390,11 +517,29 @@ export async function crearDifusion(payload: {
         attachments,
       });
       numEnviados++;
-      destinatariosInsert.push({ difusion_id: difusionId, entidad_id: d.entidad_id, nombre: d.nombre, email: d.email, estado: "enviado" });
+      destinatariosInsert.push({
+        difusion_id: difusionId,
+        entidad_id: d.entidad_id,
+        nombre: d.nombre,
+        email: d.email,
+        estado: "enviado",
+        token,
+      });
     } catch (err: any) {
       numErrores++;
-      destinatariosInsert.push({ difusion_id: difusionId, entidad_id: d.entidad_id, nombre: d.nombre, email: d.email, estado: "error", error_detalle: err.message ?? "Error desconocido" });
+      destinatariosInsert.push({
+        difusion_id: difusionId,
+        entidad_id: d.entidad_id,
+        nombre: d.nombre,
+        email: d.email,
+        estado: "error",
+        error_detalle: err.message ?? "Error desconocido",
+        token,
+      });
     }
+
+    // Throttling de seguridad: pausa de 120ms entre envíos para proteger reputación de IP/SMTP
+    await new Promise((r) => setTimeout(r, 120));
   }
 
   if (destinatariosInsert.length > 0) {

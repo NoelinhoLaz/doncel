@@ -2,10 +2,11 @@
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { X, Pencil, Plus, Phone, Mail, Info, Building2, Rocket, IdCard, Trash2, User, Users, Target, FileText, Calculator, FolderOpen, Tag, ChevronDown, ChevronRight, Presentation, Search, Loader2, MapPin } from "lucide-react";
+import { X, Pencil, Plus, Phone, Mail, Info, Building2, Rocket, IdCard, Trash2, User, Users, Target, FileText, Calculator, FolderOpen, Tag, ChevronDown, ChevronRight, Presentation, Search, Loader2, MapPin, Send } from "lucide-react";
 import { EntidadDetalle, CampanaHistorialRow } from "../types";
 import { EMPTY_CONTACTO_FORM, lbl, inp, th, td } from "../constants";
 import { getEntidadHistorial, getEntidadResumen } from "@/actions/crm";
+import { getHistorialDifusionesEntidad } from "@/actions/difusiones";
 import { searchNominatim, type NominatimResult } from "@/actions/nominatim";
 import { apiFetch, initials } from "../utils";
 import styles from "../page.module.css";
@@ -57,11 +58,14 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
   const [cotizaciones, setCotizaciones] = useState<any[]>([]);
   const [propuestas, setPropuestas] = useState<any[]>([]);
   const [expedientes, setExpedientes] = useState<any[]>([]);
+  const [difusiones, setDifusiones] = useState<any[]>([]);
+  const [loadingDifusiones, setLoadingDifusiones] = useState(false);
   const [pagCampanas, setPagCampanas] = useState(0);
   const [pagPresupuestos, setPagPresupuestos] = useState(0);
   const [pagCotizaciones, setPagCotizaciones] = useState(0);
   const [pagPropuestas, setPagPropuestas] = useState(0);
   const [pagExpedientes, setPagExpedientes] = useState(0);
+  const [pagDifusiones, setPagDifusiones] = useState(0);
   const [contactos, setContactos] = useState(data.entidad?.crm_contactos ?? []);
   const [showAnadirCampana, setShowAnadirCampana] = useState(false);
   const [showNuevoContacto, setShowNuevoContacto] = useState(false);
@@ -511,12 +515,14 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
     Promise.all([
       getEntidadHistorial(entidad.id),
       getEntidadResumen(entidad.id),
-    ]).then(([rows, resumen]) => {
+      getHistorialDifusionesEntidad(entidad.id).catch(() => []),
+    ]).then(([rows, resumen, difs]) => {
       setHistorial(rows as unknown as CampanaHistorialRow[]);
       setPresupuestos(resumen.presupuestos);
       setCotizaciones(resumen.cotizaciones);
       setExpedientes(resumen.expedientes);
       setPropuestas(resumen.propuestas ?? []);
+      setDifusiones(difs ?? []);
     }).catch(() => {}).finally(() => setLoading(false));
   }, [entidad?.id]);
 
@@ -663,6 +669,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
   const pagerCotizaciones = useMiniPager(cotizaciones, [pagCotizaciones, setPagCotizaciones]);
   const pagerPropuestas = useMiniPager(propuestas, [pagPropuestas, setPagPropuestas]);
   const pagerExpedientes = useMiniPager(expedientes, [pagExpedientes, setPagExpedientes]);
+  const pagerDifusiones = useMiniPager(difusiones, [pagDifusiones, setPagDifusiones]);
 
   return (
     <>
@@ -1646,6 +1653,66 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
               </table>
             )}
             <MiniPager page={pagerExpedientes.page} totalPages={pagerExpedientes.totalPages} onChange={setPagExpedientes} />
+          </SeccionColapsable>
+
+          {/* Difusiones */}
+          <SeccionColapsable
+            icon={<Send size={17} />}
+            titulo="Difusiones recibidas"
+            count={difusiones.length}
+            isOpen={!!openSections.difusiones}
+            onToggle={() => toggleSection("difusiones")}
+          >
+            {loadingDifusiones ? (
+              <div style={{ padding: "0.75rem", textAlign: "center", color: "#94a3b8", fontSize: "0.82rem" }}>Cargando difusiones…</div>
+            ) : difusiones.length === 0 ? (
+              <div style={{ color: "#94a3b8", fontSize: "0.82rem", fontStyle: "italic", padding: "0.4rem 0" }}>No ha recibido difusiones</div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th style={th}>Asunto</th>
+                    <th style={th}>Destinatario</th>
+                    <th style={th}>Estado</th>
+                    <th style={th}>Fecha</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagerDifusiones.paginated.map((d: any, i: number) => (
+                    <tr key={d.id || i} style={{ borderBottom: i < pagerDifusiones.paginated.length - 1 ? "1px solid #f1f5f9" : undefined }}>
+                      <td style={{ ...td, fontWeight: 600, color: "#1e293b" }}>
+                        {d.fidelizacion_difusiones?.asunto ?? "—"}
+                      </td>
+                      <td style={td}>
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                          <span>{d.nombre || "—"}</span>
+                          <span style={{ fontSize: "0.72rem", color: "#64748b" }}>{d.email}</span>
+                        </div>
+                      </td>
+                      <td style={td}>
+                        {d.abierto_at ? (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.7rem", fontWeight: 600, color: "#2563eb", background: "#eff6ff", padding: "0.1rem 0.45rem", borderRadius: 4 }}>
+                            Abierto
+                          </span>
+                        ) : d.estado === "enviado" ? (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.7rem", fontWeight: 600, color: "#16a34a", background: "#dcfce7", padding: "0.1rem 0.45rem", borderRadius: 4 }}>
+                            Entregado
+                          </span>
+                        ) : (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.7rem", fontWeight: 600, color: "#dc2626", background: "#fee2e2", padding: "0.1rem 0.45rem", borderRadius: 4 }}>
+                            Error
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ ...td, whiteSpace: "nowrap", fontSize: "0.75rem" }}>
+                        {new Date(d.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <MiniPager page={pagerDifusiones.page} totalPages={pagerDifusiones.totalPages} onChange={setPagDifusiones} />
           </SeccionColapsable>
 
           {/* Etiquetas */}

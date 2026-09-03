@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Mail, CheckCircle2, XCircle, Clock, Search, Send, User } from "lucide-react";
+import { X, Mail, CheckCircle2, XCircle, Clock, Search, Send, User, Eye, EyeOff } from "lucide-react";
 import { getDifusionDetalle } from "@/actions/difusiones";
 import styles from "./nuevaDifusion.module.css";
 
@@ -29,6 +29,9 @@ type Detalle = {
     email: string;
     estado: "enviado" | "error";
     error_detalle: string | null;
+    token?: string;
+    abierto_at?: string | null;
+    num_aperturas?: number;
     created_at: string;
   }>;
 };
@@ -56,12 +59,17 @@ function formatFecha(iso: string) {
   });
 }
 
+function formatHoraFechaCorta(iso: string) {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" })} ${d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
 export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
   const [data, setData] = useState<Detalle | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"mensaje" | "destinatarios">("mensaje");
   const [filtroDest, setFiltroDest] = useState("");
-  const [estadoFilter, setEstadoFilter] = useState<"todos" | "enviado" | "error">("todos");
+  const [estadoFilter, setEstadoFilter] = useState<"todos" | "abierto" | "sin_abrir" | "error">("todos");
 
   useEffect(() => {
     setLoading(true);
@@ -70,8 +78,15 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
       .finally(() => setLoading(false));
   }, [difusionId]);
 
+  const totalAbiertos = (data?.destinatarios ?? []).filter((d) => !!d.abierto_at).length;
+  const tasaApertura = data?.num_enviados && data.num_enviados > 0
+    ? Math.round((totalAbiertos / data.num_enviados) * 100)
+    : 0;
+
   const destinatariosFiltrados = (data?.destinatarios ?? []).filter((d) => {
-    if (estadoFilter !== "todos" && d.estado !== estadoFilter) return false;
+    if (estadoFilter === "abierto" && !d.abierto_at) return false;
+    if (estadoFilter === "sin_abrir" && (!!d.abierto_at || d.estado === "error")) return false;
+    if (estadoFilter === "error" && d.estado !== "error") return false;
     if (!filtroDest.trim()) return true;
     const q = filtroDest.toLowerCase();
     return (
@@ -87,7 +102,7 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
       <div
         className={styles.modal}
         onClick={(e) => e.stopPropagation()}
-        style={{ width: 840, maxHeight: "calc(100vh - 5rem)" }}
+        style={{ width: 880, maxHeight: "calc(100vh - 4.5rem)" }}
       >
         {/* Header */}
         <div className={styles.modalHeader}>
@@ -129,7 +144,7 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
                 flexWrap: "wrap",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <span
                   style={{
                     padding: "0.2rem 0.65rem",
@@ -149,6 +164,21 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
                       ({data.num_errores} con error)
                     </span>
                   )}
+                </span>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    fontSize: "0.78rem",
+                    fontWeight: 600,
+                    color: "#2563eb",
+                    background: "#eff6ff",
+                    padding: "0.15rem 0.6rem",
+                    borderRadius: 6,
+                  }}
+                >
+                  <Eye size={12} /> {totalAbiertos} abiertos ({tasaApertura}%)
                 </span>
               </div>
 
@@ -194,7 +224,7 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
             </div>
 
             {/* Modal Body */}
-            <div className={styles.modalBody} style={{ minHeight: 320 }}>
+            <div className={styles.modalBody} style={{ minHeight: 340 }}>
               {activeTab === "mensaje" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                   {/* Asunto */}
@@ -228,7 +258,7 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
                         background: "#ffffff",
                         borderRadius: 8,
                         border: "1px solid #e2e8f0",
-                        minHeight: 180,
+                        minHeight: 190,
                         maxHeight: 340,
                         overflowY: "auto",
                         fontSize: "0.875rem",
@@ -276,7 +306,7 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
                       />
                     </div>
 
-                    <div style={{ display: "flex", gap: 4 }}>
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                       <button
                         type="button"
                         onClick={() => setEstadoFilter("todos")}
@@ -295,7 +325,7 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setEstadoFilter("enviado")}
+                        onClick={() => setEstadoFilter("abierto")}
                         style={{
                           padding: "0.35rem 0.65rem",
                           borderRadius: 6,
@@ -303,11 +333,27 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
                           border: "1px solid #e2e8f0",
                           cursor: "pointer",
                           fontWeight: 500,
-                          background: estadoFilter === "enviado" ? "#16a34a" : "#fff",
-                          color: estadoFilter === "enviado" ? "#fff" : "#16a34a",
+                          background: estadoFilter === "abierto" ? "#2563eb" : "#fff",
+                          color: estadoFilter === "abierto" ? "#fff" : "#2563eb",
                         }}
                       >
-                        Enviados ({data.num_enviados})
+                        Abiertos ({totalAbiertos})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEstadoFilter("sin_abrir")}
+                        style={{
+                          padding: "0.35rem 0.65rem",
+                          borderRadius: 6,
+                          fontSize: "0.72rem",
+                          border: "1px solid #e2e8f0",
+                          cursor: "pointer",
+                          fontWeight: 500,
+                          background: estadoFilter === "sin_abrir" ? "#16a34a" : "#fff",
+                          color: estadoFilter === "sin_abrir" ? "#fff" : "#16a34a",
+                        }}
+                      >
+                        Sin abrir ({Math.max(0, data.num_enviados - totalAbiertos)})
                       </button>
                       {data.num_errores > 0 && (
                         <button
@@ -335,7 +381,7 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
                     style={{
                       border: "1px solid #e2e8f0",
                       borderRadius: 8,
-                      maxHeight: 320,
+                      maxHeight: 330,
                       overflowY: "auto",
                       background: "#fff",
                     }}
@@ -363,8 +409,8 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
                                 width: 28,
                                 height: 28,
                                 borderRadius: "50%",
-                                background: d.estado === "enviado" ? "#dcfce7" : "#fee2e2",
-                                color: d.estado === "enviado" ? "#16a34a" : "#dc2626",
+                                background: d.abierto_at ? "#eff6ff" : (d.estado === "enviado" ? "#dcfce7" : "#fee2e2"),
+                                color: d.abierto_at ? "#2563eb" : (d.estado === "enviado" ? "#16a34a" : "#dc2626"),
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
@@ -386,7 +432,24 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
                           </div>
 
                           <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                            {d.estado === "enviado" ? (
+                            {d.abierto_at ? (
+                              <span
+                                title={`Abierto el ${formatFecha(d.abierto_at)}${d.num_aperturas && d.num_aperturas > 1 ? ` (${d.num_aperturas} veces)` : ""}`}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 4,
+                                  fontSize: "0.7rem",
+                                  fontWeight: 600,
+                                  color: "#2563eb",
+                                  background: "#eff6ff",
+                                  padding: "0.15rem 0.55rem",
+                                  borderRadius: 999,
+                                }}
+                              >
+                                <Eye size={11} /> Abierto {formatHoraFechaCorta(d.abierto_at)}
+                              </span>
+                            ) : d.estado === "enviado" ? (
                               <span
                                 style={{
                                   display: "inline-flex",
@@ -400,7 +463,7 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
                                   borderRadius: 999,
                                 }}
                               >
-                                <CheckCircle2 size={11} /> Enviado
+                                <CheckCircle2 size={11} /> Entregado
                               </span>
                             ) : (
                               <span

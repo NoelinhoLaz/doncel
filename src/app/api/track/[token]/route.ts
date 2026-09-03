@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { markEmailAbierto } from "@/actions/comunicaciones";
+import { markDifusionEmailAbierto } from "@/actions/difusiones";
 
 // GIF transparente 1x1
 const TRACKING_PIXEL = Buffer.from(
@@ -14,7 +15,8 @@ export async function GET(
   const { token } = await params;
 
   if (token && /^[0-9a-f-]{36}$/.test(token)) {
-    // Fire-and-forget: no bloqueamos la respuesta esperando la BD
+    // Fire-and-forget: registra apertura para difusiones y comunicaciones
+    markDifusionEmailAbierto(token).catch(() => {});
     markEmailAbierto(token).catch(() => {});
   }
 

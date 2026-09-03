@@ -2314,10 +2314,16 @@ CREATE TABLE IF NOT EXISTS fidelizacion_difusiones_destinatarios (
     estado       VARCHAR(20) NOT NULL DEFAULT 'enviado'
                      CHECK (estado IN ('enviado', 'error')),
     error_detalle TEXT,
+    token        UUID DEFAULT gen_random_uuid(),
+    abierto_at   TIMESTAMP WITH TIME ZONE,
+    num_aperturas INTEGER NOT NULL DEFAULT 0,
     created_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_difusiones_dest_difusion ON fidelizacion_difusiones_destinatarios(difusion_id);
+CREATE INDEX IF NOT EXISTS idx_difusiones_dest_token    ON fidelizacion_difusiones_destinatarios(token);
+CREATE INDEX IF NOT EXISTS idx_difusiones_dest_entidad  ON fidelizacion_difusiones_destinatarios(entidad_id);
+
 
 -- ------------------------------------------------------------
 -- 9. LOG DE HISTORIAL DE ESTADOS DE OPORTUNIDAD

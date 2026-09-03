@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import styles from "./selectorDestinatarios.module.css";
-import { getDestinatariosPorEntidadIds, getEmailsDeEntidad, getClientesPersona, getGruposEmpresa, type EntidadDestinatarios } from "@/actions/difusiones";
+import { getDestinatariosPorEntidadIds, getEmailsDeEntidad, getClientesPersona, getGruposEmpresa, getUltimasDifusionesPorEntidad, type EntidadDestinatarios } from "@/actions/difusiones";
 import { getEntidadesViajerosExpediente, getEntidadTitularExpediente, getEntidadesClienteExpediente } from "@/actions/encuestas";
 import { searchExpedientes } from "@/actions/expedientes";
+import { AlertTriangle, ShieldCheck } from "lucide-react";
 
 export type CategoriaKey =
   | "clientes"
@@ -59,13 +60,11 @@ export const ARBOL_CAMPANA: NodoDestinatario[] = [
 ];
 
 type Props = {
-  arbol: NodoDestinatario[];
-  /** Necesario si el árbol incluye "viajeros" o "clientes" ligados a un expediente ya fijado. */
+  arbol?: NodoDestinatario[];
   expedienteId?: string;
-  /** Necesario si el árbol es ARBOL_CAMPANA. */
   campanaId?: string;
   entidades: EntidadDestinatarios[];
-  onEntidadesChange: (data: EntidadDestinatarios[] | ((prev: EntidadDestinatarios[]) => EntidadDestinatarios[])) => void;
+  onEntidadesChange: React.Dispatch<React.SetStateAction<EntidadDestinatarios[]>>;
   selectedEmails: Set<string>;
   onToggleEmail: (entidadId: string, email: string) => void;
   loading: boolean;
@@ -77,7 +76,8 @@ const ETIQUETA_POR_PREFIJO: Record<string, string> = {
   clientes: "Cliente",
   viajeros: "Viajero",
   contacto: "Contacto",
-  manual: "Manual",
+  grupos: "Grupo",
+  campana: "Campaña",
 };
 
 function etiquetaDestinatario(entidadId: string, emailTipo: "institucional" | "contacto"): string {
@@ -88,8 +88,13 @@ function etiquetaDestinatario(entidadId: string, emailTipo: "institucional" | "c
   return ETIQUETA_POR_PREFIJO[prefijo] ?? "";
 }
 
+function diasDesde(isoFecha: string) {
+  const diff = Date.now() - new Date(isoFecha).getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
 export default function SelectorDestinatarios({
-  arbol,
+  arbol = ARBOL_GENERAL,
   expedienteId,
   campanaId,
   entidades,
@@ -100,18 +105,29 @@ export default function SelectorDestinatarios({
   onLoadingChange,
   emailKey,
 }: Props) {
-  // Vista activa: una sola categoría visible/buscable a la vez. La selección (selectedEmails, en el padre)
-  // persiste entre vistas — cambiar de vista no descarta lo ya marcado en otras categorías.
   const [vistaActiva, setVistaActiva] = useState<CategoriaKey | null>(null);
   const [busqueda, setBusqueda] = useState("");
+  const [ultimosEnvios, setUltimosEnvios] = useState<Record<string, { fecha: string; asunto: string }>>({});
+  const [excluirRecientes, setExcluirRecientes] = useState(false);
 
-  // Necesita expediente elegido cuando "clientes"/"viajeros" se activan sin expedienteId fijo.
   const [expedienteFiltro, setExpedienteFiltro] = useState<{ id: string; nombre: string } | null>(null);
   const [expQuery, setExpQuery] = useState("");
   const [expResultados, setExpResultados] = useState<{ id: string; nombre: string }[]>([]);
   const debounceExpRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const necesitaExpediente = !expedienteId && (vistaActiva === "clientes" || vistaActiva === "viajeros");
+
+  useEffect(() => {
+    const rawIds = entidades
+      .map((e) => (e.entidad_id.includes("::") ? e.entidad_id.split("::")[1] : e.entidad_id))
+      .filter(Boolean);
+    const uniqueIds = Array.from(new Set(rawIds));
+    if (uniqueIds.length > 0) {
+      getUltimasDifusionesPorEntidad(uniqueIds)
+        .then((mapa) => setUltimosEnvios((prev) => ({ ...prev, ...mapa })))
+        .catch(() => {});
+    }
+  }, [entidades]);
 
   useEffect(() => {
     if (!expQuery.trim()) { setExpResultados([]); return; }
@@ -123,8 +139,6 @@ export default function SelectorDestinatarios({
   }, [expQuery]);
 
   function agregarEntidades(nuevas: EntidadDestinatarios[], prefijo: string) {
-    // Acumula las entidades resueltas de esta categoría en el pool global (usado para el envío),
-    // sustituyendo solo lo que ya hubiera de la misma categoría. Nunca se pierde lo de otras vistas.
     onEntidadesChange((prev) => [...prev.filter((e) => !e.entidad_id.startsWith(prefijo)), ...nuevas]);
   }
 
@@ -187,7 +201,6 @@ export default function SelectorDestinatarios({
     setBusqueda("");
   }
 
-  // Resuelve la categoría al activarla como vista (o al cambiar el expediente filtrado mientras está activa).
   useEffect(() => {
     if (vistaActiva) resolverCategoria(vistaActiva);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -205,23 +218,23 @@ export default function SelectorDestinatarios({
     responsable: "campana::",
   };
 
-  // Todas las opciones seleccionables como pill (hojas del árbol: nodos sin hijos + hijos de los que sí tienen).
   const opcionesPill: { key: CategoriaKey; label: string }[] = arbol.flatMap((n) => (n.children ? n.children : [n]));
 
   function filasDeCategoria(cat: CategoriaKey) {
     const prefijo = PREFIJO_POR_CATEGORIA[cat];
     const tipoRequerido =
       cat === "grupos.responsable" || cat === "responsable" ? "contacto" : cat === "grupos.institucional" || cat === "institucional" ? "institucional" : null;
-    const porEmail = new Map<string, { entidadId: string; nombre: string; email: string; etiqueta: string }>();
+    const porEmail = new Map<string, { entidadId: string; realId: string; nombre: string; email: string; etiqueta: string }>();
     for (const ent of entidades) {
       if (!ent.entidad_id.startsWith(prefijo)) continue;
+      const realId = ent.entidad_id.includes("::") ? ent.entidad_id.split("::")[1] : ent.entidad_id;
       for (const em of ent.emails) {
         if (tipoRequerido && em.tipo !== tipoRequerido) continue;
         const key = em.email.trim().toLowerCase();
         const etiqueta = etiquetaDestinatario(ent.entidad_id, em.tipo);
         const existente = porEmail.get(key);
         if (!existente || ORDEN_ETIQUETA.indexOf(etiqueta) < ORDEN_ETIQUETA.indexOf(existente.etiqueta)) {
-          porEmail.set(key, { entidadId: ent.entidad_id, nombre: ent.nombre, email: em.email, etiqueta });
+          porEmail.set(key, { entidadId: ent.entidad_id, realId, nombre: ent.nombre, email: em.email, etiqueta });
         }
       }
     }
@@ -233,11 +246,18 @@ export default function SelectorDestinatarios({
   }
 
   const filasVista = vistaActiva ? filasDeCategoria(vistaActiva) : [];
-  const filasFiltradas = busqueda.trim()
-    ? filasVista.filter(
-        (f) => f.nombre.toLowerCase().includes(busqueda.toLowerCase()) || f.email.toLowerCase().includes(busqueda.toLowerCase())
-      )
-    : filasVista;
+
+  const filasFiltradas = useMemo(() => {
+    return filasVista.filter((f) => {
+      if (excluirRecientes) {
+        const info = ultimosEnvios[f.realId];
+        if (info && diasDesde(info.fecha) < 7) return false;
+      }
+      if (!busqueda.trim()) return true;
+      const q = busqueda.toLowerCase();
+      return f.nombre.toLowerCase().includes(q) || f.email.toLowerCase().includes(q);
+    });
+  }, [filasVista, busqueda, excluirRecientes, ultimosEnvios]);
 
   const totalVista = filasVista.length;
   const seleccionadosVista = filasVista.filter((f) => selectedEmails.has(emailKey(f.entidadId, f.email))).length;
@@ -288,12 +308,37 @@ export default function SelectorDestinatarios({
       )}
 
       {vistaActiva && !loading && filasVista.length > 0 && (
-        <input
-          className={styles.input}
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar en esta lista..."
-        />
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            className={styles.input}
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar en esta lista..."
+            style={{ flex: 1, minWidth: 200 }}
+          />
+          <button
+            type="button"
+            onClick={() => setExcluirRecientes((v) => !v)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              padding: "0.45rem 0.65rem",
+              borderRadius: 8,
+              border: "1px solid",
+              borderColor: excluirRecientes ? "#f59e0b" : "#e2e8f0",
+              background: excluirRecientes ? "#fef3c7" : "#fff",
+              color: excluirRecientes ? "#b45309" : "#475569",
+              fontSize: "0.74rem",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+            title="Protege a clientes contactados en los últimos 7 días"
+          >
+            <ShieldCheck size={13} />
+            {excluirRecientes ? "Excluyendo < 7 días" : "Excluir contactados < 7 días"}
+          </button>
+        </div>
       )}
 
       {vistaActiva && (
@@ -306,15 +351,15 @@ export default function SelectorDestinatarios({
               type="button"
               className={styles.selectAllBtn}
               onClick={() => {
-                const todosMarcados = filasVista.every((f) => selectedEmails.has(emailKey(f.entidadId, f.email)));
-                filasVista.forEach((f) => {
+                const todosMarcados = filasFiltradas.every((f) => selectedEmails.has(emailKey(f.entidadId, f.email)));
+                filasFiltradas.forEach((f) => {
                   const yaMarcado = selectedEmails.has(emailKey(f.entidadId, f.email));
                   if (todosMarcados && yaMarcado) onToggleEmail(f.entidadId, f.email);
                   else if (!todosMarcados && !yaMarcado) onToggleEmail(f.entidadId, f.email);
                 });
               }}
             >
-              {filasVista.every((f) => selectedEmails.has(emailKey(f.entidadId, f.email))) ? "Deseleccionar todos" : "Seleccionar todos"}
+              {filasFiltradas.every((f) => selectedEmails.has(emailKey(f.entidadId, f.email))) ? "Deseleccionar mostrados" : "Seleccionar mostrados"}
             </button>
           )}
         </div>
@@ -330,17 +375,42 @@ export default function SelectorDestinatarios({
         <p className={styles.hint}>Sin resultados para "{busqueda}".</p>
       ) : (
         <div className={styles.entidadesGrid}>
-          {filasFiltradas.map((fila) => (
-            <label key={emailKey(fila.entidadId, fila.email)} className={styles.destinatarioRow}>
-              <input
-                type="checkbox"
-                checked={selectedEmails.has(emailKey(fila.entidadId, fila.email))}
-                onChange={() => onToggleEmail(fila.entidadId, fila.email)}
-              />
-              <span className={styles.destinatarioLinea}>{fila.nombre} — {fila.email}</span>
-              {fila.etiqueta && <span className={`${styles.tipoTag} ${styles["tipoTag_" + fila.etiqueta]}`}>{fila.etiqueta}</span>}
-            </label>
-          ))}
+          {filasFiltradas.map((fila) => {
+            const envioPrevio = ultimosEnvios[fila.realId];
+            const dias = envioPrevio ? diasDesde(envioPrevio.fecha) : null;
+            const esReciente = dias !== null && dias < 7;
+
+            return (
+              <label key={emailKey(fila.entidadId, fila.email)} className={styles.destinatarioRow}>
+                <input
+                  type="checkbox"
+                  checked={selectedEmails.has(emailKey(fila.entidadId, fila.email))}
+                  onChange={() => onToggleEmail(fila.entidadId, fila.email)}
+                />
+                <span className={styles.destinatarioLinea}>{fila.nombre} — {fila.email}</span>
+                {fila.etiqueta && <span className={`${styles.tipoTag} ${styles["tipoTag_" + fila.etiqueta]}`}>{fila.etiqueta}</span>}
+                {esReciente && (
+                  <span
+                    title={`Recibió: "${envioPrevio?.asunto}" el ${new Date(envioPrevio!.fecha).toLocaleDateString("es-ES")}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 3,
+                      fontSize: "0.68rem",
+                      fontWeight: 600,
+                      color: "#b45309",
+                      background: "#fef3c7",
+                      padding: "0.1rem 0.45rem",
+                      borderRadius: 4,
+                      marginLeft: 4,
+                    }}
+                  >
+                    <AlertTriangle size={10} /> Enviado hace {dias === 0 ? "hoy" : dias === 1 ? "1d" : `${dias}d`}
+                  </span>
+                )}
+              </label>
+            );
+          })}
         </div>
       )}
     </div>
