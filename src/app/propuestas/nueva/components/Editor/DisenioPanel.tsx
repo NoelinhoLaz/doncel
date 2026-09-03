@@ -323,19 +323,19 @@ export default function DisenioPanel({
             </div>
           </div>
           {seccion.layout === "menu-dias" && (
-            <div className={styles.editorSection} style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className={styles.editorSection} style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 10 }}>
               <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                 Estilo de pestañas (Menú días)
               </span>
 
-              {/* Opción Seleccionada */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569" }}>Día seleccionado</span>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {/* Opción Seleccionada */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, background: "#ffffff", padding: "10px", borderRadius: "6px", border: "1px solid #e2e8f0" }}>
+                  <span style={{ fontSize: "0.74rem", fontWeight: 700, color: "#1e293b" }}>Seleccionado</span>
                   <div>
-                    <label className={styles.editorFieldLabel} style={{ fontSize: "0.7rem", marginBottom: 3 }}>Fondo</label>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <label style={{ width: 28, height: 28, borderRadius: "0.4rem", border: "1px solid #e2e8f0", background: seccion.menuDiaActivoFondo ?? "#1e293b", flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
+                    <label className={styles.editorFieldLabel} style={{ fontSize: "0.68rem", marginBottom: 3 }}>Fondo</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <label style={{ width: 24, height: 24, borderRadius: "0.35rem", border: "1px solid #e2e8f0", background: seccion.menuDiaActivoFondo ?? "#1e293b", flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
                         <input
                           type="color"
                           value={seccion.menuDiaActivoFondo ?? "#1e293b"}
@@ -343,11 +343,11 @@ export default function DisenioPanel({
                           style={{ opacity: 0, position: "absolute" }}
                         />
                       </label>
-                      <span style={{ fontSize: "0.72rem", color: "#64748b", fontFamily: "monospace", flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{seccion.menuDiaActivoFondo ?? "#1e293b"}</span>
+                      <span style={{ fontSize: "0.68rem", color: "#64748b", fontFamily: "monospace", flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{seccion.menuDiaActivoFondo ?? "#1e293b"}</span>
                       {seccion.menuDiaActivoFondo && (
                         <button
                           onClick={() => onUpdate(seccion.uid, { menuDiaActivoFondo: undefined })}
-                          style={{ fontSize: "0.68rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                          style={{ fontSize: "0.65rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}
                           title="Restablecer"
                         >
                           ✕
@@ -357,9 +357,9 @@ export default function DisenioPanel({
                   </div>
 
                   <div>
-                    <label className={styles.editorFieldLabel} style={{ fontSize: "0.7rem", marginBottom: 3 }}>Texto</label>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <label style={{ width: 28, height: 28, borderRadius: "0.4rem", border: "1px solid #e2e8f0", background: seccion.menuDiaActivoTexto ?? "#ffffff", flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
+                    <label className={styles.editorFieldLabel} style={{ fontSize: "0.68rem", marginBottom: 3 }}>Texto</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <label style={{ width: 24, height: 24, borderRadius: "0.35rem", border: "1px solid #e2e8f0", background: seccion.menuDiaActivoTexto ?? "#ffffff", flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
                         <input
                           type="color"
                           value={seccion.menuDiaActivoTexto ?? "#ffffff"}
@@ -367,11 +367,11 @@ export default function DisenioPanel({
                           style={{ opacity: 0, position: "absolute" }}
                         />
                       </label>
-                      <span style={{ fontSize: "0.72rem", color: "#64748b", fontFamily: "monospace", flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{seccion.menuDiaActivoTexto ?? "#ffffff"}</span>
+                      <span style={{ fontSize: "0.68rem", color: "#64748b", fontFamily: "monospace", flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{seccion.menuDiaActivoTexto ?? "#ffffff"}</span>
                       {seccion.menuDiaActivoTexto && (
                         <button
                           onClick={() => onUpdate(seccion.uid, { menuDiaActivoTexto: undefined })}
-                          style={{ fontSize: "0.68rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                          style={{ fontSize: "0.65rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}
                           title="Restablecer"
                         >
                           ✕
@@ -380,16 +380,14 @@ export default function DisenioPanel({
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Opción No Seleccionada */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569" }}>Día no seleccionado</span>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {/* Opción No Seleccionada */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, background: "#ffffff", padding: "10px", borderRadius: "6px", border: "1px solid #e2e8f0" }}>
+                  <span style={{ fontSize: "0.74rem", fontWeight: 700, color: "#1e293b" }}>No seleccionado</span>
                   <div>
-                    <label className={styles.editorFieldLabel} style={{ fontSize: "0.7rem", marginBottom: 3 }}>Fondo</label>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <label style={{ width: 28, height: 28, borderRadius: "0.4rem", border: "1px solid #e2e8f0", background: seccion.menuDiaInactivoFondo ?? "#f1f5f9", flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
+                    <label className={styles.editorFieldLabel} style={{ fontSize: "0.68rem", marginBottom: 3 }}>Fondo</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <label style={{ width: 24, height: 24, borderRadius: "0.35rem", border: "1px solid #e2e8f0", background: seccion.menuDiaInactivoFondo ?? "#f1f5f9", flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
                         <input
                           type="color"
                           value={seccion.menuDiaInactivoFondo ?? "#f1f5f9"}
@@ -397,11 +395,11 @@ export default function DisenioPanel({
                           style={{ opacity: 0, position: "absolute" }}
                         />
                       </label>
-                      <span style={{ fontSize: "0.72rem", color: "#64748b", fontFamily: "monospace", flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{seccion.menuDiaInactivoFondo ?? "Automático"}</span>
+                      <span style={{ fontSize: "0.68rem", color: "#64748b", fontFamily: "monospace", flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{seccion.menuDiaInactivoFondo ?? "Auto"}</span>
                       {seccion.menuDiaInactivoFondo && (
                         <button
                           onClick={() => onUpdate(seccion.uid, { menuDiaInactivoFondo: undefined })}
-                          style={{ fontSize: "0.68rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                          style={{ fontSize: "0.65rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}
                           title="Restablecer"
                         >
                           ✕
@@ -411,9 +409,9 @@ export default function DisenioPanel({
                   </div>
 
                   <div>
-                    <label className={styles.editorFieldLabel} style={{ fontSize: "0.7rem", marginBottom: 3 }}>Texto</label>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <label style={{ width: 28, height: 28, borderRadius: "0.4rem", border: "1px solid #e2e8f0", background: seccion.menuDiaInactivoTexto ?? "#64748b", flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
+                    <label className={styles.editorFieldLabel} style={{ fontSize: "0.68rem", marginBottom: 3 }}>Texto</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <label style={{ width: 24, height: 24, borderRadius: "0.35rem", border: "1px solid #e2e8f0", background: seccion.menuDiaInactivoTexto ?? "#64748b", flexShrink: 0, cursor: "pointer", overflow: "hidden" }}>
                         <input
                           type="color"
                           value={seccion.menuDiaInactivoTexto ?? "#64748b"}
@@ -421,11 +419,11 @@ export default function DisenioPanel({
                           style={{ opacity: 0, position: "absolute" }}
                         />
                       </label>
-                      <span style={{ fontSize: "0.72rem", color: "#64748b", fontFamily: "monospace", flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{seccion.menuDiaInactivoTexto ?? "#64748b"}</span>
+                      <span style={{ fontSize: "0.68rem", color: "#64748b", fontFamily: "monospace", flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{seccion.menuDiaInactivoTexto ?? "#64748b"}</span>
                       {seccion.menuDiaInactivoTexto && (
                         <button
                           onClick={() => onUpdate(seccion.uid, { menuDiaInactivoTexto: undefined })}
-                          style={{ fontSize: "0.68rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                          style={{ fontSize: "0.65rem", color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}
                           title="Restablecer"
                         >
                           ✕
