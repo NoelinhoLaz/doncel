@@ -9,7 +9,7 @@ import NuevaDifusionModal from "@/components/modals/NuevaDifusionModal";
 type Difusion = {
   id: string;
   asunto: string;
-  origen: "campana" | "etiqueta" | "clientes_agente";
+  origen: "campana" | "etiqueta" | "clientes_agente" | "difusion";
   num_destinatarios: number;
   num_enviados: number;
   num_errores: number;
@@ -23,6 +23,7 @@ const ORIGEN_LABELS: Record<Difusion["origen"], string> = {
   campana: "Campaña",
   etiqueta: "Etiqueta",
   clientes_agente: "Mis clientes",
+  difusion: "Difusión",
 };
 
 const ESTADO_COLORS: Record<Difusion["estado"], { bg: string; color: string }> = {
@@ -38,6 +39,7 @@ function formatFecha(iso: string) {
 function origenNombre(d: Difusion) {
   if (d.origen === "campana") return d.crm_campanas?.nombre ?? "—";
   if (d.origen === "etiqueta") return d.crm_etiquetas?.nombre ?? "—";
+  if (d.origen === "difusion") return "Directa";
   return "Mis clientes";
 }
 
