@@ -5,6 +5,7 @@ import { Plus, Send } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getDifusiones } from "@/actions/difusiones";
 import NuevaDifusionModal from "@/components/modals/NuevaDifusionModal";
+import DetalleDifusionModal from "@/components/modals/DetalleDifusionModal";
 
 type Difusion = {
   id: string;
@@ -47,6 +48,7 @@ export default function DifusionPage() {
   const [difusiones, setDifusiones] = useState<Difusion[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [selectedDifusionId, setSelectedDifusionId] = useState<string | null>(null);
 
   function load() {
     setLoading(true);
@@ -95,7 +97,13 @@ export default function DifusionPage() {
               {difusiones.map((d) => {
                 const estadoStyle = ESTADO_COLORS[d.estado];
                 return (
-                  <tr key={d.id} className={styles.tr}>
+                  <tr
+                    key={d.id}
+                    className={styles.tr}
+                    onClick={() => setSelectedDifusionId(d.id)}
+                    style={{ cursor: "pointer" }}
+                    title="Ver detalle de la difusión"
+                  >
                     <td className={styles.td}>
                       <span className={styles.nombre}>{d.asunto}</span>
                     </td>
@@ -119,6 +127,13 @@ export default function DifusionPage() {
       </div>
 
       {showModal && <NuevaDifusionModal onClose={() => setShowModal(false)} onCreated={load} />}
+
+      {selectedDifusionId && (
+        <DetalleDifusionModal
+          difusionId={selectedDifusionId}
+          onClose={() => setSelectedDifusionId(null)}
+        />
+      )}
     </div>
   );
 }

@@ -19,6 +19,30 @@ export async function getDifusiones() {
   return data ?? [];
 }
 
+export async function getDifusionDetalle(difusionId: string) {
+  const agencyDb = await getAgencyDbClient();
+  const { data: difusion, error: difError } = await agencyDb
+    .from("fidelizacion_difusiones")
+    .select("id, asunto, cuerpo, origen, num_destinatarios, num_enviados, num_errores, estado, created_at, crm_campanas(nombre), crm_etiquetas(nombre)")
+    .eq("id", difusionId)
+    .single();
+
+  if (difError || !difusion) return null;
+
+  const { data: destinatarios, error: destError } = await agencyDb
+    .from("fidelizacion_difusiones_destinatarios")
+    .select("id, entidad_id, nombre, email, estado, error_detalle, created_at")
+    .eq("difusion_id", difusionId)
+    .order("nombre", { ascending: true });
+
+  if (destError) throw destError;
+
+  return {
+    ...difusion,
+    destinatarios: destinatarios ?? [],
+  };
+}
+
 type Destinatario = { entidad_id: string; nombre: string; email: string };
 type Adjunto = { nombre: string; tamanio: number; contenido: string; tipo: string };
 type EmailOpcion = { email: string; etiqueta: string; principal: boolean; tipo: "institucional" | "contacto" };
