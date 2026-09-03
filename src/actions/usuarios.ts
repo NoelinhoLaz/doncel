@@ -208,6 +208,7 @@ export async function saveAgencyUsuario(
       // luego desde su propio perfil.
       const { error: authUpdateError } = await adminServiceSupabase.auth.admin.updateUserById(targetUserId, {
         email: payload.email,
+        email_confirm: true,
         user_metadata: { nombre: payload.nombre, apellidos: payload.apellidos },
         ...(payload.password ? { password: payload.password } : {}),
       });
@@ -308,6 +309,7 @@ export async function updateMiPerfil(payload: {
     if (payload.email !== usuario.email) {
       const { error: authUpdateError } = await adminServiceSupabase.auth.admin.updateUserById(user.id, {
         email: payload.email,
+        email_confirm: true,
         user_metadata: { nombre: payload.nombre, apellidos: payload.apellidos },
       });
       if (authUpdateError) {
