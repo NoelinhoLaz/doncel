@@ -39,6 +39,7 @@ export default function EmailRichEditor({ value, onChange, placeholder = "Escrib
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {
       attributes: {
+        class: "momo-rich-inline",
         style: [
           "min-height: 160px",
           "outline: none",
