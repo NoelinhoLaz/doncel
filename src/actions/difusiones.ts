@@ -261,7 +261,7 @@ export async function crearDifusion(payload: {
     return { success: false, error: `Error de conexión SMTP: ${err.message}` };
   }
 
-  const htmlCuerpo = `<div style="font-family:sans-serif;font-size:14px;line-height:1.6;color:#334155;">${cuerpo.replace(/\n/g, "<br/>")}</div>`;
+  const htmlCuerpo = `<div style="font-family:sans-serif;font-size:14px;line-height:1.6;color:#334155;">${cuerpo}</div>`;
   const attachments = adjuntos.map((a) => ({
     filename: a.nombre,
     content: Buffer.from(a.contenido, "base64"),

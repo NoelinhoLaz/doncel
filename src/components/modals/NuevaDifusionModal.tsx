@@ -5,6 +5,7 @@ import { X, Send, Paperclip } from "lucide-react";
 import { useState, useRef } from "react";
 import { crearDifusion, type EntidadDestinatarios } from "@/actions/difusiones";
 import SelectorDestinatarios, { ARBOL_GENERAL, ARBOL_CAMPANA, ARBOL_EXPEDIENTE, type NodoDestinatario } from "./SelectorDestinatarios";
+import EmailRichEditor from "./EmailRichEditor";
 
 type Destinatario = { entidad_id: string; nombre: string; email: string };
 type AdjuntoFile = { nombre: string; tamanio: number; contenido: string; tipo: string };
@@ -49,7 +50,7 @@ export default function NuevaDifusionModal({ onClose, onCreated, arbolDestinatar
 
   // Paso 2: mensaje
   const [asunto, setAsunto] = useState("");
-  const [cuerpo, setCuerpo] = useState("");
+  const [cuerpo, setCuerpo] = useState(""); // HTML del editor rich-text
   const [adjuntos, setAdjuntos] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -70,7 +71,9 @@ export default function NuevaDifusionModal({ onClose, onCreated, arbolDestinatar
   }
 
   const step1Valid = selectedEmails.size > 0;
-  const puedeEnviar = asunto.trim() && cuerpo.trim() && step1Valid && !sending;
+  // Comprueba que el cuerpo no esté vacío (el editor devuelve "<p></p>" cuando está vacío)
+  const cuerpoTextoPlano = cuerpo.replace(/<[^>]*>/g, "").trim();
+  const puedeEnviar = asunto.trim() && cuerpoTextoPlano && step1Valid && !sending;
 
   const emailsSeleccionados: string[] = [];
   {
@@ -189,7 +192,11 @@ export default function NuevaDifusionModal({ onClose, onCreated, arbolDestinatar
 
             <div className={styles.field}>
               <label className={styles.label}>Mensaje</label>
-              <textarea className={styles.textarea} value={cuerpo} onChange={(e) => setCuerpo(e.target.value)} placeholder="Escribe el contenido de la difusión…" />
+              <EmailRichEditor
+                value={cuerpo}
+                onChange={setCuerpo}
+                placeholder="Escribe el contenido de la difusión…"
+              />
             </div>
 
             <div className={styles.field}>
