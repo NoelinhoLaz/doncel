@@ -198,7 +198,7 @@ export default function NuevaDifusionModal({ onClose, onCreated, arbolDestinatar
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
                 <label className={styles.label} style={{ margin: 0 }}>Mensaje</label>
                 <span style={{ fontSize: "0.72rem", color: "#64748b" }}>
-                  Variables: <code style={{ background: "#f1f5f9", padding: "1px 4px", borderRadius: 4, color: "#0f172a" }}>{"{{nombre_responsable}}"}</code> o <code style={{ background: "#f1f5f9", padding: "1px 4px", borderRadius: 4, color: "#0f172a" }}>{"{{nombre}}"}</code>
+                  Variables: <code style={{ background: "#f1f5f9", padding: "1px 4px", borderRadius: 4, color: "#0f172a" }}>{"{{nombre}}"}</code> (pila) · <code style={{ background: "#f1f5f9", padding: "1px 4px", borderRadius: 4, color: "#0f172a" }}>{"{{nombre_responsable}}"}</code> (completo)
                 </span>
               </div>
               <EmailRichEditor
