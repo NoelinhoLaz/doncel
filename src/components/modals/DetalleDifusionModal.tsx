@@ -25,6 +25,7 @@ type Detalle = {
   crm_agentes?: { id: string; nombre: string; apellidos?: string | null; avatar_url?: string | null } | null;
   destinatarios: Array<{
     id: string;
+    entidad_id: string | null;
     nombre: string | null;
     email: string;
     estado: "enviado" | "error";
@@ -33,6 +34,7 @@ type Detalle = {
     abierto_at?: string | null;
     num_aperturas?: number;
     created_at: string;
+    contabilidad_entidades?: { id: string; nombre: string } | null;
   }>;
 };
 
@@ -88,9 +90,11 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
     if (estadoFilter === "sin_abrir" && (!!d.abierto_at || d.estado === "error")) return false;
     if (estadoFilter === "error" && d.estado !== "error") return false;
     if (!filtroDest.trim()) return true;
-    const q = filtroDest.toLowerCase();
+    const q = filtroDest.toLowerCase().trim();
+    const grupo = d.contabilidad_entidades?.nombre?.toLowerCase() ?? "";
     return (
       (d.nombre?.toLowerCase() ?? "").includes(q) ||
+      grupo.includes(q) ||
       d.email.toLowerCase().includes(q)
     );
   });
@@ -299,7 +303,7 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
                       <Search size={14} style={{ color: "#94a3b8" }} />
                       <input
                         type="text"
-                        placeholder="Buscar destinatario por nombre o email…"
+                        placeholder="Buscar por responsable, grupo o email…"
                         value={filtroDest}
                         onChange={(e) => setFiltroDest(e.target.value)}
                         style={{ border: "none", outline: "none", fontSize: "0.8rem", width: "100%", color: "#1e293b" }}
@@ -424,6 +428,11 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
                             <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                               <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                 {d.nombre || "Sin nombre"}
+                                {d.contabilidad_entidades?.nombre && d.nombre && d.nombre !== d.contabilidad_entidades.nombre && (
+                                  <span style={{ color: "#64748b", fontWeight: 500, marginLeft: 5 }}>
+                                    ({d.contabilidad_entidades.nombre})
+                                  </span>
+                                )}
                               </span>
                               <span style={{ fontSize: "0.74rem", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                 {d.email}

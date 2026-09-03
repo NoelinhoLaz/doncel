@@ -32,7 +32,7 @@ export async function getDifusionDetalle(difusionId: string) {
 
   const { data: destinatarios, error: destError } = await agencyDb
     .from("fidelizacion_difusiones_destinatarios")
-    .select("id, entidad_id, nombre, email, estado, error_detalle, token, abierto_at, num_aperturas, created_at")
+    .select("id, entidad_id, nombre, email, estado, error_detalle, token, abierto_at, num_aperturas, created_at, contabilidad_entidades(id, nombre)")
     .eq("difusion_id", difusionId)
     .order("nombre", { ascending: true });
 
