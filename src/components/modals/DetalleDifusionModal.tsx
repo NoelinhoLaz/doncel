@@ -22,6 +22,7 @@ type Detalle = {
   created_at: string;
   crm_campanas?: { nombre: string } | null;
   crm_etiquetas?: { nombre: string } | null;
+  crm_agentes?: { id: string; nombre: string; apellidos?: string | null; avatar_url?: string | null } | null;
   destinatarios: Array<{
     id: string;
     nombre: string | null;
@@ -94,7 +95,9 @@ export default function DetalleDifusionModal({ difusionId, onClose }: Props) {
             <span className={styles.modalTitle}>Detalle de difusión</span>
             {data && (
               <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
-                Enviado el {formatFecha(data.created_at)} · {ORIGEN_LABELS[data.origen] ?? "Difusión"}
+                Enviado el {formatFecha(data.created_at)}
+                {data.crm_agentes?.nombre && ` por ${data.crm_agentes.nombre} ${data.crm_agentes.apellidos ?? ""}`.trimEnd()}
+                {" · "}{ORIGEN_LABELS[data.origen] ?? "Difusión"}
               </span>
             )}
           </div>

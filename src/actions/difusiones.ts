@@ -10,7 +10,7 @@ export async function getDifusiones() {
   const agencyDb = await getAgencyDbClient();
   const { data, error } = await agencyDb
     .from("fidelizacion_difusiones")
-    .select("id, asunto, origen, num_destinatarios, num_enviados, num_errores, estado, created_at, crm_campanas(nombre), crm_etiquetas(nombre)")
+    .select("id, asunto, origen, num_destinatarios, num_enviados, num_errores, estado, created_at, crm_campanas(nombre), crm_etiquetas(nombre), crm_agentes(id, nombre, apellidos, avatar_url)")
     .order("created_at", { ascending: false });
   if (error) {
     if (error.code === "42P01") return [];
@@ -23,7 +23,7 @@ export async function getDifusionDetalle(difusionId: string) {
   const agencyDb = await getAgencyDbClient();
   const { data: difusion, error: difError } = await agencyDb
     .from("fidelizacion_difusiones")
-    .select("id, asunto, cuerpo, origen, num_destinatarios, num_enviados, num_errores, estado, created_at, crm_campanas(nombre), crm_etiquetas(nombre)")
+    .select("id, asunto, cuerpo, origen, num_destinatarios, num_enviados, num_errores, estado, created_at, crm_campanas(nombre), crm_etiquetas(nombre), crm_agentes(id, nombre, apellidos, avatar_url)")
     .eq("id", difusionId)
     .single();
 

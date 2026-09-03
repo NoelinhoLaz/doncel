@@ -18,6 +18,7 @@ type Difusion = {
   created_at: string;
   crm_campanas?: { nombre: string } | null;
   crm_etiquetas?: { nombre: string } | null;
+  crm_agentes?: { id: string; nombre: string; apellidos?: string | null; avatar_url?: string | null } | null;
 };
 
 const ORIGEN_LABELS: Record<Difusion["origen"], string> = {
@@ -42,6 +43,11 @@ function origenNombre(d: Difusion) {
   if (d.origen === "etiqueta") return d.crm_etiquetas?.nombre ?? "—";
   if (d.origen === "difusion") return "Directa";
   return "Mis clientes";
+}
+
+function emisorNombre(agente?: Difusion["crm_agentes"]) {
+  if (!agente) return "—";
+  return `${agente.nombre} ${agente.apellidos ?? ""}`.trim();
 }
 
 export default function DifusionPage() {
@@ -86,6 +92,7 @@ export default function DifusionPage() {
             <thead>
               <tr>
                 <th className={styles.th}>Asunto</th>
+                <th className={styles.th}>Emisor</th>
                 <th className={styles.th}>Origen</th>
                 <th className={styles.th}>Destinatarios</th>
                 <th className={styles.th}>Enviados</th>
@@ -96,6 +103,7 @@ export default function DifusionPage() {
             <tbody>
               {difusiones.map((d) => {
                 const estadoStyle = ESTADO_COLORS[d.estado];
+                const emisor = emisorNombre(d.crm_agentes);
                 return (
                   <tr
                     key={d.id}
@@ -106,6 +114,28 @@ export default function DifusionPage() {
                   >
                     <td className={styles.td}>
                       <span className={styles.nombre}>{d.asunto}</span>
+                    </td>
+                    <td className={styles.td}>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <span
+                          style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: "50%",
+                            background: "#e0e7ff",
+                            color: "#4338ca",
+                            fontSize: "0.68rem",
+                            fontWeight: 600,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {emisor !== "—" ? emisor.charAt(0).toUpperCase() : "?"}
+                        </span>
+                        <span style={{ fontWeight: 500, color: "#1e293b" }}>{emisor}</span>
+                      </div>
                     </td>
                     <td className={styles.td}>
                       {ORIGEN_LABELS[d.origen]} · {origenNombre(d)}
