@@ -41,7 +41,7 @@ export async function getPropuestas() {
     const { data, error } = await agencyDb
       .from("operativa_propuestas")
       .select(`
-        id, title, destination, destinos, fecha_salida, fecha_regreso, created_at, contacto_id, cotizacion_id, agente_id,
+        id, title, destination, destinos, slug, fecha_salida, fecha_regreso, created_at, contacto_id, cotizacion_id, agente_id,
         contabilidad_entidades!contacto_id(id, nombre),
         landings(id, is_active, version_number, design_tokens, editor_content)
       `)

@@ -13,6 +13,7 @@ interface Propuesta {
   title: string;
   destination: string | null;
   destinos?: { id: string; nombre: string }[] | null;
+  slug?: string | null;
   fecha_salida?: string | null;
   fecha_regreso?: string | null;
   created_at: string;
@@ -68,12 +69,14 @@ export default function PropuestasPage() {
   const [fechaHasta, setFechaHasta] = useState("");
   const [agenteFilterInicializado, setAgenteFilterInicializado] = useState(false);
 
-  async function copiarEnlacePublico(id: string) {
-    const url = `${window.location.origin}/propuestas/${id}/preview`;
+  async function copiarEnlacePublico(p: Propuesta) {
+    const url = p.slug
+      ? `${window.location.origin}/propuestas/p/${p.slug}`
+      : `${window.location.origin}/propuestas/${p.id}/preview`;
     try {
       await navigator.clipboard.writeText(url);
-      setEnlaceCopiado(id);
-      setTimeout(() => setEnlaceCopiado(prev => (prev === id ? null : prev)), 2000);
+      setEnlaceCopiado(p.id);
+      setTimeout(() => setEnlaceCopiado(prev => (prev === p.id ? null : prev)), 2000);
     } catch (e) {
       console.error("Error al copiar enlace:", e);
     }
@@ -538,14 +541,21 @@ export default function PropuestasPage() {
                         <button
                           className={styles.actionBtnDark}
                           title="Previsualizar"
-                          onClick={() => { setMenuAbierto(null); window.open(`/propuestas/${p.id}/preview`, "_blank"); }}
+                          onClick={() => {
+                            setMenuAbierto(null);
+                            if (p.slug) {
+                              window.open(`/propuestas/p/${p.slug}`, "_blank");
+                            } else {
+                              window.open(`/propuestas/${p.id}/preview`, "_blank");
+                            }
+                          }}
                         >
                           <Eye size={14} />
                         </button>
                         <button
                           className={styles.actionBtnDark}
                           title={enlaceCopiado === p.id ? "¡Enlace copiado!" : "Copiar enlace público para compartir"}
-                          onClick={() => copiarEnlacePublico(p.id)}
+                          onClick={() => copiarEnlacePublico(p)}
                           style={enlaceCopiado === p.id ? { color: "#4ade80" } : undefined}
                         >
                           {enlaceCopiado === p.id ? <Check size={14} /> : <Share2 size={14} />}
