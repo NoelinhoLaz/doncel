@@ -740,7 +740,7 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
               {modoEdicion && presupuesto?.id && (
-                <ExpedienteActionsToolbar cotizacionId={presupuesto.id} />
+                <ExpedienteActionsToolbar presupuestoId={presupuesto.id} />
               )}
               <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex", padding: "0.2rem" }}>
                 <Icons.Close size={18} />

@@ -64,12 +64,11 @@ export default function PHMenu({ mobile, seccion, secciones }: { mobile?: boolea
             }
           </div>
         )}
-        {boton?.etiqueta
-          ? <div onClick={onClickBoton} style={{ padding: "0.3rem 0.85rem", borderRadius: "0.4rem", background: colorBoton, color: "#fff", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>
-              {boton.etiqueta}
-            </div>
-          : <div className={styles.phNavBtn} style={{ background: colorBoton }} />
-        }
+        {boton?.etiqueta?.trim() ? (
+          <div onClick={onClickBoton} style={{ padding: "0.3rem 0.85rem", borderRadius: "0.4rem", background: colorBoton, color: "#fff", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>
+            {boton.etiqueta}
+          </div>
+        ) : null}
         {mobile && items.length > 0 && (
           <button
             type="button"

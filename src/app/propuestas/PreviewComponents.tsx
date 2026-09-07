@@ -885,12 +885,11 @@ export function PHMenu({ mobile, seccion, secciones, landingHref }: { mobile?: b
           </div>
         )}
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          {boton?.etiqueta
-            ? <div onClick={onClickBoton} style={{ padding: "0.3rem 0.85rem", borderRadius: "0.4rem", background: colorBoton, color: "#fff", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>
-                {boton.etiqueta}
-              </div>
-            : <div className={styles.phNavBtn} style={{ background: colorBoton }} />
-          }
+          {boton?.etiqueta?.trim() ? (
+            <div onClick={onClickBoton} style={{ padding: "0.3rem 0.85rem", borderRadius: "0.4rem", background: colorBoton, color: "#fff", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>
+              {boton.etiqueta}
+            </div>
+          ) : null}
           {(hamburguesa || mobile) && (
             <button
               type="button"

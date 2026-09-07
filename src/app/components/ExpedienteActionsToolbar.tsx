@@ -13,10 +13,13 @@ import {
   searchExpedientes,
   searchCotizaciones,
   searchPropuestas,
+  searchPresupuestos,
+  linkPropuestaToPresupuesto,
   createNewCotizacionLinked,
   createNewCotizacionLinkedToPresupuesto,
   createNewPropuestaLinked,
-  createNewExpedienteLinked
+  createNewExpedienteLinked,
+  createNewPresupuestoLinked,
 } from "@/actions/expedientes";
 import {
   crearPropuestaDesdeCotizacion,
@@ -50,7 +53,7 @@ export default function ExpedienteActionsToolbar({
   });
 
   // Modals for linking
-  const [showLinkModal, setShowLinkModal] = useState<"cotizacion" | "propuesta" | "expediente" | null>(null);
+  const [showLinkModal, setShowLinkModal] = useState<"cotizacion" | "propuesta" | "expediente" | "presupuesto" | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
@@ -105,6 +108,9 @@ export default function ExpedienteActionsToolbar({
           setSearchResults(res?.data || []);
         } else if (showLinkModal === "expediente") {
           const res = await searchExpedientes(searchQuery);
+          setSearchResults(res?.data || []);
+        } else if (showLinkModal === "presupuesto") {
+          const res = await searchPresupuestos(searchQuery);
           setSearchResults(res?.data || []);
         }
       } catch (err) {
@@ -181,6 +187,28 @@ export default function ExpedienteActionsToolbar({
           return;
         }
         if (cotVinculada) setImportServiciosExpedienteId(targetId);
+      } else if (showLinkModal === "presupuesto") {
+        if (initialCotizacionId) {
+          await linkCotizacionToPresupuesto(initialCotizacionId, targetId);
+        } else if (initialPropuestaId) {
+          const cotId = links.cotizaciones[0]?.id;
+          if (cotId) {
+            await linkCotizacionToPresupuesto(cotId, targetId);
+          } else {
+            await linkPropuestaToPresupuesto(initialPropuestaId, targetId);
+          }
+        } else if (initialExpedienteId || links.expedienteId) {
+          const expId = initialExpedienteId || links.expedienteId;
+          const cotId = links.cotizaciones[0]?.id;
+          if (cotId) {
+            await linkCotizacionToPresupuesto(cotId, targetId);
+          } else {
+            const newCotRes = await createNewCotizacionLinked(expId);
+            if (newCotRes.success && newCotRes.data?.id) {
+              await linkCotizacionToPresupuesto(newCotRes.data.id, targetId);
+            }
+          }
+        }
       }
 
       await loadLinks();
@@ -263,6 +291,17 @@ export default function ExpedienteActionsToolbar({
         } else {
           throw new Error(res.error);
         }
+      } else if (showLinkModal === "presupuesto") {
+        const type = initialCotizacionId ? "cotizacion" : initialPropuestaId ? "propuesta" : "expediente";
+        const linkedId = initialCotizacionId || initialPropuestaId || initialExpedienteId || links.expedienteId;
+        const res = await createNewPresupuestoLinked(linkedId, type);
+        if (res.success && res.data) {
+          setShowLinkModal(null);
+          router.push(`/presupuestos/nuevo?edit=${res.data.id}`);
+          return;
+        } else {
+          throw new Error(res.error);
+        }
       }
       await loadLinks();
       setShowLinkModal(null);
@@ -278,9 +317,10 @@ export default function ExpedienteActionsToolbar({
 
   // Navigations
   const handlePresupuestoClick = () => {
-    const presId = links.presupuestoId;
-    if (presId) {
-      router.push(`/presupuestos/nuevo?edit=${presId}`);
+    if (hasPresup && links.presupuestoId) {
+      router.push(`/presupuestos/nuevo?edit=${links.presupuestoId}`);
+    } else {
+      setShowLinkModal("presupuesto");
     }
   };
 
@@ -368,9 +408,8 @@ export default function ExpedienteActionsToolbar({
       <div style={{ display: "flex", alignItems: "center", border: `1px solid ${darkPrimary}`, borderRadius: "8px", overflow: "hidden", background: darkPrimary }}>
         {/* Presupuesto Button */}
         <button
-          title={hasPresup ? "Ver Solicitud de Presupuesto" : "Sin presupuesto vinculado"}
+          title={hasPresup ? `Ver Solicitud: ${links.presupuesto?.titulo_viaje || links.presupuestoId}` : "Vincular Solicitud de Presupuesto"}
           onClick={handlePresupuestoClick}
-          disabled={!hasPresup}
           style={{
             display: "flex",
             alignItems: "center",
@@ -382,10 +421,10 @@ export default function ExpedienteActionsToolbar({
             background: "transparent",
             color: "#ffffff",
             opacity: hasPresup ? 1 : 0.4,
-            cursor: hasPresup ? "pointer" : "default",
+            cursor: "pointer",
             transition: "all 0.2s ease"
           }}
-          onMouseEnter={(e) => { if (hasPresup) e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"; }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
         >
           <FileText size={17} />
@@ -512,13 +551,20 @@ export default function ExpedienteActionsToolbar({
 
       {/* Linker search dialog */}
       {showLinkModal && (() => {
-        const modalTitle = showLinkModal === "cotizacion" ? "Cotizaciones" : showLinkModal === "propuesta" ? "Propuestas" : "Expediente";
-        const createLabel = showLinkModal === "cotizacion" ? "Crear nueva cotización" : showLinkModal === "propuesta" ? "Crear nueva propuesta" : "Crear nuevo expediente";
-        const existingItems = showLinkModal === "cotizacion" ? links.cotizaciones : showLinkModal === "propuesta" ? links.propuestas : (links.expedienteId ? [{ id: links.expedienteId, titulo: links.expediente?.referencia || links.expediente?.numero || links.expedienteId }] : []);
+        const modalTitle = showLinkModal === "cotizacion" ? "Cotizaciones" : showLinkModal === "propuesta" ? "Propuestas" : showLinkModal === "expediente" ? "Expediente" : "Solicitud de Presupuesto";
+        const createLabel = showLinkModal === "cotizacion" ? "Crear nueva cotización" : showLinkModal === "propuesta" ? "Crear nueva propuesta" : showLinkModal === "expediente" ? "Crear nuevo expediente" : "Crear nueva solicitud";
+        const existingItems = showLinkModal === "cotizacion"
+          ? links.cotizaciones
+          : showLinkModal === "propuesta"
+            ? links.propuestas
+            : showLinkModal === "expediente"
+              ? (links.expedienteId ? [{ id: links.expedienteId, titulo: links.expediente?.referencia || links.expediente?.numero || links.expedienteId }] : [])
+              : (links.presupuestoId ? [{ id: links.presupuestoId, titulo: links.presupuesto?.titulo_viaje || `Solicitud #${links.presupuestoId.substring(0, 8)}` }] : []);
         const navigateToExisting = (item: any) => {
           if (showLinkModal === "cotizacion") router.push(`/cotizaciones/nueva?id=${item.id}`);
           else if (showLinkModal === "propuesta") router.push(`/propuestas/${item.id}`);
-          else router.push(`/expedientes/${item.id}`);
+          else if (showLinkModal === "expediente") router.push(`/expedientes/${item.id}`);
+          else router.push(`/presupuestos/nuevo?edit=${item.id}`);
           setShowLinkModal(null);
         };
 

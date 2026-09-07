@@ -915,6 +915,16 @@ export async function getEntityLinks(params: {
       }
     }
 
+    let presupuestoObj: any = null;
+    if (presupuestoId) {
+      const { data: pres } = await agencyDb
+        .from("operativa_presupuestos")
+        .select("id, titulo_viaje, contabilidad_entidades(nombre)")
+        .eq("id", presupuestoId)
+        .maybeSingle();
+      presupuestoObj = pres;
+    }
+
     return {
       success: true,
       expedienteId,
@@ -922,6 +932,7 @@ export async function getEntityLinks(params: {
       cotizaciones: linkedCotizaciones,
       propuestas: linkedPropuestas,
       presupuestoId,
+      presupuesto: presupuestoObj,
     };
   } catch (err: any) {
     console.error("Error in getEntityLinks:", err);
@@ -1319,4 +1330,214 @@ export async function createNewExpedienteLinked(linkedId: string, type: "cotizac
     return { success: false, error: err.message };
   }
 }
+
+export async function searchPresupuestos(q: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    let query = agencyDb
+      .from("operativa_presupuestos")
+      .select("id, titulo_viaje, contabilidad_entidades(nombre)")
+      .order("created_at", { ascending: false });
+
+    if (q) {
+      query = query.ilike("titulo_viaje", `%${q}%`);
+    }
+
+    const { data, error } = await query.limit(20);
+    if (error) throw error;
+
+    return {
+      success: true,
+      data: (data || []).map((p: any) => ({
+        id: p.id,
+        nombre: p.titulo_viaje
+          ? `${p.titulo_viaje}${p.contabilidad_entidades?.nombre ? ` (${p.contabilidad_entidades.nombre})` : ''}`
+          : `Solicitud #${p.id.substring(0, 8)}${p.contabilidad_entidades?.nombre ? ` (${p.contabilidad_entidades.nombre})` : ''}`
+      }))
+    };
+  } catch (err: any) {
+    console.error("searchPresupuestos error:", err);
+    return { success: false, error: err.message, data: [] };
+  }
+}
+
+export async function linkPropuestaToPresupuesto(propuestaId: string, presupuestoId: string) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { data: prop } = await agencyDb
+      .from("operativa_propuestas")
+      .select("id, title, cotizacion_id, expediente_id, contacto_id")
+      .eq("id", propuestaId)
+      .maybeSingle();
+
+    if (!prop) return { success: false, error: "Propuesta no encontrada" };
+
+    if (prop.cotizacion_id) {
+      const { error } = await agencyDb
+        .from("operativa_cotizaciones")
+        .update({ presupuesto_id: presupuestoId })
+        .eq("id", prop.cotizacion_id);
+      return { success: !error, error: error?.message };
+    }
+
+    const { data: newCot, error: cotErr } = await agencyDb
+      .from("operativa_cotizaciones")
+      .insert({
+        titulo: prop.title || "Cotización vinculada",
+        presupuesto_id: presupuestoId,
+        expediente_id: prop.expediente_id || null,
+        contacto: prop.contacto_id || null,
+        plazas: 1,
+      })
+      .select("id")
+      .single();
+
+    if (cotErr) throw cotErr;
+
+    const { error: propErr } = await agencyDb
+      .from("operativa_propuestas")
+      .update({ cotizacion_id: newCot.id })
+      .eq("id", propuestaId);
+
+    return { success: !propErr, error: propErr?.message };
+  } catch (err: any) {
+    console.error("linkPropuestaToPresupuesto error:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+export async function createNewPresupuestoLinked(linkedId?: string, type?: "cotizacion" | "propuesta" | "expediente") {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const currentUser = await getCurrentUsuario();
+
+    let entidadId: string | null = null;
+    let tituloViaje = "Nueva Solicitud";
+    let plazasEstimadas = 1;
+    let cotizacionId: string | null = null;
+
+    if (type === "cotizacion" && linkedId) {
+      cotizacionId = linkedId;
+      const { data: cot } = await agencyDb
+        .from("operativa_cotizaciones")
+        .select("id, titulo, plazas, contacto, expediente_id")
+        .eq("id", linkedId)
+        .maybeSingle();
+
+      if (cot) {
+        if (cot.titulo) tituloViaje = cot.titulo;
+        if (cot.plazas) plazasEstimadas = cot.plazas;
+        if (cot.contacto) entidadId = cot.contacto;
+        if (!entidadId && cot.expediente_id) {
+          const { data: exp } = await agencyDb
+            .from("operativa_expedientes")
+            .select("contacto_id")
+            .eq("id", cot.expediente_id)
+            .maybeSingle();
+          if (exp?.contacto_id) entidadId = exp.contacto_id;
+        }
+      }
+    } else if (type === "expediente" && linkedId) {
+      const { data: exp } = await agencyDb
+        .from("operativa_expedientes")
+        .select("id, referencia, numero, contacto_id")
+        .eq("id", linkedId)
+        .maybeSingle();
+
+      if (exp) {
+        tituloViaje = exp.referencia || (exp.numero ? `Expediente ${exp.numero}` : "Nueva Solicitud");
+        entidadId = exp.contacto_id || null;
+      }
+    } else if (type === "propuesta" && linkedId) {
+      const { data: prop } = await agencyDb
+        .from("operativa_propuestas")
+        .select("id, title, cotizacion_id, expediente_id, contacto_id")
+        .eq("id", linkedId)
+        .maybeSingle();
+
+      if (prop) {
+        if (prop.title) tituloViaje = prop.title;
+        if (prop.contacto_id) entidadId = prop.contacto_id;
+        if (prop.cotizacion_id) cotizacionId = prop.cotizacion_id;
+        if (!entidadId && prop.expediente_id) {
+          const { data: exp } = await agencyDb
+            .from("operativa_expedientes")
+            .select("contacto_id")
+            .eq("id", prop.expediente_id)
+            .maybeSingle();
+          if (exp?.contacto_id) entidadId = exp.contacto_id;
+        }
+      }
+    }
+
+    const { data: presupuesto, error: presErr } = await agencyDb
+      .from("operativa_presupuestos")
+      .insert([{
+        titulo_viaje: tituloViaje,
+        tipo_presupuesto: "vacacional",
+        plazas_estimadas: plazasEstimadas,
+        entidad_id: entidadId,
+        agente_id: currentUser?.id || null,
+        estado: "pendiente_cotizar",
+        preferencias: {},
+      }])
+      .select("id, titulo_viaje")
+      .single();
+
+    if (presErr || !presupuesto) throw presErr || new Error("Error al crear presupuesto");
+
+    if (cotizacionId) {
+      await agencyDb
+        .from("operativa_cotizaciones")
+        .update({ presupuesto_id: presupuesto.id })
+        .eq("id", cotizacionId);
+    } else if (type === "expediente" && linkedId) {
+      const { data: cot } = await agencyDb
+        .from("operativa_cotizaciones")
+        .select("id")
+        .eq("expediente_id", linkedId)
+        .limit(1)
+        .maybeSingle();
+      if (cot?.id) {
+        await agencyDb
+          .from("operativa_cotizaciones")
+          .update({ presupuesto_id: presupuesto.id })
+          .eq("id", cot.id);
+      } else {
+        await agencyDb
+          .from("operativa_cotizaciones")
+          .insert({
+            titulo: tituloViaje,
+            expediente_id: linkedId,
+            presupuesto_id: presupuesto.id,
+            contacto: entidadId,
+            plazas: plazasEstimadas,
+          });
+      }
+    } else if (type === "propuesta" && linkedId && !cotizacionId) {
+      const { data: newCot } = await agencyDb
+        .from("operativa_cotizaciones")
+        .insert({
+          titulo: tituloViaje,
+          presupuesto_id: presupuesto.id,
+          contacto: entidadId,
+          plazas: plazasEstimadas,
+        })
+        .select("id")
+        .single();
+      if (newCot?.id) {
+        await agencyDb
+          .from("operativa_propuestas")
+          .update({ cotizacion_id: newCot.id })
+          .eq("id", linkedId);
+      }
+    }
+
+    return { success: true, data: presupuesto };
+  } catch (err: any) {
+    console.error("createNewPresupuestoLinked error:", err);
+    return { success: false, error: err.message };
+  }
+}
+
 
