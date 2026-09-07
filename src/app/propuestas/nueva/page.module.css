@@ -1779,11 +1779,44 @@
 }
 .phMenuDiasTabs {
   display: flex;
-  gap: 0.35rem;
+  align-items: stretch;
   width: 100%;
-  background: #f1f5f9;
-  border-radius: 0.85rem;
-  padding: 0.35rem;
+  background: transparent;
+  padding: 4px 0;
+  position: relative;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.phMenuDiasTabs::-webkit-scrollbar {
+  display: none;
+}
+.phMenuDiaTabWrapper {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 95px;
+  height: 48px;
+  background: #ffffff;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+.phMenuDiaTabWrapper:hover {
+  filter: brightness(1.06);
+}
+.phMenuDiaTabInner {
+  position: absolute;
+  inset: 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 .phMenuDiaTab {
   display: flex;
@@ -1817,10 +1850,12 @@
   background: #1e293b;
 }
 .phMenuDiaTabNum {
-  font-size: 0.72rem;
+  font-size: 0.76rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 .phMenuDiaTabLabel {
   font-size: 0.85rem;
@@ -1830,10 +1865,11 @@
   text-overflow: ellipsis;
 }
 .phMenuDiaTabDate {
-  font-size: 0.66rem;
-  font-weight: 500;
-  opacity: 0.65;
+  font-size: 0.65rem;
+  font-weight: 600;
   letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
 }
 .phMenuDiaTabActive .phMenuDiaTabDate {
   opacity: 0.85;

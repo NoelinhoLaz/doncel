@@ -268,27 +268,48 @@ export default function PHItinerario({ mobile, layout, colorFondo, fechaDesde, f
             <div className={styles.phMenuDiasTabs}>
               {days.map((d, i) => {
                 const active = activeIdx === i;
+                const isFirst = i === 0;
                 const dateLabel = getDayDateLabel(d.dia);
+                const defaultInactiveBg = i % 2 === 1 ? "#93c5fd" : "#bfdbfe";
                 const tabBg = active
-                  ? (menuDiaActivoFondo ?? "#1e293b")
-                  : (menuDiaInactivoFondo ?? "transparent");
+                  ? (menuDiaActivoFondo ?? "#1d4ed8")
+                  : (menuDiaInactivoFondo ?? (days.length > 2 ? defaultInactiveBg : "#93c5fd"));
                 const tabColor = active
                   ? (menuDiaActivoTexto ?? "#ffffff")
-                  : (menuDiaInactivoTexto ?? "#64748b");
+                  : (menuDiaInactivoTexto ?? (menuDiaInactivoFondo ? "#64748b" : "#1e3a8a"));
+
+                const chevronOffset = mobile ? 14 : 18;
+                const overlap = mobile ? 12 : 16;
+                const clipPath = isFirst
+                  ? `polygon(0 0, calc(100% - ${chevronOffset}px) 0, 100% 50%, calc(100% - ${chevronOffset}px) 100%, 0 100%)`
+                  : `polygon(0 0, calc(100% - ${chevronOffset}px) 0, 100% 50%, calc(100% - ${chevronOffset}px) 100%, 0 100%, ${chevronOffset}px 50%)`;
+
                 return (
                   <button
                     key={d.dia}
                     type="button"
-                    className={`${styles.phMenuDiaTab} ${active ? styles.phMenuDiaTabActive : ""}`}
+                    className={styles.phMenuDiaTabWrapper}
                     style={{
-                      backgroundColor: tabBg,
-                      color: tabColor,
-                      ...(active && menuDiaActivoFondo ? { boxShadow: `0 4px 12px ${menuDiaActivoFondo}40` } : {}),
+                      marginLeft: isFirst ? 0 : `-${overlap}px`,
+                      clipPath,
+                      WebkitClipPath: clipPath,
+                      zIndex: i + 1,
                     }}
                     onClick={() => setActiveIdx(i)}
                   >
-                    <span className={styles.phMenuDiaTabNum} style={{ color: tabColor }}>Día {d.dia}</span>
-                    {dateLabel && <span className={styles.phMenuDiaTabDate} style={{ color: tabColor, opacity: active ? 0.9 : 0.65 }}>{dateLabel}</span>}
+                    <div
+                      className={styles.phMenuDiaTabInner}
+                      style={{
+                        backgroundColor: tabBg,
+                        clipPath,
+                        WebkitClipPath: clipPath,
+                        paddingLeft: isFirst ? "8px" : `${chevronOffset + 4}px`,
+                        paddingRight: `${chevronOffset - 2}px`,
+                      }}
+                    >
+                      <span className={styles.phMenuDiaTabNum} style={{ color: tabColor }}>Día {d.dia}</span>
+                      {dateLabel && <span className={styles.phMenuDiaTabDate} style={{ color: tabColor, opacity: active ? 0.9 : 0.75 }}>{dateLabel}</span>}
+                    </div>
                   </button>
                 );
               })}

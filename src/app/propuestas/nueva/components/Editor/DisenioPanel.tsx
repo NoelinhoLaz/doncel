@@ -305,13 +305,13 @@ export default function DisenioPanel({
               <button
                 className={`${styles.layoutOption} ${seccion.layout === "menu-dias" ? styles.layoutOptionActive : ""}`}
                 onClick={() => onUpdate(seccion.uid, { layout: "menu-dias" })}
-                title="Menú de días"
+                title="Menú de días (Flechas / Chevrons)"
               >
                 <div className={styles.layoutPreview} style={{ flexDirection: "column", gap: 3, padding: 4 }}>
-                  <div style={{ display: "flex", gap: 2, width: "100%", height: 4 }}>
-                    <div style={{ flex: 1, background: "#6366f1", borderRadius: 1 }} />
-                    <div style={{ flex: 1, background: "#cbd5e1", borderRadius: 1 }} />
-                    <div style={{ flex: 1, background: "#cbd5e1", borderRadius: 1 }} />
+                  <div style={{ display: "flex", width: "100%", height: 6, alignItems: "center" }}>
+                    <div style={{ flex: 1, height: "100%", background: "#1d4ed8", clipPath: "polygon(0 0, calc(100% - 3px) 0, 100% 50%, calc(100% - 3px) 100%, 0 100%)" }} />
+                    <div style={{ flex: 1, height: "100%", background: "#93c5fd", marginLeft: -3, clipPath: "polygon(0 0, calc(100% - 3px) 0, 100% 50%, calc(100% - 3px) 100%, 0 100%, 3px 50%)" }} />
+                    <div style={{ flex: 1, height: "100%", background: "#bfdbfe", marginLeft: -3, clipPath: "polygon(0 0, calc(100% - 3px) 0, 100% 50%, calc(100% - 3px) 100%, 0 100%, 3px 50%)" }} />
                   </div>
                   <div style={{ display: "flex", gap: 3, width: "100%", height: 10 }}>
                     <div className={styles.lpImg} style={{ width: 12, height: "100%", background: "#cbd5e1" }} />
@@ -335,10 +335,10 @@ export default function DisenioPanel({
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <label className={styles.editorFieldLabel} style={{ fontSize: "0.7rem", margin: 0 }}>Fondo</label>
-                      <label style={{ width: 26, height: 26, borderRadius: "0.35rem", border: "1px solid #e2e8f0", background: seccion.menuDiaActivoFondo ?? "#1e293b", flexShrink: 0, cursor: "pointer", overflow: "hidden", display: "inline-block" }}>
+                      <label style={{ width: 26, height: 26, borderRadius: "0.35rem", border: "1px solid #e2e8f0", background: seccion.menuDiaActivoFondo ?? "#1d4ed8", flexShrink: 0, cursor: "pointer", overflow: "hidden", display: "inline-block" }}>
                         <input
                           type="color"
-                          value={seccion.menuDiaActivoFondo ?? "#1e293b"}
+                          value={seccion.menuDiaActivoFondo ?? "#1d4ed8"}
                           onChange={e => onUpdate(seccion.uid, { menuDiaActivoFondo: e.target.value })}
                           style={{ opacity: 0, position: "absolute" }}
                         />
@@ -383,10 +383,10 @@ export default function DisenioPanel({
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <label className={styles.editorFieldLabel} style={{ fontSize: "0.7rem", margin: 0 }}>Fondo</label>
-                      <label style={{ width: 26, height: 26, borderRadius: "0.35rem", border: "1px solid #e2e8f0", background: seccion.menuDiaInactivoFondo ?? "#f1f5f9", flexShrink: 0, cursor: "pointer", overflow: "hidden", display: "inline-block" }}>
+                      <label style={{ width: 26, height: 26, borderRadius: "0.35rem", border: "1px solid #e2e8f0", background: seccion.menuDiaInactivoFondo ?? "#93c5fd", flexShrink: 0, cursor: "pointer", overflow: "hidden", display: "inline-block" }}>
                         <input
                           type="color"
-                          value={seccion.menuDiaInactivoFondo ?? "#f1f5f9"}
+                          value={seccion.menuDiaInactivoFondo ?? "#93c5fd"}
                           onChange={e => onUpdate(seccion.uid, { menuDiaInactivoFondo: e.target.value })}
                           style={{ opacity: 0, position: "absolute" }}
                         />
@@ -404,10 +404,10 @@ export default function DisenioPanel({
 
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <label className={styles.editorFieldLabel} style={{ fontSize: "0.7rem", margin: 0 }}>Texto</label>
-                      <label style={{ width: 26, height: 26, borderRadius: "0.35rem", border: "1px solid #e2e8f0", background: seccion.menuDiaInactivoTexto ?? "#64748b", flexShrink: 0, cursor: "pointer", overflow: "hidden", display: "inline-block" }}>
+                      <label style={{ width: 26, height: 26, borderRadius: "0.35rem", border: "1px solid #e2e8f0", background: seccion.menuDiaInactivoTexto ?? "#1e3a8a", flexShrink: 0, cursor: "pointer", overflow: "hidden", display: "inline-block" }}>
                         <input
                           type="color"
-                          value={seccion.menuDiaInactivoTexto ?? "#64748b"}
+                          value={seccion.menuDiaInactivoTexto ?? "#1e3a8a"}
                           onChange={e => onUpdate(seccion.uid, { menuDiaInactivoTexto: e.target.value })}
                           style={{ opacity: 0, position: "absolute" }}
                         />
