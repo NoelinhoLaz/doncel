@@ -803,7 +803,7 @@ export function PropuestaEditor({
           <div className={styles.deviceBar}>
             {propuestaId && (
               <>
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, minWidth: 0, padding: "0 10px", height: 32, background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "0.4rem", fontSize: "0.78rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, minWidth: 0, padding: "0 6px 0 10px", height: 32, background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "0.4rem", fontSize: "0.78rem" }}>
                   <span style={{ color: "#94a3b8", flexShrink: 0, whiteSpace: "nowrap" }}>
                     /propuestas/p/
                   </span>
@@ -817,6 +817,43 @@ export function PropuestaEditor({
                   />
                   {guardandoSlug && <span className={styles.saveBtnSpinner} style={{ flexShrink: 0 }} />}
                   {slugError && <span style={{ color: "#ef4444", fontSize: "0.68rem", flexShrink: 0 }}>{slugError}</span>}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.setItem("momo_preview_secciones", JSON.stringify(secciones));
+                      localStorage.setItem("momo_preview_estilos_globales", JSON.stringify(estilosGlobales));
+                      localStorage.setItem("momo_preview_propuesta_id", propuestaId || "nueva");
+                      if (slug) {
+                        window.open(`/propuestas/p/${slug}`, "_blank");
+                      } else {
+                        window.open(`/propuestas/${propuestaId || "nueva"}/preview`, "_blank");
+                      }
+                    }}
+                    title="Abrir enlace en una pestaña nueva"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "transparent",
+                      border: "none",
+                      padding: "4px",
+                      cursor: "pointer",
+                      color: "#64748b",
+                      borderRadius: "0.25rem",
+                      flexShrink: 0,
+                      transition: "color 0.15s, background-color 0.15s",
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.color = "#0f172a";
+                      e.currentTarget.style.backgroundColor = "#f1f5f9";
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.color = "#64748b";
+                      e.currentTarget.style.backgroundColor = "transparent";
+                    }}
+                  >
+                    <ExternalLink size={14} />
+                  </button>
                 </div>
                 <div className={styles.deviceBarSep} />
               </>
