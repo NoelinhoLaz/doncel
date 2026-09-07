@@ -103,6 +103,15 @@ export function PropuestaEditor({
   const esAdmin = ["Admin", "SuperAdmin", "Owner"].includes(agente?.rol ?? "");
 
   useEffect(() => {
+    if (initialContactoId && !contactoId) {
+      setContactoId(initialContactoId);
+    }
+    if (initialContactoNombre && !contactoNombre) {
+      setContactoNombre(initialContactoNombre);
+    }
+  }, [initialContactoId, initialContactoNombre]);
+
+  useEffect(() => {
     if (typeof window !== "undefined") {
       (window as any).momoGlobalStyles = estilosGlobales;
     }

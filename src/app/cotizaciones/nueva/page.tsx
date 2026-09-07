@@ -117,8 +117,32 @@ export default function NuevaCotizacionPage() {
                 if (d.data.pvp_viajero != null) { setSummaryPvpViajero(d.data.pvp_viajero); setHasEditedPvp(true); }
               }
             });
+        } else {
+          const clienteIdParam = search?.get('clienteId') || search?.get('contacto_id') || search?.get('contactoId');
+          const clienteNombreParam = search?.get('clienteNombre') || search?.get('contacto_nombre') || search?.get('contactoNombre');
+          if (clienteIdParam) {
+            setContactoId(clienteIdParam);
+            if (clienteNombreParam) {
+              setContactoNombre(clienteNombreParam);
+            }
+            fetch(`/api/entidades?id=${clienteIdParam}`)
+              .then(r => r.json())
+              .then(j => {
+                if (j?.success && j.data) {
+                  if (!clienteNombreParam && j.data.nombre) {
+                    setContactoNombre(j.data.nombre);
+                  }
+                  const principal = j.data.contactos?.find((c: any) => c.es_principal) ?? j.data.contactos?.[0];
+                  if (principal) {
+                    setContactoPersonaId(principal.id);
+                    setContactoPersonaNombre(`${principal.nombre || ''} ${principal.apellidos || ''}`.trim());
+                  }
+                }
+              })
+              .catch(() => {});
+          }
         }
-      }, [cotId]);
+      }, [cotId, search]);
   const currency = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
   const formatCurrency = (v: any) => {
     if (v === undefined || v === null || v === "") return "—";

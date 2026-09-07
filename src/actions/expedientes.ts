@@ -801,17 +801,18 @@ export async function getEntityLinks(params: {
 
     let presupuestoId: string | null = params.presupuestoId ?? null;
 
-    // If entry point is a presupuesto, find its linked cotizacion
+    // If entry point is a presupuesto, find its linked cotizaciones
     if (presupuestoId && !cotizacionId) {
-      const { data } = await agencyDb
+      const { data: cotsPresup } = await agencyDb
         .from("operativa_cotizaciones")
-        .select("id, expediente_id")
+        .select("id, expediente_id, presupuesto_id")
         .eq("presupuesto_id", presupuestoId)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      if (data?.id) cotizacionId = data.id;
-      if (data?.expediente_id) expedienteId = data.expediente_id;
+        .order("created_at", { ascending: true });
+      if (cotsPresup && cotsPresup.length > 0) {
+        cotizacionId = cotsPresup[0].id;
+        const expWithId = cotsPresup.find((c) => c.expediente_id);
+        if (expWithId?.expediente_id) expedienteId = expWithId.expediente_id;
+      }
     }
 
     if (cotizacionId && !expedienteId) {
@@ -825,19 +826,25 @@ export async function getEntityLinks(params: {
     }
 
     if (propuestaId && !expedienteId) {
-      const { data } = await agencyDb
+      const { data: prop } = await agencyDb
         .from("operativa_propuestas")
-        .select("cotizacion_id")
+        .select("cotizacion_id, expediente_id")
         .eq("id", propuestaId)
         .maybeSingle();
-      if (data?.cotizacion_id) {
-        if (!cotizacionId) cotizacionId = data.cotizacion_id;
-        const { data: cot } = await agencyDb
-          .from("operativa_cotizaciones")
-          .select("expediente_id")
-          .eq("id", data.cotizacion_id)
-          .maybeSingle();
-        if (cot?.expediente_id) expedienteId = cot.expediente_id;
+      if (prop?.expediente_id) {
+        expedienteId = prop.expediente_id;
+      }
+      if (prop?.cotizacion_id) {
+        if (!cotizacionId) cotizacionId = prop.cotizacion_id;
+        if (!expedienteId) {
+          const { data: cot } = await agencyDb
+            .from("operativa_cotizaciones")
+            .select("expediente_id, presupuesto_id")
+            .eq("id", prop.cotizacion_id)
+            .maybeSingle();
+          if (cot?.expediente_id) expedienteId = cot.expediente_id;
+          if (!presupuestoId && cot?.presupuesto_id) presupuestoId = cot.presupuesto_id;
+        }
       }
     }
 
@@ -877,7 +884,7 @@ export async function getEntityLinks(params: {
       if (cotIds.length > 0) {
         const { data: props, error: propErr } = await agencyDb
           .from("operativa_propuestas")
-          .select("id, title")
+          .select("id, title, cotizacion_id")
           .in("cotizacion_id", cotIds);
         if (!propErr) {
           linkedPropuestas = props || [];
@@ -895,23 +902,40 @@ export async function getEntityLinks(params: {
       }
     }
 
-    // If we found a cotizacion via presupuesto but no expediente, still populate linkedCotizaciones
-    if (cotizacionId && linkedCotizaciones.length === 0) {
-      const { data: cot } = await agencyDb
-        .from("operativa_cotizaciones")
-        .select("id, titulo, presupuesto_id")
-        .eq("id", cotizacionId)
-        .maybeSingle();
-      if (cot) {
-        linkedCotizaciones = [cot];
-        if (!presupuestoId && cot.presupuesto_id) presupuestoId = cot.presupuesto_id;
+    // If we have cotizaciones via presupuesto or cotizacion but no expediente
+    if (linkedCotizaciones.length === 0) {
+      if (presupuestoId) {
+        const { data: cots } = await agencyDb
+          .from("operativa_cotizaciones")
+          .select("id, titulo, presupuesto_id")
+          .eq("presupuesto_id", presupuestoId)
+          .order("created_at", { ascending: true });
+        if (cots && cots.length > 0) {
+          linkedCotizaciones = cots;
+          const cotIds = cots.map((c) => c.id);
+          const { data: props } = await agencyDb
+            .from("operativa_propuestas")
+            .select("id, title, cotizacion_id")
+            .in("cotizacion_id", cotIds);
+          if (props) linkedPropuestas = props;
+        }
+      } else if (cotizacionId) {
+        const { data: cot } = await agencyDb
+          .from("operativa_cotizaciones")
+          .select("id, titulo, presupuesto_id")
+          .eq("id", cotizacionId)
+          .maybeSingle();
+        if (cot) {
+          linkedCotizaciones = [cot];
+          if (!presupuestoId && cot.presupuesto_id) presupuestoId = cot.presupuesto_id;
 
-        // Also get propuestas for this cotizacion
-        const { data: props } = await agencyDb
-          .from("operativa_propuestas")
-          .select("id, title")
-          .eq("cotizacion_id", cotizacionId);
-        if (props) linkedPropuestas = props;
+          // Also get propuestas for this cotizacion
+          const { data: props } = await agencyDb
+            .from("operativa_propuestas")
+            .select("id, title, cotizacion_id")
+            .eq("cotizacion_id", cotizacionId);
+          if (props) linkedPropuestas = props;
+        }
       }
     }
 

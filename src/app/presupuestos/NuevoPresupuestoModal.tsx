@@ -312,6 +312,8 @@ interface Props {
   oportunidadNombre?: string;
   campanaId?: string;
   pageMode?: boolean;
+  entidadId?: string;
+  entidadNombre?: string;
 }
 
 const QUINCENA_OPTS = ["1Q Sept", "2Q Sept", "1Q Oct", "2Q Oct", "1Q Nov", "2Q Nov", "1Q Dic"];
@@ -382,7 +384,7 @@ const VISITAS_PLACEHOLDER: Record<string, string> = {
 
 const emptyContacto = (): ContactoForm => ({ nombre: "", apellidos: "", cargo: "", email: "", telefono: "" });
 
-export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto, oportunidadId: oportunidadIdProp, oportunidadNombre: oportunidadNombreProp, campanaId: campanaIdProp, pageMode }: Props) {
+export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto, oportunidadId: oportunidadIdProp, oportunidadNombre: oportunidadNombreProp, campanaId: campanaIdProp, pageMode, entidadId: entidadIdProp, entidadNombre: entidadNombreProp }: Props) {
   const modoEdicion = !!presupuesto;
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
@@ -473,6 +475,24 @@ export default function NuevoPresupuestoModal({ onClose, onCreated, presupuesto,
       fetch("/api/campanas").then(r => r.json()).then(j => { if (j?.success) setCampanas(j.data || []); }).catch(() => {});
     }
   }, []);
+
+  // Precarga entidad si se pasa directamente
+  useEffect(() => {
+    if (presupuesto || oportunidadIdProp || !entidadIdProp) return;
+    setEntidadId(entidadIdProp);
+    if (entidadNombreProp) setEntidadNombre(entidadNombreProp);
+    fetch(`/api/entidades?id=${entidadIdProp}`)
+      .then(r => r.json())
+      .then(j => {
+        if (j?.success && j.data) {
+          setEntidadDetalle(j.data);
+          if (!entidadNombreProp && j.data.nombre) setEntidadNombre(j.data.nombre);
+          const principal = j.data.contactos?.find((c: any) => c.es_principal) ?? j.data.contactos?.[0];
+          if (principal) setResponsableId(principal.id);
+        }
+      })
+      .catch(() => {});
+  }, [entidadIdProp, oportunidadIdProp, presupuesto]);
 
   // Precarga entidad desde oportunidad cuando se abre desde campana (sin presupuesto existente)
   useEffect(() => {

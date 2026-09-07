@@ -25,12 +25,13 @@ const EntidadMapaPlaceholder = dynamic(
   { ssr: false }
 );
 
-function SeccionColapsable({ icon, titulo, count, isOpen, onToggle, children }: {
+function SeccionColapsable({ icon, titulo, count, isOpen, onToggle, action, children }: {
   icon: React.ReactNode;
   titulo: string;
   count?: number;
   isOpen: boolean;
   onToggle: () => void;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -44,6 +45,11 @@ function SeccionColapsable({ icon, titulo, count, isOpen, onToggle, children }: 
         <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", flex: 1 }}>
           {titulo}{count !== undefined && ` (${count})`}
         </div>
+        {action && (
+          <div onClick={e => e.stopPropagation()} style={{ marginLeft: "auto" }}>
+            {action}
+          </div>
+        )}
       </div>
       {isOpen && children}
     </section>
@@ -1479,6 +1485,27 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
             count={!loading ? presupuestos.length : undefined}
             isOpen={!!openSections.presupuestos}
             onToggle={() => toggleSection("presupuestos")}
+            action={
+              <button
+                type="button"
+                onClick={() => router.push(`/presupuestos/nuevo?clienteId=${entidadLocal.id}&clienteNombre=${encodeURIComponent(entidadLocal.nombre || "")}`)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontSize: "0.72rem",
+                  fontWeight: 600,
+                  color: "#ffffff",
+                  background: "var(--primary-color, #475569)",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "0.25rem 0.55rem",
+                  borderRadius: 6,
+                }}
+              >
+                <Plus size={12} /> Crear presupuesto
+              </button>
+            }
           >
             {loading ? (
               <div style={{ color: "#94a3b8", fontSize: "0.78rem" }}>Cargando...</div>
@@ -1522,6 +1549,27 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
             count={!loading ? cotizaciones.length : undefined}
             isOpen={!!openSections.cotizaciones}
             onToggle={() => toggleSection("cotizaciones")}
+            action={
+              <button
+                type="button"
+                onClick={() => router.push(`/cotizaciones/nueva?clienteId=${entidadLocal.id}&clienteNombre=${encodeURIComponent(entidadLocal.nombre || "")}`)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontSize: "0.72rem",
+                  fontWeight: 600,
+                  color: "#ffffff",
+                  background: "var(--primary-color, #475569)",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "0.25rem 0.55rem",
+                  borderRadius: 6,
+                }}
+              >
+                <Plus size={12} /> Crear cotización
+              </button>
+            }
           >
             {loading ? (
               <div style={{ color: "#94a3b8", fontSize: "0.78rem" }}>Cargando...</div>
@@ -1571,6 +1619,27 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
             count={!loading ? propuestas.length : undefined}
             isOpen={!!openSections.propuestas}
             onToggle={() => toggleSection("propuestas")}
+            action={
+              <button
+                type="button"
+                onClick={() => router.push(`/propuestas/nueva?contacto_id=${entidadLocal.id}&contacto_nombre=${encodeURIComponent(entidadLocal.nombre || "")}`)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontSize: "0.72rem",
+                  fontWeight: 600,
+                  color: "#ffffff",
+                  background: "var(--primary-color, #475569)",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "0.25rem 0.55rem",
+                  borderRadius: 6,
+                }}
+              >
+                <Plus size={12} /> Crear propuesta
+              </button>
+            }
           >
             {loading ? (
               <div style={{ color: "#94a3b8", fontSize: "0.78rem" }}>Cargando...</div>

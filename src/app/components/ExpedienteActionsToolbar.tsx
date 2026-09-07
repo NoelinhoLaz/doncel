@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Calculator, Presentation, FolderOpen, Mail, Loader2, Link2, Plus, FileText } from "lucide-react";
 import { LiaGoogleDrive } from "react-icons/lia";
@@ -54,6 +54,9 @@ export default function ExpedienteActionsToolbar({
 
   // Modals for linking
   const [showLinkModal, setShowLinkModal] = useState<"cotizacion" | "propuesta" | "expediente" | "presupuesto" | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<"cotizacion" | "propuesta" | null>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
@@ -69,6 +72,17 @@ export default function ExpedienteActionsToolbar({
 
   // Tras vincular/crear un expediente desde una cotización, ofrecer importar sus servicios
   const [importServiciosExpedienteId, setImportServiciosExpedienteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!activeDropdown) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
+        setActiveDropdown(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [activeDropdown]);
 
   const loadLinks = async () => {
     setLoading(true);
@@ -317,6 +331,7 @@ export default function ExpedienteActionsToolbar({
 
   // Navigations
   const handlePresupuestoClick = () => {
+    setActiveDropdown(null);
     if (hasPresup && links.presupuestoId) {
       router.push(`/presupuestos/nuevo?edit=${links.presupuestoId}`);
     } else {
@@ -325,22 +340,31 @@ export default function ExpedienteActionsToolbar({
   };
 
   const handleCotizacionClick = () => {
-    if (hasCot && links.cotizaciones[0]?.id) {
+    if (links.cotizaciones.length > 1) {
+      setActiveDropdown(prev => prev === "cotizacion" ? null : "cotizacion");
+    } else if (hasCot && links.cotizaciones[0]?.id) {
+      setActiveDropdown(null);
       router.push(`/cotizaciones/nueva?id=${links.cotizaciones[0].id}`);
     } else {
+      setActiveDropdown(null);
       setShowLinkModal("cotizacion");
     }
   };
 
   const handlePropuestaClick = () => {
-    if (hasProp && links.propuestas[0]?.id) {
+    if (links.propuestas.length > 1) {
+      setActiveDropdown(prev => prev === "propuesta" ? null : "propuesta");
+    } else if (hasProp && links.propuestas[0]?.id) {
+      setActiveDropdown(null);
       router.push(`/propuestas/${links.propuestas[0].id}`);
     } else {
+      setActiveDropdown(null);
       setShowLinkModal("propuesta");
     }
   };
 
   const handleFolderClick = () => {
+    setActiveDropdown(null);
     const expId = initialExpedienteId || links.expedienteId;
     if (expId) {
       router.push(`/expedientes/${expId}`);
@@ -351,6 +375,7 @@ export default function ExpedienteActionsToolbar({
 
   const handleFolderUnlink = async (e: React.MouseEvent) => {
     e.preventDefault();
+    setActiveDropdown(null);
     const expId = initialExpedienteId || links.expedienteId;
     const cotId = initialCotizacionId || links.cotizaciones[0]?.id;
     if (!expId || !cotId) return;
@@ -369,6 +394,7 @@ export default function ExpedienteActionsToolbar({
   };
 
   const handleMessagesClick = () => {
+    setActiveDropdown(null);
     const params = new URLSearchParams();
     if (initialExpedienteId || links.expedienteId) params.set("expediente_id", initialExpedienteId || links.expedienteId);
     if (initialCotizacionId || links.cotizaciones[0]?.id) params.set("cotizacion_id", initialCotizacionId || links.cotizaciones[0]?.id);
@@ -380,6 +406,7 @@ export default function ExpedienteActionsToolbar({
   };
 
   const handleAdjuntosClick = () => {
+    setActiveDropdown(null);
     if (links.expedienteId) {
       router.push(`/expedientes/${links.expedienteId}?tab=documentos`);
     } else {
@@ -405,12 +432,14 @@ export default function ExpedienteActionsToolbar({
 
   return (
     <>
+      <div ref={toolbarRef} style={{ position: "relative", display: "inline-flex" }}>
       <div style={{ display: "flex", alignItems: "center", border: `1px solid ${darkPrimary}`, borderRadius: "8px", overflow: "hidden", background: darkPrimary }}>
         {/* Presupuesto Button */}
         <button
           title={hasPresup ? `Ver Solicitud: ${links.presupuesto?.titulo_viaje || links.presupuestoId}` : "Vincular Solicitud de Presupuesto"}
           onClick={handlePresupuestoClick}
           style={{
+            position: "relative",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -432,9 +461,10 @@ export default function ExpedienteActionsToolbar({
 
         {/* Cotizaciones Button */}
         <button
-          title={hasCot ? `Ver Cotización: ${links.cotizaciones[0].titulo}` : "Vincular Cotización"}
+          title={links.cotizaciones.length > 1 ? `Ver cotizaciones (${links.cotizaciones.length})` : hasCot ? `Ver Cotización: ${links.cotizaciones[0].titulo}` : "Vincular Cotización"}
           onClick={handleCotizacionClick}
           style={{
+            position: "relative",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -442,23 +472,46 @@ export default function ExpedienteActionsToolbar({
             height: "38px",
             border: "none",
             borderRight: `1px solid ${dividerColor}`,
-            background: "transparent",
+            background: activeDropdown === "cotizacion" ? "rgba(255, 255, 255, 0.2)" : "transparent",
             color: "#ffffff",
             opacity: hasCot ? 1 : 0.4,
             cursor: "pointer",
             transition: "all 0.2s ease"
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.15)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = activeDropdown === "cotizacion" ? "rgba(255, 255, 255, 0.2)" : "transparent"; }}
         >
           <Calculator size={17} />
+          {links.cotizaciones.length > 1 && (
+            <span style={{
+              position: "absolute",
+              top: "3px",
+              right: "3px",
+              backgroundColor: "#f59e0b",
+              color: "#ffffff",
+              fontSize: "0.6rem",
+              fontWeight: 800,
+              borderRadius: "9999px",
+              minWidth: "13px",
+              height: "13px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0 2px",
+              lineHeight: 1,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.3)"
+            }}>
+              {links.cotizaciones.length}
+            </span>
+          )}
         </button>
 
         {/* Propuestas Button */}
         <button
-          title={hasProp ? `Ver Propuesta: ${links.propuestas[0].title}` : "Vincular Propuesta"}
+          title={links.propuestas.length > 1 ? `Ver propuestas (${links.propuestas.length})` : hasProp ? `Ver Propuesta: ${links.propuestas[0].title}` : "Vincular Propuesta"}
           onClick={handlePropuestaClick}
           style={{
+            position: "relative",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -466,16 +519,38 @@ export default function ExpedienteActionsToolbar({
             height: "38px",
             border: "none",
             borderRight: `1px solid ${dividerColor}`,
-            background: "transparent",
+            background: activeDropdown === "propuesta" ? "rgba(255, 255, 255, 0.2)" : "transparent",
             color: "#ffffff",
             opacity: hasProp ? 1 : 0.4,
             cursor: "pointer",
             transition: "all 0.2s ease"
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.15)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = activeDropdown === "propuesta" ? "rgba(255, 255, 255, 0.2)" : "transparent"; }}
         >
           <Presentation size={17} />
+          {links.propuestas.length > 1 && (
+            <span style={{
+              position: "absolute",
+              top: "3px",
+              right: "3px",
+              backgroundColor: "#f59e0b",
+              color: "#ffffff",
+              fontSize: "0.6rem",
+              fontWeight: 800,
+              borderRadius: "9999px",
+              minWidth: "13px",
+              height: "13px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0 2px",
+              lineHeight: 1,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.3)"
+            }}>
+              {links.propuestas.length}
+            </span>
+          )}
         </button>
 
         {/* Expediente / Open Folder Button */}
@@ -484,6 +559,7 @@ export default function ExpedienteActionsToolbar({
           onClick={handleFolderClick}
           onContextMenu={hasFolder ? handleFolderUnlink : undefined}
           style={{
+            position: "relative",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -548,6 +624,104 @@ export default function ExpedienteActionsToolbar({
           <LiaGoogleDrive size={19} />
         </button>
       </div>
+
+      {/* Floating Dropdown */}
+      {activeDropdown && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            right: 0,
+            zIndex: 9999,
+            backgroundColor: "#ffffff",
+            borderRadius: "10px",
+            boxShadow: "0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.1)",
+            border: "1px solid #e2e8f0",
+            minWidth: "250px",
+            maxWidth: "340px",
+            padding: "8px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "4px",
+          }}
+        >
+          <div style={{ padding: "4px 8px 6px", fontSize: "0.68rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>{activeDropdown === "cotizacion" ? "Cotizaciones vinculadas" : "Propuestas vinculadas"}</span>
+            <span style={{ background: "#f1f5f9", padding: "1px 6px", borderRadius: "9999px", fontSize: "0.65rem", fontWeight: 700, color: "#475569" }}>
+              {activeDropdown === "cotizacion" ? links.cotizaciones.length : links.propuestas.length}
+            </span>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "2px", maxHeight: "200px", overflowY: "auto" }}>
+            {(activeDropdown === "cotizacion" ? links.cotizaciones : links.propuestas).map((item: any) => (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setActiveDropdown(null);
+                  if (activeDropdown === "cotizacion") router.push(`/cotizaciones/nueva?id=${item.id}`);
+                  else router.push(`/propuestas/${item.id}`);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "8px",
+                  padding: "7px 10px",
+                  borderRadius: "6px",
+                  border: "none",
+                  background: "transparent",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  width: "100%",
+                  fontSize: "0.8rem",
+                  color: "#1e293b",
+                  fontWeight: 500,
+                  transition: "background-color 0.15s",
+                }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--primary-color, #4a88b5) 8%, white)")}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
+              >
+                <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {item.titulo || item.title || `ID: ${item.id.substring(0, 8)}`}
+                </span>
+                <span style={{ fontSize: "0.72rem", color: "var(--primary-color, #4a88b5)", fontWeight: 700, flexShrink: 0 }}>
+                  Ir →
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "6px", marginTop: "2px" }}>
+            <button
+              onClick={() => {
+                const target = activeDropdown;
+                setActiveDropdown(null);
+                setShowLinkModal(target);
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "6px 8px",
+                borderRadius: "6px",
+                border: "none",
+                background: "transparent",
+                color: "var(--primary-color, #4a88b5)",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                width: "100%",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#f8fafc")}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
+            >
+              <Plus size={13} />
+              <span>{activeDropdown === "cotizacion" ? "Gestionar / Crear cotización" : "Gestionar / Crear propuesta"}</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
 
       {/* Linker search dialog */}
       {showLinkModal && (() => {

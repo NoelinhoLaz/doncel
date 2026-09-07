@@ -11,6 +11,8 @@ export default function NuevoPresupuestoPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
+  const clienteId = searchParams.get("clienteId") || searchParams.get("entidadId");
+  const clienteNombre = searchParams.get("clienteNombre") || searchParams.get("entidadNombre");
   const [presupuesto, setPresupuesto] = useState<any>(null);
   const [loading, setLoading] = useState(!!editId);
 
@@ -65,6 +67,8 @@ export default function NuevoPresupuestoPage() {
       <NuevoPresupuestoModal
         pageMode
         presupuesto={presupuesto ?? undefined}
+        entidadId={clienteId || undefined}
+        entidadNombre={clienteNombre || undefined}
         onClose={() => router.push("/presupuestos")}
         onCreated={() => router.push("/presupuestos")}
       />
