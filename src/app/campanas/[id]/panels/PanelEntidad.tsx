@@ -1652,7 +1652,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
           {/* Presupuestos */}
           <SeccionColapsable
             icon={<FileText size={17} />}
-            titulo="Presupuestos"
+            titulo="Solicitudes"
             count={!loading ? presupuestos.length : undefined}
             isOpen={!!openSections.presupuestos}
             onToggle={() => toggleSection("presupuestos")}
@@ -1663,13 +1663,13 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                 onClick={() => router.push(`/presupuestos/nuevo?clienteId=${entidadLocal.id}&clienteNombre=${encodeURIComponent(entidadLocal.nombre || "")}`)}
                 style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.72rem", fontWeight: 600, color: "#ffffff", background: "var(--primary-color, #475569)", border: "none", cursor: "pointer", padding: "0.25rem 0.55rem", borderRadius: 6 }}
               >
-                <Plus size={12} /> Crear presupuesto
+                <Plus size={12} /> Crear solicitud
               </button>
             </div>
             {loading ? (
               <div style={{ color: "#94a3b8", fontSize: "0.78rem" }}>Cargando...</div>
             ) : presupuestos.length === 0 ? (
-              <div style={{ color: "#94a3b8", fontSize: "0.78rem", fontStyle: "italic" }}>Sin presupuestos</div>
+              <div style={{ color: "#94a3b8", fontSize: "0.78rem", fontStyle: "italic" }}>Sin solicitudes</div>
             ) : (
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                 <thead>
