@@ -137,6 +137,33 @@ export default function PresupuestosPage() {
     setDeleting(null);
   }
 
+  async function handleUpdateCampana(presupuestoId: string, campanaId: string | null) {
+    try {
+      const res = await fetch(`/api/presupuestos/${presupuestoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campana_id: campanaId }),
+      });
+      const j = await res.json();
+      if (j?.success) {
+        setPresupuestos((prev) =>
+          prev.map((p) =>
+            p.id === presupuestoId
+              ? {
+                  ...p,
+                  campana_id: campanaId,
+                  crm_campanas: campanaId ? (p.crm_campanas?.id === campanaId ? p.crm_campanas : null) : null,
+                }
+              : p
+          )
+        );
+        load();
+      }
+    } catch (err) {
+      console.error("Error updating campana:", err);
+    }
+  }
+
   return (
     <div className={listStyles.container}>
       <header className={listStyles.header} style={{ marginBottom: "0px" }}>

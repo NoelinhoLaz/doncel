@@ -8,6 +8,7 @@ export async function POST(req: Request) {
       expediente_id: body.expediente_id || null,
       titulo: body.titulo || body.nombre || null,
       presupuesto_id: body.presupuesto_id || null,
+      campana_id: body.campana_id || null,
       plazas: body.plazas ? Number(body.plazas) : null,
       fecha_salida: body.fecha_salida || null,
       fecha_regreso: body.fecha_regreso || null,

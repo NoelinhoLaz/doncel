@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getPropuestas, deletePropuesta, duplicarPropuesta, tienePropuestaCotizacionVinculada, unlinkCotizacionFromPropuesta } from "@/actions/propuestas";
+import { getPropuestas, deletePropuesta, duplicarPropuesta, tienePropuestaCotizacionVinculada, unlinkCotizacionFromPropuesta, updatePropuestaMeta } from "@/actions/propuestas";
 import { Plus, Search, Eye, Pencil, Trash2, Copy, FileText, Calendar, LayoutTemplate, Share2, Check, Upload, SlidersHorizontal, Unlink, MoreVertical } from "lucide-react";
 import styles from "./page.module.css";
 import ImportarPropuestaPdfModal from "@/components/modals/ImportarPropuestaPdfModal";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
+import { ModalDuplicarOperativa } from "@/components/modals/ModalDuplicarOperativa";
 
 interface Propuesta {
   id: string;
@@ -19,6 +20,11 @@ interface Propuesta {
   created_at: string;
   contacto_id?: string | null;
   cotizacion_id?: string | null;
+  campana_id?: string | null;
+  crm_campanas?: {
+    id: string;
+    nombre: string;
+  } | null;
   contabilidad_entidades?: {
     id: string;
     nombre: string;
@@ -52,7 +58,15 @@ export default function PropuestasPage() {
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
   const [confirmarBorrar, setConfirmarBorrar] = useState<string | null>(null);
-  const [duplicarModal, setDuplicarModal] = useState<string | null>(null);
+  const [duplicarModalData, setDuplicarModalData] = useState<{
+    id: string;
+    titulo?: string;
+    contactoId?: string | null;
+    contactoNombre?: string | null;
+    campanaId?: string | null;
+    campanaNombre?: string | null;
+    tieneCotizacion: boolean;
+  } | null>(null);
   const [confirmarDesvincular, setConfirmarDesvincular] = useState<string | null>(null);
   const [menuAbierto, setMenuAbierto] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -140,20 +154,48 @@ export default function PropuestasPage() {
 
   async function iniciarDuplicar(id: string) {
     const check = await tienePropuestaCotizacionVinculada(id);
-    if (check.tieneCotizacion) {
-      setDuplicarModal(id);
-    } else {
-      const r = await duplicarPropuesta(id, false);
-      if (r.ok) cargar();
-    }
+    const prop = propuestas.find(p => p.id === id);
+    setDuplicarModalData({
+      id,
+      titulo: prop ? titulo(prop) : undefined,
+      contactoId: prop?.contacto_id,
+      contactoNombre: prop?.contabilidad_entidades?.nombre,
+      campanaId: prop?.campana_id,
+      campanaNombre: prop?.crm_campanas?.nombre,
+      tieneCotizacion: check.tieneCotizacion,
+    });
   }
 
-  async function confirmarDuplicar(vincular: boolean) {
-    if (!duplicarModal) return;
-    const id = duplicarModal;
-    setDuplicarModal(null);
-    const r = await duplicarPropuesta(id, vincular);
+  async function confirmarDuplicar(params: { vincular: boolean; contactoId: string | null; campanaId: string | null }) {
+    if (!duplicarModalData) return;
+    const id = duplicarModalData.id;
+    const r = await duplicarPropuesta(id, params.vincular, {
+      contactoId: params.contactoId,
+      campanaId: params.campanaId,
+    });
     if (r.ok) cargar();
+  }
+
+  async function handleUpdateCampanaPropuesta(propuestaId: string, campanaId: string | null) {
+    try {
+      const res = await updatePropuestaMeta(propuestaId, { campana_id: campanaId });
+      if (res.success) {
+        setPropuestas((prev) =>
+          prev.map((p) =>
+            p.id === propuestaId
+              ? {
+                  ...p,
+                  campana_id: campanaId,
+                  crm_campanas: campanaId ? (p.crm_campanas?.id === campanaId ? p.crm_campanas : null) : null,
+                }
+              : p
+          )
+        );
+        cargar();
+      }
+    } catch (err) {
+      console.error("Error updating propuesta campana:", err);
+    }
   }
 
   async function desvincular(id: string) {
@@ -609,21 +651,21 @@ export default function PropuestasPage() {
         </div>
       )}
 
-      {/* Modal duplicar propuesta con cotización vinculada */}
-      {duplicarModal && (
-        <div className={styles.modalOverlay} onClick={() => setDuplicarModal(null)}>
-          <div className={styles.modal} onClick={e => e.stopPropagation()}>
-            <p className={styles.modalTitle}>Duplicar propuesta</p>
-            <p className={styles.modalText}>
-              Esta propuesta tiene una cotización vinculada. ¿Deseas duplicar también la cotización y mantener el vínculo en la copia?
-            </p>
-            <div className={styles.modalActions}>
-              <button className={styles.modalCancel} onClick={() => setDuplicarModal(null)}>Cancelar</button>
-              <button className={styles.modalCancel} onClick={() => confirmarDuplicar(false)}>Solo propuesta</button>
-              <button className={styles.modalConfirm} onClick={() => confirmarDuplicar(true)}>Duplicar ambas</button>
-            </div>
-          </div>
-        </div>
+      {/* Modal duplicar propuesta */}
+      {duplicarModalData && (
+        <ModalDuplicarOperativa
+          isOpen={!!duplicarModalData}
+          onClose={() => setDuplicarModalData(null)}
+          tipo="propuesta"
+          itemId={duplicarModalData.id}
+          itemTitulo={duplicarModalData.titulo}
+          initialContactoId={duplicarModalData.contactoId}
+          initialContactoNombre={duplicarModalData.contactoNombre}
+          initialCampanaId={duplicarModalData.campanaId}
+          initialCampanaNombre={duplicarModalData.campanaNombre}
+          tieneVinculo={duplicarModalData.tieneCotizacion}
+          onConfirm={confirmarDuplicar}
+        />
       )}
 
       {/* Modal confirmar desvincular cotización */}

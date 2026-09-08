@@ -1,9 +1,11 @@
 "use client";
 import { useState, useEffect, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import {
   Search, SlidersHorizontal, Plus, ChevronLeft, ChevronRight,
   ChevronUp, ChevronDown, X, Pencil, Trash2, MapPin, Rocket, List, Megaphone,
+  FileText, Calculator, Presentation,
 } from "lucide-react";
 import styles from "../page.module.css";
 import { Oportunidad, Estado, AgenteObjetivo, EntidadDetalle } from "../types";
@@ -41,10 +43,28 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
   onEntidadClick?: (data: EntidadDetalle) => void;
   onOportunidadUpdate?: (id: string, patch: Partial<Oportunidad>) => void;
 }) {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showDifusionModal, setShowDifusionModal] = useState(false);
   const addBtnRef = useRef<HTMLDivElement>(null);
+
+  // Menú flotante de creación rápida (+): Solicitud, Cotización, Propuesta Visual
+  const [createMenuOp, setCreateMenuOp] = useState<Oportunidad | null>(null);
+  const [createMenuPos, setCreateMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const createMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!createMenuOp) return;
+    function handleClick(e: MouseEvent) {
+      if (createMenuRef.current && !createMenuRef.current.contains(e.target as Node)) {
+        setCreateMenuOp(null);
+        setCreateMenuPos(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClick, true);
+    return () => document.removeEventListener("mousedown", handleClick, true);
+  }, [createMenuOp]);
 
   useEffect(() => {
     if (!showAddMenu) return;
@@ -803,6 +823,27 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
                     </button>
                   )}
                   <button
+                    className={styles.accionBtn}
+                    title="Crear solicitud, cotización o propuesta"
+                    style={{
+                      color: createMenuOp?.id === o.id ? "var(--primary-color,#475569)" : "#64748b",
+                      background: createMenuOp?.id === o.id ? "#f1f5f9" : undefined,
+                    }}
+                    onClick={e => {
+                      e.stopPropagation();
+                      if (createMenuOp?.id === o.id) {
+                        setCreateMenuOp(null);
+                        setCreateMenuPos(null);
+                        return;
+                      }
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      setCreateMenuPos({ top: rect.bottom + 6, left: rect.left + rect.width / 2 });
+                      setCreateMenuOp(o);
+                    }}
+                  >
+                    <Plus size={14} />
+                  </button>
+                  <button
                     className={`${styles.accionBtn} ${styles.accionBtnDanger}`}
                     title="Eliminar oportunidad"
                     onClick={e => { e.stopPropagation(); setConfirmarEliminarId(o.id); }}
@@ -996,6 +1037,130 @@ export function TablaOportunidades({ oportunidades, estados, monocromo, isOwner,
               Quitar agente
             </div>
           )}
+        </div>
+      );
+    })()}
+
+    {/* Menú tooltip rápido para crear Solicitud, Cotización o Propuesta */}
+    {createMenuOp && createMenuPos && (() => {
+      const entidadId = createMenuOp.contabilidad_entidades?.id;
+      const entidadNombre = createMenuOp.contabilidad_entidades?.nombre || createMenuOp.titulo || "";
+      return (
+        <div
+          ref={createMenuRef}
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: "fixed",
+            top: createMenuPos.top,
+            left: createMenuPos.left,
+            transform: "translateX(-85%)",
+            background: "#ffffff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 10,
+            boxShadow: "0 10px 30px rgba(15,23,42,0.15), 0 2px 6px rgba(0,0,0,0.06)",
+            zIndex: 99999,
+            minWidth: 160,
+            padding: "0.35rem",
+            fontSize: "0.8rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+          }}
+        >
+          <button
+            type="button"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              width: "100%",
+              padding: "0.45rem 0.65rem",
+              background: "transparent",
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              color: "#1e293b",
+              fontSize: "0.78rem",
+              fontWeight: 500,
+              textAlign: "left",
+              transition: "background 0.12s ease",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "#f1f5f9")}
+            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            onClick={() => {
+              const opId = createMenuOp.id;
+              setCreateMenuOp(null);
+              setCreateMenuPos(null);
+              if (onPresupuestoClick) {
+                onPresupuestoClick(opId);
+              } else {
+                router.push(`/presupuestos/nuevo?clienteId=${entidadId || ""}&clienteNombre=${encodeURIComponent(entidadNombre)}&campanaId=${campanaId}`);
+              }
+            }}
+          >
+            <FileText size={14} style={{ color: "var(--primary-color, #475569)", flexShrink: 0 }} />
+            <span>Solicitud</span>
+          </button>
+
+          <button
+            type="button"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              width: "100%",
+              padding: "0.45rem 0.65rem",
+              background: "transparent",
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              color: "#1e293b",
+              fontSize: "0.78rem",
+              fontWeight: 500,
+              textAlign: "left",
+              transition: "background 0.12s ease",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "#f1f5f9")}
+            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            onClick={() => {
+              setCreateMenuOp(null);
+              setCreateMenuPos(null);
+              router.push(`/cotizaciones/nueva?clienteId=${entidadId || ""}&clienteNombre=${encodeURIComponent(entidadNombre)}&campanaId=${campanaId}`);
+            }}
+          >
+            <Calculator size={14} style={{ color: "var(--primary-color, #475569)", flexShrink: 0 }} />
+            <span>Cotizacion</span>
+          </button>
+
+          <button
+            type="button"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              width: "100%",
+              padding: "0.45rem 0.65rem",
+              background: "transparent",
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              color: "#1e293b",
+              fontSize: "0.78rem",
+              fontWeight: 500,
+              textAlign: "left",
+              transition: "background 0.12s ease",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "#f1f5f9")}
+            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            onClick={() => {
+              setCreateMenuOp(null);
+              setCreateMenuPos(null);
+              router.push(`/propuestas/nueva?contacto_id=${entidadId || ""}&contacto_nombre=${encodeURIComponent(entidadNombre)}&campanaId=${campanaId}`);
+            }}
+          >
+            <Presentation size={14} style={{ color: "var(--primary-color, #475569)", flexShrink: 0 }} />
+            <span>Propuesta Visual</span>
+          </button>
         </div>
       );
     })()}

@@ -2601,7 +2601,12 @@ CREATE INDEX IF NOT EXISTS idx_presupuestos_oportunidad  ON public.operativa_pre
 CREATE INDEX IF NOT EXISTS idx_presupuestos_campana      ON public.operativa_presupuestos(campana_id);
 
 ALTER TABLE operativa_cotizaciones ADD COLUMN IF NOT EXISTS presupuesto_id UUID REFERENCES public.operativa_presupuestos(id) ON DELETE SET NULL;
+ALTER TABLE operativa_cotizaciones ADD COLUMN IF NOT EXISTS campana_id UUID REFERENCES public.crm_campanas(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_cotizaciones_presupuesto_id ON operativa_cotizaciones(presupuesto_id);
+CREATE INDEX IF NOT EXISTS idx_cotizaciones_campana_id ON operativa_cotizaciones(campana_id);
+
+ALTER TABLE operativa_propuestas ADD COLUMN IF NOT EXISTS campana_id UUID REFERENCES public.crm_campanas(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_propuestas_campana_id ON operativa_propuestas(campana_id);
 
 ALTER TABLE public.comunicaciones_expediente ADD COLUMN IF NOT EXISTS propuesta_id UUID REFERENCES public.operativa_propuestas(id) ON DELETE SET NULL;
 ALTER TABLE public.comunicaciones_expediente ADD COLUMN IF NOT EXISTS presupuesto_id UUID REFERENCES public.operativa_presupuestos(id) ON DELETE SET NULL;

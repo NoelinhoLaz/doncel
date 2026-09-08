@@ -113,7 +113,7 @@ async function getDefaultTipoId(agencyDb: any): Promise<string | null> {
     const agencyDb = await getAgencyDbClient();
     const { data, error } = await agencyDb
       .from("operativa_cotizaciones")
-      .select("*, contabilidad_entidades!contacto(id, nombre), crm_contactos!contacto_persona_id(id, nombre, cargo, email, telefono), operativa_cotizacion_lineas(id, tipo, descripcion, plazas, noches, neto, pvp, total_neto, total_pvp, checked, opcional, confirmado, maestro_destinos(id, nombre, nombre_comercial, lat, lng), contabilidad_proveedores!proveedor(id, nombre, email), config_tipos_servicios(id, etiqueta, icono, contenido))")
+      .select("*, contabilidad_entidades!contacto(id, nombre), crm_contactos!contacto_persona_id(id, nombre, cargo, email, telefono), crm_campanas!campana_id(id, nombre), operativa_cotizacion_lineas(id, tipo, descripcion, plazas, noches, neto, pvp, total_neto, total_pvp, checked, opcional, confirmado, maestro_destinos(id, nombre, nombre_comercial, lat, lng), contabilidad_proveedores!proveedor(id, nombre, email), config_tipos_servicios(id, etiqueta, icono, contenido))")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -286,6 +286,7 @@ export async function createCotizacion(payload: {
   expediente_id?: string | null;
   titulo?: string | null;
   presupuesto_id?: string | null;
+  campana_id?: string | null;
   plazas?: number | null;
   fecha_salida?: string | null;
   fecha_regreso?: string | null;
@@ -298,6 +299,7 @@ export async function createCotizacion(payload: {
     if (payload.expediente_id) insertObj.expediente_id = payload.expediente_id;
     if (payload.titulo) insertObj.titulo = payload.titulo;
     if (payload.presupuesto_id) insertObj.presupuesto_id = payload.presupuesto_id;
+    if (payload.campana_id !== undefined) insertObj.campana_id = payload.campana_id || null;
     if (payload.plazas) insertObj.plazas = payload.plazas;
     if (payload.fecha_salida) insertObj.fecha_salida = payload.fecha_salida;
     if (payload.fecha_regreso) insertObj.fecha_regreso = payload.fecha_regreso;
@@ -567,7 +569,7 @@ export async function deleteCotizacionLinea(id: string) {
   }
 }
 
-export async function updateCotizacionMeta(cotizacionId: string, payload: { titulo?: string; contacto?: string | null; contacto_persona_id?: string | null; fecha_salida?: string | null; fecha_regreso?: string | null; pvp_viajero?: number | null; plazas?: number | null; free?: number | null; estado?: "borrador" | "presentada" | "aceptada" | "rechazada" }) {
+export async function updateCotizacionMeta(cotizacionId: string, payload: { titulo?: string; contacto?: string | null; contacto_persona_id?: string | null; campana_id?: string | null; fecha_salida?: string | null; fecha_regreso?: string | null; pvp_viajero?: number | null; plazas?: number | null; free?: number | null; estado?: "borrador" | "presentada" | "aceptada" | "rechazada" }) {
   try {
     const agencyDb = await getAgencyDbClient();
     await assertPuedeEditarCotizacion(agencyDb, cotizacionId);
@@ -713,7 +715,14 @@ export async function deleteCotizacion(
   }
 }
 
-export async function duplicateCotizacion(cotizacionId: string, vincularPropuestas: boolean = true) {
+export async function duplicateCotizacion(
+  cotizacionId: string,
+  vincularPropuestas: boolean = true,
+  options?: {
+    contactoId?: string | null;
+    campanaId?: string | null;
+  }
+) {
   try {
     const agencyDb = await getAgencyDbClient();
     let user = null;
@@ -725,12 +734,14 @@ export async function duplicateCotizacion(cotizacionId: string, vincularPropuest
 
     const { data: orig, error: e1 } = await agencyDb
       .from("operativa_cotizaciones")
-      .select("titulo, pvp_viajero, plazas, free, contacto, fecha_salida, fecha_regreso, destinos, suplementos, agente_id")
+      .select("titulo, pvp_viajero, plazas, free, contacto, fecha_salida, fecha_regreso, destinos, suplementos, agente_id, campana_id")
       .eq("id", cotizacionId)
       .single();
     if (e1) throw e1;
 
     const agenteId = user?.id || orig.agente_id || null;
+    const finalContacto = options && "contactoId" in options ? options.contactoId : (orig.contacto || null);
+    const finalCampana = options && "campanaId" in options ? options.campanaId : (orig.campana_id || null);
 
     const { data: newCot, error: e2 } = await agencyDb
       .from("operativa_cotizaciones")
@@ -740,7 +751,8 @@ export async function duplicateCotizacion(cotizacionId: string, vincularPropuest
         pvp_viajero: orig.pvp_viajero,
         plazas: orig.plazas,
         free: orig.free,
-        contacto: orig.contacto || null,
+        contacto: finalContacto,
+        campana_id: finalCampana,
         fecha_salida: orig.fecha_salida || null,
         fecha_regreso: orig.fecha_regreso || null,
         destinos: orig.destinos || [],
@@ -768,14 +780,20 @@ export async function duplicateCotizacion(cotizacionId: string, vincularPropuest
     if (vincularPropuestas) {
       const { data: propuestas } = await agencyDb
         .from("operativa_propuestas")
-        .select("id, title, contacto_id")
+        .select("id, title, contacto_id, campana_id")
         .eq("cotizacion_id", cotizacionId);
 
       if (propuestas && propuestas.length > 0) {
         for (const prop of propuestas) {
           const { data: newProp, error: ep1 } = await agencyDb
             .from("operativa_propuestas")
-            .insert({ title: `${prop.title} (copia)`, cotizacion_id: newCot.id, contacto_id: prop.contacto_id || null, proposal_data: {} })
+            .insert({
+              title: `${prop.title} (copia)`,
+              cotizacion_id: newCot.id,
+              contacto_id: finalContacto,
+              campana_id: finalCampana,
+              proposal_data: {}
+            })
             .select("id")
             .single();
           if (ep1 || !newProp) continue;

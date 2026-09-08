@@ -276,15 +276,42 @@ export async function getPresupuestos(filters?: { oportunidad_id?: string }) {
       }
     }
 
+    // Enriquecer con campaña
+    const campanaIds = [...new Set(presupuestos.map((p: any) => p.campana_id).filter(Boolean))];
+    let campanasMap: Record<string, any> = {};
+    if (campanaIds.length) {
+      const { data: camps } = await agencyDb
+        .from("crm_campanas")
+        .select("id, nombre")
+        .in("id", campanaIds);
+      campanasMap = Object.fromEntries((camps ?? []).map((c: any) => [c.id, c]));
+    }
+
     return presupuestos.map((p: any) => ({
       ...p,
       cliente_nombre: entidadesMap[p.entidad_id] ?? null,
       contacto_principal: contactosMap[p.id] ?? null,
       cotizaciones_count: cotizacionesCountMap[p.id] || 0,
+      crm_campanas: campanasMap[p.campana_id] ?? null,
     }));
   } catch (error: any) {
     console.error("Failed to get presupuestos:", error.message);
     return [];
+  }
+}
+
+export async function updatePresupuestoCampana(presupuestoId: string, campanaId: string | null) {
+  try {
+    const agencyDb = await getAgencyDbClient();
+    const { error } = await agencyDb
+      .from("operativa_presupuestos")
+      .update({ campana_id: campanaId || null })
+      .eq("id", presupuestoId);
+    if (error) throw error;
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to update presupuesto campana:", error.message);
+    return { success: false, error: error.message };
   }
 }
 

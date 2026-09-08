@@ -41,8 +41,9 @@ export async function getPropuestas() {
     const { data, error } = await agencyDb
       .from("operativa_propuestas")
       .select(`
-        id, title, destination, destinos, slug, fecha_salida, fecha_regreso, created_at, contacto_id, cotizacion_id, agente_id,
+        id, title, destination, destinos, slug, fecha_salida, fecha_regreso, created_at, contacto_id, cotizacion_id, agente_id, campana_id,
         contabilidad_entidades!contacto_id(id, nombre),
+        crm_campanas!campana_id(id, nombre),
         landings(id, is_active, version_number, design_tokens, editor_content)
       `)
       .order("created_at", { ascending: false });
@@ -100,7 +101,14 @@ export async function getPropuestas() {
   }
 }
 
-export async function duplicarPropuesta(id: string, vincularCotizacion: boolean = true) {
+export async function duplicarPropuesta(
+  id: string,
+  vincularCotizacion: boolean = true,
+  options?: {
+    contactoId?: string | null;
+    campanaId?: string | null;
+  }
+) {
   try {
     const agencyDb = await getAgencyDbClient();
     let user = null;
@@ -112,7 +120,7 @@ export async function duplicarPropuesta(id: string, vincularCotizacion: boolean 
 
     const { data: prop, error: e1 } = await agencyDb
       .from("operativa_propuestas")
-      .select("title, cotizacion_id, contacto_id, agente_id")
+      .select("title, cotizacion_id, contacto_id, agente_id, campana_id")
       .eq("id", id)
       .single();
     if (e1 || !prop) throw e1;
@@ -125,10 +133,16 @@ export async function duplicarPropuesta(id: string, vincularCotizacion: boolean 
       .single();
     if (e2 || !landing) throw e2;
 
+    const finalContacto = options && "contactoId" in options ? options.contactoId : (prop.contacto_id || null);
+    const finalCampana = options && "campanaId" in options ? options.campanaId : (prop.campana_id || null);
+
     let newCotizacionId: string | null = null;
     if (vincularCotizacion && prop.cotizacion_id) {
       const { duplicateCotizacion } = await import("@/actions/cotizaciones");
-      const result = await duplicateCotizacion(prop.cotizacion_id, false);
+      const result = await duplicateCotizacion(prop.cotizacion_id, false, {
+        contactoId: finalContacto,
+        campanaId: finalCampana,
+      });
       if (result.success && result.data) {
         newCotizacionId = result.data.id;
       } else {
@@ -145,7 +159,8 @@ export async function duplicarPropuesta(id: string, vincularCotizacion: boolean 
       .insert({
         title: `${prop.title} (copia)`,
         cotizacion_id: vincularCotizacion ? (newCotizacionId ?? prop.cotizacion_id ?? null) : null,
-        contacto_id: prop.contacto_id || null,
+        contacto_id: finalContacto,
+        campana_id: finalCampana,
         agente_id: agenteId,
         proposal_data: {},
       })
@@ -253,6 +268,7 @@ export async function updatePropuestaMeta(propuestaId: string, payload: {
   title?: string;
   destination?: string | null;
   contacto_id?: string | null;
+  campana_id?: string | null;
   fecha_salida?: string | null;
   fecha_regreso?: string | null;
 }) {
@@ -1001,6 +1017,7 @@ export async function guardarPropuesta({
   designTokens,
   cotizacionId,
   contactoId,
+  campanaId,
   title: titleOverride,
   destination,
   fechaSalida,
@@ -1011,6 +1028,7 @@ export async function guardarPropuesta({
   designTokens: any[];
   cotizacionId?: string | null;
   contactoId?: string | null;
+  campanaId?: string | null;
   title?: string;
   destination?: string | null;
   fechaSalida?: string | null;
@@ -1044,6 +1062,9 @@ export async function guardarPropuesta({
       if (contactoId !== undefined) {
         updates.contacto_id = contactoId;
       }
+      if (campanaId !== undefined) {
+        updates.campana_id = campanaId;
+      }
       if (destination !== undefined) updates.destination = destination;
       if (fechaSalida !== undefined) updates.fecha_salida = fechaSalida;
       if (fechaRegreso !== undefined) updates.fecha_regreso = fechaRegreso;
@@ -1068,6 +1089,7 @@ export async function guardarPropuesta({
     const propInsert: any = { title, proposal_data: {}, agente_id: currentUserId };
     if (cotizacionId) propInsert.cotizacion_id = cotizacionId;
     if (contactoId) propInsert.contacto_id = contactoId;
+    if (campanaId) propInsert.campana_id = campanaId;
     if (destination) propInsert.destination = destination;
     if (fechaSalida) propInsert.fecha_salida = fechaSalida;
     if (fechaRegreso) propInsert.fecha_regreso = fechaRegreso;

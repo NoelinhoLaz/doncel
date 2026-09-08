@@ -13,6 +13,7 @@ import TipoIcon from "@/app/components/cotizacion/TipoIcon";
 import MultiSelectDropdown from "@/app/components/MultiSelectDropdown";
 import SingleSelectDropdown from "@/app/components/SingleSelectDropdown";
 import dynamic from "next/dynamic";
+import { ModalDuplicarOperativa } from "@/components/modals/ModalDuplicarOperativa";
 import { computeMonthsData, computeDaysData } from "@/lib/utils/expedientesUtils";
 
 const MapComponent = dynamic(() => import("../expedientes/MapComponent"), {
@@ -32,7 +33,15 @@ export default function CotizacionesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [duplicating, setDuplicating] = useState<string | null>(null);
-  const [duplicarModal, setDuplicarModal] = useState<string | null>(null);
+  const [duplicarModalData, setDuplicarModalData] = useState<{
+    id: string;
+    titulo?: string;
+    contactoId?: string | null;
+    contactoNombre?: string | null;
+    campanaId?: string | null;
+    campanaNombre?: string | null;
+    tienePropuestas: boolean;
+  } | null>(null);
   const [deleteModal, setDeleteModal] = useState<{ id: string; titulo: string; tienePropuestas: boolean } | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [selectedLineIds, setSelectedLineIds] = useState<string[]>([]);
@@ -100,6 +109,33 @@ export default function CotizacionesPage() {
     } catch (err) {
       console.error(err);
       loadCotizaciones();
+    }
+  };
+
+  const handleUpdateCampanaCotizacion = async (cotizacionId: string, campanaId: string | null) => {
+    try {
+      const res = await fetch(`/api/cotizaciones?id=${cotizacionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campana_id: campanaId }),
+      });
+      const j = await res.json();
+      if (j?.success) {
+        setCotizaciones((prev) =>
+          prev.map((c) =>
+            c.id === cotizacionId
+              ? {
+                  ...c,
+                  campana_id: campanaId,
+                  crm_campanas: campanaId ? (c.crm_campanas?.id === campanaId ? c.crm_campanas : null) : null,
+                }
+              : c
+          )
+        );
+        loadCotizaciones();
+      }
+    } catch (err) {
+      console.error("Error updating cotizacion campana:", err);
     }
   };
 
@@ -665,30 +701,27 @@ export default function CotizacionesPage() {
   const handleDuplicate = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     const check = await tieneCotizacionPropuestasVinculadas(id);
-    if (check.tienePropuestas) {
-      setDuplicarModal(id);
-      return;
-    }
-    setDuplicating(id);
-    try {
-      const result = await duplicateCotizacion(id, false);
-      if (result.success) {
-        loadCotizaciones();
-      } else {
-        alert("Error al duplicar: " + result.error);
-      }
-    } finally {
-      setDuplicating(null);
-    }
+    const cot = cotizaciones.find(c => c.id === id);
+    setDuplicarModalData({
+      id,
+      titulo: cot?.titulo,
+      contactoId: cot?.contacto,
+      contactoNombre: cot?.contabilidad_entidades?.nombre,
+      campanaId: cot?.campana_id,
+      campanaNombre: cot?.crm_campanas?.nombre,
+      tienePropuestas: check.tienePropuestas,
+    });
   };
 
-  const confirmarDuplicar = async (vincular: boolean) => {
-    if (!duplicarModal) return;
-    const id = duplicarModal;
-    setDuplicarModal(null);
+  const confirmarDuplicar = async (params: { vincular: boolean; contactoId: string | null; campanaId: string | null }) => {
+    if (!duplicarModalData) return;
+    const id = duplicarModalData.id;
     setDuplicating(id);
     try {
-      const result = await duplicateCotizacion(id, vincular);
+      const result = await duplicateCotizacion(id, params.vincular, {
+        contactoId: params.contactoId,
+        campanaId: params.campanaId,
+      });
       if (result.success) {
         loadCotizaciones();
       } else {
@@ -701,25 +734,20 @@ export default function CotizacionesPage() {
 
   return (
     <div className={listStyles.container}>
-      {duplicarModal && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.35)" }} onClick={() => setDuplicarModal(null)}>
-          <div style={{ background: "#fff", borderRadius: "0.75rem", width: 420, maxWidth: "95vw", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem 0.75rem", borderBottom: "1px solid #f1f5f9" }}>
-              <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#1e293b" }}>Duplicar cotización</span>
-              <button onClick={() => setDuplicarModal(null)} style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", display: "flex" }}><X size={16} /></button>
-            </div>
-            <div style={{ padding: "1rem 1.25rem" }}>
-              <p style={{ fontSize: "0.85rem", color: "#475569", margin: 0 }}>
-                Esta cotización tiene propuestas vinculadas. ¿Deseas duplicarlas también y mantener el vínculo en las copias?
-              </p>
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "0.75rem 1.25rem 1rem" }}>
-              <button onClick={() => setDuplicarModal(null)} style={{ border: "1px solid #e2e8f0", background: "#fff", borderRadius: 6, padding: "0.4rem 0.85rem", cursor: "pointer", color: "#475569", fontSize: "0.8rem", fontWeight: 600 }}>Cancelar</button>
-              <button onClick={() => confirmarDuplicar(false)} style={{ border: "1px solid #e2e8f0", background: "#fff", borderRadius: 6, padding: "0.4rem 0.85rem", cursor: "pointer", color: "#475569", fontSize: "0.8rem", fontWeight: 600 }}>Solo cotización</button>
-              <button onClick={() => confirmarDuplicar(true)} style={{ border: "none", background: "#1e293b", borderRadius: 6, padding: "0.4rem 0.85rem", cursor: "pointer", color: "#fff", fontSize: "0.8rem", fontWeight: 600 }}>Duplicar ambas</button>
-            </div>
-          </div>
-        </div>
+      {duplicarModalData && (
+        <ModalDuplicarOperativa
+          isOpen={!!duplicarModalData}
+          onClose={() => setDuplicarModalData(null)}
+          tipo="cotizacion"
+          itemId={duplicarModalData.id}
+          itemTitulo={duplicarModalData.titulo}
+          initialContactoId={duplicarModalData.contactoId}
+          initialContactoNombre={duplicarModalData.contactoNombre}
+          initialCampanaId={duplicarModalData.campanaId}
+          initialCampanaNombre={duplicarModalData.campanaNombre}
+          tieneVinculo={duplicarModalData.tienePropuestas}
+          onConfirm={confirmarDuplicar}
+        />
       )}
       {deleteModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.35)" }} onClick={() => setDeleteModal(null)}>
@@ -1190,7 +1218,7 @@ export default function CotizacionesPage() {
                   <tbody>
                     {paginated.length === 0 ? (
                       <tr>
-                        <td colSpan={15} style={{ textAlign: "center", color: "#94a3b8", padding: "2rem" }}>
+                        <td colSpan={16} style={{ textAlign: "center", color: "#94a3b8", padding: "2rem" }}>
                           No hay cotizaciones. Crea una nueva con el botón +.
                         </td>
                       </tr>

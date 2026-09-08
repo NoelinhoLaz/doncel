@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { X, Pencil, Plus, Phone, Mail, Info, Building2, Rocket, IdCard, Trash2, User, Users, Target, FileText, Calculator, FolderOpen, Tag, ChevronDown, ChevronRight, Presentation, Search, Loader2, MapPin, Send } from "lucide-react";
@@ -88,6 +88,12 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
   const [contactoResultados, setContactoResultados] = useState<any[]>([]);
   const [contactoSearchLoading, setContactoSearchLoading] = useState(false);
   const [vinculandoId, setVinculandoId] = useState<string | null>(null);
+
+  // Filas desplegables en campañas
+  const [expandedCampanas, setExpandedCampanas] = useState<Record<string, boolean>>({});
+  const toggleCampanaExpanded = (id: string) => {
+    setExpandedCampanas(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   // Picker de agente en la fila de historial de campañas
   const [agentePickerRowId, setAgentePickerRowId] = useState<string | null>(null);
@@ -1411,6 +1417,7 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                    <th style={{ ...th, width: 22, padding: "0.3rem 0" }}></th>
                     <th style={{ ...th, width: 30 }}></th>
                     <th style={th}>Campaña</th>
                     <th style={th}>Estado</th>
@@ -1422,54 +1429,218 @@ export function PanelEntidad({ data, onClose, onEntidadUpdated, onEntidadDeleted
                   {pagerCampanas.paginated.map((h, i) => {
                     const estado = h.crm_campanas_estados;
                     const ag = h.crm_agentes;
+                    const isExpanded = !!expandedCampanas[h.id];
                     return (
-                      <tr key={h.id} style={{ borderBottom: i < pagerCampanas.paginated.length - 1 ? "1px solid #f1f5f9" : undefined }}>
-                        <td style={{ ...td, width: 30 }}>
-                          <span
-                            className={styles.agenteCircle}
-                            title={ag ? `${ag.nombre} ${ag.apellidos}` : "Sin agente"}
-                            style={{ width: 22, height: 22, fontSize: "0.56rem", cursor: "pointer", opacity: ag ? 1 : 0.35, outline: agentePickerRowId === h.id ? "2px solid var(--primary-color, #475569)" : undefined, outlineOffset: 2 }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (agentePickerRowId === h.id) { setAgentePickerRowId(null); setAgentePickerPos(null); return; }
-                              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                              setAgentePickerPos({ top: rect.bottom + 6, left: rect.left + rect.width / 2 });
-                              setAgentePickerRowId(h.id);
-                            }}
-                          >
-                            {ag ? initials(ag.nombre, ag.apellidos) : "—"}
-                          </span>
-                        </td>
-                        <td style={td} title={h.crm_campanas?.nombre ?? ""}>{h.crm_campanas?.nombre ?? "—"}</td>
-                        <td style={{ ...td, paddingLeft: "0.5rem" }}>
-                          {(h.crm_campanas?.crm_campanas_estados?.length ?? 0) > 0 ? (
+                      <Fragment key={h.id}>
+                        <tr
+                          style={{
+                            borderBottom: !isExpanded && i < pagerCampanas.paginated.length - 1 ? "1px solid #f1f5f9" : undefined,
+                            cursor: "pointer",
+                          }}
+                          onClick={() => toggleCampanaExpanded(h.id)}
+                        >
+                          <td style={{ ...td, width: 22, padding: "0.4rem 0", textAlign: "center" }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}>
+                              {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            </span>
+                          </td>
+                          <td style={{ ...td, width: 30 }} onClick={(e) => e.stopPropagation()}>
                             <span
-                              role="button"
-                              title="Cambiar estado"
+                              className={styles.agenteCircle}
+                              title={ag ? `${ag.nombre} ${ag.apellidos}` : "Sin agente"}
+                              style={{ width: 22, height: 22, fontSize: "0.56rem", cursor: "pointer", opacity: ag ? 1 : 0.35, outline: agentePickerRowId === h.id ? "2px solid var(--primary-color, #475569)" : undefined, outlineOffset: 2 }}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (estadoPickerRowId === h.id) { setEstadoPickerRowId(null); setEstadoPickerPos(null); return; }
+                                if (agentePickerRowId === h.id) { setAgentePickerRowId(null); setAgentePickerPos(null); return; }
                                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                setEstadoPickerPos({ top: rect.bottom + 6, left: rect.left });
-                                setEstadoPickerRowId(h.id);
-                              }}
-                              style={{
-                                display: "inline-flex", alignItems: "center", gap: 4, height: 18, borderRadius: 99,
-                                background: estado?.color ?? "#e2e8f0", color: estado ? "#fff" : "#64748b",
-                                fontSize: "0.62rem", fontWeight: 600, padding: "0 7px", whiteSpace: "nowrap", cursor: "pointer",
-                                outline: estadoPickerRowId === h.id ? "2px solid var(--primary-color, #475569)" : undefined, outlineOffset: 2,
+                                setAgentePickerPos({ top: rect.bottom + 6, left: rect.left + rect.width / 2 });
+                                setAgentePickerRowId(h.id);
                               }}
                             >
-                              {estado?.nombre ?? "Sin estado"}
-                              <ChevronDown size={10} />
+                              {ag ? initials(ag.nombre, ag.apellidos) : "—"}
                             </span>
-                          ) : estado ? (
-                            <span style={{ display: "inline-flex", alignItems: "center", height: 18, borderRadius: 99, background: estado.color, color: "#fff", fontSize: "0.62rem", fontWeight: 600, padding: "0 7px", whiteSpace: "nowrap" }}>{estado.nombre}</span>
-                          ) : "—"}
-                        </td>
-                        <td style={{ ...td, textAlign: "center", paddingLeft: "0.5rem" }}>{h.prioridad ?? "—"}</td>
-                        <td style={{ ...td, textAlign: "right", paddingLeft: "0.5rem" }}>{h.valor_estimado ? `${h.valor_estimado.toLocaleString("es-ES")} €` : "—"}</td>
-                      </tr>
+                          </td>
+                          <td style={td} title={h.crm_campanas?.nombre ?? ""}>{h.crm_campanas?.nombre ?? "—"}</td>
+                          <td style={{ ...td, paddingLeft: "0.5rem" }} onClick={(e) => e.stopPropagation()}>
+                            {(h.crm_campanas?.crm_campanas_estados?.length ?? 0) > 0 ? (
+                              <span
+                                role="button"
+                                title="Cambiar estado"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (estadoPickerRowId === h.id) { setEstadoPickerRowId(null); setEstadoPickerPos(null); return; }
+                                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                  setEstadoPickerPos({ top: rect.bottom + 6, left: rect.left });
+                                  setEstadoPickerRowId(h.id);
+                                }}
+                                style={{
+                                  display: "inline-flex", alignItems: "center", gap: 4, height: 18, borderRadius: 99,
+                                  background: estado?.color ?? "#e2e8f0", color: estado ? "#fff" : "#64748b",
+                                  fontSize: "0.62rem", fontWeight: 600, padding: "0 7px", whiteSpace: "nowrap", cursor: "pointer",
+                                  outline: estadoPickerRowId === h.id ? "2px solid var(--primary-color, #475569)" : undefined, outlineOffset: 2,
+                                }}
+                              >
+                                {estado?.nombre ?? "Sin estado"}
+                                <ChevronDown size={10} />
+                              </span>
+                            ) : estado ? (
+                              <span style={{ display: "inline-flex", alignItems: "center", height: 18, borderRadius: 99, background: estado.color, color: "#fff", fontSize: "0.62rem", fontWeight: 600, padding: "0 7px", whiteSpace: "nowrap" }}>{estado.nombre}</span>
+                            ) : "—"}
+                          </td>
+                          <td style={{ ...td, textAlign: "center", paddingLeft: "0.5rem" }}>{h.prioridad ?? "—"}</td>
+                          <td style={{ ...td, textAlign: "right", paddingLeft: "0.5rem" }}>{h.valor_estimado ? `${h.valor_estimado.toLocaleString("es-ES")} €` : "—"}</td>
+                        </tr>
+                        {isExpanded && (() => {
+                          const campanaId = h.crm_campanas?.id;
+                          const presCampana = presupuestos.filter((p: any) => p.campana_id === campanaId);
+                          const cotCampana = cotizaciones.filter((c: any) => c.campana_id === campanaId);
+                          const propCampana = propuestas.filter((pr: any) => pr.campana_id === campanaId);
+                          const totalDocs = presCampana.length + cotCampana.length + propCampana.length;
+
+                          return (
+                            <tr style={{ background: "#f8fafc", borderBottom: i < pagerCampanas.paginated.length - 1 ? "1px solid #f1f5f9" : undefined }}>
+                              <td colSpan={6} style={{ padding: "0.5rem 0.75rem" }}>
+                                <div style={{
+                                  background: "#ffffff",
+                                  border: "1px solid #e2e8f0",
+                                  borderRadius: 8,
+                                  padding: "0.6rem 0.75rem",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "0.75rem",
+                                  boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
+                                }}>
+                                  {totalDocs === 0 ? (
+                                    <div style={{ color: "#94a3b8", fontSize: "0.74rem", fontStyle: "italic", textAlign: "center", padding: "0.25rem 0" }}>
+                                      Sin solicitudes, cotizaciones ni propuestas en esta campaña
+                                    </div>
+                                  ) : (
+                                    <>
+                                      {/* Solicitudes / Presupuestos */}
+                                      {presCampana.length > 0 && (
+                                        <div>
+                                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "0.72rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "0.35rem" }}>
+                                            <FileText size={13} style={{ color: "var(--primary-color, #475569)" }} />
+                                            <span>Solicitudes ({presCampana.length})</span>
+                                          </div>
+                                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.72rem" }}>
+                                            <thead>
+                                              <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                                <th style={{ ...th, fontSize: "0.62rem" }}>Título</th>
+                                                <th style={{ ...th, fontSize: "0.62rem" }}>Tipo</th>
+                                                <th style={{ ...th, fontSize: "0.62rem", textAlign: "left" }}>Estado</th>
+                                                <th style={{ ...th, fontSize: "0.62rem", textAlign: "right" }}>PVP est.</th>
+                                                <th style={{ ...th, fontSize: "0.62rem", textAlign: "right" }}>Salida</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {presCampana.map((p: any) => (
+                                                <tr
+                                                  key={p.id}
+                                                  onClick={() => router.push(`/presupuestos/nuevo?edit=${p.id}`)}
+                                                  style={{ borderBottom: "1px solid #f8fafc", cursor: "pointer" }}
+                                                  onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
+                                                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                                                >
+                                                  <td style={{ ...td, fontSize: "0.72rem", color: "var(--primary-color, #475569)", fontWeight: 500 }} title={p.titulo_viaje}>{p.titulo_viaje}</td>
+                                                  <td style={{ ...td, color: "#64748b", fontSize: "0.68rem" }}>{p.tipo_presupuesto ?? "—"}</td>
+                                                  <td style={{ ...td, fontSize: "0.68rem" }}>
+                                                    <span style={{ fontWeight: 600, color: p.estado === "cotizado" ? "#16a34a" : p.estado === "descartado" ? "#dc2626" : "#475569" }}>
+                                                      {p.estado ?? "—"}
+                                                    </span>
+                                                  </td>
+                                                  <td style={{ ...td, textAlign: "right", fontSize: "0.72rem" }}>{p.pvp_estimado ? `${Number(p.pvp_estimado).toLocaleString("es-ES")} €` : "—"}</td>
+                                                  <td style={{ ...td, textAlign: "right", color: "#64748b", fontSize: "0.68rem" }}>{p.fecha_salida_estimada ? new Date(p.fecha_salida_estimada).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—"}</td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      )}
+
+                                      {/* Cotizaciones */}
+                                      {cotCampana.length > 0 && (
+                                        <div>
+                                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "0.72rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "0.35rem" }}>
+                                            <Calculator size={13} style={{ color: "var(--primary-color, #475569)" }} />
+                                            <span>Cotizaciones ({cotCampana.length})</span>
+                                          </div>
+                                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.72rem" }}>
+                                            <thead>
+                                              <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                                <th style={{ ...th, fontSize: "0.62rem" }}>Título</th>
+                                                <th style={{ ...th, fontSize: "0.62rem", textAlign: "left" }}>Estado</th>
+                                                <th style={{ ...th, fontSize: "0.62rem", textAlign: "right" }}>Plazas</th>
+                                                <th style={{ ...th, fontSize: "0.62rem", textAlign: "right" }}>PVP/pax</th>
+                                                <th style={{ ...th, fontSize: "0.62rem", textAlign: "right" }}>Salida</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {cotCampana.map((c: any) => (
+                                                <tr
+                                                  key={c.id}
+                                                  onClick={() => router.push(`/cotizaciones/nueva?id=${c.id}`)}
+                                                  style={{ borderBottom: "1px solid #f8fafc", cursor: "pointer" }}
+                                                  onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
+                                                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                                                >
+                                                  <td style={{ ...td, fontSize: "0.72rem", color: "var(--primary-color, #475569)", fontWeight: 500 }} title={c.titulo}>{c.titulo ?? "—"}</td>
+                                                  <td style={{ ...td, fontSize: "0.68rem" }}>
+                                                    <span style={{ fontWeight: 600, color: c.estado === "aceptada" ? "#16a34a" : c.estado === "rechazada" ? "#dc2626" : c.estado === "presentada" ? "#d97706" : "#475569" }}>
+                                                      {c.estado ?? "—"}
+                                                    </span>
+                                                  </td>
+                                                  <td style={{ ...td, textAlign: "right", color: "#64748b", fontSize: "0.68rem" }}>{c.plazas ?? "—"}</td>
+                                                  <td style={{ ...td, textAlign: "right", fontSize: "0.72rem" }}>{c.pvp_viajero ? `${Number(c.pvp_viajero).toLocaleString("es-ES")} €` : "—"}</td>
+                                                  <td style={{ ...td, textAlign: "right", color: "#64748b", fontSize: "0.68rem" }}>{c.fecha_salida ? new Date(c.fecha_salida).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—"}</td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      )}
+
+                                      {/* Propuestas */}
+                                      {propCampana.length > 0 && (
+                                        <div>
+                                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "0.72rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "0.35rem" }}>
+                                            <Presentation size={13} style={{ color: "var(--primary-color, #475569)" }} />
+                                            <span>Propuestas ({propCampana.length})</span>
+                                          </div>
+                                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.72rem" }}>
+                                            <thead>
+                                              <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                                <th style={{ ...th, fontSize: "0.62rem" }}>Título</th>
+                                                <th style={{ ...th, fontSize: "0.62rem", textAlign: "left" }}>Destino</th>
+                                                <th style={{ ...th, fontSize: "0.62rem", textAlign: "right" }}>Fecha</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {propCampana.map((pr: any) => (
+                                                <tr
+                                                  key={pr.id}
+                                                  onClick={() => router.push(`/propuestas/${pr.id}`)}
+                                                  style={{ borderBottom: "1px solid #f8fafc", cursor: "pointer" }}
+                                                  onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
+                                                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                                                >
+                                                  <td style={{ ...td, fontSize: "0.72rem", color: "var(--primary-color, #475569)", fontWeight: 500 }} title={pr.title}>{pr.title ?? "—"}</td>
+                                                  <td style={{ ...td, color: "#64748b", fontSize: "0.68rem" }}>{pr.destination ?? "—"}</td>
+                                                  <td style={{ ...td, textAlign: "right", color: "#64748b", fontSize: "0.68rem" }}>{pr.created_at ? new Date(pr.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—"}</td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })()}
+                      </Fragment>
                     );
                   })}
                 </tbody>

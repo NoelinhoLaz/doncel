@@ -24,6 +24,7 @@ export function PropuestaEditor({
   initialCotizacionId,
   initialContactoId,
   initialContactoNombre,
+  initialCampanaId,
   initialTitle,
   initialDestination,
   initialDestinos,
@@ -38,6 +39,7 @@ export function PropuestaEditor({
   initialCotizacionId?: string | null;
   initialContactoId?: string | null;
   initialContactoNombre?: string | null;
+  initialCampanaId?: string | null;
   initialTitle?: string | null;
   initialDestination?: string | null;
   initialDestinos?: { id: string; nombre: string }[];
@@ -79,6 +81,7 @@ export function PropuestaEditor({
   const [cotizacionId] = useState<string | null>(initialCotizacionId ?? null);
   const [contactoId, setContactoId] = useState<string | null>(initialContactoId ?? null);
   const [contactoNombre, setContactoNombre] = useState<string | null>(initialContactoNombre ?? null);
+  const [campanaId, setCampanaId] = useState<string | null>(initialCampanaId ?? null);
   const [title, setTitle] = useState(initialTitle ?? "Nueva propuesta");
   const [destination, setDestination] = useState(initialDestination ?? "");
   const [destinos, setDestinos] = useState<{ id: string; nombre: string }[]>(initialDestinos ?? []);
@@ -237,6 +240,7 @@ export function PropuestaEditor({
         designTokens,
         cotizacionId: propuestaId ? undefined : (cotizacionId ?? undefined),
         contactoId: contactoId,
+        campanaId: campanaId,
         title,
         destination: destination || null,
         fechaSalida: fechaSalida || null,
@@ -251,7 +255,7 @@ export function PropuestaEditor({
     } finally {
       setGuardando(false);
     }
-  }, [secciones, propuestaId, contactoId, estilosGlobales, title, destination, fechaSalida, fechaRegreso]);
+  }, [secciones, propuestaId, contactoId, campanaId, estilosGlobales, title, destination, fechaSalida, fechaRegreso]);
 
   function guardarMeta(cambios: { title?: string; destination?: string | null; contacto_id?: string | null; fecha_salida?: string | null; fecha_regreso?: string | null }) {
     if (!propuestaId) return;

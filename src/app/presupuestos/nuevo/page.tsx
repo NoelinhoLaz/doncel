@@ -13,6 +13,7 @@ export default function NuevoPresupuestoPage() {
   const editId = searchParams.get("edit");
   const clienteId = searchParams.get("clienteId") || searchParams.get("entidadId");
   const clienteNombre = searchParams.get("clienteNombre") || searchParams.get("entidadNombre");
+  const campanaId = searchParams.get("campanaId") || searchParams.get("campana_id");
   const [presupuesto, setPresupuesto] = useState<any>(null);
   const [loading, setLoading] = useState(!!editId);
 
@@ -69,6 +70,7 @@ export default function NuevoPresupuestoPage() {
         presupuesto={presupuesto ?? undefined}
         entidadId={clienteId || undefined}
         entidadNombre={clienteNombre || undefined}
+        campanaId={campanaId || undefined}
         onClose={() => router.push("/presupuestos")}
         onCreated={() => router.push("/presupuestos")}
       />

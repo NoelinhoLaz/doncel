@@ -935,22 +935,22 @@ export async function getEntidadResumen(entidadId: string) {
   const [presupuestosRes, expedientesRes, cotizacionesDirectasRes, propuestasRes, viajeroRows, tutorRows, pagadorRows] = await Promise.all([
     agencyDb
       .from("operativa_presupuestos")
-      .select("id, titulo_viaje, estado, tipo_presupuesto, pvp_estimado, fecha_salida_estimada, created_at")
+      .select("id, titulo_viaje, estado, tipo_presupuesto, pvp_estimado, fecha_salida_estimada, created_at, campana_id, crm_campanas(id, nombre)")
       .eq("entidad_id", entidadId)
       .order("created_at", { ascending: false }),
     agencyDb
       .from("operativa_expedientes")
-      .select("id, numero, referencia, estado, fecha_inicio, fecha_fin, pvp_total, created_at, contabilidad_entidades(nombre), operativa_cotizaciones(id, titulo, estado, pvp_viajero, plazas, total_ingresos, fecha_salida, created_at)")
+      .select("id, numero, referencia, estado, fecha_inicio, fecha_fin, pvp_total, created_at, contabilidad_entidades(nombre), operativa_cotizaciones(id, titulo, estado, pvp_viajero, plazas, total_ingresos, fecha_salida, created_at, campana_id, crm_campanas(id, nombre))")
       .eq("entidad_id", entidadId)
       .order("created_at", { ascending: false }),
     agencyDb
       .from("operativa_cotizaciones")
-      .select("id, titulo, estado, pvp_viajero, plazas, total_ingresos, fecha_salida, created_at")
+      .select("id, titulo, estado, pvp_viajero, plazas, total_ingresos, fecha_salida, created_at, campana_id, crm_campanas(id, nombre)")
       .eq("contacto", entidadId)
       .order("created_at", { ascending: false }),
     agencyDb
       .from("operativa_propuestas")
-      .select("id, title, destination, created_at")
+      .select("id, title, destination, created_at, campana_id, crm_campanas(id, nombre)")
       .eq("contacto_id", entidadId)
       .order("created_at", { ascending: false }),
     agencyDb.from("operativa_viajeros_expedientes").select("expediente_id").eq("entidad_id", entidadId),
