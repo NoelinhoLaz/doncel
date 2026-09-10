@@ -141,6 +141,8 @@ export function PropuestaEditor({
     updateRealVariables();
   }, [contactoId, cotizacionId, propuestaId]);
 
+  const guardarRef = useRef<() => void>(() => {});
+
   const guardar = useCallback(async () => {
     setGuardando(true);
     setGuardadoOk(false);
@@ -256,6 +258,24 @@ export function PropuestaEditor({
       setGuardando(false);
     }
   }, [secciones, propuestaId, contactoId, campanaId, estilosGlobales, title, destination, fechaSalida, fechaRegreso]);
+
+  useEffect(() => {
+    guardarRef.current = guardar;
+  }, [guardar]);
+
+  // Autoguardado: guarda automáticamente al cambiar contenido o diseño, con debounce.
+  const autosaveInicializado = useRef(false);
+  useEffect(() => {
+    if (secciones.length === 0) return;
+    if (!autosaveInicializado.current) {
+      autosaveInicializado.current = true;
+      return;
+    }
+    const t = setTimeout(() => {
+      guardarRef.current();
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [secciones, estilosGlobales, title, destination, fechaSalida, fechaRegreso, contactoId, campanaId]);
 
   function guardarMeta(cambios: { title?: string; destination?: string | null; contacto_id?: string | null; fecha_salida?: string | null; fecha_regreso?: string | null }) {
     if (!propuestaId) return;
@@ -900,15 +920,17 @@ export function PropuestaEditor({
               <span>Previsualizar</span>
             </button>
             <div className={styles.deviceBarSep} />
-            <button
-              type="button"
-              className={`${styles.saveBtn} ${guardadoOk ? styles.saveBtnOk : ""}`}
-              onClick={guardar}
-              disabled={guardando || secciones.length === 0}
-              title="Guardar propuesta"
+            <div
+              className={styles.saveStatus}
+              title="Los cambios se guardan automáticamente"
+              aria-live="polite"
             >
-              {guardando ? <span className={styles.saveBtnSpinner} /> : guardadoOk ? <span>✓ Guardado</span> : <span>Guardar</span>}
-            </button>
+              {guardando
+                ? (<><span className={styles.saveBtnSpinner} /><span>Guardando…</span></>)
+                : guardadoOk
+                  ? (<span>✓ Guardado</span>)
+                  : (<span>Guardado automático</span>)}
+            </div>
           </div>
 
           <div className={styles.canvasWrapper}>

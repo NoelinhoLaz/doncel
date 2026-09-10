@@ -1182,10 +1182,24 @@
   display: inline-block;
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255,255,255,0.3);
-  border-top-color: #ffffff;
+  border: 2px solid rgba(30,41,59,0.25);
+  border-top-color: #1e293b;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
+}
+
+.saveStatus {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 34px;
+  padding: 0 0.75rem;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+  user-select: none;
 }
 
 /* ── Canvas wrapper — centra el canvas cuando es más estrecho ── */
